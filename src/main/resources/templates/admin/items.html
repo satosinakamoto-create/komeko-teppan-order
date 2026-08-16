@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!--/*
+   商品一覧。カテゴリごとにまとめて表示します。
+
+   使えるモデルの値：
+     ${categories}      … List<Category>（並び順どおり）
+     ${itemsByCategory} … Map<Long, List<MenuItem>>（カテゴリ id → 商品リスト）
+     ${optionCounts}    … Map<Long, Integer>（商品 id → オプショングループ数）
+     ${totalCount}      … 商品の総数
+
+   注意：MenuItem.optionGroups は遅延読み込み（LAZY）で、
+   このアプリは画面描画中に DB 接続を持たない設定（open-in-view: false）です。
+   そのためテンプレートから item.optionGroups をたどってはいけません。
+   数だけをコントローラで数えて ${optionCounts} に入れてもらっています。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('商品管理', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('items')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">商品</h1>
+    <span class="section-title__count" th:text="${totalCount} + ' 品'">12 品</span>
+  </div>
+
+  <div class="row row--wrap">
+    <a class="btn btn--primary" th:href="@{/admin/items/new}">商品を追加する</a>
+    <a class="btn" th:href="@{/admin/categories}">カテゴリを編集する</a>
+  </div>
+
+  <!--/* カテゴリが 1 つも無いと商品を登録できない（商品は所属カテゴリが必須） */-->
+  <div class="alert alert--warn mt-6" th:if="${categories.isEmpty()}" role="alert">
+    <p class="mb-0">
+      カテゴリがまだありません。商品はかならずどれかのカテゴリに属するので、
+      先に <a th:href="@{/admin/categories}">カテゴリ</a> を作ってください。
+    </p>
+  </div>
+
+  <!--/* ====== カテゴリごとの一覧 ====== */-->
+  <section th:each="c : ${categories}" th:with="list=${itemsByCategory.get(c.id)}">
+
+    <div class="section-title">
+      <h2 class="section-title__text" th:text="${c.name}">米粉ガレット</h2>
+      <span class="section-title__count" th:text="${list.size()} + ' 品'">4 品</span>
+      <span class="badge badge--soldout" th:unless="${c.visible}">カテゴリ非表示</span>
+    </div>
+
+    <p class="help" th:if="${list.isEmpty()}">このカテゴリにはまだ商品がありません。</p>
+
+    <ul class="stack" style="list-style:none;padding:0;margin:0">
+      <li class="card" th:each="item : ${list}">
+        <div class="card__body">
+          <div class="row row--wrap" style="align-items:flex-start">
+
+            <!--/* サムネイル。未登録なら焼き目模様のプレースホルダを出す */-->
+            <img class="menu-item__thumb" th:if="${item.imagePath != null}"
+                 th:src="${item.imagePath}" th:alt="${item.name}" loading="lazy">
+            <div class="menu-item__thumb menu-item__thumb--empty" th:if="${item.imagePath == null}"
+                 aria-hidden="true" th:text="${#strings.substring(item.name, 0, 1)}">米</div>
+
+            <div style="flex:1 1 260px">
+              <h3 class="menu-item__name mb-0" th:text="${item.name}">コンプレット</h3>
+
+              <div class="menu-item__price">
+                <span th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
+                <small>税込</small>
+              </div>
+
+              <!--/* 小麦不使用・おすすめ・売り切れ・アレルゲンのバッジ（共通部品） */-->
+              <div th:replace="~{fragments/common :: allergens(${item})}"></div>
+
+              <!--/* 「非表示」は共通部品に無いのでここで足す。
+                     品切れとの違いが分かるよう別のバッジにしています。 */-->
+              <div class="menu-item__badges" th:unless="${item.visible}">
+                <span class="badge badge--soldout">お客さんに非表示</span>
+              </div>
+
+              <p class="tiny faint mt-4 mb-0"
+                 th:text="'並び順 ' + ${item.sortOrder}
+                          + '　/　調理 ' + ${item.cookMinutes} + ' 分'
+                          + '　/　オプション ' + ${optionCounts.get(item.id)} + ' グループ'">
+                並び順 0 / 調理 8 分 / オプション 2 グループ
+              </p>
+            </div>
+
+            <!--/* 操作ボタン。フォームは入れ子にできないので 1 操作 1 フォームにする */-->
+            <div class="row row--wrap" style="flex:0 1 auto">
+              <a class="btn" th:href="@{/admin/items/{id}/edit(id=${item.id})}">編集</a>
+              <a class="btn" th:href="@{/admin/items/{id}/options(id=${item.id})}">オプション</a>
+
+              <form method="post" th:action="@{/admin/items/{id}/soldout(id=${item.id})}">
+                <button class="btn" type="submit"
+                        th:text="${item.soldOut} ? '販売を再開' : '品切れにする'">品切れにする</button>
+              </form>
+
+              <form method="post" th:action="@{/admin/items/{id}/delete(id=${item.id})}"
+                    onsubmit="return confirm('この商品を削除します。よろしいですか？（過去の伝票は残ります）')">
+                <button class="btn btn--danger" type="submit">削除</button>
+              </form>
+            </div>
+
+          </div>
+        </div>
+      </li>
+    </ul>
+
+  </section>
+
+  <p class="tiny faint mt-6 mb-0">
+    ※ 商品を削除しても、過去の注文明細には注文時の商品名と価格がコピーで保存されているため、売上や履歴は変わりません。
+  </p>
+
+</main>
+</body>
+</html>

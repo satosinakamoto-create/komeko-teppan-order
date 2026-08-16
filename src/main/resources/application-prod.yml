@@ -1,0 +1,43 @@
+#
+# ============================================================================
+#  prod プロファイル : 本番用
+# ============================================================================
+#  DB の接続情報は環境変数で渡す。ソースにパスワードを書かないこと。
+#    DB_URL=jdbc:postgresql://host:5432/komeko
+#    DB_USER=komeko
+#    DB_PASSWORD=********
+#
+#  ddl-auto は validate（テーブルを勝手に変更しない）。
+#  スキーマ変更は本来 Flyway / Liquibase といったマイグレーションツールで管理する。
+#  → docs/仕様.md「今後の課題」を参照。
+# ============================================================================
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  thymeleaf:
+    cache: true
+
+  h2:
+    console:
+      enabled: false
+
+  devtools:
+    restart:
+      enabled: false
+
+app:
+  base-url: ${APP_BASE_URL}
+  seed-on-startup: false
+
+logging:
+  level:
+    jp.komeko.order: INFO
+    org.hibernate.SQL: WARN

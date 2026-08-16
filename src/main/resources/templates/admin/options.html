@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<!--/*
+   商品オプション（トッピング・サイズなど）の編集画面。
+
+   使えるモデルの値：
+     ${item}                … MenuItem（optionGroups と choices まで読み込み済み）
+     ${groupForm}           … OptionGroupForm（グループ追加フォームの入れ物）
+     ${choiceForm}          … OptionChoiceForm（選択肢追加フォームの入れ物）
+     ${choiceErrorGroupId}  … 選択肢の追加でエラーが出たグループの id（無ければ null）
+     ${choiceErrors}        … 項目名 → メッセージ の Map
+
+   ${item} はコントローラが「選択肢まで読み終えた状態」で渡してくれています。
+   （このアプリは画面描画中に DB 接続を持たない設定のため、
+     テンプレートから未読込の関連をたどると例外になります）
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('オプション編集', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('items')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <p class="small"><a th:href="@{/admin/items}">← 商品一覧に戻る</a></p>
+
+  <div class="section-title">
+    <h1 class="section-title__text" th:text="${item.name}">コンプレット</h1>
+    <span class="section-title__count">のオプション</span>
+  </div>
+
+  <div class="row row--wrap">
+    <a class="btn" th:href="@{/admin/items/{id}/edit(id=${item.id})}">商品の内容を編集</a>
+  </div>
+
+  <!--/* ====== minSelect / maxSelect の意味の説明 ======
+         ここが分かりにくいところなので、画面上で丁寧に説明します。
+  */-->
+  <div class="alert alert--info mt-6" role="note">
+    <p class="mb-0"><strong>最小・最大の決め方</strong></p>
+    <ul>
+      <li>最小 <strong>1</strong>・最大 <strong>1</strong> … 必ず 1 つ選ぶ（例：サイズ）。ラジオボタンになります。</li>
+      <li>最小 <strong>0</strong>・最大 <strong>1</strong> … 選ばなくてもよい。選ぶなら 1 つだけ。</li>
+      <li>最小 <strong>0</strong>・最大 <strong>3</strong> … 0〜3 個まで自由に選べる（例：トッピング）。チェックボックスになります。</li>
+    </ul>
+    <p class="mb-0 tiny">最小が 1 以上のグループは「必須」になり、お客さんは選ばないと注文できません。</p>
+  </div>
+
+  <!--/* ====== 登録済みのグループ ====== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">登録済みのオプション</h2>
+    <span class="section-title__count" th:text="${item.optionGroups.size()} + ' グループ'">2 グループ</span>
+  </div>
+
+  <div th:if="${item.optionGroups.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('◯', 'オプションはまだありません。下のフォームから追加してください')}"></div>
+  </div>
+
+  <section class="card mt-4" th:each="g : ${item.optionGroups}"
+           th:with="cerrs=${(choiceErrorGroupId != null and choiceErrorGroupId == g.id) ? choiceErrors : null}">
+
+    <div class="card__head row row--between row--wrap">
+      <div>
+        <span th:text="${g.name}">サイズ</span>
+        <span class="badge badge--rec" th:if="${g.required}">必須</span>
+        <span class="badge badge--allergen" th:unless="${g.required}">任意</span>
+      </div>
+      <!--/* 削除は独立したフォーム。中の選択肢もまとめて消えます */-->
+      <form method="post" th:action="@{/admin/options/{groupId}/delete(groupId=${g.id})}"
+            onsubmit="return confirm('このオプションを選択肢ごと削除します。よろしいですか？')">
+        <button class="btn btn--danger" type="submit">グループを削除</button>
+      </form>
+    </div>
+
+    <div class="card__body">
+
+      <!--/* 数字だけだと意味が伝わらないので、日本語の説明を必ず添える */-->
+      <p class="help mt-0">
+        <span th:text="'最小 ' + ${g.minSelect} + ' ／ 最大 ' + ${g.maxSelect}">最小 1 ／ 最大 1</span>
+        →
+        <span th:if="${g.required}"
+              th:text="'かならず ' + ${g.minSelect} + ' つ以上、' + ${g.maxSelect} + ' つまで選びます（必須）'">必須</span>
+        <span th:unless="${g.required}"
+              th:text="'選ばなくてもよく、選ぶ場合は ' + ${g.maxSelect} + ' つまで選べます'">任意</span>
+        <span th:text="${g.singleChoice} ? '／ ラジオボタンで表示' : '／ チェックボックスで表示'">／ ラジオボタンで表示</span>
+        <span th:text="'／ 並び順 ' + ${g.sortOrder}">／ 並び順 0</span>
+      </p>
+
+      <!--/* 選択肢の一覧 */-->
+      <p class="help" th:if="${g.choices.isEmpty()}">
+        選択肢がまだありません。選択肢が 0 個のグループはお客さんの画面に何も出ません。
+      </p>
+
+      <ul class="stack-sm" style="list-style:none;padding:0;margin:0">
+        <li class="row row--between row--wrap" th:each="c : ${g.choices}"
+            style="border-bottom:1px solid var(--border);padding:8px 0">
+          <div>
+            <span th:text="${c.name}">大盛り</span>
+            <span class="badge badge--soldout" th:if="${c.soldOut}">品切れ</span>
+            <span class="badge badge--rec" th:if="${c.defaultSelected}">初期選択</span>
+          </div>
+          <div class="row">
+            <span class="num" th:if="${c.extraPrice > 0}"
+                  th:text="'+¥' + ${#numbers.formatInteger(c.extraPrice, 1, 'COMMA')}">+¥200</span>
+            <span class="num" th:if="${c.extraPrice < 0}"
+                  th:text="'−¥' + ${#numbers.formatInteger(-c.extraPrice, 1, 'COMMA')}">−¥50</span>
+            <span class="num faint" th:if="${c.extraPrice == 0}">±¥0</span>
+            <span class="tiny faint" th:text="'並び ' + ${c.sortOrder}">並び 0</span>
+            <form method="post" th:action="@{/admin/choices/{choiceId}/delete(choiceId=${c.id})}"
+                  onsubmit="return confirm('この選択肢を削除します。よろしいですか？')">
+              <button class="btn btn--danger" type="submit">削除</button>
+            </form>
+          </div>
+        </li>
+      </ul>
+
+      <!--/* 選択肢の追加フォーム。グループの数だけ同じ形のフォームが並びます。
+             1 リクエストで検証できるフォームは 1 つだけなので、
+             エラーが出たグループの分だけ ${cerrs} が入り、そこだけ赤くなります。 */-->
+      <form class="row row--wrap mt-4" style="align-items:flex-end"
+            method="post" th:action="@{/admin/options/{groupId}/choices(groupId=${g.id})}">
+
+        <div class="field" style="flex:2 1 180px;margin-bottom:0">
+          <label class="label" th:for="'choice-name-' + ${g.id}">選択肢名</label>
+          <input class="input" type="text" name="name" maxlength="40" placeholder="例：チーズ追加"
+                 th:id="'choice-name-' + ${g.id}"
+                 th:value="${cerrs != null ? choiceForm.name : ''}"
+                 th:classappend="${cerrs != null and cerrs.containsKey('name')} ? 'is-error'">
+          <p class="error" th:if="${cerrs != null and cerrs.containsKey('name')}"
+             th:text="${cerrs.get('name')}">エラー内容</p>
+        </div>
+
+        <div class="field" style="flex:0 1 130px;margin-bottom:0">
+          <label class="label" th:for="'choice-price-' + ${g.id}">追加料金（円）</label>
+          <input class="input" type="number" name="extraPrice" min="-10000" max="100000"
+                 inputmode="numeric"
+                 th:id="'choice-price-' + ${g.id}"
+                 th:value="${cerrs != null ? choiceForm.extraPrice : 0}"
+                 th:classappend="${cerrs != null and cerrs.containsKey('extraPrice')} ? 'is-error'">
+          <p class="error" th:if="${cerrs != null and cerrs.containsKey('extraPrice')}"
+             th:text="${cerrs.get('extraPrice')}">エラー内容</p>
+        </div>
+
+        <div class="field" style="flex:0 1 100px;margin-bottom:0">
+          <label class="label" th:for="'choice-sort-' + ${g.id}">並び順</label>
+          <input class="input" type="number" name="sortOrder" min="0" max="9999"
+                 inputmode="numeric"
+                 th:id="'choice-sort-' + ${g.id}"
+                 th:value="${cerrs != null ? choiceForm.sortOrder : 0}"
+                 th:classappend="${cerrs != null and cerrs.containsKey('sortOrder')} ? 'is-error'">
+          <p class="error" th:if="${cerrs != null and cerrs.containsKey('sortOrder')}"
+             th:text="${cerrs.get('sortOrder')}">エラー内容</p>
+        </div>
+
+        <label class="choice" style="flex:0 1 auto">
+          <input type="checkbox" name="defaultSelected" value="true"
+                 th:checked="${cerrs != null and choiceForm.defaultSelected}">
+          <span class="choice__name">初期選択</span>
+        </label>
+
+        <label class="choice" style="flex:0 1 auto">
+          <input type="checkbox" name="soldOut" value="true"
+                 th:checked="${cerrs != null and choiceForm.soldOut}">
+          <span class="choice__name">品切れ</span>
+        </label>
+
+        <button class="btn btn--primary" type="submit">選択肢を追加</button>
+      </form>
+
+      <p class="help mb-0">
+        追加料金は 0 円でも構いません（「ソースなし」など）。マイナスを入れると値引きになります。
+      </p>
+
+    </div>
+  </section>
+
+  <!--/* ====== グループの追加 ======
+         この画面に 1 つしかないフォームなので、
+         th:object / th:field / th:errors をそのまま使えます。
+  */-->
+  <div class="section-title">
+    <h2 class="section-title__text">オプションを追加</h2>
+  </div>
+
+  <form class="card" method="post" th:object="${groupForm}"
+        th:action="@{/admin/items/{id}/options(id=${item.id})}">
+    <div class="card__body">
+
+      <div class="field">
+        <label class="label" for="name">オプション名<span class="req">必須</span></label>
+        <input class="input" type="text" th:field="*{name}" maxlength="40"
+               placeholder="例：トッピング"
+               th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
+        <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
+      </div>
+
+      <div class="grid grid--3">
+        <div class="field">
+          <label class="label" for="minSelect">最小選択数<span class="req">必須</span></label>
+          <input class="input" type="number" th:field="*{minSelect}" min="0" max="20"
+                 inputmode="numeric"
+                 th:classappend="${#fields.hasErrors('minSelect')} ? 'is-error'">
+          <p class="help">1 以上にすると「必ず選ぶ」＝必須になります。</p>
+          <p class="error" th:if="${#fields.hasErrors('minSelect')}" th:errors="*{minSelect}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="maxSelect">最大選択数<span class="req">必須</span></label>
+          <input class="input" type="number" th:field="*{maxSelect}" min="1" max="20"
+                 inputmode="numeric"
+                 th:classappend="${#fields.hasErrors('maxSelect')} ? 'is-error'">
+          <p class="help">1 ならラジオボタン、2 以上ならチェックボックスで表示されます。</p>
+          <p class="error" th:if="${#fields.hasErrors('maxSelect')}" th:errors="*{maxSelect}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="sortOrder">並び順<span class="req">必須</span></label>
+          <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
+                 inputmode="numeric"
+                 th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
+          <p class="help">商品画面での表示順。小さいほど上に出ます。</p>
+          <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
+        </div>
+      </div>
+
+      <button class="btn btn--primary" type="submit">オプションを追加</button>
+    </div>
+  </form>
+
+</main>
+</body>
+</html>

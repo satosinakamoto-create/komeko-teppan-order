@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<!--/*
+   店舗設定。
+   ここに入っている値は「店長が営業中に変えたくなるもの」だけです。
+   DB 接続先のような環境ごとの設定は application.yml 側にあります。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('店舗設定', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('settings')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">店舗設定</h1>
+    <span class="section-title__count">お客さんの画面と待ち時間の計算に効きます</span>
+  </div>
+
+  <!--/* ==========================================================
+         受付の一時停止／再開
+         混雑時にワンタップで止めるための「非常ブレーキ」。
+         下の保存フォームとは別の form にする（HTML のフォームは入れ子にできない）。
+     ========================================================== */-->
+  <div class="card">
+    <div class="card__body row row--between row--wrap">
+      <div>
+        <p class="mb-0 bold"
+           th:text="${shop.acceptingOrders} ? '現在：注文を受け付けています' : '現在：注文の受付を停止しています'">
+          現在：注文を受け付けています
+        </p>
+        <p class="help mb-0">
+          停止すると、お客さんのカート画面の注文ボタンが押せなくなり、下の「受付停止中のメッセージ」が表示されます。
+          すでに受け付けた注文は消えません。
+        </p>
+      </div>
+      <form th:action="@{/admin/settings/toggle-accepting}" method="post">
+        <button type="submit" class="btn btn--lg"
+                th:classappend="${shop.acceptingOrders} ? 'btn--danger' : 'btn--ok'"
+                th:text="${shop.acceptingOrders} ? '受付を一時停止する' : '受付を再開する'">受付を一時停止する</button>
+      </form>
+    </div>
+  </div>
+
+  <!--/* ==========================================================
+         設定フォーム
+         th:object を書くと、中の th:field="*{項目名}" が
+         その項目の value / name / id をまとめて組み立ててくれる。
+         th:action="@{...}" にしておくと CSRF トークンも自動で入る。
+     ========================================================== */-->
+  <form th:action="@{/admin/settings}" th:object="${form}" method="post" class="mt-6">
+
+    <!--/* ===== 店舗の見せ方 ===== */-->
+    <div class="card">
+      <div class="card__head">店舗の見せ方</div>
+      <div class="card__body">
+
+        <div class="field">
+          <label class="label" for="shopName">店舗名<span class="req">必須</span></label>
+          <input class="input" type="text" id="shopName" th:field="*{shopName}"
+                 th:errorclass="is-error" maxlength="40" required>
+          <p class="error" th:if="${#fields.hasErrors('shopName')}" th:errors="*{shopName}">エラー</p>
+          <p class="help">画面の上部・ブラウザのタブ・注文控えに出る名前です。</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="tagline">キャッチコピー</label>
+          <input class="input" type="text" id="tagline" th:field="*{tagline}"
+                 th:errorclass="is-error" maxlength="60">
+          <p class="error" th:if="${#fields.hasErrors('tagline')}" th:errors="*{tagline}">エラー</p>
+          <p class="help">お客さんのメニュー画面で、店舗名の下に小さく出る一言です。</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="pickupNotice">受け取り案内</label>
+          <textarea class="textarea" id="pickupNotice" th:field="*{pickupNotice}"
+                    th:errorclass="is-error" maxlength="200"></textarea>
+          <p class="error" th:if="${#fields.hasErrors('pickupNotice')}" th:errors="*{pickupNotice}">エラー</p>
+          <p class="help">注文完了後、お客さんの控え画面に出る案内文です。会計方法や受け取り場所を書いておくと問い合わせが減ります。</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!--/* ===== 受付 ===== */-->
+    <div class="card mt-6">
+      <div class="card__head">注文の受付</div>
+      <div class="card__body">
+
+        <!--/*
+          この項目を画面から外してはいけません。
+          保存処理は「フォームから受け取った値」をそのまま設定に写すため、
+          入力欄が無いと初期値 true が書き込まれ、停止したはずの受付が
+          保存のたびに勝手に再開されてしまいます。
+        */-->
+        <div class="field">
+          <label class="choice" for="acceptingOrders">
+            <input type="checkbox" id="acceptingOrders" th:field="*{acceptingOrders}">
+            <span class="choice__name">注文を受け付ける</span>
+          </label>
+          <p class="help">上の赤いボタンと同じ意味です。ここでの変更は「保存」を押すまで反映されません。</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="closedMessage">受付停止中のメッセージ</label>
+          <input class="input" type="text" id="closedMessage" th:field="*{closedMessage}"
+                 th:errorclass="is-error" maxlength="100">
+          <p class="error" th:if="${#fields.hasErrors('closedMessage')}" th:errors="*{closedMessage}">エラー</p>
+          <p class="help">受付を止めているあいだ、お客さんの画面に出る文章です。理由と再開の見込みを書くと親切です。</p>
+        </div>
+
+        <div class="grid grid--3">
+          <div class="field">
+            <label class="label" for="openTime">開店時刻<span class="req">必須</span></label>
+            <input class="input" type="time" id="openTime" th:field="*{openTime}"
+                   th:errorclass="is-error" required>
+            <p class="error" th:if="${#fields.hasErrors('openTime')}" th:errors="*{openTime}">エラー</p>
+            <p class="help">この時刻より前は注文を受け付けません。</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="lastOrderTime">ラストオーダー<span class="req">必須</span></label>
+            <input class="input" type="time" id="lastOrderTime" th:field="*{lastOrderTime}"
+                   th:errorclass="is-error" required>
+            <p class="error" th:if="${#fields.hasErrors('lastOrderTime')}" th:errors="*{lastOrderTime}">エラー</p>
+            <p class="help">これを過ぎると、ボタンを押さなくても自動で受付が終了します。</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="closeTime">閉店時刻<span class="req">必須</span></label>
+            <input class="input" type="time" id="closeTime" th:field="*{closeTime}"
+                   th:errorclass="is-error" required>
+            <p class="error" th:if="${#fields.hasErrors('closeTime')}" th:errors="*{closeTime}">エラー</p>
+            <p class="help">案内表示に使います。売上画面の時間帯グラフの範囲もこれを基準にします。</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!--/* ===== 会計・番号 ===== */-->
+    <div class="card mt-6">
+      <div class="card__head">会計と注文番号</div>
+      <div class="card__body">
+        <div class="grid grid--2">
+
+          <div class="field">
+            <label class="label" for="taxRatePercent">消費税率（%）</label>
+            <input class="input" type="number" id="taxRatePercent" th:field="*{taxRatePercent}"
+                   th:errorclass="is-error" min="0" max="100" step="1" inputmode="numeric">
+            <p class="error" th:if="${#fields.hasErrors('taxRatePercent')}" th:errors="*{taxRatePercent}">エラー</p>
+            <p class="help">
+              テイクアウトは軽減税率の <strong>8</strong> です。
+              商品の価格はすべて税込で登録されており、この率で内税額を逆算してレシート表示に使います。
+              変更しても、すでに受け付けた注文の税額は当時のまま残ります。
+            </p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="orderNumberStart">注文番号の開始</label>
+            <input class="input" type="number" id="orderNumberStart" th:field="*{orderNumberStart}"
+                   th:errorclass="is-error" min="1" step="1" inputmode="numeric">
+            <p class="error" th:if="${#fields.hasErrors('orderNumberStart')}" th:errors="*{orderNumberStart}">エラー</p>
+            <p class="help">
+              営業日ごとに、その日の 1 件目に振る番号です。101 にすると 3 桁で揃い、
+              呼び出しのときに聞き取りやすくなります（「いちまるいちばんのお客様」）。
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!--/* ===== 運用のしくみ（ここは丁寧に） ===== */-->
+    <div class="card mt-6">
+      <div class="card__head">お店の回し方に関わる設定</div>
+      <div class="card__body">
+        <div class="grid grid--2">
+
+          <div class="field">
+            <label class="label" for="businessDayCutoverHour">営業日の切り替え時刻（時）</label>
+            <input class="input" type="number" id="businessDayCutoverHour" th:field="*{businessDayCutoverHour}"
+                   th:errorclass="is-error" min="0" max="23" step="1" inputmode="numeric">
+            <p class="error" th:if="${#fields.hasErrors('businessDayCutoverHour')}"
+               th:errors="*{businessDayCutoverHour}">エラー</p>
+            <p class="help">
+              <strong>「何時をもって翌日の売上とみなすか」</strong>の設定です。<br>
+              深夜まで営業していると、日付が変わった瞬間に売上が翌日へ移ってしまい、
+              一晩の売上が 2 日に割れてしまいます。ここに <strong>5</strong> と入れておくと、
+              深夜 0 時〜4 時 59 分の注文は「前日の営業日」として集計され、
+              注文番号も前日からの続き番号になります。<br>
+              夜まで営業しないお店なら 0〜5 のどれでも実害はありません。
+              迷ったら 5 のままにしてください。<br>
+              <strong>営業中に変更しないでください。</strong>その瞬間から採番と集計の基準日が変わり、
+              同じ番号のお客さんが 2 組できてしまう可能性があります。
+            </p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="griddleCapacity">鉄板で同時に焼ける数</label>
+            <input class="input" type="number" id="griddleCapacity" th:field="*{griddleCapacity}"
+                   th:errorclass="is-error" min="1" step="1" inputmode="numeric">
+            <p class="error" th:if="${#fields.hasErrors('griddleCapacity')}"
+               th:errors="*{griddleCapacity}">エラー</p>
+            <p class="help">
+              <strong>待ち時間の目安を計算するための数字</strong>です。<br>
+              待ち時間は、ざっくり
+              「自分より前に並んでいる注文の調理時間の合計 ÷ この数 ＋ 自分の調理時間 ÷ この数 − すでに経った時間」
+              で出しています。つまりこの数を大きくすると「待ち時間は短い」と表示され、
+              小さくすると長めに表示されます。<br>
+              鉄板が広い・2 台ある・人手が多いといった理由で同時に何品も焼けるなら大きく、
+              1 品ずつしか焼けないなら 1 にします。<br>
+              判断に迷ったら<strong>少なめ</strong>にしてください。
+              実際より長めの待ち時間を伝えて早く出すほうが、お客さんの満足度は上がります。
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-6">
+      <button type="submit" class="btn btn--primary btn--lg">保存する</button>
+      <a class="btn btn--ghost" th:href="@{/admin/settings}">変更を破棄する</a>
+    </div>
+
+  </form>
+
+</main>
+</body>
+</html>

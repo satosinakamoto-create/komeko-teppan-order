@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout(${item.name}, ~{::main})}">
+<body>
+<main>
+  <div class="container">
+
+    <p class="small"><a th:href="@{/}">← メニューに戻る</a></p>
+
+    <div th:replace="~{fragments/common :: flash}"></div>
+
+    <article class="card mt-4">
+      <img th:if="${item.imagePath != null}" th:src="${item.imagePath}" th:alt="${item.name}"
+           style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px 12px 0 0">
+
+      <div class="card__body">
+        <h1 class="mb-0" th:text="${item.name}">コンプレット</h1>
+        <div th:replace="~{fragments/common :: allergens(${item})}"></div>
+
+        <p class="lead mt-4" th:if="${item.description}" th:text="${item.description}">説明文</p>
+
+        <p class="menu-item__price" style="font-size:1.5rem">
+          <span th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
+          <small>税込</small>
+        </p>
+
+        <p class="tiny faint mb-0" th:if="${item.cookMinutes > 0}"
+           th:text="'焼き上がりの目安：約 ' + ${item.cookMinutes} + ' 分'">焼き上がりの目安：約 8 分</p>
+      </div>
+    </article>
+
+    <!--/* ===== 売り切れ・受付停止のときは注文フォームを出さない ===== */-->
+    <div class="alert alert--warn mt-6" th:if="${item.soldOut}" role="alert">
+      <p class="mb-0">申し訳ありません。こちらの商品は売り切れました。</p>
+    </div>
+    <div class="alert alert--warn mt-6" th:if="${!item.soldOut and !accepting}" role="alert">
+      <p class="mb-0">ただいまご注文を受け付けておりません。</p>
+    </div>
+
+    <!--/* ===== 注文フォーム ===== */-->
+    <form th:if="${!item.soldOut and accepting}"
+          th:action="@{/cart/add}" method="post"
+          id="add-form" class="mt-6"
+          th:attr="data-base-price=${item.price}">
+
+      <input type="hidden" name="menuItemId" th:value="${item.id}">
+
+      <section th:each="g : ${item.optionGroups}" class="mt-6">
+        <div class="section-title" style="margin-block:0 12px">
+          <h2 class="section-title__text" style="font-size:1.0625rem" th:text="${g.name}">サイズ</h2>
+          <span class="badge badge--rec" th:if="${g.required}">必須</span>
+          <span class="section-title__count" th:unless="${g.required}"
+                th:text="'任意・' + ${g.maxSelect} + 'つまで'">任意</span>
+        </div>
+
+        <!--/* 1つだけ選ぶ場合はラジオ、複数選べる場合はチェックボックス */-->
+        <label class="choice" th:each="c : ${g.choices}"
+               th:classappend="${c.soldOut} ? 'is-soldout'">
+
+          <input th:if="${g.singleChoice}" type="radio"
+                 th:name="'single_' + ${g.id}"
+                 th:value="${c.id}"
+                 th:checked="${c.defaultSelected}"
+                 th:disabled="${c.soldOut}"
+                 th:required="${g.required}"
+                 th:attr="data-price=${c.extraPrice}">
+
+          <input th:unless="${g.singleChoice}" type="checkbox"
+                 name="choiceIds"
+                 th:value="${c.id}"
+                 th:checked="${c.defaultSelected}"
+                 th:disabled="${c.soldOut}"
+                 th:attr="data-price=${c.extraPrice}, data-group=${g.id}, data-max=${g.maxSelect}">
+
+          <span class="choice__name" th:text="${c.name}">レギュラー</span>
+          <span class="choice__price" th:if="${c.extraPrice > 0}"
+                th:text="'+¥' + ${#numbers.formatInteger(c.extraPrice, 1, 'COMMA')}">+¥200</span>
+          <span class="choice__price" th:if="${c.extraPrice < 0}"
+                th:text="'−¥' + ${#numbers.formatInteger(-c.extraPrice, 1, 'COMMA')}">−¥50</span>
+          <span class="badge badge--soldout" th:if="${c.soldOut}">品切れ</span>
+        </label>
+      </section>
+
+      <!--/* ===== 個数 ===== */-->
+      <div class="row row--between mt-6">
+        <span class="label mb-0" style="margin:0">個数</span>
+        <div class="qty">
+          <button type="button" class="qty__btn" data-qty-step="-1" aria-label="1つ減らす">−</button>
+          <input class="qty__value" type="number" name="quantity" id="quantity"
+                 value="1" min="1" max="20" inputmode="numeric" aria-label="個数">
+          <button type="button" class="qty__btn" data-qty-step="1" aria-label="1つ増やす">＋</button>
+        </div>
+      </div>
+
+      <div class="cart-bar mt-6">
+        <div class="cart-bar__inner">
+          <button type="submit" class="btn btn--primary btn--lg btn--block">
+            カートに入れる
+            <span id="add-total"
+                  th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
+          </button>
+        </div>
+      </div>
+    </form>
+
+  </div>
+
+  <script th:src="@{/js/customer.js}" defer></script>
+</main>
+</body>
+</html>

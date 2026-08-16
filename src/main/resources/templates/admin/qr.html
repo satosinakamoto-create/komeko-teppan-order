@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<!--/*
+   店頭に貼る QR コードの確認・ダウンロード・印刷。
+   QR に入っているのは注文ページの URL そのものなので、
+   飛び先が正しいかを必ずこの画面で目視確認してから印刷してください。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('QRコード', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('qr')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">QRコード</h1>
+    <span class="section-title__count">お客さんはこれを読み取って注文します</span>
+  </div>
+
+  <div class="grid grid--2">
+
+    <!--/* ===== プレビュー（印刷用ポップと同じ見た目） ===== */-->
+    <div class="print-sheet">
+      <p class="print-sheet__title" th:text="${shop.shopName}">米粉と鉄板</p>
+      <p class="mb-0" th:text="${shop.tagline}">グルテンフリーの焼きたてを、鉄板から。</p>
+
+      <img class="print-sheet__qr"
+           th:src="@{/admin/qr/image(src=${src},size=${size})}"
+           alt="注文ページのQRコード">
+
+      <p class="mb-0 bold">スマートフォンで読み取ってご注文ください</p>
+      <p class="print-sheet__url" th:text="${qrUrl}">http://localhost:8080/</p>
+    </div>
+
+    <!--/* ===== 操作 ===== */-->
+    <div>
+
+      <div class="card">
+        <div class="card__head">QR の飛び先 URL</div>
+        <div class="card__body">
+          <p class="print-sheet__url" th:text="${qrUrl}">http://localhost:8080/</p>
+
+          <p class="help">
+            この URL は <code>application.yml</code> の <code>app.base-url</code> から組み立てられます。
+          </p>
+
+          <div class="alert alert--warn">
+            <p class="mb-0">
+              <strong>店内 Wi-Fi で使うときは設定変更が必要です。</strong>
+            </p>
+          </div>
+
+          <p class="help">
+            初期値の <code>http://localhost:8080</code> は「その PC 自身」を指す特別な名前なので、
+            この QR をお客さんのスマホで読み取ってもお客さんのスマホ自身を見に行ってしまい、何も表示されません。<br>
+            店内 Wi-Fi で運用するときは、アプリを動かしている PC の LAN 内 IP アドレスに書き換えてください。<br>
+            <code>app.base-url: http://192.168.0.10:8080</code> のように書き、<strong>アプリを再起動</strong>してから
+            この画面をもう一度開くと、新しい URL の QR が出ます。<br>
+            IP アドレスは Windows なら <code>ipconfig</code> の「IPv4 アドレス」で確認できます。
+            なお LAN 内 IP は PC を再起動すると変わることがあるので、
+            ルーター側で固定するか、印刷し直す前に必ずこの画面で URL を確認してください。
+          </p>
+        </div>
+      </div>
+
+      <!--/* ===== 生成条件 ===== */-->
+      <div class="card mt-6">
+        <div class="card__head">QR を作り直す</div>
+        <div class="card__body">
+
+          <form th:action="@{/admin/qr}" method="get">
+            <div class="field">
+              <label class="label" for="src">貼る場所の目印（任意）</label>
+              <input class="input" type="text" id="src" name="src" th:value="${src}"
+                     maxlength="30" placeholder="例）counter">
+              <p class="help">
+                入力すると URL の末尾に <code>?src=counter</code> のように付きます。
+                「カウンターの POP」「持ち帰り袋」などで別々の QR を作っておくと、
+                どこ経由の注文が多いかをあとから調べられます。空欄でも問題ありません。
+              </p>
+            </div>
+
+            <div class="field">
+              <label class="label" for="size">画像の大きさ</label>
+              <select class="select" id="size" name="size">
+                <option value="256" th:selected="${size == 256}">256px（小・卓上カード向け）</option>
+                <option value="512" th:selected="${size == 512}">512px（標準）</option>
+                <option value="768" th:selected="${size == 768}">768px（大）</option>
+                <option value="1024" th:selected="${size == 1024}">1024px（A4 ポスター向け）</option>
+              </select>
+              <p class="help">印刷して使うなら大きめを選んでください。画面表示だけなら 512px で十分です。</p>
+            </div>
+
+            <button type="submit" class="btn">この条件で表示する</button>
+          </form>
+
+        </div>
+      </div>
+
+      <div class="row row--wrap mt-6">
+        <a class="btn btn--primary btn--lg"
+           th:href="@{/admin/qr/print(src=${src},size=${size})}"
+           target="_blank" rel="noopener">印刷用ポップを開く</a>
+        <a class="btn"
+           th:href="@{/admin/qr/image(src=${src},size=1024)}"
+           download="komeko-order-qr.png">PNG をダウンロード</a>
+      </div>
+
+      <p class="help">
+        「印刷用ポップ」は A4 に貼れる大きさのチラシです。新しいタブで開くので、
+        そのままブラウザの印刷（Ctrl+P）を実行してください。画面用のボタン類は印刷されません。
+      </p>
+
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout('カート', ~{::main})}">
+<body>
+<main>
+  <div class="container">
+
+    <p class="small"><a th:href="@{/}">← メニューに戻る</a></p>
+
+    <div th:replace="~{fragments/common :: flash}"></div>
+
+    <div class="section-title">
+      <h1 class="section-title__text">ご注文内容</h1>
+      <span class="section-title__count" th:text="${cart.totalQuantity} + ' 点'">3 点</span>
+    </div>
+
+    <!--/* ===== カートが空 ===== */-->
+    <div th:if="${cart.empty}">
+      <div th:replace="~{fragments/common :: empty('空', 'カートに商品がありません')}"></div>
+      <a class="btn btn--primary btn--block" th:href="@{/}">メニューを見る</a>
+    </div>
+
+    <!--/* ===== 明細 ===== */-->
+    <div th:unless="${cart.empty}">
+      <div class="card">
+        <div class="card__body">
+          <div class="cart-line" th:each="line : ${cart.lines}">
+            <div>
+              <div class="cart-line__name" th:text="${line.menuItemName}">コンプレット</div>
+              <div class="cart-line__opts" th:if="${!line.options.isEmpty()}"
+                   th:text="${line.optionSummary}">チーズ増量 / 目玉焼き追加</div>
+              <div class="tiny faint"
+                   th:text="'単価 ¥' + ${#numbers.formatInteger(line.unitPrice, 1, 'COMMA')}">単価 ¥880</div>
+            </div>
+
+            <div class="cart-line__price"
+                 th:text="'¥' + ${#numbers.formatInteger(line.subtotal, 1, 'COMMA')}">¥1,760</div>
+
+            <!--/* 個数変更と削除。フォームは入れ子にできないので、行ごとに独立させる */-->
+            <div class="row" style="grid-column:1 / -1">
+              <form th:action="@{/cart/update}" method="post" class="row" style="gap:6px">
+                <input type="hidden" name="key" th:value="${line.key}">
+                <input type="hidden" name="quantity" th:value="${line.quantity - 1}">
+                <button class="btn btn--sm" type="submit" aria-label="1つ減らす">−</button>
+              </form>
+
+              <span class="bold num" style="min-width:2.5em;text-align:center"
+                    th:text="${line.quantity}">2</span>
+
+              <form th:action="@{/cart/update}" method="post" class="row" style="gap:6px">
+                <input type="hidden" name="key" th:value="${line.key}">
+                <input type="hidden" name="quantity" th:value="${line.quantity + 1}">
+                <button class="btn btn--sm" type="submit" aria-label="1つ増やす">＋</button>
+              </form>
+
+              <span class="spacer"></span>
+
+              <form th:action="@{/cart/remove}" method="post">
+                <input type="hidden" name="key" th:value="${line.key}">
+                <button class="btn btn--sm btn--ghost" type="submit">削除</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="card__foot">
+          <table class="total-table">
+            <tbody>
+            <tr>
+              <td class="muted">小計（税抜相当）</td>
+              <td th:text="'¥' + ${#numbers.formatInteger(cart.totalAmount - taxAmount, 1, 'COMMA')}">¥2,352</td>
+            </tr>
+            <tr>
+              <td class="muted" th:text="'消費税（' + ${shop.taxRatePercent} + '%・テイクアウト）'">消費税（8%）</td>
+              <td th:text="'¥' + ${#numbers.formatInteger(taxAmount, 1, 'COMMA')}">¥188</td>
+            </tr>
+            <tr class="is-grand">
+              <td>合計</td>
+              <td th:text="'¥' + ${#numbers.formatInteger(cart.totalAmount, 1, 'COMMA')}">¥2,540</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!--/* ===== 受付停止中のお知らせ ===== */-->
+      <div class="alert alert--warn mt-6" th:unless="${accepting}" role="alert">
+        <p class="mb-0" th:text="${rejectReason}">ただいま受付を停止しております</p>
+      </div>
+
+      <!--/* ===== 注文フォーム ===== */-->
+      <form th:action="@{/checkout}" method="post" class="mt-6">
+        <div class="field">
+          <label class="label" for="customerName">お呼び出し名（任意）</label>
+          <input class="input" type="text" id="customerName" name="customerName"
+                 maxlength="20" placeholder="例）やまだ" th:value="${cart.customerName}">
+          <p class="help">番号と一緒にお呼びします。空欄でも番号でお呼びできます。</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="note">ご要望（任意）</label>
+          <textarea class="textarea" id="note" name="note" maxlength="200"
+                    placeholder="例）ソース少なめでお願いします" th:text="${cart.note}"></textarea>
+          <p class="help">アレルギー等の重要なご相談は、お手数ですが店頭スタッフへ直接お伝えください。</p>
+        </div>
+
+        <div class="alert alert--info">
+          <p class="mb-0">お会計は、商品のお受け取り時に店頭でお願いします。</p>
+        </div>
+
+        <div class="cart-bar mt-6">
+          <div class="cart-bar__inner">
+            <div class="cart-bar__summary">
+              <div class="cart-bar__count" th:text="${cart.totalQuantity} + ' 点'">3 点</div>
+              <div class="cart-bar__total"
+                   th:text="'¥' + ${#numbers.formatInteger(cart.totalAmount, 1, 'COMMA')}">¥2,540</div>
+            </div>
+            <button type="submit" class="btn btn--primary btn--lg spacer"
+                    th:disabled="${!accepting}">この内容で注文する</button>
+          </div>
+        </div>
+      </form>
+
+      <p class="center mt-6">
+        <a class="small muted" href="#" onclick="document.getElementById('clear-cart').submit();return false;">
+          カートを空にする
+        </a>
+      </p>
+      <form id="clear-cart" th:action="@{/cart/clear}" method="post" hidden></form>
+    </div>
+
+  </div>
+</main>
+</body>
+</html>

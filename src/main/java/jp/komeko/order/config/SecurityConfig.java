@@ -1,0 +1,137 @@
+package jp.komeko.order.config;
+
+import jp.komeko.order.security.StaffUserDetailsService;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
+import org.springframework.security.web.SecurityFilterChain;
+
+/**
+ * ログインとアクセス制御の設定。
+ *
+ * <p><b>このアプリの「誰が何を見られるか」</b>
+ * <table border="1">
+ *   <tr><th>URL</th><th>誰が見られるか</th></tr>
+ *   <tr><td>/ , /items/** , /cart/** , /o/**</td><td>誰でも（お客さん）</td></tr>
+ *   <tr><td>/display</td><td>誰でも（店内サイネージ）</td></tr>
+ *   <tr><td>/kitchen/**</td><td>STAFF 以上</td></tr>
+ *   <tr><td>/admin/**</td><td>ADMIN のみ</td></tr>
+ * </table>
+ *
+ * <p><b>CSRF について</b><br>
+ * Spring Security は既定で CSRF 対策が有効です。
+ * Thymeleaf の {@code <form th:action=...>} を使えば
+ * 隠しトークンが自動で埋め込まれるので、特別な作業は要りません。
+ * 逆に、フォームを素の {@code <form action=...>} で書くと 403 になります。
+ * 「POST したら 403」で悩んだらここを疑ってください。
+ */
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity  // サービスのメソッドに @PreAuthorize を書けるようにする
+public class SecurityConfig {
+
+    private final Environment environment;
+
+    public SecurityConfig(Environment environment) {
+        this.environment = environment;
+    }
+
+    /**
+     * パスワードのハッシュ化方式。
+     *
+     * <p>BCrypt は「ソルト（毎回違う値）を混ぜてハッシュ化する」ため、
+     * 同じパスワードでも保存されるハッシュは毎回変わります。
+     * また計算にわざと時間をかける設計で、総当たり攻撃に強くなっています。
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider(StaffUserDetailsService userDetailsService,
+                                                            PasswordEncoder passwordEncoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder);
+        // ユーザーが存在しない場合もパスワード照合を実行して、応答時間から
+        // ユーザーの存在有無が推測されないようにする
+        provider.setHideUserNotFoundExceptions(true);
+        return provider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        boolean devMode = environment.matchesProfiles("dev");
+
+        http
+            .authorizeHttpRequests(auth -> {
+                auth
+                    // ── 静的ファイル・エラーページ ──
+                    .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico",
+                            "/uploads/**", "/error").permitAll()
+
+                    // ── お客さん向け（ログイン不要） ──
+                    .requestMatchers("/", "/menu", "/items/**", "/cart/**",
+                            "/checkout", "/o/**", "/api/public/**").permitAll()
+
+                    // ── 店内サイネージ（大画面に出しっぱなしにするのでログイン不要） ──
+                    .requestMatchers("/display", "/api/stream/display").permitAll()
+
+                    // ── ログイン画面 ──
+                    .requestMatchers("/login").permitAll();
+
+                if (devMode) {
+                    // H2 コンソールは dev プロファイルのときだけ開放する。
+                    // PathRequest.toH2Console() は application.yml で設定した
+                    // コンソールのパスを自動で拾ってくれる（パスを二重管理しなくて済む）。
+                    auth.requestMatchers(PathRequest.toH2Console()).permitAll();
+                }
+
+                auth
+                    // ── 管理画面は ADMIN のみ ──
+                    .requestMatchers("/admin/**").hasRole("ADMIN")
+                    // ── 厨房はスタッフ以上 ──
+                    .requestMatchers("/kitchen/**", "/api/kitchen/**", "/api/stream/kitchen")
+                        .hasAnyRole("STAFF", "ADMIN")
+                    // ── 上記以外はすべて要ログイン ──
+                    .anyRequest().authenticated();
+            })
+            .formLogin(form -> form
+                    .loginPage("/login")
+                    .loginProcessingUrl("/login")
+                    .defaultSuccessUrl("/kitchen", true)
+                    .failureUrl("/login?error")
+                    .permitAll())
+            .logout(logout -> logout
+                    .logoutUrl("/logout")
+                    .logoutSuccessUrl("/login?logout")
+                    .permitAll())
+            .sessionManagement(session -> session
+                    .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
+
+        if (devMode) {
+            // H2 コンソールは自前のフォームを持っていて CSRF トークンを送れないので除外し、
+            // frame 内表示も許可する。dev 限定なので本番の安全性には影響しない。
+            http.csrf(csrf -> csrf.ignoringRequestMatchers(PathRequest.toH2Console()));
+            http.headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
+        }
+
+        return http.build();
+    }
+}

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<!--/*
+   店側（厨房・管理）画面の共通レイアウト。
+   お客さん向けと違い、横幅を広く取り、ナビゲーションを常に出します。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:fragment="layout(pageTitle, content)">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14110f">
+  <meta name="robots" content="noindex">
+  <title th:text="${pageTitle} + ' | ' + ${shop.shopName} + ' 店舗管理'">店舗管理</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="page">
+
+  <header class="app-header">
+    <div class="container container--wide app-header__inner">
+      <div>
+        <a class="app-header__title" th:href="@{/kitchen}" th:text="${shop.shopName}">米粉と鉄板</a>
+        <p class="app-header__sub">店舗管理</p>
+      </div>
+      <nav class="app-header__nav">
+        <a th:href="@{/kitchen}" th:classappend="${activeNav == 'kitchen'} ? 'is-active'">厨房</a>
+        <a th:href="@{/kitchen/stock}" th:classappend="${activeNav == 'stock'} ? 'is-active'">品切れ</a>
+        <a th:href="@{/display}" target="_blank" rel="noopener">呼出画面</a>
+        <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin}"
+           th:classappend="${activeNav != null and #strings.startsWith(activeNav, 'admin')} ? 'is-active'">管理</a>
+        <form th:action="@{/logout}" method="post" style="display:inline">
+          <button type="submit" class="btn btn--ghost btn--sm">ログアウト</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page__body">
+    <div class="container container--wide">
+      <div th:replace="${content}">ページ本文</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

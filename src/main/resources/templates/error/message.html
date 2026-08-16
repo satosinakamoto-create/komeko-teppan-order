@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/plain :: layout(${title}, ~{::main})}">
+<body>
+<main class="page">
+  <div class="container page__body" style="display:grid;place-content:center;text-align:center">
+    <div class="empty-state__mark">…</div>
+    <h1 th:text="${title}">エラー</h1>
+    <p class="lead" th:text="${message}">詳細</p>
+    <p class="small muted" th:if="${hint}" th:text="${hint}">ヒント</p>
+    <p class="mt-6"><a class="btn btn--primary" th:href="@{/}">メニューに戻る</a></p>
+  </div>
+</main>
+</body>
+</html>

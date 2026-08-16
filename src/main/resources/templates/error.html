@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<!--/*
+   Spring Boot が既定で使うエラーページ。
+   コントローラで捕まえきれなかった例外や、存在しない URL のときに表示されます。
+   内部のスタックトレースは絶対に出しません（攻撃のヒントになるため）。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>エラー | 米粉と鉄板</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="page">
+  <div class="container page__body" style="display:grid;place-content:center;text-align:center">
+    <div class="empty-state__mark">…</div>
+    <h1 th:text="${status} + ' ' + (${error} ?: '')">404</h1>
+    <p class="lead">申し訳ありません。ページを表示できませんでした。</p>
+    <p class="small muted">URL が古いか、一時的な不具合の可能性があります。</p>
+    <p class="mt-6"><a class="btn btn--primary" th:href="@{/}">メニューに戻る</a></p>
+  </div>
+</div>
+</body>
+</html>

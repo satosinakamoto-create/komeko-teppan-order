@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<!--/*
+   売上。
+   集計に入るのは「受渡済」の注文だけです。
+   調理中・キャンセルは金額に含まれません（会計の決めごと）。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('売上', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('sales')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">売上</h1>
+    <span class="section-title__count" th:text="${dateLabel}">2026年8月16日(日)</span>
+  </div>
+
+  <!--/* ===== 日付の切り替え =====
+         GET のフォームなので CSRF トークンは不要ですが、
+         URL の組み立てを Thymeleaf に任せるため th:action を使います。
+  */-->
+  <form th:action="@{/admin/sales}" method="get" class="row row--wrap">
+    <a class="btn btn--sm" th:href="@{/admin/sales(date=${prevDateIso})}">← 前日</a>
+    <input class="input" type="date" name="date" th:value="${dateIso}" style="max-width:12rem">
+    <button type="submit" class="btn btn--sm">この日を表示</button>
+    <a class="btn btn--sm" th:href="@{/admin/sales(date=${nextDateIso})}">翌日 →</a>
+    <span class="spacer"></span>
+    <a class="btn btn--sm btn--ghost" th:href="@{/admin/orders(date=${dateIso})}">この日の注文履歴</a>
+  </form>
+
+  <p class="help">
+    ここでいう日付は「営業日」です。深夜の注文は、店舗設定の「営業日の切り替え時刻」に従って
+    前日ぶんとして集計されます。
+  </p>
+
+  <!--/* ===== 数値カード ===== */-->
+  <div class="grid grid--4 mt-6">
+
+    <div class="stat">
+      <p class="stat__label">受渡済の件数</p>
+      <p class="stat__value">
+        <span th:text="${#numbers.formatInteger(summary.orders(), 1, 'COMMA')}">12</span><span class="stat__unit">件</span>
+      </p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">売上（税込）</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(summary.total(), 1, 'COMMA')}">28,400</span>
+      </p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">うち消費税（内税）</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(summary.tax(), 1, 'COMMA')}">2,103</span>
+      </p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">客単価</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(summary.averagePerOrder(), 1, 'COMMA')}">2,366</span>
+      </p>
+    </div>
+
+  </div>
+
+  <p class="help">
+    税抜相当は
+    <strong th:text="'¥' + ${#numbers.formatInteger(summary.net(), 1, 'COMMA')}">¥26,297</strong>
+    です。商品の価格はすべて税込で登録されているため、消費税は合計から逆算した「内税」になります。
+  </p>
+
+  <!--/* ===== 直近の推移 ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">売上の推移</h2>
+    <span class="section-title__count" th:text="'直近 ' + ${recentDays} + ' 日（本日まで）'">直近 7 日（本日まで）</span>
+  </div>
+
+  <div class="card">
+    <div class="card__body">
+      <div class="bars">
+        <!--/*
+          棒の高さは Java 側で「その期間の最大値に対する割合」として計算済みです。
+          テンプレートで割り算をすると、売上ゼロの日ばかりのときに 0 で割ってしまい
+          画面ごとエラーになります。計算は Java 側にまとめるのが安全です。
+        */-->
+        <div class="bars__item" th:each="b : ${dailyBars}">
+          <div class="bars__bar" th:style="'height:' + ${b.heightPercent()} + '%'"
+               th:title="${b.title()}"></div>
+          <div class="bars__label" th:text="${b.label()}">8/16</div>
+        </div>
+      </div>
+      <p class="help mt-4">
+        棒にマウスを載せると、その日の件数と金額が出ます。
+        いちばん高い棒がその期間の最高売上で、他の日はそれとの比で描かれます。
+      </p>
+    </div>
+  </div>
+
+  <!--/* ===== 時間帯別 ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">時間帯別の売上</h2>
+    <span class="section-title__count" th:text="${dateLabel}">2026年8月16日(日)</span>
+  </div>
+
+  <div class="card">
+    <div class="card__body">
+      <div class="bars">
+        <div class="bars__item" th:each="b : ${hourlyBars}">
+          <div class="bars__bar" th:style="'height:' + ${b.heightPercent()} + '%'"
+               th:title="${b.title()}"></div>
+          <div class="bars__label" th:text="${b.label()}">11</div>
+        </div>
+      </div>
+      <p class="help mt-4">
+        横軸は「時」です（11 なら 11:00〜11:59）。営業時間帯を基本に、
+        その外側でも売上があった時間は自動で範囲に含めています。
+        山になっている時間の少し前から仕込みを始めると、待ち時間を短くできます。
+      </p>
+    </div>
+  </div>
+
+  <!--/* ===== 商品別ランキング ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">商品別の売れ行き</h2>
+    <span class="section-title__count" th:text="${#lists.size(ranking)} + ' 品'">6 品</span>
+  </div>
+
+  <div th:if="${#lists.isEmpty(ranking)}">
+    <div th:replace="~{fragments/common :: empty('—', 'この日はまだ受け渡しが完了した注文がありません')}"></div>
+  </div>
+
+  <div class="card" th:unless="${#lists.isEmpty(ranking)}">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+        <tr>
+          <th>順位</th>
+          <th>商品</th>
+          <th class="num">数量</th>
+          <th class="num">売上（税込）</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="i, stat : ${ranking}">
+          <td class="num" th:text="${stat.count}">1</td>
+          <td th:text="${i.menuItemName()}">コンプレット</td>
+          <td class="num" th:text="${#numbers.formatInteger(i.qty(), 1, 'COMMA')}">14</td>
+          <td class="num" th:text="'¥' + ${#numbers.formatInteger(i.sales(), 1, 'COMMA')}">¥12,320</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="help">
+    商品名は「注文された時点の名前」で集計しています。あとから商品名を変更しても、
+    過去の集計が書き換わることはありません（そのかわり、名前を変えると別の商品として並びます）。
+  </p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<!--/*
+   商品の登録・編集フォーム（新規と編集で共用）。
+
+   ${itemForm.id} が null なら新規、値が入っていれば編集です。
+   その 1 点だけで送信先 URL と見出しを切り替えています。
+
+   使えるモデルの値：
+     ${itemForm}            … MenuItemForm（このフォームの入力内容）
+     ${pageTitle}           … 「商品を追加」か「商品を編集」
+     ${categories}          … List<Category>
+     ${mandatoryAllergens}  … 表示義務のある特定原材料 8 品目
+     ${optionalAllergens}   … 表示が推奨されているもの
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout(${pageTitle}, ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('items')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <p class="small"><a th:href="@{/admin/items}">← 商品一覧に戻る</a></p>
+
+  <div class="section-title">
+    <h1 class="section-title__text" th:text="${pageTitle}">商品を追加</h1>
+    <span class="section-title__count" th:if="${itemForm.id != null}"
+          th:text="'id: ' + ${itemForm.id}">id: 3</span>
+  </div>
+
+  <!--/*
+    ・enctype="multipart/form-data" … ファイルを送るために必須。付け忘れると画像が届きません
+    ・th:action                     … CSRF トークンの hidden が自動で入る（素の action は 403）
+    ・th:object                     … 以下の *{...} がこのオブジェクトの項目を指すようになる
+    送信先は新規と編集で変わるので、条件式で切り替えています。
+  */-->
+  <form method="post" enctype="multipart/form-data" th:object="${itemForm}"
+        th:action="${itemForm.id == null} ? @{/admin/items} : @{/admin/items/{id}(id=${itemForm.id})}">
+
+    <!--/* ====== 基本 ====== */-->
+    <section class="card">
+      <div class="card__head">基本情報</div>
+      <div class="card__body">
+
+        <div class="field">
+          <label class="label" for="categoryId">カテゴリ<span class="req">必須</span></label>
+          <select class="select" th:field="*{categoryId}"
+                  th:classappend="${#fields.hasErrors('categoryId')} ? 'is-error'">
+            <option value="">— 選んでください —</option>
+            <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}">米粉ガレット</option>
+          </select>
+          <p class="help" th:if="${categories.isEmpty()}">
+            カテゴリがありません。先に <a th:href="@{/admin/categories}">カテゴリ</a> を作ってください。
+          </p>
+          <p class="error" th:if="${#fields.hasErrors('categoryId')}" th:errors="*{categoryId}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="name">商品名<span class="req">必須</span></label>
+          <input class="input" type="text" th:field="*{name}" maxlength="60"
+                 placeholder="例：コンプレット"
+                 th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
+          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="description">説明</label>
+          <textarea class="textarea" th:field="*{description}" maxlength="300"
+                    placeholder="例：ハム・チーズ・卵をのせた定番。米粉100%の生地で焼き上げます。"
+                    th:classappend="${#fields.hasErrors('description')} ? 'is-error'"></textarea>
+          <p class="help">300文字まで。メニュー一覧では 2 行までしか表示されないので、短く要点を。</p>
+          <p class="error" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">エラー内容</p>
+        </div>
+
+        <div class="grid grid--3">
+          <div class="field">
+            <label class="label" for="price">価格（税込・円）<span class="req">必須</span></label>
+            <input class="input" type="number" th:field="*{price}" min="0" max="1000000"
+                   inputmode="numeric"
+                   th:classappend="${#fields.hasErrors('price')} ? 'is-error'">
+            <p class="help">日本は総額表示が義務なので、税込の金額を入れます。</p>
+            <p class="error" th:if="${#fields.hasErrors('price')}" th:errors="*{price}">エラー内容</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="cookMinutes">調理時間（分）<span class="req">必須</span></label>
+            <input class="input" type="number" th:field="*{cookMinutes}" min="0" max="180"
+                   inputmode="numeric"
+                   th:classappend="${#fields.hasErrors('cookMinutes')} ? 'is-error'">
+            <p class="help">待ち時間の目安の計算に使います。ドリンクは 0〜1 分。</p>
+            <p class="error" th:if="${#fields.hasErrors('cookMinutes')}" th:errors="*{cookMinutes}">エラー内容</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="sortOrder">並び順<span class="req">必須</span></label>
+            <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
+                   inputmode="numeric"
+                   th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
+            <p class="help">同じカテゴリの中で、小さいほど先に表示されます。</p>
+            <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label">掲載の設定</span>
+          <label class="choice">
+            <input type="checkbox" th:field="*{visible}">
+            <span class="choice__name">メニューに掲載する</span>
+          </label>
+          <label class="choice">
+            <input type="checkbox" th:field="*{soldOut}">
+            <span class="choice__name">いま品切れ（注文できない状態にする）</span>
+          </label>
+          <label class="choice">
+            <input type="checkbox" th:field="*{recommended}">
+            <span class="choice__name">「おすすめ」バッジを付ける</span>
+          </label>
+          <p class="help">
+            「掲載しない」は季節商品を一時的に隠すとき、「品切れ」は今日だけ出せないときに使い分けます。
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <!--/* ====== 画像 ====== */-->
+    <section class="card mt-6">
+      <div class="card__head">商品画像</div>
+      <div class="card__body">
+
+        <div class="field">
+          <span class="label">いまの画像</span>
+          <img class="menu-item__thumb" th:if="${itemForm.currentImagePath != null}"
+               th:src="${itemForm.currentImagePath}" alt="現在の商品画像">
+          <p class="help mb-0" th:if="${itemForm.currentImagePath == null}">まだ登録されていません。</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="image">画像を選ぶ</label>
+          <input class="input" type="file" id="image" name="image"
+                 accept="image/jpeg,image/png,image/webp"
+                 th:classappend="${#fields.hasErrors('image')} ? 'is-error'">
+          <p class="help">
+            JPEG / PNG / WebP、5MB まで。選ばなければ今の画像のままです。
+            正方形に近い写真がきれいに収まります。
+          </p>
+          <p class="error" th:if="${#fields.hasErrors('image')}" th:errors="*{image}">エラー内容</p>
+        </div>
+
+        <label class="choice" th:if="${itemForm.currentImagePath != null}">
+          <input type="checkbox" name="removeImage" value="true">
+          <span class="choice__name">いまの画像を削除する（画像なしに戻す）</span>
+        </label>
+
+      </div>
+    </section>
+
+    <!--/* ====== アレルゲン ======
+           ここは th:field ではなく name / value を直接書いています。
+           理由は 2 つあります。
+             1. 同じ name のチェックボックスを 2 つのループに分けて並べるため、
+                th:field が自動生成する id が重複してしまう
+             2. どんな値が飛ぶのかを初学者が読んで分かるようにしたい
+           チェックの状態は itemForm.allergens に入っているかどうかで判定します。
+           1 つもチェックしなければパラメータ自体が送られず、
+           フォームの初期値（空）のままになるので「全部外す」も正しく反映されます。
+    */-->
+    <section class="card mt-6">
+      <div class="card__head">アレルゲン表示</div>
+      <div class="card__body">
+
+        <p class="help mt-0">
+          法律で表示が義務づけられている「特定原材料」8 品目です。かならず原材料の仕入元表示を確認して登録してください。
+          小麦にチェックを入れなかった商品には、お客さんの画面に「小麦不使用」バッジが付きます。
+        </p>
+
+        <div class="grid grid--4">
+          <label class="choice" th:each="a : ${mandatoryAllergens}">
+            <input type="checkbox" name="allergens" th:value="${a.name()}"
+                   th:checked="${itemForm.allergens != null and itemForm.allergens.contains(a)}">
+            <span class="choice__name bold" th:text="${a.label}">小麦</span>
+          </label>
+        </div>
+
+        <hr>
+
+        <p class="help mt-0">
+          こちらは表示が「推奨」されているもの（任意）。分かる範囲で登録しておくと問い合わせが減ります。
+        </p>
+
+        <div class="grid grid--4">
+          <label class="choice" th:each="a : ${optionalAllergens}">
+            <input type="checkbox" name="allergens" th:value="${a.name()}"
+                   th:checked="${itemForm.allergens != null and itemForm.allergens.contains(a)}">
+            <span class="choice__name" th:text="${a.label}">ごま</span>
+          </label>
+        </div>
+
+      </div>
+    </section>
+
+    <!--/* ====== 送信 ====== */-->
+    <div class="row row--wrap mt-6">
+      <button class="btn btn--primary btn--lg" type="submit"
+              th:text="${itemForm.id == null} ? '登録する' : '保存する'">登録する</button>
+      <a class="btn btn--lg" th:href="@{/admin/items}">やめる</a>
+    </div>
+
+  </form>
+
+  <!--/* オプションの編集は保存後にしかできない（商品 id が必要なため） */-->
+  <div class="card mt-6" th:if="${itemForm.id != null}">
+    <div class="card__body row row--between row--wrap">
+      <div>
+        <p class="mb-0 bold">トッピングやサイズを設定する</p>
+        <p class="help mb-0">「大盛り +200円」「チーズ追加 +150円」などの選択肢を作れます。</p>
+      </div>
+      <a class="btn" th:href="@{/admin/items/{id}/options(id=${itemForm.id})}">オプションを編集</a>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

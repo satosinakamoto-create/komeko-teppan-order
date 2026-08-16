@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   厨房ボード（現場でいちばん長く開きっぱなしになる画面）
+  ============================================================================
+   ・3 レーン（受付 → 調理中 → お渡し可）を左から右へ流していく作りです。
+   ・ボタンは「いま押せるもの」だけを出します。押せる状態の一覧は
+     OrderStatus#allowedNext() が持っていて、サーバ側の遷移チェックも
+     同じメソッドを見ています。画面とサーバで判断がズレません。
+   ・注文が入ったり状態が変わったりすると、SSE（/api/stream/kitchen）で
+     通知が届き、kitchen.js が少し待ってからページを読み直します。
+
+   なお、この囲みは Thymeleaf 専用のコメントで、出力される HTML には残りません。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('厨房ボード', ~{::main})}">
+<body>
+<main>
+
+  <!--/* 直前の操作結果（成功・お知らせ・エラー）を 1 回だけ表示する共通部品 */-->
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <!--/* ===== 見出しと稼働状況 ===== */-->
+  <section class="card griddle mt-4">
+    <div class="card__body row row--between row--wrap">
+      <div>
+        <h1 class="mb-0">厨房ボード</h1>
+        <p class="small muted mb-0">左から右へ、ボタンを押して状態を進めます</p>
+      </div>
+
+      <div class="row row--wrap">
+        <!--/* 注文受付の稼働状況。止まっているのに気づかないのが一番こわいので目立たせる */-->
+        <span class="status-chip" style="color: var(--ok)"
+              th:if="${shop.acceptingOrders}">注文受付中</span>
+        <span class="status-chip" style="color: var(--danger)"
+              th:unless="${shop.acceptingOrders}">受付停止中</span>
+
+        <!--/* 未処理件数＝受付＋調理中＋お渡し可の合計 */-->
+        <span class="badge badge--rec"
+              th:text="'未処理 ' + ${board.activeCount()} + ' 件'">未処理 0 件</span>
+
+        <span class="tiny faint"
+              th:text="'ラストオーダー ' + ${shop.lastOrderTime}">ラストオーダー 18:30</span>
+      </div>
+    </div>
+  </section>
+
+  <!--/* ===== 3 レーン =====
+         lanes は KitchenController が用意した「見出し・CSS クラス・注文リスト」の組です。
+         record（値の入れ物）なので、値の取り出しは ${lane.title()} のように
+         括弧付きで呼びます（record のアクセサは getTitle() ではなく title() のため）。
+  */-->
+  <div class="board mt-4">
+
+    <section class="lane" th:each="lane : ${lanes}" th:classappend="${lane.modifier()}">
+
+      <header class="lane__head">
+        <span th:text="${lane.title()}">受付</span>
+        <span class="count" th:text="${lane.size()}">0</span>
+      </header>
+
+      <div class="lane__body">
+
+        <!--/* そのレーンが空のとき */-->
+        <p class="lane__empty" th:if="${lane.isEmpty()}">注文はありません</p>
+
+        <!--/* ===== 伝票 1 枚 =====
+               15 分以上たった注文には is-late が付き、枠が赤くなります。
+               経過時間はサーバが描いた値をそのまま出します。
+               ブラウザ側で 1 分ずつ足していくとサーバとズレる一方なので行いません。
+        */-->
+        <article class="ticket" th:each="order : ${lane.orders()}"
+                 th:classappend="${order.elapsedMinutes >= lateMinutes} ? 'is-late'">
+
+          <div class="ticket__head">
+            <span class="ticket__num" th:text="${order.orderNumber}">101</span>
+            <span class="ticket__name" th:if="${order.customerName != null}"
+                  th:text="${order.customerName} + ' 様'">やまだ 様</span>
+            <span class="ticket__time" th:text="${order.elapsedMinutes} + ' 分'">3 分</span>
+          </div>
+
+          <!--/* 明細。オプションは「（チーズ増量 / 大盛り）」の形で 1 行にまとめて出す */-->
+          <ul class="ticket__items">
+            <li th:each="line : ${order.lines}">
+              <span class="ticket__qty" th:text="'×' + ${line.quantity}">×2</span>
+              <span>
+                <span th:text="${line.menuItemName}">コンプレット</span>
+                <span class="ticket__opt" th:if="${!line.options.isEmpty()}"
+                      th:text="'（' + ${line.optionSummary} + '）'">（チーズ増量）</span>
+              </span>
+            </li>
+          </ul>
+
+          <!--/* ご要望。見落としがクレームに直結するので、明細より目立つ色にしてある */-->
+          <p class="ticket__note" th:if="${order.note != null}"
+             th:text="'要望：' + ${order.note}">要望：ソース少なめ</p>
+
+          <!--/* ===== 状態を進めるボタン =====
+                 出すボタンは order.status.allowedNext() から作ります。
+                 こうしておくと「押せたのにサーバで弾かれた」が起きません。
+
+                 th:each と th:if を同じタグに書いていますが、これは意図どおりです。
+                 Thymeleaf は属性を決まった優先順位で処理し、th:each のほうが
+                 th:if より先に評価されるため「繰り返した結果を 1 件ずつ絞り込む」動きになります。
+                 （th:replace と th:if を同じタグに書くのは NG。th:if が無視されます）
+
+                 HTML のフォームは入れ子にできないので、ボタン 1 つにつきフォーム 1 つです。
+                 th:action で書くと CSRF トークンの hidden 項目が自動で入ります。
+                 素の action="..." にすると 403 になるので注意してください。
+          */-->
+          <div class="ticket__actions">
+            <form th:each="next : ${order.status.allowedNext()}"
+                  th:if="${next.name() != 'CANCELED'}"
+                  th:action="@{/kitchen/orders/{id}/status(id=${order.id})}" method="post">
+              <input type="hidden" name="status" th:value="${next.name()}">
+              <button type="submit" class="btn"
+                      th:classappend="${next.name() == 'COMPLETED'} ? 'btn--primary btn--lg' : (${next.name() == 'READY'} ? 'btn--ok' : '')">
+                <th:block th:switch="${next.name()}">
+                  <span th:case="'COOKING'">焼きはじめ</span>
+                  <span th:case="'READY'">焼き上がり</span>
+                  <span th:case="'COMPLETED'">お渡し完了</span>
+                  <span th:case="*" th:text="${next.staffLabel}">次へ</span>
+                </th:block>
+              </button>
+            </form>
+          </div>
+
+          <!--/* ===== キャンセル =====
+                 誤タップの影響が大きいので、確認ダイアログを挟み、一段下げて置きます。
+                 伝票が閉じていない間だけ表示（CANCELED は allowedNext に必ず含まれる状態）。
+                 理由の入力欄は置かず既定値を送ります。自動リロードのある画面で
+                 入力途中の文字が消えるのを避けるためです。
+          */-->
+          <div class="ticket__actions mt-4" th:unless="${order.status.closed}">
+            <form th:each="next : ${order.status.allowedNext()}"
+                  th:if="${next.name() == 'CANCELED'}"
+                  th:action="@{/kitchen/orders/{id}/cancel(id=${order.id})}" method="post">
+              <input type="hidden" name="reason" value="店舗都合">
+              <!--/* 確認ダイアログに番号を出したいので、値は data-* 属性で渡します。
+                     onclick の中に Thymeleaf の式を直接書くと引用符の扱いが複雑になるため、
+                     「値は Thymeleaf、組み立ては JavaScript」と役割を分けています。 */-->
+              <button type="submit" class="btn btn--danger"
+                      th:attr="data-number=${order.orderNumber}"
+                      onclick="return confirm('#' + this.dataset.number + ' の注文をキャンセルします。よろしいですか？');">
+                キャンセル
+              </button>
+            </form>
+          </div>
+
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <p class="tiny faint center mt-6">
+    注文が入ると自動で画面が更新されます。すぐ確認したいときは端末の再読み込みを押してください。
+  </p>
+
+  <!--/* SSE を受け取って画面を読み直すスクリプト。defer なので HTML を描き終えてから動きます */-->
+  <script th:src="@{/js/kitchen.js}" defer></script>
+</main>
+</body>
+</html>

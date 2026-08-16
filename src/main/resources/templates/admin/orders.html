@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<!--/*
+   注文履歴。
+   厨房画面が「いま作っているもの」を見る画面なのに対して、
+   こちらは終わったものも含めて 1 営業日ぶんを振り返る画面です。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('注文履歴', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('orders')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">注文履歴</h1>
+    <span class="section-title__count" th:text="${dateLabel} + ' ／ ' + ${#lists.size(rows)} + ' 件'">
+      2026年8月16日(日) ／ 12 件
+    </span>
+  </div>
+
+  <!--/* ===== 日付の切り替え ===== */-->
+  <form th:action="@{/admin/orders}" method="get" class="row row--wrap">
+    <a class="btn btn--sm" th:href="@{/admin/orders(date=${prevDateIso})}">← 前日</a>
+    <input class="input" type="date" name="date" th:value="${dateIso}" style="max-width:12rem">
+    <button type="submit" class="btn btn--sm">この日を表示</button>
+    <a class="btn btn--sm" th:href="@{/admin/orders(date=${nextDateIso})}">翌日 →</a>
+    <span class="spacer"></span>
+    <a class="btn btn--sm btn--ghost" th:href="@{/admin/sales(date=${dateIso})}">この日の売上</a>
+  </form>
+
+  <p class="help">
+    キャンセルされた注文も残ります（伝票は消さず、記録として残すのが会計の基本です）。
+    金額の集計に入るのは「受渡済」だけなので、ここの合計と売上画面の数字は一致しません。
+  </p>
+
+  <!--/* ===== 空 ===== */-->
+  <div th:if="${#lists.isEmpty(rows)}">
+    <div th:replace="~{fragments/common :: empty('—', 'この営業日の注文はまだありません')}"></div>
+  </div>
+
+  <!--/* ===== 一覧 ===== */-->
+  <div class="card mt-4" th:unless="${#lists.isEmpty(rows)}">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+        <tr>
+          <th class="num">番号</th>
+          <th>受付時刻</th>
+          <th>状態</th>
+          <th class="num">点数</th>
+          <th class="num">金額</th>
+          <th>操作</th>
+        </tr>
+        </thead>
+        <tbody>
+
+        <!--/*
+          1 件につき 2 行（一覧の行と、明細を開閉する行）を出したいので th:block で包みます。
+          th:with は th:each より後に処理されるので、
+          繰り返しの 1 件ぶんを o という短い名前に付け替えて使えます。
+        */-->
+        <th:block th:each="row : ${rows}" th:with="o=${row.order()}">
+
+          <tr>
+            <td class="num bold" th:text="${o.orderNumber}">101</td>
+            <td th:text="${row.receivedAt()}">11:23</td>
+            <td>
+              <span th:replace="~{fragments/common :: statusChip(${o.status})}">状態</span>
+            </td>
+            <td class="num" th:text="${o.totalQuantity}">3</td>
+            <td class="num" th:text="'¥' + ${#numbers.formatInteger(o.totalAmount, 1, 'COMMA')}">¥2,540</td>
+            <td style="white-space:normal">
+
+              <!--/*
+                キャンセルできるのは、まだ伝票が閉じていない注文だけです。
+                OrderStatus#isClosed() が true（受渡済・キャンセル済）なら操作欄は出しません。
+                画面に出さないだけでなくサーバ側でも状態遷移を検査しているので、
+                URL を直接叩かれても不正な変更はできません。
+              */-->
+              <form th:if="${!o.status.closed}"
+                    th:action="@{/admin/orders/{id}/cancel(id=${o.id})}" method="post"
+                    class="row row--wrap" style="gap:6px">
+                <input type="hidden" name="date" th:value="${dateIso}">
+                <input class="input" type="text" name="reason" maxlength="100"
+                       placeholder="理由（例：材料切れ）" style="max-width:14rem;min-height:36px">
+                <button type="submit" class="btn btn--danger btn--sm"
+                        onclick="return confirm('この注文をキャンセルします。よろしいですか？')">キャンセル</button>
+              </form>
+
+              <span class="faint small" th:if="${o.status.closed}">—</span>
+            </td>
+          </tr>
+
+          <tr>
+            <td colspan="6" style="white-space:normal">
+              <details>
+                <summary class="small"
+                         th:text="'#' + ${o.orderNumber} + ' の明細を見る（' + ${o.totalQuantity} + '点）'">
+                  #101 の明細を見る（3点）
+                </summary>
+
+                <div class="mt-4">
+
+                  <ul class="ticket__items">
+                    <li th:each="line : ${o.lines}">
+                      <span class="ticket__qty" th:text="${line.quantity} + '×'">2×</span>
+                      <span>
+                        <span th:text="${line.menuItemName}">コンプレット</span>
+                        <span class="ticket__opt" th:if="${!line.options.isEmpty()}"
+                              th:text="'（' + ${line.optionSummary} + '）'">（チーズ増量）</span>
+                      </span>
+                      <span class="spacer"></span>
+                      <span class="num"
+                            th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥1,760</span>
+                    </li>
+                  </ul>
+
+                  <table class="total-table" style="max-width:22rem">
+                    <tbody>
+                    <tr>
+                      <td class="muted" th:text="'内消費税（' + ${o.taxRatePercent} + '%）'">内消費税（8%）</td>
+                      <td th:text="'¥' + ${#numbers.formatInteger(o.taxAmount, 1, 'COMMA')}">¥188</td>
+                    </tr>
+                    <tr class="is-grand">
+                      <td>合計</td>
+                      <td th:text="'¥' + ${#numbers.formatInteger(o.totalAmount, 1, 'COMMA')}">¥2,540</td>
+                    </tr>
+                    </tbody>
+                  </table>
+
+                  <p class="small mb-0" th:if="${o.customerName != null}">
+                    お呼び出し名：<span th:text="${o.customerName}">やまだ</span>
+                  </p>
+                  <p class="small mb-0" th:if="${o.note != null}">
+                    ご要望：<span th:text="${o.note}">ソース少なめ</span>
+                  </p>
+                  <p class="small mb-0" th:if="${o.canceledReason != null}">
+                    キャンセル理由：<span th:text="${o.canceledReason}">材料切れ</span>
+                  </p>
+                  <p class="tiny faint mb-0" th:if="${o.lastHandledBy != null}">
+                    最後に操作したスタッフ：<span th:text="${o.lastHandledBy}">店長</span>
+                  </p>
+                  <p class="tiny faint mb-0"
+                     th:text="'調理時間の見込み ' + ${o.estimatedCookMinutes} + ' 分'">調理時間の見込み 12 分</p>
+
+                </div>
+              </details>
+            </td>
+          </tr>
+
+        </th:block>
+
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

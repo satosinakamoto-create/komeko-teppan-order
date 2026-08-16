@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout('メニュー', ~{::main})}">
+<body>
+<main>
+
+  <div class="container">
+    <div th:replace="~{fragments/common :: flash}"></div>
+
+    <!--/* 受付停止中・時間外のお知らせ */-->
+    <div class="alert alert--warn mt-4" th:unless="${accepting}" role="alert">
+      <p class="mb-0" th:text="${rejectReason}">ただいま受付を停止しております</p>
+    </div>
+  </div>
+
+  <!--/* カテゴリへのショートカット。横スクロールする追従タブ */-->
+  <div class="container" th:if="${!menu.isEmpty()}">
+    <nav class="tabs" aria-label="カテゴリ">
+      <a class="tab" th:each="entry : ${menu}"
+         th:href="'#cat-' + ${entry.key.id}"
+         th:text="${entry.key.name}">カテゴリ</a>
+    </nav>
+  </div>
+
+  <div class="container">
+
+    <!--/*
+      th:if と th:replace を同じタグに書くと th:replace が先に評価されてしまい、
+      条件が効きません（Thymeleaf の属性の優先順位）。外側のタグで条件を判定します。
+    */-->
+    <div th:if="${menu.isEmpty()}">
+      <div th:replace="~{fragments/common :: empty('米', 'メニューを準備中です')}"></div>
+    </div>
+
+    <section th:each="entry : ${menu}" th:id="'cat-' + ${entry.key.id}">
+
+      <div class="section-title">
+        <h2 class="section-title__text" th:text="${entry.key.name}">米粉ガレット</h2>
+        <span class="section-title__count"
+              th:text="${entry.value.size()} + ' 品'">4 品</span>
+      </div>
+
+      <div class="stack">
+        <a th:each="item, s : ${entry.value}"
+           class="menu-item reveal"
+           th:classappend="${item.soldOut} ? 'is-soldout'"
+           th:href="@{/items/{id}(id=${item.id})}"
+           th:style="'animation-delay:' + ${s.index * 45} + 'ms'">
+
+          <img class="menu-item__thumb" th:if="${item.imagePath != null}"
+               th:src="${item.imagePath}" th:alt="${item.name}" loading="lazy">
+          <div class="menu-item__thumb menu-item__thumb--empty" th:if="${item.imagePath == null}"
+               aria-hidden="true"
+               th:text="${#strings.substring(item.name, 0, 1)}">米</div>
+
+          <div class="menu-item__body">
+            <h3 class="menu-item__name" th:text="${item.name}">コンプレット</h3>
+            <p class="menu-item__desc" th:if="${item.description}"
+               th:text="${item.description}">説明</p>
+            <div class="menu-item__price">
+              <span th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
+              <small>税込</small>
+            </div>
+            <div th:replace="~{fragments/common :: allergens(${item})}"></div>
+          </div>
+        </a>
+      </div>
+
+    </section>
+  </div>
+
+  <!--/* カートに何か入っていれば、画面下に固定バーを出す */-->
+  <div class="cart-bar" th:if="${cartCount > 0}">
+    <div class="cart-bar__inner">
+      <div class="cart-bar__summary">
+        <div class="cart-bar__count" th:text="${cartCount} + ' 点'">3 点</div>
+        <div class="cart-bar__total"
+             th:text="'¥' + ${#numbers.formatInteger(cartTotal, 1, 'COMMA')}">¥2,540</div>
+      </div>
+      <a class="btn btn--primary btn--lg spacer" th:href="@{/cart}">カートを見る</a>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

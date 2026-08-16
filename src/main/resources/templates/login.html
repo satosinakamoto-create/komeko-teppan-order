@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<!--/*
+   ======================================================================
+    店舗スタッフ用ログイン画面
+   ----------------------------------------------------------------------
+    Spring Security の formLogin が使う画面です。
+    SecurityConfig では次のように設定されています。
+
+        .formLogin(form -> form
+                .loginPage("/login")            ← この画面を出す URL
+                .loginProcessingUrl("/login")   ← ID とパスワードを送る先
+                .failureUrl("/login?error")     ← 失敗したら ?error 付きで戻る
+                ...)
+        .logout(logout -> logout
+                .logoutSuccessUrl("/login?logout"))  ← ログアウト後は ?logout 付き
+
+    つまりこの 1 枚で「入力フォーム」「失敗の通知」「ログアウト完了の通知」の
+    3 つを担当します。?error / ?logout が付いているかで表示を切り替えます。
+
+    レイアウトは layout/plain（ヘッダーもナビも無い最小構成）。
+    ログイン前なのでナビゲーションを出しても押せる先が無く、
+    かえって迷わせるためです。layout/staff は ${shop} を参照しますが、
+    layout/plain は参照しないので、店名は固定文言にしています。
+   ======================================================================
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/plain :: layout('ログイン', ~{::main})}">
+<body>
+<main class="page">
+
+  <!--/*
+     縦センタリング。
+     .page が min-height:100dvh の縦フレックス、.page__body が flex:1 なので、
+     この div は画面の残り全部の高さを持ちます。そこへ grid + align-content:center を
+     かけると、中身が上下の中央に来ます。
+     app.css は自分の担当ファイルではない（他の担当と衝突する）ため、
+     この画面だけで必要な微調整は style 属性で書いています。
+  */-->
+  <div class="container page__body"
+       style="display:grid;align-content:center;justify-items:center;gap:var(--sp-5)">
+
+    <!--/* ===== 見出し（明朝体で和の佇まいを出す） ===== */-->
+    <div class="center">
+      <h1 class="serif mb-0" style="letter-spacing:.22em;font-size:1.375rem">米粉と鉄板</h1>
+      <p class="tiny faint mb-0" style="letter-spacing:.3em">店舗管理</p>
+    </div>
+
+    <!--/*
+       カード本体。
+       width:min(400px, 100%) は「画面が広ければ 400px、狭ければ画面いっぱい」。
+       スマホでは端まで、PC では細長くなりすぎない、という両立の書き方です。
+    */-->
+    <div class="card" style="width:min(400px, 100%)">
+      <div class="card__body stack">
+
+        <!--/*
+           ===== ログイン失敗のお知らせ =====
+           ${param.xxx} は「URL のクエリ文字列に xxx が付いているか」を見る書き方です。
+           /login?error でアクセスされたときだけ表示されます。
+           「値があるか」ではなく「付いているか」を見たいので、
+           中身の比較ではなく != null で判定しています（?error は値が空のため）。
+
+           セキュリティ上、「ユーザー名が無い」のか「パスワードが違う」のかは
+           区別して伝えません。どちらか分かると、存在するユーザー名を
+           総当たりで探せてしまうためです（SecurityConfig の
+           hideUserNotFoundExceptions と同じ考え方）。
+        */-->
+        <div class="alert alert--error" th:if="${param.error != null}" role="alert">
+          <p class="mb-0">ユーザー名またはパスワードが違います</p>
+        </div>
+
+        <!--/* ===== ログアウト完了のお知らせ（/login?logout） ===== */-->
+        <div class="alert alert--success" th:if="${param.logout != null}" role="status">
+          <p class="mb-0">ログアウトしました</p>
+        </div>
+
+        <!--/*
+           ===== 入力フォーム =====
+           th:action を使うのが必須です。
+           Thymeleaf は th:action の付いた form に CSRF トークンの
+           <input type="hidden" name="_csrf" ...> を自動で差し込みます。
+           素の action="/login" で書くとトークンが入らず 403 になります。
+
+           name は username / password 固定。
+           Spring Security が既定でこの名前のパラメータを読むためです。
+        */-->
+        <form th:action="@{/login}" method="post">
+
+          <div class="field">
+            <label class="label" for="username">ユーザー名</label>
+            <!--/*
+               autocomplete を正しく書くと、ブラウザやパスワード管理アプリが
+               「ここは ID 欄」「ここは今のパスワード欄」と理解して
+               保存済みの値を出してくれます。開店前の慌ただしい時間に
+               手入力を減らせるので、地味ですが効きます。
+               autofocus は画面を開いた瞬間にカーソルを置く指定です。
+            */-->
+            <input class="input" type="text" id="username" name="username"
+                   maxlength="40" required autofocus
+                   autocomplete="username"
+                   autocapitalize="off" spellcheck="false"
+                   placeholder="例）admin">
+          </div>
+
+          <div class="field">
+            <label class="label" for="password">パスワード</label>
+            <input class="input" type="password" id="password" name="password"
+                   required
+                   autocomplete="current-password"
+                   placeholder="パスワード">
+          </div>
+
+          <!--/*
+             .btn--lg は高さ 56px。厨房では濡れた手や手袋で操作することもあるので、
+             タップ領域は大きめに取ります（最低 48px が目安）。
+          */-->
+          <button type="submit" class="btn btn--primary btn--block btn--lg">ログイン</button>
+        </form>
+
+      </div>
+
+      <!--/* ===== 初回セットアップ向けの注記 ===== */-->
+      <div class="card__foot center">
+        <p class="tiny faint mb-0">
+          初期アカウントはサーバのログに出力されます。<br>
+          ログイン後、管理画面 → スタッフ管理 からパスワードを変更してください。
+        </p>
+      </div>
+    </div>
+
+    <!--/* お客さん向けメニューへの出口。QR を読み損ねたときの逃げ道にもなります。 */-->
+    <p class="tiny mb-0"><a th:href="@{/}">お客様向けメニューを見る</a></p>
+
+  </div>
+</main>
+</body>
+</html>

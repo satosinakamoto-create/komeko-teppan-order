@@ -1,0 +1,84 @@
+#
+# ============================================================================
+#  共通設定（すべてのプロファイルで有効）
+# ============================================================================
+#  プロファイル = 環境ごとの設定切り替え。
+#    dev  … 手元の開発用（H2 ファイル DB、H2 コンソール ON、テンプレキャッシュ OFF）
+#    prod … 本番用（PostgreSQL、キャッシュ ON）
+#  デフォルトは dev。本番では起動時に --spring.profiles.active=prod を付ける。
+# ============================================================================
+spring:
+  application:
+    name: komeko-order
+
+  profiles:
+    active: dev
+
+  jpa:
+    # open-in-view=false : 「View を描画する間も DB 接続を握りっぱなし」をやめる設定。
+    # 初心者向けチュートリアルでは true のままのことが多いが、
+    # 接続が枯渇しやすく本番では非推奨なので最初から false にしておく。
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Tokyo
+
+  servlet:
+    multipart:
+      # 商品画像のアップロード上限
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+  mvc:
+    hiddenmethod:
+      filter:
+        # HTML のフォームは GET/POST しか送れないため、
+        # <input type="hidden" name="_method" value="delete"> で DELETE を表現できるようにする
+        enabled: true
+
+  messages:
+    basename: messages
+    encoding: UTF-8
+
+server:
+  port: 8080
+  servlet:
+    session:
+      # カートはセッションに置くので、来店中に切れない長さにする
+      timeout: 3h
+    encoding:
+      charset: UTF-8
+      force: true
+
+# ----------------------------------------------------------------------------
+#  アプリ固有の設定（AppProperties クラスに読み込まれる）
+# ----------------------------------------------------------------------------
+app:
+  # QR コードに埋め込む URL のベース。
+  # 店舗の Wi-Fi 内で使うなら http://192.168.x.x:8080 のように PC の IP を入れる。
+  base-url: http://localhost:8080
+  # 商品画像の保存先（アプリからの相対パス）
+  upload-dir: ./data/uploads
+  # 起動時にサンプルメニュー・初期スタッフを投入するか
+  seed-on-startup: true
+
+  # 初期管理者（初回起動時のみ作成される）
+  #
+  # ★ パスワードは空のままにしておくこと ★
+  #   空にしておくと、初回起動時にランダムなパスワードが自動生成され、
+  #   起動ログに 1 回だけ表示されます。ログイン後すぐ変更してください。
+  #
+  #   ここに固定のパスワードを書くと、そのファイルを Git にコミットした瞬間に
+  #   パスワードが履歴に残ります。Git の履歴はあとから消すのが非常に大変なので、
+  #   「設定ファイルに秘密を書かない」を最初から徹底するのが結局いちばん楽です。
+  #
+  #   どうしても固定したい場合は環境変数で渡してください:
+  #     $env:INITIAL_ADMIN_PASSWORD = "..."   (PowerShell)
+  initial-admin-username: admin
+  initial-admin-password: ${INITIAL_ADMIN_PASSWORD:}
+
+logging:
+  level:
+    jp.komeko.order: INFO

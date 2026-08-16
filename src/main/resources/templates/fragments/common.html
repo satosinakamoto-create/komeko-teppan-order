@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<!--/*
+   複数のページで使い回す小さな部品（フラグメント）をまとめたファイル。
+   使う側では  <div th:replace="~{fragments/common :: flash}"></div>  のように書きます。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--/* ====== フラッシュメッセージ（リダイレクト後に 1 回だけ出る通知） ====== */-->
+<div th:fragment="flash" class="stack-sm">
+  <div class="alert alert--success" th:if="${flashSuccess}" role="status">
+    <p class="mb-0" th:text="${flashSuccess}">保存しました</p>
+  </div>
+  <div class="alert alert--info" th:if="${flashInfo}" role="status">
+    <p class="mb-0" th:text="${flashInfo}">お知らせ</p>
+  </div>
+  <div class="alert alert--error" th:if="${flashErrors != null and !flashErrors.isEmpty()}" role="alert">
+    <ul>
+      <li th:each="msg : ${flashErrors}" th:text="${msg}">エラー内容</li>
+    </ul>
+  </div>
+</div>
+
+<!--/* ====== アレルゲン表示 ======
+       米粉の店なので「小麦不使用」を目立たせたいところですが、
+       アレルゲンが 1 件も登録されていない商品にまでバッジを出すと、
+       「調べた結果ふくまれていない」のか「まだ登録していないだけ」なのかが
+       区別できず、お客さまに誤った安心を与えてしまいます。
+
+       そこで **アレルゲンを 1 つでも登録した商品だけ** 判定済みとみなし、
+       未登録の商品には「店舗にお尋ねください」と出す方針にしています。
+       食物アレルギーは命に関わるため、迷ったら安全側に倒します。
+*/-->
+<div th:fragment="allergens(item)" class="menu-item__badges"
+     th:with="checked=${!item.allergens.isEmpty()}">
+  <span class="badge badge--gf" th:if="${checked and item.glutenFree}">小麦不使用</span>
+  <span class="badge badge--rec" th:if="${item.recommended}">おすすめ</span>
+  <span class="badge badge--soldout" th:if="${item.soldOut}">売り切れ</span>
+  <span class="badge badge--allergen"
+        th:each="a : ${item.allergens}"
+        th:text="${a.label}">卵</span>
+  <span class="badge badge--allergen" th:unless="${checked}">アレルギーは店舗へお尋ねください</span>
+</div>
+
+<!--/* ====== 状態チップ ====== */-->
+<span th:fragment="statusChip(status)" class="status-chip"
+      th:style="'color:' + ${status.color}"
+      th:text="${status.staffLabel}">受付</span>
+
+<!--/* ====== 空っぽの表示 ====== */-->
+<div th:fragment="empty(mark, message)" class="empty-state">
+  <div class="empty-state__mark" th:text="${mark}">—</div>
+  <p class="mb-0" th:text="${message}">データがありません</p>
+</div>
+
+</body>
+</html>

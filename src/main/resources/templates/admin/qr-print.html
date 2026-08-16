@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<!--/*
+   A4 に貼る印刷用ポップ。
+   ヘッダーやナビゲーションが紙に写り込まないよう、
+   最小レイアウト（layout/plain）を使っています。
+   画面でだけ見せたいボタンには .no-print を付けており、
+   印刷時には app.css の @media print で非表示になります。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/plain :: layout('QRポップ（印刷用）', ~{::main})}">
+<body>
+<main>
+  <div class="container">
+
+    <div class="row row--wrap no-print" style="padding-top:16px">
+      <a class="btn btn--ghost" th:href="@{/admin/qr}">← QR の設定に戻る</a>
+      <span class="spacer"></span>
+      <span class="help mb-0">ブラウザの印刷（Ctrl+P）でそのまま A4 に印刷できます。</span>
+    </div>
+
+    <div class="print-sheet mt-4">
+
+      <p class="print-sheet__title" th:text="${shop.shopName}">米粉と鉄板</p>
+      <p class="lead mb-0" th:text="${shop.tagline}">グルテンフリーの焼きたてを、鉄板から。</p>
+
+      <h1 class="mt-6" style="font-size:2rem;letter-spacing:.12em">スマホでご注文いただけます</h1>
+
+      <img class="print-sheet__qr"
+           th:src="@{/admin/qr/image(src=${src},size=${size})}"
+           alt="注文ページのQRコード">
+
+      <ol class="mt-4" style="display:inline-block;text-align:left;max-width:32em">
+        <li>スマートフォンのカメラで、上の QR コードを読み取ります</li>
+        <li>メニューを選んでご注文ください（アプリのインストールは不要です）</li>
+        <li>番号をお呼びしますので、カウンターまでお越しください</li>
+      </ol>
+
+      <p class="mt-4 mb-0 bold">お会計は、商品のお受け取り時に店頭でお願いします</p>
+
+      <p class="print-sheet__url mt-6" th:text="${qrUrl}">http://localhost:8080/</p>
+      <p class="tiny faint mb-0">QR が読み取れないときは、上の URL をブラウザに直接入力してください。</p>
+
+    </div>
+
+    <p class="help no-print">
+      印刷する前に、上の URL が店内の Wi-Fi から開けるものになっているか必ず確認してください。
+      <code>localhost</code> のままだと、お客さんのスマホからは開けません。
+    </p>
+
+  </div>
+</main>
+</body>
+</html>

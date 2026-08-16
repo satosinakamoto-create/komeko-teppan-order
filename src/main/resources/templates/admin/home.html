@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<!--/*
+   管理画面のダッシュボード。
+   AdminHomeController が model に入れた値だけを使います。
+
+     ${todayLabel} … 営業日の見出し（String。日付の書式化は Java 側で済ませてある）
+     ${sales}      … DailySales（record。アクセサは sales.total() のように () を付けて呼ぶ）
+     ${board}      … KitchenBoard（record。board.received() などで 3 レーンを取れる）
+     ${shop}       … ShopSetting（@ControllerAdvice が全画面に自動で入れている）
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('ダッシュボード', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('home')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">ダッシュボード</h1>
+    <span class="section-title__count" th:text="${todayLabel} + ' の営業'">2026年8月16日(日) の営業</span>
+  </div>
+
+  <!--/* ====== 注文受付の状態 ======
+         いちばん大事な情報なので最初に、いちばん大きく出す。
+         ここでは切り替えません（切り替えは店舗設定画面の役目）。
+         「見る場所」と「変える場所」を分けると、うっかり操作を減らせます。
+  */-->
+  <section class="card">
+    <div class="card__body row row--between row--wrap">
+      <div>
+        <p class="stat__label mb-0">ただいまの注文受付</p>
+        <p class="stat__value" style="font-size:2.25rem"
+           th:text="${shop.acceptingOrders} ? '受付中' : '停止中'">受付中</p>
+        <p class="small muted mb-0" th:if="${shop.acceptingOrders}"
+           th:text="'営業 ' + ${shop.openTime} + ' 〜 ' + ${shop.closeTime} + '（ラストオーダー ' + ${shop.lastOrderTime} + '）'">
+          営業 11:00 〜 19:00（ラストオーダー 18:30）
+        </p>
+        <p class="small muted mb-0" th:unless="${shop.acceptingOrders}"
+           th:text="${shop.closedMessage}">ただいま大変混み合っております。</p>
+      </div>
+      <a class="btn" th:href="@{/admin/settings}">店舗設定で切り替える</a>
+    </div>
+  </section>
+
+  <!--/* ====== 今日の数字 ======
+         売上は「受渡済（会計まで終わった注文）」だけを数えています。
+         調理中のぶんを足してしまうと、キャンセルが出たときに数字が合わなくなるためです。
+  */-->
+  <div class="section-title">
+    <h2 class="section-title__text">今日の数字</h2>
+    <span class="section-title__count">受渡済のみ集計</span>
+  </div>
+
+  <div class="grid grid--4">
+    <div class="stat">
+      <p class="stat__label">売上（税込）</p>
+      <p class="stat__value">
+        ¥<span th:text="${#numbers.formatInteger(sales.total(), 1, 'COMMA')}">0</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'うち消費税 ¥' + ${#numbers.formatInteger(sales.tax(), 1, 'COMMA')}">うち消費税 ¥0</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">受渡済の件数</p>
+      <p class="stat__value">
+        <span th:text="${sales.orders()}">0</span><span class="stat__unit">件</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'客単価 ¥' + ${#numbers.formatInteger(sales.averagePerOrder(), 1, 'COMMA')}">客単価 ¥0</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">進行中の注文</p>
+      <p class="stat__value">
+        <span th:text="${board.activeCount()}">0</span><span class="stat__unit">件</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'受付 ' + ${board.received().size()} + ' / 調理中 ' + ${board.cooking().size()} + ' / お渡し可 ' + ${board.ready().size()}">
+        受付 0 / 調理中 0 / お渡し可 0
+      </p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">お渡し待ち</p>
+      <p class="stat__value">
+        <span th:text="${board.ready().size()}">0</span><span class="stat__unit">件</span>
+      </p>
+      <p class="tiny faint mb-0">呼び出し中のお客さま</p>
+    </div>
+  </div>
+
+  <!--/* ====== クイックリンク ======
+         忙しい時間帯に一番よく開く画面を、指で押しやすい大きさで並べる。
+         .btn は最小の高さが 48px（--tap）に揃えてあります。
+  */-->
+  <div class="section-title">
+    <h2 class="section-title__text">よく使う画面</h2>
+  </div>
+
+  <div class="row row--wrap">
+    <a class="btn btn--primary" th:href="@{/kitchen}">厨房ボードを開く</a>
+    <a class="btn" th:href="@{/admin/qr}">QRコードを印刷する</a>
+    <a class="btn" th:href="@{/admin/sales}">売上を見る</a>
+    <a class="btn" th:href="@{/admin/items}">商品を編集する</a>
+    <a class="btn" th:href="@{/display}" target="_blank" rel="noopener">呼出画面を別タブで開く</a>
+  </div>
+
+  <p class="tiny faint mt-6 mb-0">
+    ※ 集計は「営業日」単位です。深夜営業ぶんは店舗設定の切り替え時刻に従って前日に含まれます。
+  </p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   お客さん向け画面の共通レイアウト
+  ============================================================================
+   Thymeleaf の「フラグメント」機能で、各ページの共通部分をここにまとめています。
+
+   使い方（各ページ側）:
+     <html th:replace="~{layout/customer :: layout('メニュー', ~{::main})}">
+     <body>
+       <main> ページ固有の中身 </main>
+     </body>
+     </html>
+
+   ・第1引数  ページタイトル
+   ・第2引数  ~{::main} = 「そのページの <main> 要素」という意味の式。
+              これがこのファイルの <main th:replace="${content}"> と差し替わります。
+
+   なお、この <!--/* ... */--> というコメントは Thymeleaf 専用のコメントで、
+   出力される HTML には残りません（お客さんには見えません）。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org" th:fragment="layout(pageTitle, content)">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14110f" media="(prefers-color-scheme: dark)">
+  <meta name="robots" content="noindex">
+  <title th:text="${pageTitle} + ' | ' + ${shop.shopName}">米粉と鉄板</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="page">
+
+  <header class="app-header">
+    <div class="container app-header__inner">
+      <div>
+        <a class="app-header__title" th:href="@{/}" th:text="${shop.shopName}">米粉と鉄板</a>
+        <p class="app-header__sub" th:text="${shop.tagline}">グルテンフリーの焼きたてを、鉄板から。</p>
+      </div>
+      <nav class="app-header__nav">
+        <a th:href="@{/cart}" th:if="${cartCount != null and cartCount > 0}">
+          カート
+          <span class="badge badge--rec" style="margin-left:4px" th:text="${cartCount}">0</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page__body">
+    <!--/* 各ページの <main> がここに入る */-->
+    <div th:replace="${content}">ページ本文</div>
+  </div>
+
+  <footer class="app-footer">
+    <div class="container">
+      <p class="mb-0" th:text="${shop.shopName}">米粉と鉄板</p>
+      <p class="mb-0">お会計はお受け取り時に店頭でお願いします</p>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

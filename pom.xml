@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+   pom.xml : Maven のプロジェクト定義ファイル
+  ============================================================================
+   Java では「どのライブラリを使うか」を自分で 1 個ずつ DL するのではなく、
+   このファイルに書いておくと Maven が自動でダウンロードしてくれます。
+   （PHP の composer.json、Node の package.json にあたるもの）
+
+   <parent> に spring-boot-starter-parent を指定すると、
+   Spring Boot が「相性の良いライブラリのバージョンの組み合わせ」を
+   まとめて面倒みてくれるので、<version> を書かない依存が多くなります。
+  ============================================================================
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.3.5</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>jp.komeko</groupId>
+  <artifactId>komeko-order</artifactId>
+  <version>0.1.0</version>
+  <name>komeko-order</name>
+  <description>米粉と鉄板 モバイルオーダー（QR注文）システム</description>
+
+  <properties>
+    <!-- Java 21 (LTS) でビルドする -->
+    <java.version>21</java.version>
+    <zxing.version>3.5.3</zxing.version>
+  </properties>
+
+  <dependencies>
+
+    <!-- ▼ Web（Spring MVC / 組み込み Tomcat）。これだけで Web サーバが同梱される -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- ▼ Thymeleaf : HTML テンプレートエンジン（PHP の中に <?= ?> を書く感覚に近い） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
+
+    <!-- ▼ JPA / Hibernate : Java のクラスと DB のテーブルを対応づける（ORM） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+
+    <!-- ▼ Bean Validation : @NotBlank などの入力チェック -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+
+    <!-- ▼ Spring Security : 厨房 / 管理画面のログイン・権限制御・CSRF 対策 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+
+    <!-- ▼ Thymeleaf からログイン中ユーザや権限を参照するための拡張 -->
+    <dependency>
+      <groupId>org.thymeleaf.extras</groupId>
+      <artifactId>thymeleaf-extras-springsecurity6</artifactId>
+    </dependency>
+
+    <!-- ▼ ZXing : QR コード生成。core だけ使い、PNG 化は自前で行う（依存を増やさないため） -->
+    <dependency>
+      <groupId>com.google.zxing</groupId>
+      <artifactId>core</artifactId>
+      <version>${zxing.version}</version>
+    </dependency>
+
+    <!-- ▼ H2 : ファイル 1 つで動く組み込み DB。開発・小規模運用はこれで十分 -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- ▼ PostgreSQL : 本番でクラウドに載せるとき用（prod プロファイルで使用） -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- ▼ DevTools : ソースを保存すると自動再起動（開発中だけ有効） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-devtools</artifactId>
+      <scope>runtime</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- ▼ テスト用（JUnit5 / AssertJ / MockMvc） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- mvn spring-boot:run / mvn package で実行可能 jar を作るためのプラグイン -->
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+
+      <!-- ソースを UTF-8 として扱う（日本語コメントが文字化けしないように） -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <encoding>UTF-8</encoding>
+          <compilerArgs>
+            <!-- メソッド引数名を保持する。Spring がフォームの項目名を解決するのに使う -->
+            <arg>-parameters</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

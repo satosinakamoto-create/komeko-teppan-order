@@ -1,0 +1,39 @@
+#
+# ============================================================================
+#  dev プロファイル : 手元の開発用
+# ============================================================================
+#  H2 という「ファイル 1 つで動く DB」を使うので、MySQL や PostgreSQL を
+#  インストールしなくてもそのまま起動できる。
+#  DB の実体は ./data/komeko.mv.db に作られる（.gitignore 済み）。
+# ============================================================================
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/komeko;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      # update = エンティティの定義に合わせてテーブルを自動で作り・足す。
+      # 学習中はこれが一番ラク。本番で使ってはいけない（下の prod 参照）。
+      ddl-auto: update
+    show-sql: false
+
+  h2:
+    console:
+      # http://localhost:8080/h2-console でブラウザから DB の中身を見られる
+      enabled: true
+      path: /h2-console
+
+  thymeleaf:
+    # false にすると HTML を保存しただけで画面に反映される（再起動不要）
+    cache: false
+
+  devtools:
+    restart:
+      enabled: true
+
+logging:
+  level:
+    jp.komeko.order: DEBUG

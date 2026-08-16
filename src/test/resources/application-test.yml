@@ -1,0 +1,61 @@
+#
+# ============================================================================
+#  test プロファイル : 自動テスト専用の設定
+# ============================================================================
+#  テストクラスに @ActiveProfiles("test") と書くと、
+#  application.yml（共通）＋ この application-test.yml が読み込まれます。
+#  application.yml の spring.profiles.active: dev よりも
+#  @ActiveProfiles のほうが優先されるので、dev の設定（ファイル DB）は使われません。
+#
+#  テストの鉄則は「毎回まっさらな状態から始める」こと。
+#  前のテストが残したデータのせいで結果が変わると、
+#  「昨日は通ったのに今日は落ちる」という一番やっかいなテストになってしまいます。
+# ============================================================================
+spring:
+  datasource:
+    # mem: = メモリ上だけの DB。ファイルを作らないので速く、後片付けも不要。
+    # DB_CLOSE_DELAY=-1 は「最後の接続が切れても DB を消さない」指定。
+    # これが無いと、コネクションプールが接続を閉じた瞬間にテーブルごと消えてしまう。
+    url: jdbc:h2:mem:test;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      # create-drop = 起動時にテーブルを作り、終了時に削除する。
+      # 本番では絶対に使わないが、テストではこれが最も安全で確実。
+      ddl-auto: create-drop
+    # 失敗の原因を追いたいときは true にすると発行 SQL が全部見える
+    show-sql: false
+    open-in-view: false
+
+  thymeleaf:
+    # テンプレートを書き換えた直後でもテストが古い HTML を見ないようにキャッシュ OFF
+    cache: false
+
+  h2:
+    console:
+      enabled: false
+
+# ----------------------------------------------------------------------------
+#  アプリ固有の設定（AppProperties にバインドされる）
+# ----------------------------------------------------------------------------
+app:
+  base-url: http://localhost
+  # ${java.io.tmpdir} は JVM のシステムプロパティ（OS の一時フォルダ）を差し込む書き方。
+  # テストが実際のアップロード先（./data/uploads）を汚さないようにする。
+  upload-dir: ${java.io.tmpdir}/komeko-test-uploads
+  # テストは必要なデータを自分で作る。サンプル 16 品が入っていると
+  # 「何件あるか」の検証がサンプル次第で変わってしまうため false。
+  seed-on-startup: false
+  # DataSeeder は seed-on-startup に関係なく初期スタッフだけは作るので、
+  # 本番と混同しない、はっきりテスト用と分かる値を入れておく。
+  initial-admin-username: test-admin
+  initial-admin-password: test-password-0000
+
+logging:
+  level:
+    # テスト出力を読みやすくするため、アプリのログは警告以上だけに絞る
+    jp.komeko.order: WARN
+    org.hibernate.SQL: WARN

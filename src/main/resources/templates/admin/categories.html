@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<!--/*
+   カテゴリ管理。1 つの画面に
+     ・新規追加フォーム（1 個）
+     ・行ごとの更新フォーム（カテゴリの数だけ）
+     ・行ごとの削除フォーム
+   が同居します。HTML のフォームは入れ子にできないので、
+   「更新」と「削除」は必ず別々の <form> に分けてあります。
+
+   使えるモデルの値：
+     ${categories}   … List<Category>
+     ${itemCounts}   … Map<Long, Long>（カテゴリ id → その中の商品数）
+     ${categoryForm} … 新規追加フォームの入れ物（CategoryForm）
+     ${editingId}    … 更新でエラーが出た行の id（エラーが無ければ null）
+     ${editForm}     … その行に送信された内容（CategoryForm）
+     ${editErrors}   … 項目名 → メッセージ の Map
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('カテゴリ管理', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('categories')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">カテゴリ</h1>
+    <span class="section-title__count" th:text="${categories.size()} + ' 件'">4 件</span>
+  </div>
+
+  <p class="lead">
+    お客さんのメニュー画面で商品をまとめる見出しです。並び順の数字が小さいものほど上に出ます。
+  </p>
+
+  <!--/* ====== 新規追加 ======
+         こちらは 1 画面に 1 つしかないフォームなので、Spring 標準の
+         th:object / th:field / th:errors をそのまま使えます。
+           th:object … このフォームがどのオブジェクトの入力かを宣言する
+           th:field  … name・id・value をまとめて生成し、エラー時は入力値を復元する
+           th:errors … そのフィールドのエラーメッセージを出す
+         th:action を使うと CSRF トークンの hidden が自動で入ります。
+         素の action="..." で書くと 403 になるので必ず th:action にします。
+  */-->
+  <form class="card" method="post" th:action="@{/admin/categories}" th:object="${categoryForm}">
+    <div class="card__head">カテゴリを追加</div>
+    <div class="card__body">
+      <div class="grid grid--3">
+
+        <div class="field">
+          <label class="label" for="name">カテゴリ名<span class="req">必須</span></label>
+          <input class="input" type="text" th:field="*{name}" maxlength="40"
+                 placeholder="例：米粉ガレット"
+                 th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
+          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="sortOrder">並び順</label>
+          <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
+                 inputmode="numeric"
+                 th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
+          <p class="help">小さいほど先に表示されます。</p>
+          <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <span class="label">お客さんへの表示</span>
+          <label class="choice">
+            <input type="checkbox" th:field="*{visible}">
+            <span class="choice__name">メニューに表示する</span>
+          </label>
+        </div>
+
+      </div>
+      <button class="btn btn--primary" type="submit">追加する</button>
+    </div>
+  </form>
+
+  <!--/* ====== 一覧 ====== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">登録済みのカテゴリ</h2>
+  </div>
+
+  <div th:if="${categories.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('無', 'カテゴリがまだありません。上のフォームから追加してください')}"></div>
+  </div>
+
+  <ul class="stack" style="list-style:none;padding:0;margin:0">
+    <li class="card" th:each="c : ${categories}"
+        th:with="editing=${editingId != null and editingId == c.id},
+                 errs=${(editingId != null and editingId == c.id) ? editErrors : null}">
+      <div class="card__body">
+
+        <div class="row row--wrap" style="align-items:flex-end">
+
+          <!--/* 更新フォーム。行ごとに独立した <form> になっています */-->
+          <form class="row row--wrap" style="flex:1 1 420px;align-items:flex-end"
+                method="post" th:action="@{/admin/categories/{id}(id=${c.id})}">
+
+            <!--/*
+              チェックを外したチェックボックスは、そもそもリクエストに含まれません。
+              そのままだとサーバ側では「送られてこなかった＝初期値のまま」となり、
+              表示を OFF にできません。
+              そこで「この項目は送信対象だが空だった」と Spring に伝える目印
+              （名前の先頭に _ を付けた hidden）を一緒に送ります。
+              th:field を使うとこれが自動で付きますが、1 画面に多数のフォームが並ぶ
+              この画面では th:field が使えないため手書きしています。
+            */-->
+            <input type="hidden" name="_visible" value="on">
+
+            <div class="field" style="flex:2 1 200px;margin-bottom:0">
+              <label class="label" th:for="'cat-name-' + ${c.id}">カテゴリ名</label>
+              <input class="input" type="text" name="name" maxlength="40"
+                     th:id="'cat-name-' + ${c.id}"
+                     th:value="${editing ? editForm.name : c.name}"
+                     th:classappend="${errs != null and errs.containsKey('name')} ? 'is-error'">
+              <p class="error" th:if="${errs != null and errs.containsKey('name')}"
+                 th:text="${errs.get('name')}">エラー内容</p>
+            </div>
+
+            <div class="field" style="flex:0 1 110px;margin-bottom:0">
+              <label class="label" th:for="'cat-sort-' + ${c.id}">並び順</label>
+              <input class="input" type="number" name="sortOrder" min="0" max="9999"
+                     inputmode="numeric"
+                     th:id="'cat-sort-' + ${c.id}"
+                     th:value="${editing ? editForm.sortOrder : c.sortOrder}"
+                     th:classappend="${errs != null and errs.containsKey('sortOrder')} ? 'is-error'">
+              <p class="error" th:if="${errs != null and errs.containsKey('sortOrder')}"
+                 th:text="${errs.get('sortOrder')}">エラー内容</p>
+            </div>
+
+            <label class="choice" style="flex:0 1 auto">
+              <input type="checkbox" name="visible" value="true"
+                     th:checked="${editing ? editForm.visible : c.visible}">
+              <span class="choice__name">表示する</span>
+            </label>
+
+            <button class="btn btn--primary" type="submit">更新</button>
+          </form>
+
+          <div style="flex:0 1 auto">
+            <span class="label">商品数</span>
+            <p class="mb-0 num" th:text="${itemCounts.get(c.id)} + ' 品'">4 品</p>
+          </div>
+
+          <!--/* 削除は別フォーム。フォームは入れ子にできません */-->
+          <form method="post" th:action="@{/admin/categories/{id}/delete(id=${c.id})}"
+                onsubmit="return confirm('このカテゴリを削除します。よろしいですか？')">
+            <button class="btn btn--danger" type="submit"
+                    th:disabled="${itemCounts.get(c.id) > 0}">削除</button>
+          </form>
+
+        </div>
+
+        <p class="help mb-0" th:if="${itemCounts.get(c.id) > 0}">
+          商品が入っているカテゴリは削除できません。先に商品を別のカテゴリへ移すか、商品を削除してください。
+        </p>
+
+      </div>
+    </li>
+  </ul>
+
+</main>
+</body>
+</html>
