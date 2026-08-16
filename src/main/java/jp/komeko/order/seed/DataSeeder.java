@@ -3,6 +3,7 @@ package jp.komeko.order.seed;
 import jp.komeko.order.config.AppProperties;
 import jp.komeko.order.domain.*;
 import jp.komeko.order.repository.CategoryRepository;
+import jp.komeko.order.repository.DiningTableRepository;
 import jp.komeko.order.repository.MenuItemRepository;
 import jp.komeko.order.repository.ShopSettingRepository;
 import jp.komeko.order.repository.StaffUserRepository;
@@ -72,6 +73,7 @@ public class DataSeeder implements ApplicationRunner {
     private final MenuItemRepository menuItemRepository;
     private final StaffUserRepository staffUserRepository;
     private final ShopSettingRepository shopSettingRepository;
+    private final DiningTableRepository diningTableRepository;
     private final StaffUserService staffUserService;
     private final ShopSettingService shopSettingService;
 
@@ -83,6 +85,7 @@ public class DataSeeder implements ApplicationRunner {
                       MenuItemRepository menuItemRepository,
                       StaffUserRepository staffUserRepository,
                       ShopSettingRepository shopSettingRepository,
+                      DiningTableRepository diningTableRepository,
                       StaffUserService staffUserService,
                       ShopSettingService shopSettingService) {
         this.properties = properties;
@@ -90,6 +93,7 @@ public class DataSeeder implements ApplicationRunner {
         this.menuItemRepository = menuItemRepository;
         this.staffUserRepository = staffUserRepository;
         this.shopSettingRepository = shopSettingRepository;
+        this.diningTableRepository = diningTableRepository;
         this.staffUserService = staffUserService;
         this.shopSettingService = shopSettingService;
     }
@@ -108,11 +112,36 @@ public class DataSeeder implements ApplicationRunner {
         if (!properties.seedOnStartup()) {
             return;
         }
+        seedTables();
+
         if (categoryRepository.count() > 0) {
             log.info("メニューは登録済みのため、サンプル投入をスキップしました");
             return;
         }
         seedMenu();
+    }
+
+    /**
+     * 卓（テーブル）の初期データ。
+     *
+     * <p>実際の席数・席名は店舗ごとに違うので、あくまで<b>ひな形</b>です。
+     * 管理画面 → 卓・QR から、実際の店内配置に合わせて作り直してください。
+     * 卓を作り直すと QR も変わるので、印刷し直しが必要です。
+     */
+    private void seedTables() {
+        if (diningTableRepository.count() > 0) {
+            return;
+        }
+        int order = 0;
+        for (int i = 1; i <= 6; i++) {
+            order += 10;
+            diningTableRepository.save(new DiningTable("カウンター" + i, 1, order));
+        }
+        for (int i = 1; i <= 4; i++) {
+            order += 10;
+            diningTableRepository.save(new DiningTable("テーブル" + i, 4, order));
+        }
+        log.info("卓を 10 席ぶん作成しました（管理画面から店内配置に合わせて調整してください）");
     }
 
     // ========================================================================
@@ -145,19 +174,26 @@ public class DataSeeder implements ApplicationRunner {
         setting.setTaxRatePercent(10);
 
         setting.setOrderNumberStart(101);
+
+        // 公式サイト記載の「終日テーブルチャージ ¥450／23時以降は深夜料金 10%」
+        setting.setTableChargePerGuest(450);
+        setting.setLateNightStartTime(LocalTime.of(23, 0));
+        setting.setLateNightSurchargePercent(10);
+
         setting.setPickupNotice(
-                "番号をお呼びしましたらカウンターまでお越しください。"
-                        + "お会計はお受け取り時に店頭でお願いします。"
+                "お会計はお席の伝票にまとめてお付けします。ご退店時にレジまでお願いします。"
                         + "酒類は20歳未満の方へはご提供できません（店頭で年齢を確認させていただきます）。");
-        setting.setClosedMessage("ただいま大変混み合っております。恐れ入りますが店頭スタッフへお声がけください。");
+        setting.setClosedMessage("ただいま大変混み合っております。恐れ入りますがスタッフへお声がけください。");
         setting.touch();
 
         log.warn("""
 
                 ============================================================
                  店舗設定に実店舗の初期値を入れました。
-                   営業時間  17:30 〜 翌2:00（ラストオーダー 翌1:30）
-                   消費税率  10%（酒類を扱うため軽減税率の対象外）
+                   営業時間        17:30 〜 翌2:00（ラストオーダー 翌1:30）
+                   消費税率        10%（酒類を扱うため軽減税率の対象外）
+                   テーブルチャージ ¥450 / 人
+                   深夜料金        23:00 以降 10%
                  ※土日は 16:00 開店ですが、曜日別の営業時間には未対応です。
                    管理画面 → 店舗設定 から必要に応じて変更してください。
                 ============================================================

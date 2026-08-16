@@ -1,4 +1,4 @@
-<#
+﻿<#
     ============================================================================
      米粉と鉄板 モバイルオーダー — 起動スクリプト
     ============================================================================
@@ -19,6 +19,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Java は UTF-8 でログを出すが、Windows のコンソールは既定が CP932。
+# そのままだとログの日本語が文字化けして、エラーの原因が読めなくなる。
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {
+    # 古い環境では失敗することがあるが、動作には影響しないので無視する
+}
 
 # プロジェクトのルート（このスクリプトの 1 つ上）へ移動する
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -41,8 +49,14 @@ if ($null -eq $javaCmd) {
     exit 1
 }
 
-# java -version は標準エラー出力に出るので、まとめて文字列として受け取る
-$versionText = (& java -version 2>&1 | Out-String)
+# java -version はバージョン情報を「標準エラー出力」に出す（昔からの仕様）。
+#
+# ここで PowerShell の `java -version 2>&1` を使ってはいけない。
+# Windows PowerShell 5.1 は、ネイティブ exe の標準エラー出力を 2>&1 で受けると
+# 1 行ずつ ErrorRecord に包んでしまい、$ErrorActionPreference = "Stop" のもとでは
+# 「正常終了したのに例外で止まる」という挙動になる。
+# リダイレクトを cmd 側にやらせれば、PowerShell にはただの文字列として届く。
+$versionText = (cmd /c "java -version 2>&1" | Out-String)
 $major = 0
 if ($versionText -match 'version "(\d+)') {
     $major = [int]$Matches[1]

@@ -1,8 +1,16 @@
 <!DOCTYPE html>
 <!--/*
    売上。
-   集計に入るのは「受渡済」の注文だけです。
-   調理中・キャンセルは金額に含まれません（会計の決めごと）。
+
+   この画面には性格の違う数字が 2 種類あります。混ぜないように見出しで分けています。
+
+     ① お会計（伝票）ベース … 実際にいただいた金額。
+                              小計＋テーブルチャージ＋深夜料金。会計済みの伝票だけ。
+                              モデル属性は ${billSummary}（record なので bills() のように括弧付きで呼ぶ）。
+                              ※ 伝票を "session" という名前で渡すことはできません。
+                                 Thymeleaf では ${session} が HttpSession を指す予約語のためです。
+     ② 注文ベース           … どの商品がどれだけ出たか。受渡済の注文だけ。
+                              モデル属性は ${summary} / ${ranking} / 各グラフ。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('売上', ~{::main})}">
@@ -32,11 +40,98 @@
 
   <p class="help">
     ここでいう日付は「営業日」です。深夜の注文は、店舗設定の「営業日の切り替え時刻」に従って
-    前日ぶんとして集計されます。
+    前日ぶんとして集計されます。<br>
+    伝票は<strong>ご案内した時刻</strong>の営業日に数えます。23 時にご案内して深夜 1 時にお会計した組も、
+    途中で日付が変わらず 1 つの営業日に収まります。
   </p>
 
-  <!--/* ===== 数値カード ===== */-->
-  <div class="grid grid--4 mt-6">
+  <!--/* ==========================================================
+         ① お会計（伝票）ベース
+         こちらが「実際にいただいた金額」。レジのお金と合わせるならこの数字を見る。
+     ========================================================== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">お会計（伝票）ベース</h2>
+    <span class="section-title__count">実際にいただいた金額</span>
+  </div>
+
+  <div class="grid grid--3">
+
+    <div class="stat">
+      <p class="stat__label">組数（会計済み）</p>
+      <p class="stat__value">
+        <span th:text="${#numbers.formatInteger(billSummary.bills(), 1, 'COMMA')}">18</span><span class="stat__unit">組</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'1組あたり ¥' + ${#numbers.formatInteger(billSummary.averagePerBill(), 1, 'COMMA')}">1組あたり ¥0</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">客数</p>
+      <p class="stat__value">
+        <span th:text="${#numbers.formatInteger(billSummary.guests(), 1, 'COMMA')}">46</span><span class="stat__unit">名</span>
+      </p>
+      <p class="tiny faint mb-0">ご案内時に入力した人数の合計</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">客単価（お一人あたり）</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(billSummary.averagePerGuest(), 1, 'COMMA')}">3,980</span>
+      </p>
+      <p class="tiny faint mb-0">ご請求額の合計 ÷ 客数</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">ご請求額の合計</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(billSummary.total(), 1, 'COMMA')}">183,200</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'うち消費税 ¥' + ${#numbers.formatInteger(billSummary.tax(), 1, 'COMMA')}">うち消費税 ¥0</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">テーブルチャージ計</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(billSummary.tableCharge(), 1, 'COMMA')}">20,700</span>
+      </p>
+      <p class="tiny faint mb-0">単価 × 人数を伝票ごとに加算</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">深夜料金計</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(billSummary.lateNight(), 1, 'COMMA')}">7,400</span>
+      </p>
+      <p class="tiny faint mb-0">小計＋チャージへの割増ぶん</p>
+    </div>
+
+  </div>
+
+  <p class="help">
+    内訳は
+    小計 <strong th:text="'¥' + ${#numbers.formatInteger(billSummary.subtotal(), 1, 'COMMA')}">¥0</strong>
+    ＋ テーブルチャージ <strong th:text="'¥' + ${#numbers.formatInteger(billSummary.tableCharge(), 1, 'COMMA')}">¥0</strong>
+    ＋ 深夜料金 <strong th:text="'¥' + ${#numbers.formatInteger(billSummary.lateNight(), 1, 'COMMA')}">¥0</strong>
+    ＝ ご請求額 <strong th:text="'¥' + ${#numbers.formatInteger(billSummary.total(), 1, 'COMMA')}">¥0</strong>
+    です（消費税はこの中に含まれる内税）。
+    数えているのは<strong>お会計まで済んだ伝票だけ</strong>です。
+    <span th:if="${billSummary.openBills() > 0}"
+          th:text="'いまお会計がまだの伝票が ' + ${billSummary.openBills()} + ' 組あり、上の数字には入っていません。'">
+      いまお会計がまだの伝票が 2 組あり、上の数字には入っていません。
+    </span>
+  </p>
+
+  <!--/* ==========================================================
+         ② 注文ベース
+         「どの商品がどれだけ出たか」を見るための数字。会計の金額とは一致しない。
+     ========================================================== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">商品の売上（注文ベース）</h2>
+    <span class="section-title__count">受渡済の注文だけを集計</span>
+  </div>
+
+  <div class="grid grid--4">
 
     <div class="stat">
       <p class="stat__label">受渡済の件数</p>
@@ -46,7 +141,7 @@
     </div>
 
     <div class="stat">
-      <p class="stat__label">売上（税込）</p>
+      <p class="stat__label">商品の売上（税込）</p>
       <p class="stat__value">
         <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(summary.total(), 1, 'COMMA')}">28,400</span>
       </p>
@@ -60,7 +155,7 @@
     </div>
 
     <div class="stat">
-      <p class="stat__label">客単価</p>
+      <p class="stat__label">1注文あたりの平均</p>
       <p class="stat__value">
         <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(summary.averagePerOrder(), 1, 'COMMA')}">2,366</span>
       </p>
@@ -68,8 +163,17 @@
 
   </div>
 
+  <!--/*
+    ここを曖昧にすると「どっちが本当の売上なの？」と必ず聞かれます。
+    ズレる理由をはっきり書いておきます。
+  */-->
   <p class="help">
-    税抜相当は
+    <strong>上の「お会計ベース」と、この「注文ベース」の金額は一致しません。</strong>
+    注文ベースにはテーブルチャージと深夜料金が入らず、また<strong>受渡済</strong>の注文だけを数えるため、
+    まだ厨房に残っている品やキャンセルぶんの扱いも違うからです。
+    レジのお金と合わせるときは<strong>お会計ベース</strong>、
+    商品の売れ行きを見るときは<strong>注文ベース</strong>を使ってください。<br>
+    注文ベースの税抜相当は
     <strong th:text="'¥' + ${#numbers.formatInteger(summary.net(), 1, 'COMMA')}">¥26,297</strong>
     です。商品の価格はすべて税込で登録されているため、消費税は合計から逆算した「内税」になります。
   </p>
@@ -77,7 +181,8 @@
   <!--/* ===== 直近の推移 ===== */-->
   <div class="section-title">
     <h2 class="section-title__text">売上の推移</h2>
-    <span class="section-title__count" th:text="'直近 ' + ${recentDays} + ' 日（本日まで）'">直近 7 日（本日まで）</span>
+    <span class="section-title__count"
+          th:text="'注文ベース ／ 直近 ' + ${recentDays} + ' 日（本日まで）'">注文ベース ／ 直近 7 日（本日まで）</span>
   </div>
 
   <div class="card">
@@ -104,7 +209,7 @@
   <!--/* ===== 時間帯別 ===== */-->
   <div class="section-title">
     <h2 class="section-title__text">時間帯別の売上</h2>
-    <span class="section-title__count" th:text="${dateLabel}">2026年8月16日(日)</span>
+    <span class="section-title__count" th:text="'注文ベース ／ ' + ${dateLabel}">注文ベース ／ 2026年8月16日(日)</span>
   </div>
 
   <div class="card">
@@ -127,7 +232,8 @@
   <!--/* ===== 商品別ランキング ===== */-->
   <div class="section-title">
     <h2 class="section-title__text">商品別の売れ行き</h2>
-    <span class="section-title__count" th:text="${#lists.size(ranking)} + ' 品'">6 品</span>
+    <span class="section-title__count"
+          th:text="'注文ベース ／ ' + ${#lists.size(ranking)} + ' 品'">注文ベース ／ 6 品</span>
   </div>
 
   <div th:if="${#lists.isEmpty(ranking)}">

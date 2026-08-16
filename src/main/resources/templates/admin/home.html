@@ -1,12 +1,23 @@
 <!DOCTYPE html>
 <!--/*
    管理画面のダッシュボード。
-   AdminHomeController が model に入れた値だけを使います。
 
      ${todayLabel} … 営業日の見出し（String。日付の書式化は Java 側で済ませてある）
      ${sales}      … DailySales（record。アクセサは sales.total() のように () を付けて呼ぶ）
      ${board}      … KitchenBoard（record。board.received() などで 3 レーンを取れる）
      ${shop}       … ShopSetting（@ControllerAdvice が全画面に自動で入れている）
+
+   ★「在席の卓数」だけは model に入っていないので、
+     ${@tableService.openSessions().size()} と書いて Spring の TableService を直接呼んでいます。
+     @beanName という書き方で、Spring に登録された部品をテンプレートから呼べます。
+
+     本来この値も AdminHomeController が model に入れて渡すのが正しい形です。
+     今回はイートイン化の作業を複数人で分担していて、そのコントローラが別担当の範囲のため
+     こう書いています。コントローラを直せるようになったら
+     model.addAttribute("openTables", ...) に移してください。
+
+     （openSessions() は自分でトランザクションを開いて、卓と注文まで読み終えてから返すので、
+       画面を描く時点で DB 接続が無くても安全に呼べます。）
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('ダッシュボード', ~{::main})}">
@@ -38,37 +49,34 @@
         </p>
         <p class="small muted mb-0" th:unless="${shop.acceptingOrders}"
            th:text="${shop.closedMessage}">ただいま大変混み合っております。</p>
+        <p class="tiny faint mb-0" th:unless="${shop.acceptingOrders}">
+          受付を止めているあいだも、ご案内中の卓のお会計はふつうにできます。
+        </p>
       </div>
       <a class="btn" th:href="@{/admin/settings}">店舗設定で切り替える</a>
     </div>
   </section>
 
   <!--/* ====== 今日の数字 ======
-         売上は「受渡済（会計まで終わった注文）」だけを数えています。
+         売上は「受渡済（卓へお出しし終えた注文）」だけを数えています。
          調理中のぶんを足してしまうと、キャンセルが出たときに数字が合わなくなるためです。
+
+         なお、ここの売上には席料（テーブルチャージ）と深夜料金が入っていません。
+         それらは注文ではなく伝票に付くためです。実際にいただいた金額は売上画面で見ます。
   */-->
   <div class="section-title">
     <h2 class="section-title__text">今日の数字</h2>
-    <span class="section-title__count">受渡済のみ集計</span>
+    <span class="section-title__count">売上は受渡済の注文のみ</span>
   </div>
 
   <div class="grid grid--4">
-    <div class="stat">
-      <p class="stat__label">売上（税込）</p>
-      <p class="stat__value">
-        ¥<span th:text="${#numbers.formatInteger(sales.total(), 1, 'COMMA')}">0</span>
-      </p>
-      <p class="tiny faint mb-0"
-         th:text="'うち消費税 ¥' + ${#numbers.formatInteger(sales.tax(), 1, 'COMMA')}">うち消費税 ¥0</p>
-    </div>
 
     <div class="stat">
-      <p class="stat__label">受渡済の件数</p>
+      <p class="stat__label">在席の卓数</p>
       <p class="stat__value">
-        <span th:text="${sales.orders()}">0</span><span class="stat__unit">件</span>
+        <span th:text="${@tableService.openSessions().size()}">0</span><span class="stat__unit">卓</span>
       </p>
-      <p class="tiny faint mb-0"
-         th:text="'客単価 ¥' + ${#numbers.formatInteger(sales.averagePerOrder(), 1, 'COMMA')}">客単価 ¥0</p>
+      <p class="tiny faint mb-0">お会計がまだの伝票の数</p>
     </div>
 
     <div class="stat">
@@ -77,18 +85,30 @@
         <span th:text="${board.activeCount()}">0</span><span class="stat__unit">件</span>
       </p>
       <p class="tiny faint mb-0"
-         th:text="'受付 ' + ${board.received().size()} + ' / 調理中 ' + ${board.cooking().size()} + ' / お渡し可 ' + ${board.ready().size()}">
-        受付 0 / 調理中 0 / お渡し可 0
+         th:text="'受付 ' + ${board.received().size()} + ' ／ 調理中 ' + ${board.cooking().size()} + ' ／ 提供待ち ' + ${board.ready().size()}">
+        受付 0 ／ 調理中 0 ／ 提供待ち 0
       </p>
     </div>
 
     <div class="stat">
-      <p class="stat__label">お渡し待ち</p>
+      <p class="stat__label">提供待ち</p>
       <p class="stat__value">
         <span th:text="${board.ready().size()}">0</span><span class="stat__unit">件</span>
       </p>
-      <p class="tiny faint mb-0">呼び出し中のお客さま</p>
+      <p class="tiny faint mb-0">できあがり。卓へお持ちする品</p>
     </div>
+
+    <div class="stat">
+      <p class="stat__label">商品の売上（税込）</p>
+      <p class="stat__value">
+        ¥<span th:text="${#numbers.formatInteger(sales.total(), 1, 'COMMA')}">0</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'受渡済 ' + ${sales.orders()} + ' 件 ／ うち消費税 ¥' + ${#numbers.formatInteger(sales.tax(), 1, 'COMMA')}">
+        受渡済 0 件 ／ うち消費税 ¥0
+      </p>
+    </div>
+
   </div>
 
   <!--/* ====== クイックリンク ======
@@ -100,15 +120,18 @@
   </div>
 
   <div class="row row--wrap">
-    <a class="btn btn--primary" th:href="@{/kitchen}">厨房ボードを開く</a>
-    <a class="btn" th:href="@{/admin/qr}">QRコードを印刷する</a>
+    <a class="btn btn--primary" th:href="@{/hall}">ホール・会計を開く</a>
+    <a class="btn" th:href="@{/kitchen}">厨房ボードを開く</a>
+    <a class="btn" th:href="@{/admin/tables}">卓を編集する</a>
+    <a class="btn" th:href="@{/admin/qr}">卓のQRコードを印刷する</a>
     <a class="btn" th:href="@{/admin/sales}">売上を見る</a>
     <a class="btn" th:href="@{/admin/items}">商品を編集する</a>
-    <a class="btn" th:href="@{/display}" target="_blank" rel="noopener">呼出画面を別タブで開く</a>
   </div>
 
   <p class="tiny faint mt-6 mb-0">
-    ※ 集計は「営業日」単位です。深夜営業ぶんは店舗設定の切り替え時刻に従って前日に含まれます。
+    ※ 集計は「営業日」単位です。深夜営業ぶんは店舗設定の切り替え時刻に従って前日に含まれます。<br>
+    ※ お会計は卓の伝票ごとに行います。席料（テーブルチャージ）と深夜料金を含む
+    「実際にいただいた金額」は、売上画面の「お会計（伝票）ベース」に出ます。
   </p>
 
 </main>

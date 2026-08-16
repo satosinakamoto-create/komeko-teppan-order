@@ -115,6 +115,26 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 対策が `@EntityGraph`（一緒に読む）と `@BatchSize`（まとめて読む）です。
 実務で最初に当たる性能問題なので、名前だけでも覚えておくと得します。
 
+> **⚠️ 実際にこのプロジェクトでハマった話**
+>
+> `MenuItem.allergens` は `fetch = FetchType.EAGER`（常に一緒に読む）と書いてあるのに、
+> 画面を描くところで `LazyInitializationException` が出ました。
+>
+> 原因は `@EntityGraph` です。これは既定で「**フェッチグラフ**」として扱われ、
+> **`attributePaths` に書かなかった関連は、EAGER と宣言していても LAZY に上書きされます。**
+>
+> ```java
+> // ✗ allergens が LAZY 扱いになり、画面で落ちる
+> @EntityGraph(attributePaths = {"category"})
+>
+> // ○ 一緒に読むものを全部並べる
+> @EntityGraph(attributePaths = {"category", "allergens"})
+> ```
+>
+> 「エンティティ側の宣言」より「クエリ側の指定」が強い、と覚えておくとよいです。
+> このバグはテスト（`CustomerFlowTest`）が見つけてくれました。
+> **画面を 1 回描くテストがあるだけで、この手のミスは全部捕まえられます。**
+
 ---
 
 ### STEP 5 — 業務ロジック（Service とトランザクション）

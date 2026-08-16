@@ -2,10 +2,12 @@ package jp.komeko.order.service;
 
 import jp.komeko.order.cart.Cart;
 import jp.komeko.order.domain.Category;
+import jp.komeko.order.domain.DiningTable;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
 import jp.komeko.order.domain.ShopSetting;
+import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.repository.CategoryRepository;
 import jp.komeko.order.repository.DailyCounterRepository;
 import jp.komeko.order.repository.MenuItemRepository;
@@ -21,7 +23,6 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -31,10 +32,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * {@link OrderService} の結合テスト（DB を本当に使う）。
  *
- * <p><b>このテストが守っているもの＝「注文が正しく 1 件だけ立つこと」</b><br>
- * 注文の受付は、カート・店舗設定・採番・保存・通知という複数の部品が
- * 噛み合って初めて成立します。部品ごとの単体テストが全部通っていても、
- * つなぎ目でずれていれば注文は通りません。そこを見るのが結合テストです。
+ * <p><b>このテストが守っているもの＝「注文が、正しい卓の伝票に 1 件だけ入ること」</b><br>
+ * イートインでは、注文は必ずどこかの<b>伝票（{@link TableSession}）</b>にぶら下がります。
+ * 伝票に入らない注文は誰にも請求されず、
+ * 違う卓の伝票に入れば、まったく関係のないお客さんに請求されます。
+ * 注文の受付は、カート・店舗設定・採番・保存・伝票への追加・通知という
+ * 複数の部品が噛み合って初めて成立します。
+ * 部品ごとの単体テストが全部通っていても、つなぎ目がずれていれば注文は通りません。
+ * そこを見るのが結合テストです。
  *
  * <p><b>付けているアノテーションの意味</b>
  * <ul>
@@ -67,6 +72,8 @@ class OrderServiceIntegrationTest {
     @Autowired
     private OrderService orderService;
     @Autowired
+    private TableService tableService;
+    @Autowired
     private CartService cartService;
     @Autowired
     private ShopSettingService shopSettingService;
@@ -80,8 +87,18 @@ class OrderServiceIntegrationTest {
     private PlatformTransactionManager transactionManager;
 
     private ShopSetting setting;
-    private MenuItem galette;
-    private MenuItem coffee;
+    private DiningTable table;
+    /**
+     * テストで使う伝票。
+     *
+     * <p>変数名を {@code session} にしていないのは、このプロジェクト全体で
+     * 「伝票は bill と呼ぶ」と決めているからです
+     * （Thymeleaf では {@code ${session}} が HTTP セッションの予約名なので、
+     * 画面側で使えません。呼び方は上から下までそろえておくと混乱しません）。
+     */
+    private TableSession bill;
+    private MenuItem okonomiyaki;
+    private MenuItem sour;
 
     @BeforeEach
     void setUp() {
@@ -97,8 +114,8 @@ class OrderServiceIntegrationTest {
         isolated.executeWithoutResult(status -> dailyCounterRepository.deleteAllInBatch());
 
         // ── 店舗設定を「いつテストを走らせても同じ結果になる」値にそろえる ──
-        // 既定値のままだと開店 11:00 / ラストオーダー 18:30 なので、
-        // 夜中に CI を回したときだけ落ちる、という嫌なテストになってしまう。
+        // 実店舗の設定は 17:30 開店・翌 1:30 ラストオーダーなので、
+        // そのままだと昼に流したときだけ「営業時間外」で落ちてしまう。
         setting = shopSettingService.current();
         setting.setAcceptingOrders(true);
         setting.setOpenTime(LocalTime.MIN);                 // 00:00
@@ -107,15 +124,25 @@ class OrderServiceIntegrationTest {
         setting.setLastOrderTime(LocalTime.of(23, 59, 59)); // 実質いつでも受付可
         setting.setBusinessDayCutoverHour(0);               // 営業日＝暦の日付 にそろえる
         setting.setOrderNumberStart(101);
-        setting.setTaxRatePercent(8);
+        setting.setTaxRatePercent(10);                      // 酒類を扱う店なので軽減税率の対象外
         setting.setGriddleCapacity(4);
+        setting.setTableChargePerGuest(450);
+        // 深夜料金は「実行した時刻」で自動判定されるため、金額の検証がぶれる。
+        // このクラスは注文まわりの検証が目的なので 0% にして影響を消しておく。
+        setting.setLateNightSurchargePercent(0);
+
+        // ── 卓と伝票を用意する ──────────────────────────────────
+        // イートインでは「卓の伝票」が無いと注文できない。
+        // お客さんが QR を読んで人数を答えた直後、という状態を作っている。
+        table = tableService.createTable("1番テーブル", 4, 10);
+        bill = tableService.openSession(table.getId(), 2);
 
         // ── テスト用のメニューを用意する ─────────────────────────
         // application-test.yml で seed-on-startup: false にしているので、
         // 商品はこのテストが自分で作る。何件あるかを自分で把握できる状態にしておく。
-        Category category = categoryRepository.save(new Category("米粉ガレット", 10));
-        galette = menuItemRepository.save(item(category, "コンプレット", 880, 8));
-        coffee = menuItemRepository.save(item(category, "ドリップコーヒー", 400, 2));
+        Category category = categoryRepository.save(new Category("広島風お好み焼き", 10));
+        okonomiyaki = menuItemRepository.save(item(category, "肉玉米粉そば", 1180, 12));
+        sour = menuItemRepository.save(item(category, "自家製レモンサワー", 850, 2));
     }
 
     private MenuItem item(Category category, String name, int price, int cookMinutes) {
@@ -131,37 +158,51 @@ class OrderServiceIntegrationTest {
         return cart;
     }
 
+    /** いまの伝票を DB から読み直す（金額は注文のたびに再計算されている）。 */
+    private TableSession reloadBill() {
+        return tableService.getSession(bill.getId());
+    }
+
     @Nested
     @DisplayName("注文の確定")
     class PlaceOrder {
 
         @Test
-        @DisplayName("カートの中身がそのまま伝票になり、金額と調理見込みが計算される")
+        @DisplayName("カートの中身がそのまま注文になり、卓の伝票にぶら下がる")
         void placesOrderFromCart() {
             Cart cart = new Cart();
-            cartService.addToCart(cart, galette.getId(), List.of(), 2);
-            cartService.addToCart(cart, coffee.getId(), List.of(), 1);
+            cartService.addToCart(cart, okonomiyaki.getId(), List.of(), 2);
+            cartService.addToCart(cart, sour.getId(), List.of(), 1);
 
-            Order order = orderService.placeOrder(cart, "  たなか  ", "ソース少なめ");
+            Order order = orderService.placeOrder(cart, bill.getId(), "ソース少なめ");
 
             // DB に保存されて ID が振られている
             assertThat(order.getId()).isNotNull();
             assertThat(order.getStatus()).isEqualTo(OrderStatus.RECEIVED);
-            assertThat(order.getBusinessDate()).isEqualTo(LocalDate.now());
+
+            // ★イートインの要★ 注文は必ず伝票に結び付く
+            assertThat(order.getSession().getId()).isEqualTo(bill.getId());
+            // 厨房ボードで「どこに運ぶか」を出すための卓名
+            assertThat(order.getTableName()).isEqualTo("1番テーブル");
+            assertThat(order.getCustomerName()).isEqualTo("1番テーブル");
+
+            // 営業日は「いまの日付」ではなく<b>伝票の営業日</b>に合わせる。
+            // 深夜 0 時をまたいでも、同じ来店の注文は同じ営業日として集計したいため。
+            assertThat(order.getBusinessDate()).isEqualTo(bill.getBusinessDate());
 
             // 明細は商品名・価格を「そのときの値」でコピーして持つ（スナップショット）
             assertThat(order.getLines()).hasSize(2);
-            assertThat(order.getLines().get(0).getMenuItemName()).isEqualTo("コンプレット");
+            assertThat(order.getLines().get(0).getMenuItemName()).isEqualTo("肉玉米粉そば");
             assertThat(order.getTotalQuantity()).isEqualTo(3);
-            assertThat(order.getTotalAmount()).isEqualTo(2160);        // 880×2 + 400
-            assertThat(order.getTaxAmount()).isEqualTo(160);           // 2160 × 8 ÷ 108
-            assertThat(order.getEstimatedCookMinutes()).isEqualTo(18); // 8×2 + 2×1
+            assertThat(order.getTotalAmount()).isEqualTo(3210);         // 1180×2 + 850
+            assertThat(order.getTaxAmount()).isEqualTo(291);            // 3210 × 10 ÷ 110
+            assertThat(order.getEstimatedCookMinutes()).isEqualTo(26);  // 12×2 + 2×1
 
-            // 前後の空白は取り除かれる（呼び出しのときに見づらくならないように）
-            assertThat(order.getCustomerName()).isEqualTo("たなか");
             assertThat(order.getNote()).isEqualTo("ソース少なめ");
 
             // お客さん専用 URL のトークンが発行されている
+            // （伝票からの「この注文を取り消す」に使う。連番の ID を使うと
+            //   番号を変えるだけで他の卓の注文を取り消せてしまう）
             assertThat(order.getPublicToken()).isNotBlank();
             assertThat(orderService.findByToken(order.getPublicToken())).isPresent();
         }
@@ -169,7 +210,7 @@ class OrderServiceIntegrationTest {
         @Test
         @DisplayName("空のカートでは注文できない")
         void rejectsEmptyCart() {
-            assertThatThrownBy(() -> orderService.placeOrder(new Cart(), null, null))
+            assertThatThrownBy(() -> orderService.placeOrder(new Cart(), bill.getId(), null))
                     .isInstanceOf(OrderRejectedException.class)
                     .hasMessageContaining("カートに商品が入っていません");
         }
@@ -180,23 +221,34 @@ class OrderServiceIntegrationTest {
             // 混雑時のワンタップ停止。ここが効かないと厨房がパンクする。
             setting.setAcceptingOrders(false);
             setting.setClosedMessage("ただいま混み合っております");
-            Cart cart = cartOf(galette, 1);
+            Cart cart = cartOf(okonomiyaki, 1);
 
-            assertThatThrownBy(() -> orderService.placeOrder(cart, null, null))
+            assertThatThrownBy(() -> orderService.placeOrder(cart, bill.getId(), null))
                     .isInstanceOf(OrderRejectedException.class)
                     .hasMessageContaining("ただいま混み合っております");
         }
 
         @Test
-        @DisplayName("営業時間外は注文できない")
-        void rejectsOutsideBusinessHours() {
+        @DisplayName("ラストオーダー後は注文できない")
+        void rejectsAfterLastOrder() {
             // ラストオーダーを過去にずらして「受付終了後」の状態を作る。
             setting.setOpenTime(LocalTime.MIN);
             setting.setLastOrderTime(LocalTime.MIN);  // 00:00 を過ぎていれば受付終了
-            Cart cart = cartOf(galette, 1);
+            Cart cart = cartOf(okonomiyaki, 1);
 
-            assertThatThrownBy(() -> orderService.placeOrder(cart, null, null))
+            assertThatThrownBy(() -> orderService.placeOrder(cart, bill.getId(), null))
                     .isInstanceOf(OrderRejectedException.class);
+        }
+
+        @Test
+        @DisplayName("存在しない伝票 ID を指定すると SessionNotFoundException になる")
+        void rejectsUnknownSession() {
+            // 画面を長く開いたままにしていた、URL を直接叩かれた、などで起こりうる。
+            // 「どこにも属さない注文」が保存されないことを確認する。
+            Cart cart = cartOf(okonomiyaki, 1);
+
+            assertThatThrownBy(() -> orderService.placeOrder(cart, 999_999L, null))
+                    .isInstanceOf(TableService.SessionNotFoundException.class);
         }
 
         @Test
@@ -204,12 +256,12 @@ class OrderServiceIntegrationTest {
         void rejectsSoldOutItem() {
             // カートはセッションに残り続けるので、
             // 「カートに入れる → 迷っている間に売り切れる → 注文ボタンを押す」が普通に起きる。
-            // セッションの値を信じて受け付けると、作れない品の伝票が立ってしまう。
-            Cart cart = cartOf(galette, 1);
+            // セッションの値を信じて受け付けると、作れない品が伝票に載ってしまう。
+            Cart cart = cartOf(okonomiyaki, 1);
 
-            galette.setSoldOut(true);  // 厨房が品切れにした、という想定
+            okonomiyaki.setSoldOut(true);  // 厨房が品切れにした、という想定
 
-            assertThatThrownBy(() -> orderService.placeOrder(cart, null, null))
+            assertThatThrownBy(() -> orderService.placeOrder(cart, bill.getId(), null))
                     .isInstanceOf(OrderRejectedException.class)
                     .hasMessageContaining("売り切れ");
 
@@ -221,17 +273,69 @@ class OrderServiceIntegrationTest {
         @DisplayName("値上げされていたら受け付けず、確認しなおしてもらう")
         void rejectsWhenPriceChanged() {
             // 古い価格のまま会計してしまうと、実売価格と伝票が食い違う。
-            Cart cart = cartOf(galette, 1);
+            Cart cart = cartOf(okonomiyaki, 1);
 
-            galette.setPrice(980);
+            okonomiyaki.setPrice(1280);
 
-            assertThatThrownBy(() -> orderService.placeOrder(cart, null, null))
+            assertThatThrownBy(() -> orderService.placeOrder(cart, bill.getId(), null))
                     .isInstanceOf(OrderRejectedException.class)
                     .hasMessageContaining("価格");
 
             // 中身は最新の価格に洗い替えられているので、そのまま再確認できる
             assertThat(cart.getLines()).hasSize(1);
-            assertThat(cart.getLines().get(0).getBasePrice()).isEqualTo(980);
+            assertThat(cart.getLines().get(0).getBasePrice()).isEqualTo(1280);
+        }
+    }
+
+    @Nested
+    @DisplayName("伝票への積み上げ")
+    class BillTotals {
+
+        @Test
+        @DisplayName("追加注文するたびに伝票の小計と請求額が増える")
+        void ordersAccumulateIntoOneBill() {
+            // イートインでは「とりあえず飲み物 → あとから料理」と何度も注文する。
+            // 1 回ごとに新しい伝票ができてしまうと、会計が分かれて事故になる。
+            orderService.placeOrder(cartOf(sour, 1), bill.getId(), null);
+            orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
+
+            TableSession reloaded = reloadBill();
+
+            assertThat(reloaded.getBillableOrders()).hasSize(2);
+            assertThat(reloaded.getSubtotalAmount()).isEqualTo(2030);        // 850 + 1180
+            assertThat(reloaded.getTableChargeAmount()).isEqualTo(900);      // 450 × 2名
+            assertThat(reloaded.getTotalAmount()).isEqualTo(2930);
+        }
+
+        @Test
+        @DisplayName("店側がキャンセルすると、その注文ぶんが伝票から引かれる")
+        void staffCancelReducesTheBill() {
+            // ★お金に直結するテスト★
+            // 「取り消したのに金額が減らない」は、お客さんが真っ先に気づく不具合。
+            Order kept = orderService.placeOrder(cartOf(sour, 1), bill.getId(), null);
+            Order canceled = orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
+
+            orderService.cancelByStaff(canceled.getId(), "材料切れ", "店長");
+
+            TableSession reloaded = reloadBill();
+            assertThat(reloaded.getBillableOrders())
+                    .extracting(Order::getId)
+                    .containsExactly(kept.getId());
+            assertThat(reloaded.getSubtotalAmount()).isEqualTo(850);
+            assertThat(reloaded.getTotalAmount()).isEqualTo(850 + 900);
+        }
+
+        @Test
+        @DisplayName("お客さん自身のキャンセルでも伝票の金額が減る")
+        void customerCancelReducesTheBill() {
+            Order order = orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
+
+            orderService.cancelByCustomer(order.getPublicToken());
+
+            TableSession reloaded = reloadBill();
+            assertThat(reloaded.getSubtotalAmount()).isZero();
+            // 注文が全部消えても、テーブルチャージは残る
+            assertThat(reloaded.getTotalAmount()).isEqualTo(900);
         }
     }
 
@@ -242,12 +346,12 @@ class OrderServiceIntegrationTest {
         @Test
         @DisplayName("その日の1件目は ShopSetting の開始番号、2件目はその+1になる")
         void startsAtConfiguredNumberAndIncrements() {
-            // 「101番のお客様〜」と呼ぶための番号。
-            // 同じ番号が2人に振られると、商品の受け渡し事故に直結する。
+            // 厨房の伝票と画面の突き合わせに使う番号。
+            // 同じ番号が2組に振られると、料理の出し間違いに直結する。
             setting.setOrderNumberStart(501);
 
-            Order first = orderService.placeOrder(cartOf(galette, 1), null, null);
-            Order second = orderService.placeOrder(cartOf(coffee, 1), null, null);
+            Order first = orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
+            Order second = orderService.placeOrder(cartOf(sour, 1), bill.getId(), null);
 
             assertThat(first.getOrderNumber()).isEqualTo(501);
             assertThat(second.getOrderNumber()).isEqualTo(502);
@@ -258,7 +362,7 @@ class OrderServiceIntegrationTest {
         void followsSettingValue() {
             setting.setOrderNumberStart(1);
 
-            Order first = orderService.placeOrder(cartOf(galette, 1), null, null);
+            Order first = orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
 
             assertThat(first.getOrderNumber()).isEqualTo(1);
         }
@@ -269,9 +373,9 @@ class OrderServiceIntegrationTest {
     class ChangeStatus {
 
         @Test
-        @DisplayName("受付 → 調理中 → お渡し可 → 受渡済 と進められる")
+        @DisplayName("受付 → 調理中 → 提供可 → 提供済 と進められる")
         void movesThroughTheFlow() {
-            Order order = orderService.placeOrder(cartOf(galette, 1), null, null);
+            Order order = orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
             Long id = order.getId();
 
             Order cooking = orderService.changeStatus(id, OrderStatus.COOKING, "店長");
@@ -283,18 +387,20 @@ class OrderServiceIntegrationTest {
             assertThat(ready.getStatus()).isEqualTo(OrderStatus.READY);
             assertThat(ready.getReadyAt()).isNotNull();
 
-            Order completed = orderService.changeStatus(id, OrderStatus.COMPLETED, "店長");
+            Order completed = orderService.changeStatus(id, OrderStatus.COMPLETED, "ホール");
             assertThat(completed.getStatus()).isEqualTo(OrderStatus.COMPLETED);
             assertThat(completed.getCompletedAt()).isNotNull();
 
             // 保存済みの内容として読み直しても同じ状態になっている
             assertThat(orderService.getById(id).getStatus()).isEqualTo(OrderStatus.COMPLETED);
+            // 提供済みになっても金額は伝票に残る（会計はまだ先）
+            assertThat(reloadBill().getSubtotalAmount()).isEqualTo(1180);
         }
 
         @Test
         @DisplayName("許可されない遷移はサーバ側で弾かれる（URL を直接叩かれても通らない）")
         void rejectsForbiddenTransition() {
-            Order order = orderService.placeOrder(cartOf(galette, 1), null, null);
+            Order order = orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
             Long id = order.getId();
 
             assertThatThrownBy(() -> orderService.changeStatus(id, OrderStatus.COMPLETED, "店長"))
@@ -313,14 +419,14 @@ class OrderServiceIntegrationTest {
         @Test
         @DisplayName("お客さん自身のキャンセルは調理開始前だけ通る")
         void customerCancel() {
-            Order order = orderService.placeOrder(cartOf(galette, 1), null, null);
+            Order order = orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
 
             Order canceled = orderService.cancelByCustomer(order.getPublicToken());
             assertThat(canceled.getStatus()).isEqualTo(OrderStatus.CANCELED);
             assertThat(canceled.getCanceledReason()).isEqualTo("お客様都合");
 
             // 2件目は焼き始めてからキャンセルを試す
-            Order second = orderService.placeOrder(cartOf(coffee, 1), null, null);
+            Order second = orderService.placeOrder(cartOf(sour, 1), bill.getId(), null);
             orderService.changeStatus(second.getId(), OrderStatus.COOKING, "店長");
 
             assertThatThrownBy(() -> orderService.cancelByCustomer(second.getPublicToken()))
@@ -338,8 +444,8 @@ class OrderServiceIntegrationTest {
         void groupsByStatus() {
             // 厨房のタブレットはこの 3 レーンだけを見て動く。
             // 振り分けを間違えると、焼き上がった品が「受付」のまま埋もれる。
-            Order a = orderService.placeOrder(cartOf(galette, 1), null, null);
-            Order b = orderService.placeOrder(cartOf(coffee, 1), null, null);
+            Order a = orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
+            Order b = orderService.placeOrder(cartOf(sour, 1), bill.getId(), null);
             orderService.changeStatus(b.getId(), OrderStatus.COOKING, "店長");
 
             var board = orderService.kitchenBoard();
@@ -351,29 +457,26 @@ class OrderServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("受渡済・キャンセルの注文は厨房ボードから消える")
+        @DisplayName("厨房ボードのチケットから「どの卓に運ぶか」が分かる")
+        void showsWhichTableToServe() {
+            // テイクアウトなら番号を呼べば済んだが、イートインでは
+            // 卓名が出ていないと料理を運べない。ここが空だと現場が止まる。
+            orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
+
+            assertThat(orderService.kitchenBoard().received())
+                    .extracting(Order::getTableName)
+                    .containsExactly("1番テーブル");
+        }
+
+        @Test
+        @DisplayName("提供済み・キャンセルの注文は厨房ボードから消える")
         void closedOrdersDisappear() {
-            Order order = orderService.placeOrder(cartOf(galette, 1), null, null);
+            Order order = orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
             orderService.cancelByStaff(order.getId(), "材料切れ", "店長");
 
             assertThat(orderService.kitchenBoard().activeCount()).isZero();
             // 一方で当日の一覧には残る（売上・キャンセル記録として必要なため）
-            assertThat(orderService.ordersOf(LocalDate.now())).hasSize(1);
-        }
-
-        @Test
-        @DisplayName("サイネージ用の番号一覧が状態に応じて出る")
-        void signageNumbers() {
-            Order order = orderService.placeOrder(cartOf(galette, 1), null, null);
-            orderService.changeStatus(order.getId(), OrderStatus.COOKING, "店長");
-
-            assertThat(orderService.cookingNumbers()).containsExactly(order.getOrderNumber());
-            assertThat(orderService.readyNumbers()).isEmpty();
-
-            orderService.changeStatus(order.getId(), OrderStatus.READY, "店長");
-
-            assertThat(orderService.cookingNumbers()).isEmpty();
-            assertThat(orderService.readyNumbers()).containsExactly(order.getOrderNumber());
+            assertThat(orderService.ordersOf(bill.getBusinessDate())).hasSize(1);
         }
     }
 }

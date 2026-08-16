@@ -5,7 +5,6 @@ import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.service.CartService;
 import jp.komeko.order.service.OrderRejectedException;
 import jp.komeko.order.service.ShopSettingService;
-import jp.komeko.order.domain.TaxCalculator;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -49,9 +48,9 @@ public class CartController {
         ShopSetting setting = shopSettingService.currentReadOnly();
         LocalDateTime now = LocalDateTime.now();
 
-        int total = cart.getTotalAmount();
+        // 消費税・テーブルチャージは「伝票（卓）」の単位で計算するので、
+        // カート画面では今回追加ぶんの小計だけを見せる。
         model.addAttribute("cart", cart);
-        model.addAttribute("taxAmount", TaxCalculator.includedTax(total, setting.getTaxRatePercent()));
         model.addAttribute("accepting", setting.isOrderAcceptable(now));
         model.addAttribute("rejectReason", setting.orderRejectReason(now));
         return "customer/cart";

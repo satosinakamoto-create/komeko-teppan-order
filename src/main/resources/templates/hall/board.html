@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   ホール・会計ボード（伝票一覧）
+  ============================================================================
+   ・「いま何卓が入っていて、いくらになっているか」を一目で見る画面です。
+   ・上段に合計（在席・未提供・空席）、中段に在席の伝票カード、
+     下段に空席カード（そこからご案内できる）、最後に本日の会計済み一覧。
+   ・注文が入ると SSE（/api/stream/hall）で通知が届き、
+     hall.js が 2 秒待ってからページを読み直します。厨房と違い音は鳴りません。
+
+   金額はすべてサーバ（TableSession）が計算した値をそのまま出しています。
+   画面側で「小計＋チャージ」のような足し算を書くと、計算式が 2 箇所に増えて
+   請求金額がズレる事故につながるため、絶対に行いません。
+
+   なお、この囲みは Thymeleaf 専用のコメントで、出力される HTML には残りません。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('ホール・会計', ~{::main})}">
+<body>
+<!--/* data-hall-board は hall.js が「この画面でだけ自動更新する」ための目印。
+       CSS のクラスではなくデータ属性にしているのは、見た目と無関係だからです。 */-->
+<main data-hall-board>
+
+  <!--/* 直前の操作結果（成功・お知らせ・エラー）を 1 回だけ表示する共通部品 */-->
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">ホール・会計</h1>
+    <span class="section-title__count">卓ごとの伝票とお会計</span>
+  </div>
+
+  <!--/* ===== 上段：いまの状況のまとめ ===== */-->
+  <div class="grid grid--3">
+
+    <div class="stat">
+      <p class="stat__label">在席</p>
+      <p class="stat__value">
+        <span th:text="${occupiedCount}">3</span><span class="stat__unit">卓</span>
+        <span class="stat__unit"> ／ </span>
+        <span th:text="${guestTotal}">9</span><span class="stat__unit">名</span>
+      </p>
+      <p class="tiny faint mb-0">お会計がまだのお客さま</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">未提供</p>
+      <p class="stat__value">
+        <span th:text="${pendingCount}">2</span><span class="stat__unit">件</span>
+      </p>
+      <p class="tiny faint mb-0">受付・調理中の注文</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">空席</p>
+      <p class="stat__value">
+        <span th:text="${vacantCount}">5</span><span class="stat__unit">卓</span>
+      </p>
+      <p class="tiny faint mb-0">ご案内できる卓</p>
+    </div>
+
+  </div>
+
+  <!--/* ===== 在席の伝票 ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">在席の伝票</h2>
+    <span class="section-title__count" th:text="${occupiedCount} + ' 卓'">3 卓</span>
+  </div>
+
+  <div th:if="${bills.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('席', 'ただいまご案内中のお客さまはいません')}"></div>
+  </div>
+
+  <div class="grid grid--3" th:unless="${bills.isEmpty()}">
+
+    <!--/* 伝票カード 1 枚。
+           stayMinutes（滞在時間）はサーバが描いた値をそのまま出します。
+           ブラウザ側で 1 分ずつ足していくとサーバとズレる一方なので行いません。 */-->
+    <article class="card" th:each="bill : ${bills}">
+
+      <div class="card__head row row--between row--wrap">
+        <span th:text="${bill.diningTable.name}">3番テーブル</span>
+        <!--/* 未提供（受付・調理中）の品が残っている卓は、ひと目で分かるようにする。
+               会計してしまう前に気づけることが大事なので、一覧の段階から出します。 */-->
+        <span class="badge badge--rec" th:if="${bill.hasPendingOrders()}">調理中あり</span>
+      </div>
+
+      <div class="card__body">
+        <p class="small muted mb-0">
+          <span th:text="${bill.guestCount} + ' 名'">4 名</span>
+          <span class="faint"> ／ </span>
+          <span th:text="'滞在 ' + ${bill.stayMinutes} + ' 分'">滞在 62 分</span>
+        </p>
+
+        <p class="stat__label mt-4 mb-0">現在のご請求額</p>
+        <p class="stat__value">¥<span
+              th:text="${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">11,044</span></p>
+
+        <p class="tiny faint mb-0"
+           th:if="${bill.lateNightApplied}"
+           th:text="'深夜料金 ' + ${bill.lateNightSurchargePercent} + '% を含む'">深夜料金 10% を含む</p>
+        <p class="tiny faint mb-0"
+           th:unless="${bill.lateNightApplied}"
+           th:text="'テーブルチャージ ¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')} + ' を含む'">
+          テーブルチャージ ¥1,800 を含む</p>
+      </div>
+
+      <div class="card__foot">
+        <a class="btn btn--primary btn--block"
+           th:href="@{/hall/bills/{id}(id=${bill.id})}">伝票を見る／お会計</a>
+      </div>
+
+    </article>
+  </div>
+
+  <!--/* ===== 空席（ここからご案内する） ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">空席</h2>
+    <span class="section-title__count" th:text="${vacantCount} + ' 卓'">5 卓</span>
+  </div>
+
+  <div th:if="${vacantTables.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('満', '空いている卓はありません')}"></div>
+  </div>
+
+  <div class="grid grid--3" th:unless="${vacantTables.isEmpty()}">
+
+    <!--/* 空席のカードは、在席のカードと見分けがつくよう薄めに出します。
+           .empty-state は「中身が無い」ことを表す共通クラスです。 */-->
+    <article class="card" th:each="table : ${vacantTables}" style="opacity:.8">
+
+      <div class="card__body empty-state" style="padding-top:1.25rem;padding-bottom:1.25rem">
+        <div class="empty-state__mark" aria-hidden="true"
+             th:text="${#strings.substring(table.name, 0, 1)}">3</div>
+        <p class="mb-0" th:text="${table.name}">3番テーブル</p>
+        <p class="tiny faint mb-0" th:text="'席数 ' + ${table.capacity}">席数 4</p>
+      </div>
+
+      <!--/* ご案内フォーム。
+             th:action で書くと CSRF トークンの hidden 項目が自動で入ります。
+             素の action="..." にすると 403 になるので注意してください。
+
+             人数の初期値は 2 名です。卓の席数を初期値にすると、
+             2 名で 4 人掛けに座ったときにテーブルチャージを 2 名分多く
+             頂いてしまうためです（あとから伝票画面で直せます）。 */-->
+      <div class="card__foot">
+        <form th:action="@{/hall/tables/{id}/open(id=${table.id})}" method="post" class="row row--wrap">
+          <label class="visually-hidden" th:for="'guests-' + ${table.id}">人数</label>
+          <select class="select" name="guestCount"
+                  th:id="'guests-' + ${table.id}" style="max-width:7rem">
+            <option th:each="n : ${guestOptions}"
+                    th:value="${n}"
+                    th:text="${n} + ' 名'"
+                    th:selected="${n == defaultGuestCount}">2 名</option>
+          </select>
+          <button type="submit" class="btn btn--ok">ご案内</button>
+        </form>
+      </div>
+
+    </article>
+  </div>
+
+  <!--/* ===== 本日の会計済み =====
+         締めたあとの伝票は上の一覧から消えるため、ここに残しておかないと
+         「間違えて会計した」ときにたどり着けなくなります。
+         会計取消（リカバリ）の入口として必要な一覧です。
+
+         ※ ここに並ぶのは値をコピーした record（HallController.ClosedBillRow）です。
+            注文の中身は読み込んでいないので、row.orders のような書き方はできません
+            （open-in-view: false のため、触ると画面が真っ白になります）。
+            record のアクセサは括弧付きで ${row.tableName()} のように呼びます。
+  */-->
+  <div class="section-title">
+    <h2 class="section-title__text">本日の会計済み</h2>
+    <span class="section-title__count" th:text="${#lists.size(closedBills)} + ' 件'">2 件</span>
+  </div>
+
+  <p class="small faint" th:if="${closedBills.isEmpty()}">まだ会計済みの伝票はありません。</p>
+
+  <div class="card" th:unless="${closedBills.isEmpty()}">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+        <tr>
+          <th>卓</th>
+          <th>人数</th>
+          <th>入店</th>
+          <th>会計</th>
+          <th class="num">ご請求額</th>
+          <th>担当</th>
+          <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="row : ${closedBills}">
+          <td th:text="${row.tableName()}">3番テーブル</td>
+          <td th:text="${row.guestCount()} + ' 名'">4 名</td>
+          <td th:text="${row.openedAtLabel()}">19:02</td>
+          <td th:text="${row.closedAtLabel()}">21:30</td>
+          <td class="num"
+              th:text="'¥' + ${#numbers.formatInteger(row.totalAmount(), 1, 'COMMA')}">¥11,044</td>
+          <td th:text="${row.closedBy()}">やまだ</td>
+          <td>
+            <a class="btn btn--sm btn--ghost"
+               th:href="@{/hall/bills/{id}(id=${row.id()})}">伝票</a>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="tiny faint center mt-6">
+    注文が入ると自動で画面が更新されます。すぐ確認したいときは端末の再読み込みを押してください。
+  </p>
+
+  <!--/* SSE を受け取って画面を読み直すスクリプト。defer なので HTML を描き終えてから動きます */-->
+  <script th:src="@{/js/hall.js}" defer></script>
+</main>
+</body>
+</html>

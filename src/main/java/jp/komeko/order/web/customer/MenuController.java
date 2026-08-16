@@ -1,5 +1,6 @@
 package jp.komeko.order.web.customer;
 
+import jp.komeko.order.cart.TableContext;
 import jp.komeko.order.domain.Category;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.ShopSetting;
@@ -29,19 +30,28 @@ public class MenuController {
 
     private final MenuService menuService;
     private final ShopSettingService shopSettingService;
+    private final TableContext tableContext;
 
-    public MenuController(MenuService menuService, ShopSettingService shopSettingService) {
+    public MenuController(MenuService menuService,
+                          ShopSettingService shopSettingService,
+                          TableContext tableContext) {
         this.menuService = menuService;
         this.shopSettingService = shopSettingService;
+        this.tableContext = tableContext;
     }
 
     /**
      * メニュー一覧。
      *
-     * @param src QR に付けた流入元（例: ?src=counter）。集計用に受けるだけで動作は変わらない
+     * <p>卓の QR を読んでいない状態（＝どの席か分からない状態）では
+     * 注文できないので、案内ページを出します。
+     * ブックマークや検索から直接来た人がここに来ます。
      */
     @GetMapping({"/", "/menu"})
     public String menu(@RequestParam(required = false) String src, Model model) {
+        if (!tableContext.isBound()) {
+            return "customer/no-table";
+        }
         Map<Category, List<MenuItem>> menu = menuService.customerMenu();
         ShopSetting setting = shopSettingService.currentReadOnly();
         LocalDateTime now = LocalDateTime.now();

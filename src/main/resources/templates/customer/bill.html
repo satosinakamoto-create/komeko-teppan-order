@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout('お席の伝票', ~{::main})}">
+<body>
+<main>
+  <div class="container">
+
+    <div th:replace="~{fragments/common :: flash}"></div>
+
+    <div class="section-title">
+      <h1 class="section-title__text">お席の伝票</h1>
+      <span class="section-title__count"
+            th:text="${bill.diningTable.name} + ' ／ ' + ${bill.guestCount} + '名'">3番テーブル ／ 4名</span>
+    </div>
+
+    <!--/* ===== ご注文の状況 =====
+           data-* 属性は JavaScript が読むための値置き場。
+           customer.js がここを見て数秒ごとに状態を確認します。
+    */-->
+    <section id="bill-status" th:attr="data-pending=${bill.hasPendingOrders()}">
+
+      <div th:if="${orders.isEmpty()}">
+        <div th:replace="~{fragments/common :: empty('膳', 'まだご注文がありません')}"></div>
+      </div>
+
+      <article class="card mt-4" th:each="order : ${orders}">
+        <div class="card__head row row--between">
+          <span>
+            <span class="muted small">ご注文</span>
+            <b class="num" th:text="'#' + ${order.orderNumber}">#101</b>
+          </span>
+          <span class="status-chip"
+                th:style="'color:' + ${order.status.color}"
+                th:text="${order.status.customerLabel}">焼いています</span>
+        </div>
+
+        <div class="card__body">
+          <div class="cart-line" th:each="line : ${order.lines}">
+            <div>
+              <div class="cart-line__name">
+                <span th:text="${line.menuItemName}">たこ焼 8個</span>
+                <span class="muted" th:text="' × ' + ${line.quantity}"> × 1</span>
+              </div>
+              <div class="cart-line__opts" th:if="${!line.options.isEmpty()}"
+                   th:text="${line.optionSummary}">ソース / ねぎマヨ</div>
+            </div>
+            <div class="cart-line__price"
+                 th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥1,190</div>
+          </div>
+
+          <p class="small muted mt-4 mb-0" th:if="${order.note}"
+             th:text="'ご要望：' + ${order.note}">ご要望：ソース少なめ</p>
+        </div>
+
+        <!--/* 焼き始める前だけ、お客さま自身でキャンセルできる */-->
+        <div class="card__foot" th:if="${order.customerCancelable}">
+          <form th:action="@{/bill/orders/{t}/cancel(t=${order.publicToken})}" method="post">
+            <button type="submit" class="btn btn--sm btn--danger"
+                    onclick="return confirm('このご注文をキャンセルします。よろしいですか？');">
+              このご注文をキャンセル
+            </button>
+          </form>
+        </div>
+      </article>
+    </section>
+
+    <!--/* ===== お会計 ===== */-->
+    <div class="card mt-6">
+      <div class="card__head">現在のご請求額</div>
+      <div class="card__body">
+        <table class="total-table">
+          <tbody>
+          <tr>
+            <td class="muted">お料理・お飲み物</td>
+            <td th:text="'¥' + ${#numbers.formatInteger(bill.subtotalAmount, 1, 'COMMA')}">¥8,240</td>
+          </tr>
+          <tr th:if="${bill.tableChargeAmount > 0}">
+            <td class="muted">
+              テーブルチャージ
+              <span class="tiny faint"
+                    th:text="'（¥' + ${#numbers.formatInteger(bill.tableChargePerGuest, 1, 'COMMA')} + ' × ' + ${bill.guestCount} + '名）'">（¥450 × 4名）</span>
+            </td>
+            <td th:text="'¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')}">¥1,800</td>
+          </tr>
+          <tr th:if="${bill.lateNightApplied}">
+            <td class="muted"
+                th:text="'深夜料金（' + ${bill.lateNightSurchargePercent} + '%）'">深夜料金（10%）</td>
+            <td th:text="'¥' + ${#numbers.formatInteger(bill.lateNightAmount, 1, 'COMMA')}">¥1,004</td>
+          </tr>
+          <tr class="is-grand">
+            <td>合計</td>
+            <td th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥11,044</td>
+          </tr>
+          <tr>
+            <td class="tiny faint"
+                th:text="'（内 消費税 ' + ${bill.taxRatePercent} + '%）'">（内 消費税 10%）</td>
+            <td class="tiny faint"
+                th:text="'¥' + ${#numbers.formatInteger(bill.taxAmount, 1, 'COMMA')}">¥1,004</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card__foot">
+        <p class="tiny faint mb-0"
+           th:if="${!bill.lateNightApplied and shop.lateNightSurchargePercent > 0}"
+           th:text="${shop.lateNightStartTime} + ' 以降は深夜料金 ' + ${shop.lateNightSurchargePercent} + '% を頂戴いたします'">
+          23:00 以降は深夜料金 10% を頂戴いたします</p>
+        <p class="tiny faint mb-0">お会計はご退店時にレジまでお願いします</p>
+      </div>
+    </div>
+
+    <!--/* ===== 追加注文 ===== */-->
+    <div class="cart-bar mt-6">
+      <div class="cart-bar__inner">
+        <a class="btn btn--primary btn--lg btn--block" th:href="@{/}">追加でご注文する</a>
+      </div>
+    </div>
+
+    <p class="tiny faint center mt-6">
+      画面は自動で更新されます。お呼びの際はスタッフまでお声がけください。
+    </p>
+
+  </div>
+
+  <script th:src="@{/js/customer.js}" defer></script>
+</main>
+</body>
+</html>

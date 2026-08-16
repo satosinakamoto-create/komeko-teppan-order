@@ -20,8 +20,16 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
      * <p>{@code @EntityGraph} を付けると「この関連も一緒に読んで」と指示できます。
      * これを付けないと、画面でカテゴリ名を表示するたびに 1 件ずつ SELECT が飛び、
      * 商品 30 件なら 31 回 SQL が走ります（有名な <b>N+1 問題</b>）。
+     *
+     * <p><b>allergens も必ず並べること（ハマりどころ）</b><br>
+     * {@code @EntityGraph} は既定で「フェッチグラフ」として扱われ、
+     * <b>ここに書かなかった関連は、たとえ {@code FetchType.EAGER} と
+     * 宣言していても LAZY 扱いに上書きされます</b>。
+     * {@code allergens} を書き忘れると、画面を描くときに
+     * {@code LazyInitializationException} が出ます
+     * （このアプリは {@code open-in-view: false} で、描画時には DB 接続が無いため）。
      */
-    @EntityGraph(attributePaths = {"category"})
+    @EntityGraph(attributePaths = {"category", "allergens"})
     @Query("""
             select m from MenuItem m
             where m.visible = true and m.category.visible = true
@@ -30,7 +38,7 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     List<MenuItem> findVisibleForCustomer();
 
     /** 管理画面用。非表示も含めて全件。 */
-    @EntityGraph(attributePaths = {"category"})
+    @EntityGraph(attributePaths = {"category", "allergens"})
     @Query("""
             select m from MenuItem m
             order by m.category.sortOrder asc, m.sortOrder asc, m.id asc
@@ -56,6 +64,6 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     /** カテゴリに属する商品数（カテゴリ削除の可否判定に使う）。 */
     long countByCategoryId(Long categoryId);
 
-    @EntityGraph(attributePaths = {"category"})
+    @EntityGraph(attributePaths = {"category", "allergens"})
     List<MenuItem> findByCategoryIdOrderBySortOrderAscIdAsc(Long categoryId);
 }

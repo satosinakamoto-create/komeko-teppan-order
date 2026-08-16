@@ -26,6 +26,13 @@ import java.util.Locale;
  * <p>厨房画面（{@code /kitchen}）が「いま作っているもの」を見るのに対して、
  * こちらは「終わったものも含めて、その日 1 日ぶんを振り返る」ための画面です。
  * キャンセル済み・受渡済も含めて全部出ます。
+ *
+ * <p><b>イートインでの位置づけ</b><br>
+ * お会計の単位は注文ではなく<b>伝票（卓の 1 回の来店）</b>です。
+ * この画面は伝票ではなく<b>1 回ぶんの注文</b>を並べるので、
+ * 同じ組のお客さまの追加注文は別々の行として出ます。
+ * どの卓からの注文かは「卓」の列を見てください。
+ * お会計そのものはホール画面（{@code /hall}）の担当です。
  */
 @Controller
 @RequestMapping("/admin/orders")
@@ -87,6 +94,10 @@ public class AdminOrderController {
         // ordersOf() は明細とオプションまで読み終えた状態で返してくれる。
         // このアプリは open-in-view: false なので、画面を描く段階では DB 接続が無く、
         // 「サービスを抜けるまでに必要なものを読み終えておく」ことが必須になる。
+        //
+        // 卓名（${o.tableName}）を画面に出せるのも同じ理由で、
+        // OrderRepository 側の @EntityGraph に session と session.diningTable が
+        // 指定されているおかげ。ここを外すと一覧が LazyInitializationException で落ちる。
         List<Order> orders = orderService.ordersOf(target);
         List<OrderRow> rows = orders.stream()
                 .map(o -> new OrderRow(o, o.getCreatedAt().format(TIME_FORMAT)))
@@ -115,8 +126,12 @@ public class AdminOrderController {
      *
      * <p><b>{@code @AuthenticationPrincipal} とは</b><br>
      * ログイン中のユーザー情報（{@link StaffUserDetails}）を引数として受け取るための指定です。
-     * 「誰がキャンセルしたか」を伝票に記録しておくと、
+     * 「誰がキャンセルしたか」を記録しておくと、
      * あとで「この注文なぜ消えてるの？」となったときに追跡できます。
+     *
+     * <p>キャンセルすると、その注文はぶら下がっている伝票の小計からも自動的に外れます
+     * （{@code OrderService#cancelByStaff} が伝票を計算し直します）。
+     * まだお会計していない卓なら、お客さまに出す金額もその場で下がります。
      *
      * <p>状態遷移のルール違反（受渡済のものをキャンセルしようとした等）は
      * {@code Order#changeStatus} が {@link IllegalStateException} を投げます。
@@ -136,7 +151,8 @@ public class AdminOrderController {
         try {
             Order canceled = orderService.cancelByStaff(id, normalizeReason(reason), staffName);
             redirectAttributes.addFlashAttribute("flashSuccess",
-                    "注文 #%d をキャンセルしました".formatted(canceled.getOrderNumber()));
+                    "注文 #%d（%s）をキャンセルしました。伝票の合計からも外れています"
+                            .formatted(canceled.getOrderNumber(), canceled.getTableName()));
         } catch (IllegalStateException | OrderService.OrderNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
         }

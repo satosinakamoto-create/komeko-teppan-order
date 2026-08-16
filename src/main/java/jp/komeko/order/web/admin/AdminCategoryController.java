@@ -4,6 +4,9 @@ import jp.komeko.order.domain.Category;
 import jp.komeko.order.repository.CategoryRepository;
 import jp.komeko.order.service.MenuService;
 import jp.komeko.order.web.admin.form.CategoryForm;
+import org.springframework.context.MessageSource;
+import org.springframework.context.NoSuchMessageException;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
@@ -48,10 +51,14 @@ public class AdminCategoryController {
 
     private final CategoryRepository categoryRepository;
     private final MenuService menuService;
+    private final MessageSource messageSource;
 
-    public AdminCategoryController(CategoryRepository categoryRepository, MenuService menuService) {
+    public AdminCategoryController(CategoryRepository categoryRepository,
+                                   MenuService menuService,
+                                   MessageSource messageSource) {
         this.categoryRepository = categoryRepository;
         this.menuService = menuService;
+        this.messageSource = messageSource;
     }
 
     // ========================================================================
@@ -230,8 +237,32 @@ public class AdminCategoryController {
     private Map<String, String> fieldErrors(BindingResult binding) {
         Map<String, String> errors = new LinkedHashMap<>();
         for (FieldError error : binding.getFieldErrors()) {
-            errors.putIfAbsent(error.getField(), error.getDefaultMessage());
+            errors.putIfAbsent(error.getField(), resolveMessage(error));
         }
         return errors;
+    }
+
+    /**
+     * エラーを画面に出す日本語の文言に直す。
+     *
+     * <p><b>{@code error.getDefaultMessage()} をそのまま使ってはいけない理由</b><br>
+     * 数値欄に文字を入れられた場合（型変換の失敗）、既定メッセージは
+     * 「Failed to convert property value of type 'java.lang.String' to ...」という
+     * Spring 内部の英語文になります。これをそのまま出すと、
+     * 日本語の画面に英語が混じるうえ、内部のクラス名まで見えてしまいます。
+     *
+     * <p>{@code th:errors} は内部で MessageSource を通しているので、
+     * 手作りのエラー表示でも同じように通します。こうすると messages.properties の
+     * {@code typeMismatch.java.lang.Integer=数値を入力してください} が効き、
+     * 画面全体で文言がそろいます。
+     * アノテーションに {@code message} を書いた項目は、そのまま既定メッセージが使われます。
+     */
+    private String resolveMessage(FieldError error) {
+        try {
+            return messageSource.getMessage(error, LocaleContextHolder.getLocale());
+        } catch (NoSuchMessageException e) {
+            // メッセージ定義も既定メッセージも無い、という想定外のときの保険
+            return error.getDefaultMessage();
+        }
     }
 }

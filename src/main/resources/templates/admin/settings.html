@@ -14,7 +14,7 @@
 
   <div class="section-title">
     <h1 class="section-title__text">店舗設定</h1>
-    <span class="section-title__count">お客さんの画面と待ち時間の計算に効きます</span>
+    <span class="section-title__count">お客さんの画面・伝票の金額・待ち時間の計算に効きます</span>
   </div>
 
   <!--/* ==========================================================
@@ -72,11 +72,15 @@
         </div>
 
         <div class="field">
-          <label class="label" for="pickupNotice">受け取り案内</label>
+          <label class="label" for="pickupNotice">お客さまへのご案内</label>
           <textarea class="textarea" id="pickupNotice" th:field="*{pickupNotice}"
                     th:errorclass="is-error" maxlength="200"></textarea>
           <p class="error" th:if="${#fields.hasErrors('pickupNotice')}" th:errors="*{pickupNotice}">エラー</p>
-          <p class="help">注文完了後、お客さんの控え画面に出る案内文です。会計方法や受け取り場所を書いておくと問い合わせが減ります。</p>
+          <p class="help">
+            卓の QR コードを読んだお客さまに、いちばん最初の画面（人数の選択画面）で出る案内文です。<br>
+            「お会計はお席の伝票にまとめてお付けします。ご退店時にレジへお越しください」のように、
+            <strong>会計のしかた</strong>を書いておくと問い合わせが減ります。
+          </p>
         </div>
 
       </div>
@@ -92,13 +96,19 @@
           保存処理は「フォームから受け取った値」をそのまま設定に写すため、
           入力欄が無いと初期値 true が書き込まれ、停止したはずの受付が
           保存のたびに勝手に再開されてしまいます。
+
+          同じ理由で、テーブルチャージ・深夜料金の入力欄も外さないでください。
+          外すと初期値（¥450 ／ 23:00 ／ 10%）が書き込まれます。
         */-->
         <div class="field">
           <label class="choice" for="acceptingOrders">
             <input type="checkbox" id="acceptingOrders" th:field="*{acceptingOrders}">
             <span class="choice__name">注文を受け付ける</span>
           </label>
-          <p class="help">上の赤いボタンと同じ意味です。ここでの変更は「保存」を押すまで反映されません。</p>
+          <p class="help">
+            上の赤いボタンと同じ意味です。ここでの変更は「保存」を押すまで反映されません。<br>
+            受付を止めても、すでにご案内している卓の伝票は残ります（お会計はふつうにできます）。
+          </p>
         </div>
 
         <div class="field">
@@ -115,7 +125,7 @@
             <input class="input" type="time" id="openTime" th:field="*{openTime}"
                    th:errorclass="is-error" required>
             <p class="error" th:if="${#fields.hasErrors('openTime')}" th:errors="*{openTime}">エラー</p>
-            <p class="help">この時刻より前は注文を受け付けません。</p>
+            <p class="help">この時刻より前は、QR を読んでも注文できません。</p>
           </div>
 
           <div class="field">
@@ -123,7 +133,10 @@
             <input class="input" type="time" id="lastOrderTime" th:field="*{lastOrderTime}"
                    th:errorclass="is-error" required>
             <p class="error" th:if="${#fields.hasErrors('lastOrderTime')}" th:errors="*{lastOrderTime}">エラー</p>
-            <p class="help">これを過ぎると、ボタンを押さなくても自動で受付が終了します。</p>
+            <p class="help">
+              これを過ぎると、ボタンを押さなくても自動で受付が終了します。
+              お会計はラストオーダー後もできます。
+            </p>
           </div>
 
           <div class="field">
@@ -134,6 +147,22 @@
             <p class="help">案内表示に使います。売上画面の時間帯グラフの範囲もこれを基準にします。</p>
           </div>
         </div>
+
+        <!--/* ===== 日をまたぐ営業の説明（居酒屋なのでここが本題） ===== */-->
+        <p class="help">
+          <strong>深夜まで・日をまたぐ営業に対応しています。</strong><br>
+          このシステムは <strong>ラストオーダー時刻が開店時刻より小さければ「日をまたぐ営業」</strong>と解釈します。
+          たとえば <strong>開店 17:30 ／ ラストオーダー 01:30 ／ 閉店 02:00</strong> と入れれば、
+          夕方 17:30 から翌日の 1:30 までが注文の受付時間になります
+          （17:30 &gt; 01:30 なので日をまたぐと判断されます）。<br>
+          昼だけの営業なら 11:00 ／ 18:30 ／ 19:00 のように、ふつうに大小関係が揃った時刻を入れてください。
+          どちらの書き方でも同じ欄で扱えます。<br>
+          ただし<strong>開店時刻とラストオーダーを同じ時刻にはできません</strong>。
+          受け付けられるのがその 1 分間だけになってしまうためです。<br>
+          なお「その注文がどの営業日か」は、この欄ではなく下の
+          <strong>営業日の切り替え時刻</strong>で決まります。深夜 1 時の注文を前日の売上にしたいなら、
+          切り替え時刻を 5 のままにしておいてください。
+        </p>
 
       </div>
     </div>
@@ -150,9 +179,11 @@
                    th:errorclass="is-error" min="0" max="100" step="1" inputmode="numeric">
             <p class="error" th:if="${#fields.hasErrors('taxRatePercent')}" th:errors="*{taxRatePercent}">エラー</p>
             <p class="help">
-              テイクアウトは軽減税率の <strong>8</strong> です。
+              店内でお召し上がりいただく（イートイン）ので <strong>10</strong> です。
+              お酒も軽減税率の対象外なので同じ 10 になります。<br>
               商品の価格はすべて税込で登録されており、この率で内税額を逆算してレシート表示に使います。
-              変更しても、すでに受け付けた注文の税額は当時のまま残ります。
+              変更しても、<strong>すでに開いている伝票の税率は来店時のまま</strong>です
+              （伝票がご案内の時点で税率をコピーして持っているためです）。
             </p>
           </div>
 
@@ -162,12 +193,104 @@
                    th:errorclass="is-error" min="1" step="1" inputmode="numeric">
             <p class="error" th:if="${#fields.hasErrors('orderNumberStart')}" th:errors="*{orderNumberStart}">エラー</p>
             <p class="help">
-              営業日ごとに、その日の 1 件目に振る番号です。101 にすると 3 桁で揃い、
-              呼び出しのときに聞き取りやすくなります（「いちまるいちばんのお客様」）。
+              営業日ごとに、その日の 1 件目に振る番号です。101 にすると 3 桁で揃います。<br>
+              イートインではお客さまを番号でお呼びしませんが、厨房の伝票や
+              「何番の注文がまだ出ていない」といったスタッフ同士のやりとりに使います。
             </p>
           </div>
 
         </div>
+      </div>
+    </div>
+
+    <!--/* ==========================================================
+           イートインの料金（テーブルチャージ・深夜料金）
+           ここは会計に直結するので、説明を厚めに書いています。
+       ========================================================== */-->
+    <div class="card mt-6">
+      <div class="card__head">テーブルチャージと深夜料金</div>
+      <div class="card__body">
+        <div class="grid grid--3">
+
+          <div class="field">
+            <label class="label" for="tableChargePerGuest">テーブルチャージ（円 / 人）</label>
+            <input class="input" type="number" id="tableChargePerGuest" th:field="*{tableChargePerGuest}"
+                   th:errorclass="is-error" min="0" step="10" inputmode="numeric">
+            <p class="error" th:if="${#fields.hasErrors('tableChargePerGuest')}"
+               th:errors="*{tableChargePerGuest}">エラー</p>
+            <p class="help">
+              お通し代・席料です。<strong>伝票ごとに「単価 × 人数」で加算</strong>されます。<br>
+              450 円で 4 名さまなら、ご請求に ¥1,800 が足されます。<br>
+              <strong>0 にすると請求しません。</strong>
+            </p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="lateNightStartTime">深夜料金の開始時刻<span class="req">必須</span></label>
+            <input class="input" type="time" id="lateNightStartTime" th:field="*{lateNightStartTime}"
+                   th:errorclass="is-error" required>
+            <p class="error" th:if="${#fields.hasErrors('lateNightStartTime')}"
+               th:errors="*{lateNightStartTime}">エラー</p>
+            <p class="help">
+              この時刻以降のお会計に深夜料金がかかります（既定は 23:00）。<br>
+              0 時をまたいだあとも、営業日の切り替え時刻までは「深夜」として扱われるので、
+              深夜 1 時のお会計にもきちんとかかります。
+            </p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="lateNightSurchargePercent">深夜料金の割増率（%）</label>
+            <input class="input" type="number" id="lateNightSurchargePercent"
+                   th:field="*{lateNightSurchargePercent}"
+                   th:errorclass="is-error" min="0" max="100" step="1" inputmode="numeric">
+            <p class="error" th:if="${#fields.hasErrors('lateNightSurchargePercent')}"
+               th:errors="*{lateNightSurchargePercent}">エラー</p>
+            <p class="help">
+              <strong>小計 ＋ テーブルチャージ</strong>に対してかかる割合です。<br>
+              <strong>0 にすると請求しません</strong>（深夜料金をやめたいときは時刻ではなくこちらを 0 に）。
+            </p>
+          </div>
+
+        </div>
+
+        <!--/* 計算の順番はドメイン（TableSession#recalculate）と必ず同じ書き方にしておく。
+               画面の説明と実際の計算がズレると、その場でお客さまとの金額トラブルになります。 */-->
+        <p class="help">
+          <strong>ご請求額の組み立て</strong><br>
+          小計（キャンセルを除いた注文の合計・税込）<br>
+          ＋ テーブルチャージ（単価 × 人数）<br>
+          ＋ 深夜料金（<strong>小計 ＋ テーブルチャージ</strong> × 割増率）<br>
+          ＝ <strong>ご請求額</strong>（消費税はこの中に含まれています）<br>
+          深夜料金は 1 円未満を切り捨てます。お会計の画面では、スタッフの判断で深夜料金を外すこともできます。
+        </p>
+
+        <!--/*
+          ここの説明は TableSession#recalculate と TableService#refresh の
+          両方を読んだうえで書いています。
+            ・金額（単価・割増率・税率）は伝票にコピーされている → 変えても既存の伝票は動かない
+            ・「深夜料金がかかるか」の判定だけは ShopSetting#isLateNight を
+              そのつど最新の設定で呼んでいる → 変えると開いている伝票にも即座に効く
+          この 2 つを混ぜて「反映されません」と書くと、営業中に割増率を 0 にした店長が
+          いま開いている伝票からも深夜料金が消えることに気づけません。
+        */-->
+        <div class="alert alert--warn">
+          <p class="mb-0">
+            <strong>金額そのもの（単価・割増率・税率）は、すでに開いている伝票には反映されません。</strong>
+            伝票はご案内した時点の値をコピーして持っているためです（これは仕様です）。
+            新しい金額は<strong>このあとご案内する卓</strong>から適用されます。
+            いま座っているお客さまにも新しい単価を適用したいときは、
+            ホール画面でその伝票を一度お会計してから、あらためてご案内し直してください。
+          </p>
+          <p class="mb-0 mt-4">
+            <strong>ただし「深夜料金がかかるかどうか」の判定だけは、つねに最新の設定で行われます。</strong>
+            開いている伝票は追加注文などのたびに計算し直されるため、
+            <strong>深夜料金の開始時刻を変える</strong>・<strong>割増率を 0 にする</strong>・
+            <strong>営業日の切り替え時刻を変える</strong>と、
+            いま開いている伝票の深夜料金もその場で付いたり外れたりします。
+            営業中に触るときはご注意ください。
+          </p>
+        </div>
+
       </div>
     </div>
 
@@ -191,6 +314,8 @@
               注文番号も前日からの続き番号になります。<br>
               夜まで営業しないお店なら 0〜5 のどれでも実害はありません。
               迷ったら 5 のままにしてください。<br>
+              この時刻は<strong>深夜料金の「深夜」がいつ終わるか</strong>の目安にも使われます
+              （開始時刻からこの時刻までが深夜あつかいです）。<br>
               <strong>営業中に変更しないでください。</strong>その瞬間から採番と集計の基準日が変わり、
               同じ番号のお客さんが 2 組できてしまう可能性があります。
             </p>

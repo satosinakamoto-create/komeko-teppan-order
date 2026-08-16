@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   伝票の詳細・お会計
+  ============================================================================
+   この店の売上が確定する、いちばん大事な画面です。
+
+   ・上：卓名・人数・入店時刻・滞在時間
+   ・中：注文の明細（キャンセル済みは請求から外れるので出しません）
+   ・下：金額の内訳と「お会計」ボタン
+
+   金額はすべて TableSession が計算した値をそのまま出します。
+   画面側で足し算・掛け算をすると計算式が 2 箇所に増え、
+   お客さまへの請求額とレジの金額がズレる事故につながるため行いません。
+
+   会計済みの伝票を開いたときは、内容を読み取り専用で表示し、
+   「会計取消」だけができるようにしています（誤会計のリカバリ）。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('伝票・お会計', ~{::main})}">
+<body>
+<main>
+
+  <!--/* 直前の操作結果（成功・お知らせ・エラー）を 1 回だけ表示する共通部品 */-->
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text" th:text="${bill.diningTable.name}">3番テーブル</h1>
+    <span class="section-title__count"
+          th:text="${bill.open} ? 'お会計まえ' : '会計済み'">お会計まえ</span>
+  </div>
+
+  <p class="small">
+    <a class="btn btn--sm btn--ghost" th:href="@{/hall}">← ホール一覧へ戻る</a>
+  </p>
+
+  <!--/* ===== 伝票の基本情報 ===== */-->
+  <section class="card mt-4">
+    <div class="card__body row row--between row--wrap">
+      <div>
+        <p class="stat__label mb-0">ご来店</p>
+        <p class="mb-0">
+          <b th:text="${bill.guestCount} + ' 名'">4 名</b>
+          <span class="faint"> ／ </span>
+          <span th:text="${openedAtLabel} + ' 入店'">19:02 入店</span>
+          <span class="faint"> ／ </span>
+          <span th:text="'滞在 ' + ${bill.stayMinutes} + ' 分'">滞在 62 分</span>
+        </p>
+      </div>
+      <div class="right">
+        <p class="stat__label mb-0">現在のご請求額</p>
+        <p class="stat__value mb-0">¥<span
+              th:text="${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">11,044</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!--/* ===== 会計済みのときのお知らせ ===== */-->
+  <div class="alert alert--info mt-4" th:unless="${bill.open}" role="status">
+    <p class="mb-0">
+      この伝票は会計済みです（<span th:text="${closedAtLabel}">21:30</span> ／
+      担当 <span th:text="${bill.closedBy} ?: '―'">やまだ</span>）。
+      追加の注文はできません。
+    </p>
+  </div>
+
+  <!--/* ===== 未提供の警告 =====
+         提供していない品が残ったまま会計すると、お客さまが帰ったあとに
+         焼き上がりが出てくることになります。操作は止めませんが、
+         必ず目に入る位置に出しておきます。
+
+         判定に使う hasPendingOrders() は「受付・調理中」の注文があるかを見ます。
+         焼き上がり済み（お渡し可）でまだ運んでいない品は含まれないので、
+         最終確認は厨房ボードとあわせて行ってください。
+  */-->
+  <div class="alert alert--warn mt-4" th:if="${bill.open and bill.hasPendingOrders()}" role="alert">
+    <p class="mb-0">まだ提供していない品があります。お客さまにご確認のうえお会計してください。</p>
+  </div>
+
+  <!--/* ===== 注文の明細 ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">ご注文</h2>
+    <span class="section-title__count" th:text="${#lists.size(orders)} + ' 回'">3 回</span>
+  </div>
+
+  <div th:if="${orders.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('膳', 'まだご注文がありません')}"></div>
+  </div>
+
+  <article class="card mt-4" th:each="order : ${orders}">
+
+    <div class="card__head row row--between row--wrap">
+      <span>
+        <span class="muted small">ご注文</span>
+        <b class="num" th:text="'#' + ${order.orderNumber}">#101</b>
+        <span class="tiny faint" th:text="${order.elapsedMinutes} + ' 分前'">12 分前</span>
+      </span>
+      <!--/* 状態チップは共通部品。同じタグに th:if を書くと th:replace が先に評価されて
+             th:if が無視されるので、条件を付けたいときは外側の要素に書きます。 */-->
+      <span th:replace="~{fragments/common :: statusChip(${order.status})}">受付</span>
+    </div>
+
+    <div class="card__body">
+      <div class="cart-line" th:each="line : ${order.lines}">
+        <div>
+          <div class="cart-line__name">
+            <span th:text="${line.menuItemName}">たこ焼 8個</span>
+            <span class="muted" th:text="' × ' + ${line.quantity}"> × 2</span>
+          </div>
+          <div class="cart-line__opts" th:if="${!line.options.isEmpty()}"
+               th:text="${line.optionSummary}">ソース / ねぎマヨ</div>
+        </div>
+        <div class="cart-line__price"
+             th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥1,190</div>
+      </div>
+
+      <p class="small muted mt-4 mb-0" th:if="${order.note != null}"
+         th:text="'ご要望：' + ${order.note}">ご要望：ソース少なめ</p>
+    </div>
+
+  </article>
+
+  <!--/* ===== 金額の内訳 ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">お会計</h2>
+    <span class="section-title__count" th:text="${bill.totalQuantity} + ' 点'">12 点</span>
+  </div>
+
+  <div class="card">
+    <div class="card__body">
+      <table class="total-table">
+        <tbody>
+        <tr>
+          <td class="muted">小計（お料理・お飲み物）</td>
+          <td th:text="'¥' + ${#numbers.formatInteger(bill.subtotalAmount, 1, 'COMMA')}">¥8,240</td>
+        </tr>
+        <tr>
+          <td class="muted">
+            テーブルチャージ
+            <span class="tiny faint" th:text="'（¥' + ${#numbers.formatInteger(bill.tableChargePerGuest, 1, 'COMMA')} + ' × ' + ${bill.guestCount} + '名）'">（¥450 × 4名）</span>
+          </td>
+          <td th:text="'¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')}">¥1,800</td>
+        </tr>
+        <tr>
+          <td class="muted">
+            深夜料金
+            <span class="tiny faint" th:if="${bill.lateNightApplied}"
+                  th:text="'（' + ${bill.lateNightSurchargePercent} + '%）'">（10%）</span>
+            <span class="tiny faint" th:unless="${bill.lateNightApplied}">（適用なし）</span>
+          </td>
+          <td th:text="'¥' + ${#numbers.formatInteger(bill.lateNightAmount, 1, 'COMMA')}">¥1,004</td>
+        </tr>
+        <tr class="is-grand">
+          <td>ご請求額</td>
+          <td th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥11,044</td>
+        </tr>
+        <tr>
+          <td class="tiny faint"
+              th:text="'（内 消費税 ' + ${bill.taxRatePercent} + '%）'">（内 消費税 10%）</td>
+          <td class="tiny faint"
+              th:text="'¥' + ${#numbers.formatInteger(bill.taxAmount, 1, 'COMMA')}">¥1,004</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!--/* ===== 開いている伝票のときだけ出す操作 ===== */-->
+  <th:block th:if="${bill.open}">
+
+    <!--/* --- 人数の変更 ---
+           HTML のフォームは入れ子にできないので、操作ごとにフォームを分けます。 */-->
+    <div class="card mt-6">
+      <div class="card__head">人数の変更</div>
+      <div class="card__body">
+        <form th:action="@{/hall/bills/{id}/guests(id=${bill.id})}" method="post"
+              class="row row--wrap">
+          <label class="label mb-0" for="guestCount">人数</label>
+          <select class="select" id="guestCount" name="guestCount" style="max-width:7rem">
+            <option th:each="n : ${guestOptions}"
+                    th:value="${n}"
+                    th:text="${n} + ' 名'"
+                    th:selected="${n == bill.guestCount}">4 名</option>
+          </select>
+          <button type="submit" class="btn">人数を変更する</button>
+        </form>
+        <p class="help" th:text="'人数を変えるとテーブルチャージ（¥' + ${#numbers.formatInteger(bill.tableChargePerGuest, 1, 'COMMA')} + ' × 人数）が変わり、ご請求額も変わります。'">
+          人数を変えるとテーブルチャージ（¥450 × 人数）が変わり、ご請求額も変わります。
+        </p>
+      </div>
+    </div>
+
+    <!--/* --- お会計 ---
+           押し間違いが実店舗で一番こわい操作なので、
+           確認ダイアログに「卓名」と「ご請求額」を読み上げられる形で出します。
+
+           値は th:data-* でボタンに持たせ、文章の組み立ては JavaScript 側で行います。
+           onclick の中に Thymeleaf の式を直接書くと引用符の扱いが複雑になるためです。 */-->
+    <div class="card mt-6">
+      <div class="card__head">お会計（伝票を締める）</div>
+
+      <form th:action="@{/hall/bills/{id}/close(id=${bill.id})}" method="post">
+        <div class="card__body">
+
+          <div class="field">
+            <label class="choice">
+              <!--/* チェックを外すと、このパラメータは送信されません。
+                     サーバ側は「送られてこなかった＝適用しない」として受け取ります。 */-->
+              <input type="checkbox" name="applyLateNight" value="true"
+                     th:checked="${lateNightDefault}">
+              <span class="choice__name"
+                    th:text="'深夜料金を適用する（' + ${bill.lateNightSurchargePercent} + '%）'">
+                深夜料金を適用する（10%）</span>
+            </label>
+            <p class="help" th:text="${shop.lateNightStartTime} + ' 以降は自動でチェックが入ります。チェックを外すと深夜料金なしで締めます（上の内訳より安くなります）。'">
+              23:00 以降は自動でチェックが入ります。</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="note">会計メモ（任意）</label>
+            <input class="input" type="text" id="note" name="note" maxlength="200"
+                   placeholder="割引の理由、レジでのやりとりなど">
+            <p class="help">お客さまには見えません。あとから売上を見返すときの記録です。</p>
+          </div>
+
+        </div>
+
+        <div class="card__foot">
+          <!--/*
+            確認ダイアログには「深夜料金あり／なし」の両方の金額をあらかじめ持たせ、
+            クリックした瞬間のチェック状態に応じてどちらかを出します。
+
+            画面に描いた時点の金額を固定で出してしまうと、
+            スタッフがチェックを外してから押したときに
+            「ダイアログの金額」と「実際に締まる金額」が食い違います。
+            レジで読み上げる数字がズレるのは、現場で最も避けたい事故です。
+
+            なお、2つの金額は TableSession が計算したものをそのまま受け取っているだけで、
+            計算式を画面側で作り直してはいません（計算は必ず 1 箇所に集約する）。
+          */-->
+          <button type="submit" class="btn btn--primary btn--lg btn--block"
+                  th:data-table="${bill.diningTable.name}"
+                  th:data-total-with="${#numbers.formatInteger(bill.totalWithLateNight, 1, 'COMMA')}"
+                  th:data-total-without="${#numbers.formatInteger(bill.totalWithoutLateNight, 1, 'COMMA')}"
+                  onclick="return komekoConfirmClose(this);">
+            お会計（伝票を締める）
+          </button>
+          <p class="help mb-0">締めたあと、この画面に実際のご請求額が表示されます。</p>
+        </div>
+
+        <script>
+          function komekoConfirmClose(button) {
+            var checkbox = button.form.querySelector('input[name="applyLateNight"]');
+            var applied = checkbox ? checkbox.checked : false;
+            var total = applied ? button.dataset.totalWith : button.dataset.totalWithout;
+            var suffix = applied ? '（深夜料金 込み）' : '（深夜料金 なし）';
+            return confirm(button.dataset.table + ' のお会計を締めます。\n'
+              + 'ご請求額 ¥' + total + ' ' + suffix + '\n\nよろしいですか？');
+          }
+        </script>
+      </form>
+    </div>
+
+  </th:block>
+
+  <!--/* ===== 会計済みの伝票のときだけ出す操作 ===== */-->
+  <th:block th:unless="${bill.open}">
+
+    <div class="card mt-6">
+      <div class="card__head">会計の記録</div>
+      <div class="card__body">
+        <table class="total-table">
+          <tbody>
+          <tr>
+            <td class="muted">会計時刻</td>
+            <td th:text="${closedAtLabel}">21:30</td>
+          </tr>
+          <tr>
+            <td class="muted">担当</td>
+            <td th:text="${bill.closedBy} ?: '―'">やまだ</td>
+          </tr>
+          <tr>
+            <td class="muted">深夜料金</td>
+            <td th:text="${bill.lateNightApplied} ? '適用あり' : '適用なし'">適用なし</td>
+          </tr>
+          <tr>
+            <td class="muted">会計メモ</td>
+            <td th:text="${bill.note} ?: '―'">―</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!--/* 会計取消は売上に直結するので、確認ダイアログを挟んだうえで
+             他のボタンとは色を変えて（.btn--danger）置いています。 */-->
+      <div class="card__foot">
+        <form th:action="@{/hall/bills/{id}/reopen(id=${bill.id})}" method="post">
+          <button type="submit" class="btn btn--danger"
+                  th:data-table="${bill.diningTable.name}"
+                  onclick="return confirm(this.dataset.table + ' のお会計を取り消して、伝票を開き直します。\n\nよろしいですか？');">
+            会計を取り消す
+          </button>
+        </form>
+        <p class="help mb-0">誤って会計したときに使います。取り消すと追加注文ができる状態に戻ります。</p>
+      </div>
+    </div>
+
+  </th:block>
+
+  <p class="tiny faint center mt-6">
+    この画面は自動では更新されません。最新の注文を確認するときは再読み込みしてください。
+  </p>
+
+</main>
+</body>
+</html>

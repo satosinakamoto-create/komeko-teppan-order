@@ -70,31 +70,41 @@
   }
 
   /* ------------------------------------------------------------------
-     2. 注文状況ページ：5秒ごとに状態を見に行き、変わったら画面を更新
+     2. 伝票ページ：数秒ごとに状態を見に行き、変わったら画面を更新
+     ------------------------------------------------------------------
+     SSE ではなくポーリングにしているのは、お客さんのスマホが同時に
+     何十台にもなり得るためです。接続を張りっぱなしにせず、
+     短いリクエストを間隔をあけて投げるほうが、電波が不安定でも復帰が簡単です。
      ------------------------------------------------------------------ */
-  var statusBox = document.getElementById('order-status');
-  if (statusBox) {
-    var token = statusBox.dataset.token;
-    var current = statusBox.dataset.status;
-    var POLL_MS = 5000;
+  var billBox = document.getElementById('bill-status');
+  if (billBox) {
+    /* まだ調理中の品があるときだけ短い間隔で見る（無駄な通信を減らす） */
+    var pending = billBox.dataset.pending === 'true';
+    var POLL_MS = pending ? 6000 : 20000;
+    var signature = null;
+
+    /* 「いまの状態」をひとつの文字列にまとめる。
+       これが前回と変わったときだけ画面を読み直せばよい。 */
+    function signatureOf(data) {
+      if (!data || !data.open) { return 'closed'; }
+      var parts = [data.totalAmount];
+      (data.orders || []).forEach(function (o) {
+        parts.push(o.orderNumber + ':' + o.status);
+      });
+      return parts.join('|');
+    }
 
     function poll() {
-      fetch('/api/public/orders/' + encodeURIComponent(token), {
+      fetch('/api/public/bill', {
         headers: { 'Accept': 'application/json' },
         cache: 'no-store'
       })
         .then(function (res) { return res.ok ? res.json() : null; })
         .then(function (data) {
           if (!data) { return; }
-
-          /* 待ち状況の文字だけは毎回書き換える */
-          var waitEl = document.getElementById('wait-label');
-          if (waitEl) { waitEl.textContent = data.waitLabel; }
-          var aheadEl = document.getElementById('ahead-count');
-          if (aheadEl) { aheadEl.textContent = data.waitingOrders; }
-
-          /* 状態が変わったらページ全体を読み直す（見た目を作り直すより確実） */
-          if (data.status !== current) {
+          var next = signatureOf(data);
+          if (signature === null) { signature = next; return; }
+          if (next !== signature) {
             window.location.reload();
           }
         })

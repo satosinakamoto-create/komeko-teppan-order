@@ -1,8 +1,19 @@
 <!DOCTYPE html>
 <!--/*
-   店頭に貼る QR コードの確認・ダウンロード・印刷。
-   QR に入っているのは注文ページの URL そのものなので、
-   飛び先が正しいかを必ずこの画面で目視確認してから印刷してください。
+   卓ごとの QR コードの確認・ダウンロード・印刷。
+
+   イートインでは QR は「店に 1 枚」ではなく「卓に 1 枚」です。
+   QR に入っているのは {app.base-url}/t/{その卓のトークン} で、
+   お客さんがどの QR を読んだかで「どの席の注文か」が決まります。
+   貼り間違えると料理が別の席に運ばれるので、
+   印刷したら卓名を必ず照合してから貼ってください。
+
+   使えるモデルの値：
+     ${tables}         … List<DiningTable>（利用停止中の卓も含む）
+     ${tableUrls}      … Map<Long, String>（卓 id → QR に入る URL）
+     ${size}           … QR 画像の 1 辺（px, 256〜1024 に丸め済み）
+     ${baseUrl}        … いま設定されている app.base-url
+     ${printableCount} … 印刷対象になる卓の数（稼働中の卓）
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('QRコード', ~{::main})}">
@@ -14,103 +25,146 @@
 
   <div class="section-title">
     <h1 class="section-title__text">QRコード</h1>
-    <span class="section-title__count">お客さんはこれを読み取って注文します</span>
+    <span class="section-title__count" th:text="${tables.size()} + ' 卓ぶん'">12 卓ぶん</span>
   </div>
 
-  <div class="grid grid--2">
+  <p class="lead">
+    <strong>QR は卓ごとに 1 枚です。</strong>
+    印刷して各テーブルに貼ると、お客さんがそれを読み取るだけでその席の伝票が開きます。
+    卓を増やしたり名前を変えたりするときは「卓」の画面から行ってください。
+  </p>
 
-    <!--/* ===== プレビュー（印刷用ポップと同じ見た目） ===== */-->
-    <div class="print-sheet">
-      <p class="print-sheet__title" th:text="${shop.shopName}">米粉と鉄板</p>
-      <p class="mb-0" th:text="${shop.tagline}">グルテンフリーの焼きたてを、鉄板から。</p>
+  <!--/* ====== いちばん事故が多いところなので最初に出す ====== */-->
+  <div class="alert alert--warn">
+    <p class="mb-0">
+      <strong>app.base-url を店内 LAN の IP アドレスに変えないと、お客さんのスマホからは開けません。</strong>
+    </p>
+    <p class="mb-0 mt-4">
+      いまの設定値は <code th:text="${baseUrl}">http://localhost:8080</code> で、
+      QR の飛び先は <code th:text="${baseUrl} + '/t/…'">http://localhost:8080/t/…</code> になります。
+    </p>
+    <p class="mb-0 mt-4"
+       th:if="${#strings.contains(baseUrl, 'localhost') or #strings.contains(baseUrl, '127.0.0.1')}">
+      <strong>この値のままでは印刷しても使えません。</strong>
+      下の手順で設定を変更し、アプリを再起動してから印刷してください。
+    </p>
+  </div>
 
-      <img class="print-sheet__qr"
-           th:src="@{/admin/qr/image(src=${src},size=${size})}"
-           alt="注文ページのQRコード">
-
-      <p class="mb-0 bold">スマートフォンで読み取ってご注文ください</p>
-      <p class="print-sheet__url" th:text="${qrUrl}">http://localhost:8080/</p>
+  <div class="card">
+    <div class="card__head">印刷する前に：base-url の設定</div>
+    <div class="card__body">
+      <p>
+        QR に入る URL は <code>src/main/resources/application.yml</code> の
+        <code>app.base-url</code> から組み立てられます。
+      </p>
+      <p>
+        初期値の <code>http://localhost:8080</code> は「その端末自身」を指す特別な名前です。
+        この QR をお客さんのスマホで読み取ると、<strong>お客さんのスマホ自身</strong>を見に行ってしまい、
+        何も表示されません。店内 Wi-Fi で運用するときは、
+        アプリを動かしている PC の LAN 内 IP アドレスに書き換えてください。
+      </p>
+      <p>
+        IP アドレスは Windows なら <code>ipconfig</code> の「IPv4 アドレス」で確認できます。
+        <code>app.base-url: http://192.168.0.10:8080</code> のように書き、
+        <strong>アプリを再起動</strong>してからこの画面をもう一度開くと、新しい URL の QR が出ます。
+      </p>
+      <p class="help mb-0">
+        LAN 内 IP は PC を再起動すると変わることがあります。ルーター側で固定するか、
+        印刷し直す前に必ずこの画面で URL を確認してください。
+        なお <strong>base-url を変えると、印刷済みの QR はすべて貼り替えが必要</strong>になります。
+      </p>
     </div>
+  </div>
 
-    <!--/* ===== 操作 ===== */-->
-    <div>
+  <!--/* ====== 画像サイズの指定と印刷への導線 ====== */-->
+  <div class="card mt-6">
+    <div class="card__head">画像の大きさ</div>
+    <div class="card__body">
 
-      <div class="card">
-        <div class="card__head">QR の飛び先 URL</div>
-        <div class="card__body">
-          <p class="print-sheet__url" th:text="${qrUrl}">http://localhost:8080/</p>
-
+      <form method="get" th:action="@{/admin/qr}">
+        <div class="field">
+          <label class="label" for="size">QR 画像の 1 辺</label>
+          <select class="select" id="size" name="size">
+            <option value="256" th:selected="${size == 256}">256px（小・卓上カード向け）</option>
+            <option value="512" th:selected="${size == 512}">512px（標準）</option>
+            <option value="768" th:selected="${size == 768}">768px（大）</option>
+            <option value="1024" th:selected="${size == 1024}">1024px（A4 ポスター向け）</option>
+          </select>
           <p class="help">
-            この URL は <code>application.yml</code> の <code>app.base-url</code> から組み立てられます。
-          </p>
-
-          <div class="alert alert--warn">
-            <p class="mb-0">
-              <strong>店内 Wi-Fi で使うときは設定変更が必要です。</strong>
-            </p>
-          </div>
-
-          <p class="help">
-            初期値の <code>http://localhost:8080</code> は「その PC 自身」を指す特別な名前なので、
-            この QR をお客さんのスマホで読み取ってもお客さんのスマホ自身を見に行ってしまい、何も表示されません。<br>
-            店内 Wi-Fi で運用するときは、アプリを動かしている PC の LAN 内 IP アドレスに書き換えてください。<br>
-            <code>app.base-url: http://192.168.0.10:8080</code> のように書き、<strong>アプリを再起動</strong>してから
-            この画面をもう一度開くと、新しい URL の QR が出ます。<br>
-            IP アドレスは Windows なら <code>ipconfig</code> の「IPv4 アドレス」で確認できます。
-            なお LAN 内 IP は PC を再起動すると変わることがあるので、
-            ルーター側で固定するか、印刷し直す前に必ずこの画面で URL を確認してください。
+            印刷して使うなら大きめを選んでください。画面で確認するだけなら 512px で十分です。
+            指定できるのは 256〜1024px の範囲だけです。
           </p>
         </div>
-      </div>
-
-      <!--/* ===== 生成条件 ===== */-->
-      <div class="card mt-6">
-        <div class="card__head">QR を作り直す</div>
-        <div class="card__body">
-
-          <form th:action="@{/admin/qr}" method="get">
-            <div class="field">
-              <label class="label" for="src">貼る場所の目印（任意）</label>
-              <input class="input" type="text" id="src" name="src" th:value="${src}"
-                     maxlength="30" placeholder="例）counter">
-              <p class="help">
-                入力すると URL の末尾に <code>?src=counter</code> のように付きます。
-                「カウンターの POP」「持ち帰り袋」などで別々の QR を作っておくと、
-                どこ経由の注文が多いかをあとから調べられます。空欄でも問題ありません。
-              </p>
-            </div>
-
-            <div class="field">
-              <label class="label" for="size">画像の大きさ</label>
-              <select class="select" id="size" name="size">
-                <option value="256" th:selected="${size == 256}">256px（小・卓上カード向け）</option>
-                <option value="512" th:selected="${size == 512}">512px（標準）</option>
-                <option value="768" th:selected="${size == 768}">768px（大）</option>
-                <option value="1024" th:selected="${size == 1024}">1024px（A4 ポスター向け）</option>
-              </select>
-              <p class="help">印刷して使うなら大きめを選んでください。画面表示だけなら 512px で十分です。</p>
-            </div>
-
-            <button type="submit" class="btn">この条件で表示する</button>
-          </form>
-
-        </div>
-      </div>
+        <button type="submit" class="btn">この大きさで表示する</button>
+      </form>
 
       <div class="row row--wrap mt-6">
+        <!--/* サイズは上で選んだ値をそのまま印刷ページへ引き継ぎます */-->
         <a class="btn btn--primary btn--lg"
-           th:href="@{/admin/qr/print(src=${src},size=${size})}"
-           target="_blank" rel="noopener">印刷用ポップを開く</a>
-        <a class="btn"
-           th:href="@{/admin/qr/image(src=${src},size=1024)}"
-           download="komeko-order-qr.png">PNG をダウンロード</a>
+           th:href="@{/admin/qr/print(size=${size})}"
+           target="_blank" rel="noopener">卓ごとのポップをまとめて印刷する</a>
+        <a class="btn" th:href="@{/admin/tables}">卓を追加・編集する</a>
       </div>
 
-      <p class="help">
-        「印刷用ポップ」は A4 に貼れる大きさのチラシです。新しいタブで開くので、
-        そのままブラウザの印刷（Ctrl+P）を実行してください。画面用のボタン類は印刷されません。
+      <p class="help mb-0">
+        印刷ページは卓ごとに 1 枚ずつ改ページされます（いまの対象は
+        <span class="bold" th:text="${printableCount} + ' 卓'">12 卓</span>）。
+        利用停止中の卓は、貼っても注文できないので印刷には含まれません。
       </p>
 
+    </div>
+  </div>
+
+  <!--/* ====== 卓ごとの QR ====== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">卓ごとの QR</h2>
+  </div>
+
+  <div th:if="${tables.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('席', '卓がまだありません。「卓」の画面から店内の席を登録してください')}"></div>
+  </div>
+
+  <div class="grid grid--3">
+    <div class="card" th:each="t : ${tables}">
+      <div class="card__head">
+        <span th:text="${t.name}">3番テーブル</span>
+        <span class="badge badge--soldout" th:unless="${t.active}">利用停止中</span>
+      </div>
+      <div class="card__body center">
+
+        <img th:src="@{/admin/qr/image(tableId=${t.id},size=${size})}"
+             th:alt="${t.name} + ' の注文用QRコード'"
+             style="width:100%;max-width:220px;height:auto;background:#fff;border-radius:8px">
+
+        <p class="small mb-0" th:text="${t.capacity} + ' 席'">4 席</p>
+
+        <p class="print-sheet__url mt-4" th:text="${tableUrls.get(t.id)}">http://localhost:8080/t/xxxx</p>
+
+        <div class="row row--wrap mt-4" style="justify-content:center">
+          <!--/*
+            download 属性を付けると、ブラウザは画面に表示せず保存に切り替えます。
+            属性名を式で組み立てたいときは th:attr を使います
+            （download は th:download という専用の書き方が用意されていない属性のため）。
+          */-->
+          <a class="btn btn--sm"
+             th:href="@{/admin/qr/image(tableId=${t.id},size=${size})}"
+             th:attr="download='komeko-qr-table-' + ${t.id} + '.png'">PNG を保存</a>
+
+          <!--/*
+            QR の再発行。押した瞬間にこの卓のトークンが変わり、
+            いま貼ってある QR は読み取れなくなります。
+            取り返しがつかないので confirm() を必ず通し、
+            さらに GET ではなく POST にしています
+            （リンクだとブラウザの先読みだけで実行されかねないため）。
+            処理が終わると「卓」の画面へ戻り、そこに結果が表示されます。
+          */-->
+          <form method="post" th:action="@{/admin/tables/{id}/regenerate(id=${t.id})}"
+                onsubmit="return confirm('この卓の QR コードを作り直します。\n\nいま席に貼ってある QR は読み取れなくなり、新しい QR を印刷して貼り替えるまで、この席からは注文できません。\n\n本当に再発行しますか？')">
+            <button class="btn btn--danger btn--sm" type="submit">再発行</button>
+          </form>
+        </div>
+
+      </div>
     </div>
   </div>
 

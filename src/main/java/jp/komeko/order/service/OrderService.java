@@ -46,17 +46,20 @@ public class OrderService {
     private final ShopSettingService shopSettingService;
     private final CartService cartService;
     private final OrderEventPublisher eventPublisher;
+    private final TableService tableService;
 
     public OrderService(OrderRepository orderRepository,
                         OrderNumberService orderNumberService,
                         ShopSettingService shopSettingService,
                         CartService cartService,
-                        OrderEventPublisher eventPublisher) {
+                        OrderEventPublisher eventPublisher,
+                        TableService tableService) {
         this.orderRepository = orderRepository;
         this.orderNumberService = orderNumberService;
         this.shopSettingService = shopSettingService;
         this.cartService = cartService;
         this.eventPublisher = eventPublisher;
+        this.tableService = tableService;
     }
 
     // ========================================================================
@@ -64,21 +67,23 @@ public class OrderService {
     // ========================================================================
 
     /**
-     * カートの中身を注文として確定する。
+     * カートの中身を注文として確定し、卓の伝票に追加する。
      *
      * <p>処理の順番には理由があります。
      * <ol>
-     *   <li>受付可能かを確認（営業時間・受付停止）</li>
+     *   <li>受付可能かを確認（営業時間・受付停止・伝票が開いているか）</li>
      *   <li>カートを最新のメニュー情報で洗い替え → 変化があれば一度お客さんに見せる</li>
      *   <li>注文番号を採番（別トランザクションで短くロック）</li>
-     *   <li>注文と明細を保存</li>
-     *   <li>厨房・サイネージへ通知</li>
+     *   <li>注文と明細を保存し、伝票にぶら下げる</li>
+     *   <li>伝票の合計を計算し直す</li>
+     *   <li>厨房へ通知</li>
      * </ol>
      *
+     * @param sessionId 追加先の伝票 ID（卓の QR から特定される）
      * @throws OrderRejectedException 受け付けられない理由があるとき
      */
     @Transactional
-    public Order placeOrder(Cart cart, String customerName, String note) {
+    public Order placeOrder(Cart cart, Long sessionId, String note) {
         if (cart.isEmpty()) {
             throw new OrderRejectedException("カートに商品が入っていません");
         }
@@ -87,6 +92,12 @@ public class OrderService {
         LocalDateTime now = LocalDateTime.now();
         if (!setting.isOrderAcceptable(now)) {
             throw new OrderRejectedException(setting.orderRejectReason(now));
+        }
+
+        TableSession session = tableService.getSession(sessionId);
+        if (!session.isOrderable()) {
+            throw new OrderRejectedException(
+                    "このお席のお会計はすでに済んでいます。追加のご注文はスタッフにお声がけください");
         }
 
         // 値上げ・品切れが起きていないかを最終確認する。
@@ -101,11 +112,14 @@ public class OrderService {
             throw new OrderRejectedException("ご注文の品がすべて売り切れました。申し訳ありません");
         }
 
-        LocalDate businessDate = setting.businessDateOf(now);
+        // 営業日と税率は「伝票（＝来店）」の値に合わせる。
+        // 深夜 0 時をまたいでも同じ伝票のままにするため、いまの日付では計算しない。
+        LocalDate businessDate = session.getBusinessDate();
         int orderNumber = orderNumberService.next(businessDate, setting.getOrderNumberStart());
 
-        Order order = new Order(businessDate, orderNumber, setting.getTaxRatePercent());
-        order.setCustomerName(trimToNull(customerName, 20));
+        Order order = new Order(businessDate, orderNumber, session.getTaxRatePercent());
+        order.setSession(session);
+        order.setCustomerName(session.getDiningTable().getName());
         order.setNote(trimToNull(note, 200));
 
         for (CartLine line : cart.getLines()) {
@@ -124,7 +138,15 @@ public class OrderService {
         order.recalculate();
 
         Order saved = orderRepository.save(order);
-        log.info("注文受付 #{} 合計{}円 {}点", saved.getOrderNumber(), saved.getTotalAmount(), saved.getTotalQuantity());
+
+        // 伝票の側にも追加しておく（双方向の関連は両側そろえるのが鉄則）。
+        // そろえないと、このあとの合計計算で新しい注文が数えられない。
+        session.getOrders().add(saved);
+        tableService.refresh(session);
+
+        log.info("注文受付 #{} 卓={} 合計{}円 {}点",
+                saved.getOrderNumber(), session.getDiningTable().getName(),
+                saved.getTotalAmount(), saved.getTotalQuantity());
 
         eventPublisher.publishOrderChanged(OrderEvent.created(saved.getId(), saved.getOrderNumber()));
         return saved;
@@ -256,6 +278,7 @@ public class OrderService {
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         order.changeStatus(next, staffName);
         hydrate(order);
+        refreshSessionOf(order);
 
         log.info("注文 #{} → {} ({})", order.getOrderNumber(), next.getStaffLabel(), staffName);
         eventPublisher.publishOrderChanged(
@@ -270,6 +293,7 @@ public class OrderService {
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         order.cancel(reason, staffName);
         hydrate(order);
+        refreshSessionOf(order);
 
         eventPublisher.publishOrderChanged(
                 OrderEvent.statusChanged(order.getId(), order.getOrderNumber(), OrderStatus.CANCELED.name()));
@@ -289,6 +313,7 @@ public class OrderService {
         }
         order.cancel("お客様都合", "customer");
         hydrate(order);
+        refreshSessionOf(order);
 
         eventPublisher.publishOrderChanged(
                 OrderEvent.statusChanged(order.getId(), order.getOrderNumber(), OrderStatus.CANCELED.name()));
@@ -312,6 +337,20 @@ public class OrderService {
             line.getOptions().size();
         }
         return order;
+    }
+
+    /**
+     * 注文の状態が変わったら、伝票の合計も計算し直す。
+     *
+     * <p>キャンセルされた注文は請求から外れるので、
+     * ここを忘れると「取り消したのに金額が減らない」という
+     * いちばん気づかれやすい不具合になります。
+     */
+    private void refreshSessionOf(Order order) {
+        TableSession session = order.getSession();
+        if (session != null && session.isOpen()) {
+            tableService.refresh(session);
+        }
     }
 
     private static String trimToNull(String value, int maxLength) {

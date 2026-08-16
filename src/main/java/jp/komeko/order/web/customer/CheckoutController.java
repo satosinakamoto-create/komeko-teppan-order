@@ -1,74 +1,96 @@
 package jp.komeko.order.web.customer;
 
 import jp.komeko.order.cart.Cart;
-import jp.komeko.order.domain.Order;
-import jp.komeko.order.domain.OrderStatus;
+import jp.komeko.order.cart.TableContext;
+import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.service.OrderRejectedException;
 import jp.komeko.order.service.OrderService;
-import jp.komeko.order.service.dto.WaitEstimate;
+import jp.komeko.order.service.TableService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 注文の確定と、注文後の状況確認。
+ * 注文の確定と、お席の伝票の表示。
  *
- * <p>お客さんは会員登録をしないので、注文後の控えは
- * {@code /o/{推測できないトークン}} という URL で見てもらいます。
- * このページをブックマークしておけば、あとから何度でも状況を確認できます。
+ * <p>イートインなので、注文するたびに新しい伝票ができるのではなく、
+ * <b>同じ卓の 1 枚の伝票にどんどん追加</b>されていきます。
+ * お客さんは {@code /bill} でいつでも「いまいくらか」を確認できます。
  */
 @Controller
 public class CheckoutController {
 
     private final Cart cart;
+    private final TableContext tableContext;
+    private final TableService tableService;
     private final OrderService orderService;
 
-    public CheckoutController(Cart cart, OrderService orderService) {
+    public CheckoutController(Cart cart,
+                              TableContext tableContext,
+                              TableService tableService,
+                              OrderService orderService) {
         this.cart = cart;
+        this.tableContext = tableContext;
+        this.tableService = tableService;
         this.orderService = orderService;
     }
 
     /**
-     * 注文を確定する。
+     * 注文を確定して、お席の伝票に追加する。
      *
-     * <p>成功したら控えページへリダイレクトし、カートを空にします。
-     * 失敗したらカート画面に理由を出して戻します
+     * <p>失敗したらカート画面に理由を出して戻します
      * （値上げや品切れがあった場合、カートの中身は最新に洗い替えられています）。
      */
     @PostMapping("/checkout")
-    public String placeOrder(@RequestParam(required = false) String customerName,
-                             @RequestParam(required = false) String note,
+    public String placeOrder(@RequestParam(required = false) String note,
                              RedirectAttributes redirectAttributes) {
+        if (!tableContext.isBound()) {
+            return "redirect:/";
+        }
         try {
-            Order order = orderService.placeOrder(cart, customerName, note);
+            TableSession session = tableService.requireOpenSession(tableContext.getTableId());
+            orderService.placeOrder(cart, session.getId(), note);
             cart.clear();
-            return "redirect:/o/" + order.getPublicToken();
+            redirectAttributes.addFlashAttribute("flashSuccess", "ご注文を承りました。お席までお持ちします。");
+            return "redirect:/bill";
         } catch (OrderRejectedException e) {
             redirectAttributes.addFlashAttribute("flashErrors", e.getReasons());
             return "redirect:/cart";
         }
     }
 
-    /** 注文控え／状況確認ページ。 */
-    @GetMapping("/o/{token}")
-    public String orderStatus(@PathVariable String token, Model model) {
-        Order order = orderService.findByToken(token)
-                .orElseThrow(() -> new OrderService.OrderNotFoundException(token));
-        WaitEstimate wait = orderService.estimateWait(order);
+    /**
+     * お席の伝票。これまでの注文と、いまの合計金額を出す。
+     */
+    @GetMapping("/bill")
+    public String bill(Model model) {
+        if (!tableContext.isBound()) {
+            return "redirect:/";
+        }
+        TableSession session = tableService.currentSession(tableContext.getTableId()).orElse(null);
+        if (session == null) {
+            // 会計が済んだ直後など。もう一度 QR から入り直してもらう。
+            model.addAttribute("tableName", tableContext.getTableName());
+            return "customer/bill-closed";
+        }
 
-        model.addAttribute("order", order);
-        model.addAttribute("wait", wait);
-        model.addAttribute("statusOrder", List.of(
-                OrderStatus.RECEIVED, OrderStatus.COOKING, OrderStatus.READY, OrderStatus.COMPLETED));
-        return "customer/order";
+        model.addAttribute("bill", session);
+        model.addAttribute("orders", session.getBillableOrders());
+        return "customer/bill";
     }
 
-    /** お客さん自身によるキャンセル（調理開始前のみ）。 */
-    @PostMapping("/o/{token}/cancel")
+    /**
+     * お客さん自身によるキャンセル（調理開始前のみ）。
+     *
+     * <p>注文の指定に連番の ID ではなく推測できないトークンを使っているのは、
+     * 番号を変えるだけで他の卓の注文を取り消せてしまうのを防ぐためです。
+     */
+    @PostMapping("/bill/orders/{token}/cancel")
     public String cancel(@PathVariable String token, RedirectAttributes redirectAttributes) {
         try {
             orderService.cancelByCustomer(token);
@@ -76,32 +98,63 @@ public class CheckoutController {
         } catch (OrderRejectedException e) {
             redirectAttributes.addFlashAttribute("flashErrors", e.getReasons());
         }
-        return "redirect:/o/" + token;
+        return "redirect:/bill";
     }
 
     /**
-     * 状況確認ページが定期的に呼ぶ JSON API。
+     * 伝票ページが定期的に呼ぶ JSON API。
      *
      * <p>お客さんのスマホは何十台にもなり得るので、SSE で接続を張りっぱなしにせず
-     * 5 秒ごとの軽いポーリングにしています。
+     * 数秒ごとの軽いポーリングにしています。
      * 接続数を抱えずに済み、電波が不安定でも復帰が簡単です。
-     *
-     * <p>{@code @ResponseBody} を付けると、戻り値が画面名ではなく
-     * JSON としてそのまま返されます。
      */
-    @GetMapping("/api/public/orders/{token}")
+    @GetMapping("/api/public/bill")
     @ResponseBody
-    public Map<String, Object> status(@PathVariable String token) {
-        Order order = orderService.findByToken(token)
-                .orElseThrow(() -> new OrderService.OrderNotFoundException(token));
-        WaitEstimate wait = orderService.estimateWait(order);
+    public Map<String, Object> billStatus() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (!tableContext.isBound()) {
+            result.put("bound", false);
+            return result;
+        }
+        TableSession session = tableService.currentSession(tableContext.getTableId()).orElse(null);
+        if (session == null) {
+            result.put("bound", true);
+            result.put("open", false);
+            return result;
+        }
 
-        return Map.of(
-                "status", order.getStatus().name(),
-                "statusLabel", order.getStatus().getCustomerLabel(),
-                "orderNumber", order.getOrderNumber(),
-                "waitingOrders", wait.waitingOrders(),
-                "estimateMinutes", wait.estimateMinutes(),
-                "waitLabel", wait.label());
+        result.put("bound", true);
+        result.put("open", true);
+        result.put("totalAmount", session.getTotalAmount());
+        result.put("subtotalAmount", session.getSubtotalAmount());
+        result.put("guestCount", session.getGuestCount());
+        result.put("orders", session.getBillableOrders().stream()
+                .map(o -> Map.of(
+                        "orderNumber", o.getOrderNumber(),
+                        "status", o.getStatus().name(),
+                        "statusLabel", o.getStatus().getCustomerLabel()))
+                .toList());
+        return result;
+    }
+
+    /** 伝票のうち、まだ提供されていない注文があるか（画面のバッジ用）。 */
+    @ModelAttribute("hasPending")
+    public boolean hasPending() {
+        if (!tableContext.isBound()) {
+            return false;
+        }
+        return tableService.currentSession(tableContext.getTableId())
+                .map(TableSession::hasPendingOrders)
+                .orElse(false);
+    }
+
+    /** 状態の並び順（進捗表示に使う）。 */
+    @ModelAttribute("statusOrder")
+    public List<jp.komeko.order.domain.OrderStatus> statusOrder() {
+        return List.of(
+                jp.komeko.order.domain.OrderStatus.RECEIVED,
+                jp.komeko.order.domain.OrderStatus.COOKING,
+                jp.komeko.order.domain.OrderStatus.READY,
+                jp.komeko.order.domain.OrderStatus.COMPLETED);
     }
 }

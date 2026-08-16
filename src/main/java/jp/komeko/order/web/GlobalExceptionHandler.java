@@ -3,6 +3,7 @@ package jp.komeko.order.web;
 import jp.komeko.order.service.MenuService;
 import jp.komeko.order.service.OrderRejectedException;
 import jp.komeko.order.service.OrderService;
+import jp.komeko.order.service.TableService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -27,14 +28,25 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /** 商品や注文が見つからない → 404 の専用ページ。 */
-    @ExceptionHandler({MenuService.MenuItemNotFoundException.class, OrderService.OrderNotFoundException.class})
+    /**
+     * 商品・注文・卓・伝票が見つからない → 404 の専用ページ。
+     *
+     * <p>卓の QR を貼り替えたあとに古い QR を読まれる、というのは実店舗でふつうに起きます。
+     * ここで受け止めないと 500 エラー（サーバの不具合）扱いになってしまい、
+     * お客さんにも「何が起きたのか」が伝わりません。
+     */
+    @ExceptionHandler({
+            MenuService.MenuItemNotFoundException.class,
+            OrderService.OrderNotFoundException.class,
+            TableService.TableNotFoundException.class,
+            TableService.SessionNotFoundException.class})
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public String handleNotFound(RuntimeException e, Model model) {
         log.info("見つかりませんでした: {}", e.getMessage());
         model.addAttribute("title", "見つかりませんでした");
         model.addAttribute("message", e.getMessage());
-        model.addAttribute("hint", "URL が古いか、削除された可能性があります。もう一度 QR コードを読み取ってください。");
+        model.addAttribute("hint", "URL が古いか、内容が変更された可能性があります。"
+                + "お手数ですが、テーブルの QR コードをもう一度読み取ってください。");
         return "error/message";
     }
 

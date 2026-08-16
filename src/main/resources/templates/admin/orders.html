@@ -3,6 +3,10 @@
    注文履歴。
    厨房画面が「いま作っているもの」を見る画面なのに対して、
    こちらは終わったものも含めて 1 営業日ぶんを振り返る画面です。
+
+   イートインでは、同じ組のお客さまの追加注文も別々の行として並びます。
+   「どの卓の注文か」は卓の列（${o.tableName}）で分かります。
+   お会計は 1 件ずつではなく卓の伝票にまとめて行うので、この画面では行いません。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('注文履歴', ~{::main})}">
@@ -30,8 +34,11 @@
   </form>
 
   <p class="help">
-    キャンセルされた注文も残ります（伝票は消さず、記録として残すのが会計の基本です）。
-    金額の集計に入るのは「受渡済」だけなので、ここの合計と売上画面の数字は一致しません。
+    キャンセルされた注文も消さずに残します（記録として残すのが会計の基本です）。
+    キャンセルした注文は、その卓の伝票の小計からは自動的に外れます。<br>
+    ここに出る金額は<strong>商品ぶんだけ</strong>です。テーブルチャージと深夜料金は
+    注文ではなく<strong>伝票（卓の 1 回の来店）</strong>に付くので、この画面には出てきません。
+    実際にいただいた金額は売上画面の「お会計（伝票）ベース」を見てください。
   </p>
 
   <!--/* ===== 空 ===== */-->
@@ -46,6 +53,7 @@
         <thead>
         <tr>
           <th class="num">番号</th>
+          <th>卓</th>
           <th>受付時刻</th>
           <th>状態</th>
           <th class="num">点数</th>
@@ -64,6 +72,11 @@
 
           <tr>
             <td class="num bold" th:text="${o.orderNumber}">101</td>
+            <!--/*
+              卓名。Order#getTableName() は伝票（TableSession）→ 卓 とたどって名前を返します。
+              伝票が無い注文はありえませんが、念のためドメイン側で「―」を返すようになっています。
+            */-->
+            <td class="bold" th:text="${o.tableName}">3番テーブル</td>
             <td th:text="${row.receivedAt()}">11:23</td>
             <td>
               <span th:replace="~{fragments/common :: statusChip(${o.status})}">状態</span>
@@ -73,8 +86,9 @@
             <td style="white-space:normal">
 
               <!--/*
-                キャンセルできるのは、まだ伝票が閉じていない注文だけです。
+                キャンセルできるのは、まだ終わっていない注文だけです。
                 OrderStatus#isClosed() が true（受渡済・キャンセル済）なら操作欄は出しません。
+                （ここでいう closed は「注文の状態」の話で、伝票のお会計とは別のものです。）
                 画面に出さないだけでなくサーバ側でも状態遷移を検査しているので、
                 URL を直接叩かれても不正な変更はできません。
               */-->
@@ -93,7 +107,7 @@
           </tr>
 
           <tr>
-            <td colspan="6" style="white-space:normal">
+            <td colspan="7" style="white-space:normal">
               <details>
                 <summary class="small"
                          th:text="'#' + ${o.orderNumber} + ' の明細を見る（' + ${o.totalQuantity} + '点）'">
@@ -119,7 +133,7 @@
                   <table class="total-table" style="max-width:22rem">
                     <tbody>
                     <tr>
-                      <td class="muted" th:text="'内消費税（' + ${o.taxRatePercent} + '%）'">内消費税（8%）</td>
+                      <td class="muted" th:text="'内消費税（' + ${o.taxRatePercent} + '%）'">内消費税（10%）</td>
                       <td th:text="'¥' + ${#numbers.formatInteger(o.taxAmount, 1, 'COMMA')}">¥188</td>
                     </tr>
                     <tr class="is-grand">
@@ -129,9 +143,11 @@
                     </tbody>
                   </table>
 
-                  <p class="small mb-0" th:if="${o.customerName != null}">
-                    お呼び出し名：<span th:text="${o.customerName}">やまだ</span>
-                  </p>
+                  <!--/*
+                    「お呼び出し名」はテイクアウト時代の項目です。
+                    いまは注文を受けたときに卓名がそのまま入るだけなので、
+                    上の「卓」の列と同じ内容になります。重複するのでここには出しません。
+                  */-->
                   <p class="small mb-0" th:if="${o.note != null}">
                     ご要望：<span th:text="${o.note}">ソース少なめ</span>
                   </p>

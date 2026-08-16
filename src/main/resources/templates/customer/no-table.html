@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout('お席の QR をお読みください', ~{::main})}">
+<body>
+<main>
+  <div class="container">
+
+    <div class="empty-state mt-6">
+      <div class="empty-state__mark">卓</div>
+      <h1>お席の QR コードをお読みください</h1>
+      <p class="lead">
+        ご注文は、テーブルに置かれた QR コードから承っております。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card__body stack">
+        <p class="mb-0">
+          このページはブックマークや検索から直接開かれています。
+          どのお席からのご注文か分からないため、メニューをお出しできません。
+        </p>
+        <p class="mb-0 muted small">
+          お手数ですが、テーブルの QR コードをスマートフォンのカメラで読み取ってください。
+          読み取れない場合はスタッフにお声がけください。
+        </p>
+      </div>
+    </div>
+
+    <p class="tiny faint center mt-6">
+      お会計はご退店時にレジまでお願いします
+    </p>
+
+  </div>
+</main>
+</body>
+</html>

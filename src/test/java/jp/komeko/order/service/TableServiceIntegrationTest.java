@@ -1,0 +1,363 @@
+package jp.komeko.order.service;
+
+import jp.komeko.order.cart.Cart;
+import jp.komeko.order.domain.Category;
+import jp.komeko.order.domain.DiningTable;
+import jp.komeko.order.domain.MenuItem;
+import jp.komeko.order.domain.SessionStatus;
+import jp.komeko.order.domain.ShopSetting;
+import jp.komeko.order.domain.TableSession;
+import jp.komeko.order.repository.CategoryRepository;
+import jp.komeko.order.repository.DailyCounterRepository;
+import jp.komeko.order.repository.MenuItemRepository;
+import jp.komeko.order.repository.TableSessionRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.time.LocalTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+/**
+ * {@link TableService}（卓と伝票）の結合テスト。
+ *
+ * <p><b>このテストが守っているもの＝「1 卓 1 伝票」という大前提</b><br>
+ * イートインの会計は「卓ごとに 1 枚の伝票」で成り立っています。
+ * ここが崩れると、次のような事故が起きます。
+ * <ul>
+ *   <li>伝票が 2 枚できる → 片方だけ会計して、もう片方が取りっぱぐれる</li>
+ *   <li>会計後も注文できる → 締めたあとの注文が誰にも請求されない</li>
+ *   <li>人数を直しても金額が変わらない → テーブルチャージの請求漏れ</li>
+ * </ul>
+ *
+ * <p><b>アノテーションの意味</b>
+ * <ul>
+ *   <li>{@code @SpringBootTest} … アプリ本体と同じ形で Spring を起動する</li>
+ *   <li>{@code @ActiveProfiles("test")} … メモリ上の H2 を使う（application-test.yml）</li>
+ *   <li>{@code @Transactional} … 各テストの終わりに DB の変更を巻き戻す。
+ *       テストの実行順に左右されず、毎回まっさらから始められる</li>
+ * </ul>
+ */
+@SpringBootTest
+@ActiveProfiles("test")
+@Transactional
+@DisplayName("卓と伝票のサービス（DBあり）")
+class TableServiceIntegrationTest {
+
+    @Autowired
+    private TableService tableService;
+    @Autowired
+    private OrderService orderService;
+    @Autowired
+    private CartService cartService;
+    @Autowired
+    private ShopSettingService shopSettingService;
+    @Autowired
+    private CategoryRepository categoryRepository;
+    @Autowired
+    private MenuItemRepository menuItemRepository;
+    @Autowired
+    private TableSessionRepository sessionRepository;
+    @Autowired
+    private DailyCounterRepository dailyCounterRepository;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    private ShopSetting setting;
+    private DiningTable table;
+    private MenuItem okonomiyaki;
+
+    @BeforeEach
+    void setUp() {
+        // ── 採番カウンタだけは「別トランザクションで」消す ─────────────
+        // OrderNumberService#next は Propagation.REQUIRES_NEW で採番してすぐコミットするため、
+        // テストの @Transactional によるロールバックの対象外です。
+        // 前のテストが払い出した番号が残るので、こちらも独立したトランザクションで消します。
+        TransactionTemplate isolated = new TransactionTemplate(transactionManager);
+        isolated.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        isolated.executeWithoutResult(status -> dailyCounterRepository.deleteAllInBatch());
+
+        // ── 何時に実行しても同じ結果になる設定にそろえる ───────────────
+        // 実店舗の設定（17:30〜翌1:30）のままだと、昼にテストを走らせたときだけ
+        // 「営業時間外」で注文が弾かれて落ちる、という不安定なテストになってしまう。
+        setting = shopSettingService.current();
+        setting.setAcceptingOrders(true);
+        setting.setOpenTime(LocalTime.MIN);                  // 00:00
+        // LocalTime.MAX は DB の TIME 型で丸められることがあるので秒までにしておく
+        setting.setLastOrderTime(LocalTime.of(23, 59, 59));  // 実質いつでも受付可
+        setting.setBusinessDayCutoverHour(0);                // 営業日＝暦の日付
+        setting.setOrderNumberStart(101);
+        setting.setTaxRatePercent(10);                       // 酒類を扱う店なので 10%
+        setting.setTableChargePerGuest(450);
+        // 深夜料金は「実行した時刻」で自動判定されるため、金額の検証がぶれてしまう。
+        // このクラスではチャージと小計の検証に集中したいので 0% にしておく。
+        setting.setLateNightSurchargePercent(0);
+
+        // ── 卓とメニューを用意する ─────────────────────────────
+        // application-test.yml で seed-on-startup: false なので、
+        // 卓もメニューもこのテストが自分で作る（何があるかを自分で把握できる状態にする）。
+        table = tableService.createTable("1番テーブル", 4, 10);
+
+        Category category = categoryRepository.save(new Category("広島風お好み焼き", 10));
+        MenuItem item = new MenuItem(category, "肉玉米粉そば", 1180);
+        item.setCookMinutes(12);
+        okonomiyaki = menuItemRepository.save(item);
+    }
+
+    /** 商品を 1 品だけ入れた新しいカートを作る。 */
+    private Cart cartOf(MenuItem item, int quantity) {
+        // Cart は @SessionScope の Bean なので、HTTP リクエストが無いテストでは DI できない。
+        // placeOrder はカートを引数で受け取る設計なので、素直に new して渡す。
+        Cart cart = new Cart();
+        cartService.addToCart(cart, item.getId(), List.of(), quantity);
+        return cart;
+    }
+
+    @Nested
+    @DisplayName("伝票を開く（ご案内）")
+    class OpenSession {
+
+        @Test
+        @DisplayName("同じ卓で2回開こうとしても、伝票は増えず同じものが返る")
+        void openingTwiceReturnsTheSameSession() {
+            // ★このクラスでいちばん大事なテスト★
+            // 同じ卓のお客さんが 2 人とも QR を読む、というのは毎回起きること。
+            // 人数ぶん伝票ができてしまうと、片方だけ会計して残りが取りっぱぐれになる。
+            TableSession first = tableService.openSession(table.getId(), 2);
+            TableSession second = tableService.openSession(table.getId(), 2);
+
+            assertThat(second.getId()).isEqualTo(first.getId());
+            // @Transactional で毎回巻き戻るので、DB にある伝票はこのテストが作った 1 件だけ
+            assertThat(sessionRepository.count()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("2回目に違う人数で開くと、伝票は増やさず人数だけ更新する")
+        void openingAgainUpdatesGuestCount() {
+            // あとから来たお連れさまが「4名」で読み直した、という状況。
+            // 伝票は 1 枚のまま、人数だけ新しい申告に合わせる。
+            TableSession first = tableService.openSession(table.getId(), 2);
+
+            TableSession second = tableService.openSession(table.getId(), 4);
+
+            assertThat(second.getId()).isEqualTo(first.getId());
+            assertThat(second.getGuestCount()).isEqualTo(4);
+            assertThat(second.getTableChargeAmount()).isEqualTo(1800);   // 450 × 4名
+        }
+
+        @Test
+        @DisplayName("開いた直後でも、テーブルチャージぶんの請求額が入っている")
+        void chargeIsCalculatedOnOpen() {
+            TableSession bill = tableService.openSession(table.getId(), 2);
+
+            assertThat(bill.getStatus()).isEqualTo(SessionStatus.OPEN);
+            assertThat(bill.getSubtotalAmount()).isZero();
+            assertThat(bill.getTableChargeAmount()).isEqualTo(900);
+            assertThat(bill.getTotalAmount()).isEqualTo(900);
+        }
+
+        @Test
+        @DisplayName("伝票が開いていない卓に requireOpenSession すると受付を断られる")
+        void requireOpenSessionFailsWhenNothingIsOpen() {
+            // QR は読んだが「ご案内（人数選択）」を通っていない状態。
+            // ここで注文を通すと、どの伝票に足すか決まらないまま注文が浮いてしまう。
+            assertThatThrownBy(() -> tableService.requireOpenSession(table.getId()))
+                    .isInstanceOf(OrderRejectedException.class)
+                    .hasMessageContaining("QR");
+        }
+    }
+
+    @Nested
+    @DisplayName("お会計（伝票を締める）")
+    class CloseSession {
+
+        @Test
+        @DisplayName("会計すると、その卓の「開いている伝票」は無くなる")
+        void currentSessionIsEmptyAfterClosing() {
+            // ここが空にならないと、次のお客さんが前の組の伝票に注文を足してしまう。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+
+            tableService.closeSession(bill.getId(), false, "店長", null);
+
+            assertThat(tableService.currentSession(table.getId())).isEmpty();
+            assertThat(tableService.getSession(bill.getId()).getStatus())
+                    .isEqualTo(SessionStatus.CLOSED);
+        }
+
+        @Test
+        @DisplayName("会計額は 小計 + テーブルチャージ で、内消費税も入る")
+        void closedAmountIncludesTableCharge() {
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
+
+            TableSession closed = tableService.closeSession(bill.getId(), false, "店長", "現金");
+
+            assertThat(closed.getSubtotalAmount()).isEqualTo(1180);
+            assertThat(closed.getTableChargeAmount()).isEqualTo(900);      // 450 × 2名
+            assertThat(closed.getTotalAmount()).isEqualTo(2080);
+            assertThat(closed.getTaxAmount()).isEqualTo(189);              // 2,080 × 10 ÷ 110
+            assertThat(closed.getClosedBy()).isEqualTo("店長");
+            assertThat(closed.getNote()).isEqualTo("現金");
+        }
+
+        @Test
+        @DisplayName("会計済みの伝票に注文しようとすると OrderRejectedException になる")
+        void cannotOrderIntoClosedSession() {
+            // 「お会計しました → まだスマホの画面が残っていて注文ボタンを押した」は起きる。
+            // ここを通してしまうと、誰にも請求されない注文が厨房に流れる。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            tableService.closeSession(bill.getId(), false, "店長", null);
+
+            Cart cart = cartOf(okonomiyaki, 1);
+            assertThatThrownBy(() -> orderService.placeOrder(cart, bill.getId(), null))
+                    .isInstanceOf(OrderRejectedException.class)
+                    .hasMessageContaining("お会計はすでに済んでいます");
+        }
+
+        @Test
+        @DisplayName("二重に会計しようとすると弾かれる")
+        void cannotCloseTwice() {
+            // 会計ボタンの二度押しで金額が二重計上されないようにする。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            tableService.closeSession(bill.getId(), false, "店長", null);
+
+            assertThatThrownBy(() -> tableService.closeSession(bill.getId(), false, "店長", null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("すでに会計済み");
+        }
+
+        @Test
+        @DisplayName("誤会計は reopen で開け直せる")
+        void reopenBringsSessionBack() {
+            // 別の卓を会計してしまった、というのは実際にある操作ミス。
+            // 取り消せないと、お客さんを待たせたまま手作業で復旧することになる。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            tableService.closeSession(bill.getId(), false, "店長", null);
+
+            tableService.reopenSession(bill.getId(), "店長");
+
+            // Optional の中身を取り出して比べる。map しておくと
+            // 「空だった」ときも NoSuchElementException ではなく素直な失敗メッセージになる。
+            assertThat(tableService.currentSession(table.getId()).map(TableSession::getId))
+                    .contains(bill.getId());
+        }
+    }
+
+    @Nested
+    @DisplayName("人数の変更")
+    class ChangeGuestCount {
+
+        @Test
+        @DisplayName("人数を変えるとテーブルチャージも請求額も変わる")
+        void guestCountChangesChargeAndTotal() {
+            // お客さんの自己申告と実際が違うことは日常茶飯事。
+            // ホール画面から直したときに金額が追従しないと、そのぶん請求漏れになる。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
+            assertThat(tableService.getSession(bill.getId()).getTotalAmount()).isEqualTo(2080);
+
+            TableSession updated = tableService.changeGuestCount(bill.getId(), 4);
+
+            assertThat(updated.getGuestCount()).isEqualTo(4);
+            assertThat(updated.getTableChargeAmount()).isEqualTo(1800);       // 450 × 4名
+            assertThat(updated.getTotalAmount()).isEqualTo(1180 + 1800);
+        }
+
+        @Test
+        @DisplayName("会計済みの伝票の人数は変更できない")
+        void cannotChangeGuestCountAfterClosing() {
+            // 締めたあとに金額が動くと、レジの現金と記録が合わなくなる。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            tableService.closeSession(bill.getId(), false, "店長", null);
+
+            assertThatThrownBy(() -> tableService.changeGuestCount(bill.getId(), 4))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("QR トークンから卓を引く")
+    class AccessToken {
+
+        @Test
+        @DisplayName("正しいトークンならその卓が返る")
+        void findsTableByToken() {
+            DiningTable found = tableService.getByAccessToken(table.getAccessToken());
+
+            assertThat(found.getId()).isEqualTo(table.getId());
+            assertThat(found.getName()).isEqualTo("1番テーブル");
+        }
+
+        @Test
+        @DisplayName("存在しないトークンでは TableNotFoundException になる")
+        void unknownTokenIsRejected() {
+            // トークンは推測できないランダム文字列。当てずっぽうで叩かれても、
+            // 「たまたま別の卓が開く」ことがあってはならない。
+            assertThatThrownBy(() -> tableService.getByAccessToken("no-such-token-1234"))
+                    .isInstanceOf(TableService.TableNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("利用停止中（active=false）の卓は QR を読んでも注文できない")
+        void inactiveTableIsRejected() {
+            // 貸切・席の一時撤去などで止めた卓。QR は貼られたままなので、
+            // サーバ側で断らないと、誰も見ていない席の注文が厨房に流れてしまう。
+            tableService.updateTable(table.getId(), table.getName(), table.getCapacity(), 10, false);
+
+            String token = table.getAccessToken();
+            assertThatThrownBy(() -> tableService.getByAccessToken(token))
+                    .isInstanceOf(OrderRejectedException.class)
+                    .hasMessageContaining("ご利用いただけません");
+        }
+
+        @Test
+        @DisplayName("QR を再発行すると、それまでのトークンは使えなくなる")
+        void regeneratedTokenInvalidatesTheOldOne() {
+            // 卓の QR 画像が外部に出回ってしまったときの緊急手段。
+            // 古いトークンが生きていたら再発行の意味がない。
+            String oldToken = table.getAccessToken();
+
+            tableService.regenerateToken(table.getId());
+
+            assertThatThrownBy(() -> tableService.getByAccessToken(oldToken))
+                    .isInstanceOf(TableService.TableNotFoundException.class);
+            assertThat(tableService.getById(table.getId()).getAccessToken()).isNotEqualTo(oldToken);
+        }
+    }
+
+    @Nested
+    @DisplayName("ホール画面用の一覧")
+    class OpenSessions {
+
+        @Test
+        @DisplayName("いま開いている伝票だけが並ぶ（会計済みは消える）")
+        void listsOnlyOpenSessions() {
+            // ホール画面は「いま席にいる組」を見るための画面。
+            // 会計済みが残っていると、どの卓が空いたのか分からなくなる。
+            DiningTable second = tableService.createTable("2番テーブル", 4, 20);
+            TableSession first = tableService.openSession(table.getId(), 2);
+            TableSession other = tableService.openSession(second.getId(), 3);
+
+            assertThat(tableService.openSessions())
+                    .extracting(TableSession::getId)
+                    .containsExactlyInAnyOrder(first.getId(), other.getId());
+
+            tableService.closeSession(first.getId(), false, "店長", null);
+
+            assertThat(tableService.openSessions())
+                    .extracting(TableSession::getId)
+                    .containsExactly(other.getId());
+        }
+    }
+}

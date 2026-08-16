@@ -167,6 +167,14 @@ public class AdminMenuItemController {
                          BindingResult binding,
                          Model model,
                          RedirectAttributes redirectAttributes) {
+        // 新規登録なので、id と「いまの画像」は必ず空にそろえる。
+        // フォームクラスには setter があるため、リクエストに id=7 を紛れ込ませるだけで
+        // 入力エラーで描き直したときの送信先が /admin/items/7（＝更新）に化けてしまい、
+        // 次の送信で別の商品を上書きできてしまう。
+        // 「表示用の項目は送られてきた値を信用しない」という update() と同じ方針。
+        form.setId(null);
+        form.setCurrentImagePath(null);
+
         Category category = resolveCategory(form, binding);
         if (binding.hasErrors()) {
             prepareForm(model, form);

@@ -12,6 +12,9 @@
   <a class="tab" th:href="@{/admin}"           th:classappend="${current == 'home'}     ? 'is-active'">ダッシュボード</a>
   <a class="tab" th:href="@{/admin/items}"     th:classappend="${current == 'items'}    ? 'is-active'">商品</a>
   <a class="tab" th:href="@{/admin/categories}" th:classappend="${current == 'categories'} ? 'is-active'">カテゴリ</a>
+  <!--/* 卓（テーブル）の登録。ここで作った卓の数だけ QR ができるので、
+         「QRコード」タブのすぐ近くに置いています。 */-->
+  <a class="tab" th:href="@{/admin/tables}"    th:classappend="${current == 'tables'}   ? 'is-active'">卓</a>
   <a class="tab" th:href="@{/admin/orders}"    th:classappend="${current == 'orders'}   ? 'is-active'">注文履歴</a>
   <a class="tab" th:href="@{/admin/sales}"     th:classappend="${current == 'sales'}    ? 'is-active'">売上</a>
   <a class="tab" th:href="@{/admin/qr}"        th:classappend="${current == 'qr'}       ? 'is-active'">QRコード</a>

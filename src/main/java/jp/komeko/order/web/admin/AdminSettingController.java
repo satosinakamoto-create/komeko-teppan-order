@@ -2,6 +2,7 @@ package jp.komeko.order.web.admin;
 
 import jakarta.validation.Valid;
 import jp.komeko.order.domain.ShopSetting;
+import jp.komeko.order.repository.ShopSettingRepository;
 import jp.komeko.order.service.ShopSettingService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -47,9 +48,19 @@ public class AdminSettingController {
 
     private final ShopSettingService shopSettingService;
 
+    /**
+     * イートインで増えた 3 項目を保存するためだけに使うリポジトリ。
+     *
+     * <p><b>本来コントローラからリポジトリを直接触るのは行儀が悪い</b>のですが、
+     * ここだけは事情があります。詳しくは {@link #saveEatInFields(ShopSetting)} を読んでください。
+     */
+    private final ShopSettingRepository shopSettingRepository;
+
     /** コンストラクタインジェクション。Spring が自動でサービスを渡してくれます。 */
-    public AdminSettingController(ShopSettingService shopSettingService) {
+    public AdminSettingController(ShopSettingService shopSettingService,
+                                  ShopSettingRepository shopSettingRepository) {
         this.shopSettingService = shopSettingService;
+        this.shopSettingRepository = shopSettingRepository;
     }
 
     // ========================================================================
@@ -165,7 +176,15 @@ public class AdminSettingController {
      * そのため<b>画面に置き忘れた項目は初期値のまま save() に渡り、DB の値を上書きします</b>。
      * 例えば受付停止中に、受付フラグの入力欄が無い状態で保存すると、
      * 初期値 true が書き込まれて勝手に受付が再開されてしまいます。
-     * settings.html には save() が写す 12 項目すべての入力欄を必ず置いてください。
+     * settings.html には、このメソッドが保存する項目すべての入力欄を必ず置いてください。
+     *
+     * <p><b>保存が 2 段構えになっている理由</b><br>
+     * イートイン化でテーブルチャージと深夜料金の 3 項目が {@link ShopSetting} に増えましたが、
+     * {@link ShopSettingService#save(ShopSetting)} は従来の 12 項目しか写しません
+     * （このサービスは今回の担当範囲外のファイルで、他の作業と衝突するため手を入れられません）。
+     * そのままだと店長が金額を入力して「保存」を押しても<b>何も変わらない</b>という、
+     * いちばんタチの悪い不具合になります。
+     * そこで増えた 3 項目だけを {@link #saveEatInFields(ShopSetting)} で追いかけて保存しています。
      */
     @PostMapping
     public String save(@Valid @ModelAttribute("form") ShopSetting form,
@@ -183,8 +202,18 @@ public class AdminSettingController {
             return "admin/settings";
         }
 
-        shopSettingService.save(form);
-        redirectAttributes.addFlashAttribute("flashSuccess", "店舗設定を保存しました");
+        shopSettingService.save(form);   // 従来からある 12 項目
+        saveEatInFields(form);           // イートインで増えた 3 項目
+
+        // 「開いている伝票は一切変わらない」と言い切ってはいけません。
+        // 単価・割増率・税率は伝票にコピー済みなので確かに動きませんが、
+        // 深夜料金を「かけるかどうか」は TableService#refresh が
+        // そのつど ShopSetting#isLateNight（＝最新の設定）で判定し直しています。
+        // つまり割増率を 0 にしたり開始時刻を変えたりすると、
+        // いま開いている伝票の深夜料金もその場で付き外れします。
+        redirectAttributes.addFlashAttribute("flashSuccess",
+                "店舗設定を保存しました（開いている伝票の単価・割増率・税率は来店時のままです。"
+                        + "深夜料金がかかるかどうかの判定だけは新しい設定で行われます）");
         return "redirect:/admin/settings";
     }
 
@@ -208,10 +237,46 @@ public class AdminSettingController {
     // ========================================================================
 
     /**
+     * イートインで増えた 3 項目（テーブルチャージ・深夜料金）を保存する。
+     *
+     * <p><b>なぜサービスに書かず、ここでリポジトリを直接触っているのか</b><br>
+     * 本来はこの 3 行も {@link ShopSettingService#save(ShopSetting)} に足すのが正しい形です。
+     * ですが今回の作り替えでは複数人が並行して別々のファイルを直しており、
+     * サービスクラスは別の担当の範囲なので編集できません。
+     * かといって画面に入力欄だけ置くと「保存を押しても金額が変わらない」ことになり、
+     * テーブルチャージの取りこぼし＝金銭事故に直結します。
+     * <b>サービスを直せるようになったら、この 3 行を save() へ移してこのメソッドは消してください。</b>
+     *
+     * <p><b>やっていること</b><br>
+     * {@code findById} で取り出した設定は、メソッドを抜けた時点で
+     * DB との縁が切れた状態（デタッチ）になります。
+     * その状態のオブジェクトに値を入れても DB には届かないので、
+     * 最後に {@code save()} を呼んで「この内容に合わせて更新して」と伝えます。
+     *
+     * <p>設定の行は {@link ShopSettingService#save(ShopSetting)} が
+     * 必ず作ってから戻ってくるので、ここで見つからないことはまずありません
+     * （念のため {@code ifPresent} で守っています）。
+     */
+    private void saveEatInFields(ShopSetting form) {
+        shopSettingRepository.findById(ShopSetting.SINGLETON_ID).ifPresent(stored -> {
+            stored.setTableChargePerGuest(form.getTableChargePerGuest());
+            stored.setLateNightStartTime(form.getLateNightStartTime());
+            stored.setLateNightSurchargePercent(form.getLateNightSurchargePercent());
+            stored.touch();
+            shopSettingRepository.save(stored);
+        });
+    }
+
+    /**
      * 時刻まわりの整合性チェック。
      *
      * <p>{@code rejectValue} で登録したエラーは、テンプレート側の
      * {@code th:errors="*{openTime}"} にそのまま表示されます。
+     *
+     * <p><b>ここで「開店 &lt; ラストオーダー」を強制しないのはなぜか</b><br>
+     * 「17:30 開店・翌 01:30 ラストオーダー」のように日付をまたぐ営業を
+     * {@link ShopSetting} 側が正式に扱えるようになっているためです。
+     * 画面側で弾いてしまうと、ドメインが持っている機能に手が届かなくなります。
      */
     private void validateTimes(ShopSetting form, BindingResult bindingResult) {
         // 空欄は型変換の段階で null になっている（LocalTimeEditor 参照）。
@@ -225,13 +290,28 @@ public class AdminSettingController {
         if (form.getLastOrderTime() == null && !bindingResult.hasFieldErrors("lastOrderTime")) {
             bindingResult.rejectValue("lastOrderTime", "required", "ラストオーダー時刻を入力してください");
         }
+        // 深夜料金の開始時刻も NOT NULL の列。
+        // 「深夜料金を使わない」ときは割増率を 0 にする運用なので、時刻自体は必ず必要。
+        if (form.getLateNightStartTime() == null && !bindingResult.hasFieldErrors("lateNightStartTime")) {
+            bindingResult.rejectValue("lateNightStartTime", "required",
+                    "深夜料金の開始時刻を入力してください（かけたくないときは割増率を 0 にします）");
+        }
 
-        // 開店より前にラストオーダーが来ていると、一日中「受付時間外」になってしまう。
-        // 保存できてしまうと原因に気づきにくいので、入口で止める。
+        // ここで「ラストオーダーは開店時刻より後」を強制してはいけません。
+        // ShopSetting の受付時間判定は
+        // 「17:30 開店 → 翌 01:30 ラストオーダー」のような日をまたぐ営業を
+        // わざわざ場合分けして実装しています（ドメイン側の Javadoc に図まであります）。
+        // 開店 > ラストオーダー を弾いてしまうと、
+        // その唯一の設定画面から深夜営業を登録できなくなり、
+        // 実装されている機能に手が届かなくなります。
+        //
+        // 一方、開店時刻とラストオーダーが「まったく同じ」だと、
+        // 受け付けられるのはその 1 分間だけになり、まず入力ミスです。
+        // ここだけは入口で止めます。
         if (form.getOpenTime() != null && form.getLastOrderTime() != null
-                && form.getOpenTime().isAfter(form.getLastOrderTime())) {
+                && form.getOpenTime().equals(form.getLastOrderTime())) {
             bindingResult.rejectValue("lastOrderTime", "order",
-                    "ラストオーダーは開店時刻より後にしてください（このままだと一日中受付できません）");
+                    "ラストオーダーを開店時刻と同じにはできません（受け付けられるのがその 1 分間だけになります）");
         }
     }
 }

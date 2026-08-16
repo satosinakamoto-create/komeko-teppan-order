@@ -66,20 +66,15 @@
         <div class="card__foot">
           <table class="total-table">
             <tbody>
-            <tr>
-              <td class="muted">小計（税抜相当）</td>
-              <td th:text="'¥' + ${#numbers.formatInteger(cart.totalAmount - taxAmount, 1, 'COMMA')}">¥2,352</td>
-            </tr>
-            <tr>
-              <td class="muted" th:text="'消費税（' + ${shop.taxRatePercent} + '%・テイクアウト）'">消費税（8%）</td>
-              <td th:text="'¥' + ${#numbers.formatInteger(taxAmount, 1, 'COMMA')}">¥188</td>
-            </tr>
             <tr class="is-grand">
-              <td>合計</td>
+              <td>今回のご注文</td>
               <td th:text="'¥' + ${#numbers.formatInteger(cart.totalAmount, 1, 'COMMA')}">¥2,540</td>
             </tr>
             </tbody>
           </table>
+          <p class="tiny faint mb-0 mt-4">
+            消費税・テーブルチャージを含むご請求額は、お席の伝票にまとめて計算されます。
+          </p>
         </div>
       </div>
 
@@ -91,21 +86,17 @@
       <!--/* ===== 注文フォーム ===== */-->
       <form th:action="@{/checkout}" method="post" class="mt-6">
         <div class="field">
-          <label class="label" for="customerName">お呼び出し名（任意）</label>
-          <input class="input" type="text" id="customerName" name="customerName"
-                 maxlength="20" placeholder="例）やまだ" th:value="${cart.customerName}">
-          <p class="help">番号と一緒にお呼びします。空欄でも番号でお呼びできます。</p>
-        </div>
-
-        <div class="field">
           <label class="label" for="note">ご要望（任意）</label>
           <textarea class="textarea" id="note" name="note" maxlength="200"
                     placeholder="例）ソース少なめでお願いします" th:text="${cart.note}"></textarea>
-          <p class="help">アレルギー等の重要なご相談は、お手数ですが店頭スタッフへ直接お伝えください。</p>
+          <p class="help">アレルギー等の重要なご相談は、お手数ですがスタッフへ直接お伝えください。</p>
         </div>
 
         <div class="alert alert--info">
-          <p class="mb-0">お会計は、商品のお受け取り時に店頭でお願いします。</p>
+          <p class="mb-0">
+            <span th:if="${tableName}"><b th:text="${tableName}">3番テーブル</b> へお持ちします。</span>
+            お会計はご退店時にレジまでお願いします。
+          </p>
         </div>
 
         <div class="cart-bar mt-6">

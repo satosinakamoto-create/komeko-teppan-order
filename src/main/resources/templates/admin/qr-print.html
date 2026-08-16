@@ -1,50 +1,86 @@
 <!DOCTYPE html>
 <!--/*
-   A4 に貼る印刷用ポップ。
+   卓ごとの卓上ポップ（印刷用）。
+
+   卓の数だけ .print-sheet を並べます。app.css の @media print に
+   「.print-sheet { page-break-after: always; }」が入っているので、
+   ブラウザの印刷（Ctrl+P）でそのまま 1 卓 = 1 枚に分かれます。
+
    ヘッダーやナビゲーションが紙に写り込まないよう、
    最小レイアウト（layout/plain）を使っています。
-   画面でだけ見せたいボタンには .no-print を付けており、
-   印刷時には app.css の @media print で非表示になります。
+   画面でだけ見せたい案内やボタンには .no-print を付けており、
+   印刷時には非表示になります。
+
+   使えるモデルの値：
+     ${tables}    … List<DiningTable>（稼働中の卓だけ）
+     ${tableUrls} … Map<Long, String>（卓 id → QR に入る URL）
+     ${size}      … QR 画像の 1 辺（px）
+     ${baseUrl}   … いま設定されている app.base-url
+
+   ★ 印刷したら、必ず「紙に書かれた卓名」と「貼る席」を照合してください。
+     貼り間違えると、料理がまるごと別の席に運ばれます。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{layout/plain :: layout('QRポップ（印刷用）', ~{::main})}">
+      th:replace="~{layout/plain :: layout('卓の QR ポップ（印刷用）', ~{::main})}">
 <body>
 <main>
   <div class="container">
 
     <div class="row row--wrap no-print" style="padding-top:16px">
-      <a class="btn btn--ghost" th:href="@{/admin/qr}">← QR の設定に戻る</a>
+      <a class="btn btn--ghost" th:href="@{/admin/qr}">← QR の画面に戻る</a>
       <span class="spacer"></span>
-      <span class="help mb-0">ブラウザの印刷（Ctrl+P）でそのまま A4 に印刷できます。</span>
+      <span class="help mb-0">ブラウザの印刷（Ctrl+P）で、卓ごとに 1 枚ずつ印刷されます。</span>
     </div>
 
-    <div class="print-sheet mt-4">
+    <div class="alert alert--warn no-print mt-4">
+      <p class="mb-0">
+        いまの飛び先は <code th:text="${baseUrl} + '/t/…'">http://localhost:8080/t/…</code> です。
+        <code>localhost</code> のままだと、お客さんのスマホからは開けません。
+        印刷する前に必ず確認してください。
+      </p>
+    </div>
+
+    <div class="no-print" th:if="${tables.isEmpty()}">
+      <div th:replace="~{fragments/common :: empty('席', '印刷できる卓がありません。「卓」の画面で席を登録し、「使う」にチェックを入れてください')}"></div>
+    </div>
+
+    <!--/* ===== ここから 1 卓 = 1 枚 ===== */-->
+    <div class="print-sheet mt-4" th:each="t : ${tables}">
 
       <p class="print-sheet__title" th:text="${shop.shopName}">米粉と鉄板</p>
-      <p class="lead mb-0" th:text="${shop.tagline}">グルテンフリーの焼きたてを、鉄板から。</p>
+      <p class="mb-0" th:text="${shop.tagline}">グルテンフリーの焼きたてを、鉄板から。</p>
 
-      <h1 class="mt-6" style="font-size:2rem;letter-spacing:.12em">スマホでご注文いただけます</h1>
+      <!--/* 卓名はいちばん大きく。貼り間違いを防ぐための、いちばん大事な情報です */-->
+      <p class="serif mt-6 mb-0"
+         style="font-size:3rem;line-height:1.2;letter-spacing:.08em"
+         th:text="${t.name}">3番テーブル</p>
 
       <img class="print-sheet__qr"
-           th:src="@{/admin/qr/image(src=${src},size=${size})}"
-           alt="注文ページのQRコード">
+           th:src="@{/admin/qr/image(tableId=${t.id},size=${size})}"
+           th:alt="${t.name} + ' の注文用QRコード'">
+
+      <p class="mb-0 bold" style="font-size:1.25rem">QR コードを読み取ってご注文ください</p>
 
       <ol class="mt-4" style="display:inline-block;text-align:left;max-width:32em">
         <li>スマートフォンのカメラで、上の QR コードを読み取ります</li>
-        <li>メニューを選んでご注文ください（アプリのインストールは不要です）</li>
-        <li>番号をお呼びしますので、カウンターまでお越しください</li>
+        <li>人数をお選びください（テーブルチャージの計算に使います）</li>
+        <li>メニューを選んでご注文ください。アプリのインストールは不要です</li>
+        <li>追加のご注文も、同じ QR からいつでも承ります</li>
       </ol>
 
-      <p class="mt-4 mb-0 bold">お会計は、商品のお受け取り時に店頭でお願いします</p>
+      <p class="mt-4 mb-0">
+        ご請求額は、お手元のスマホからいつでもご確認いただけます。
+        お会計はスタッフまでお声がけください。
+      </p>
 
-      <p class="print-sheet__url mt-6" th:text="${qrUrl}">http://localhost:8080/</p>
+      <p class="print-sheet__url mt-6" th:text="${tableUrls.get(t.id)}">http://localhost:8080/t/xxxx</p>
       <p class="tiny faint mb-0">QR が読み取れないときは、上の URL をブラウザに直接入力してください。</p>
 
     </div>
 
     <p class="help no-print">
-      印刷する前に、上の URL が店内の Wi-Fi から開けるものになっているか必ず確認してください。
-      <code>localhost</code> のままだと、お客さんのスマホからは開けません。
+      印刷したら、紙に書かれた卓名と貼る席が合っているか必ず確認してください。
+      貼り間違えると、その席のご注文がまるごと別の席の伝票に入ってしまいます。
     </p>
 
   </div>

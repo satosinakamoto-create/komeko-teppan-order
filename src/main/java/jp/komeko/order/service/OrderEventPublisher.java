@@ -35,8 +35,8 @@ public class OrderEventPublisher {
 
     /** 厨房ボード用チャンネル。 */
     public static final String CHANNEL_KITCHEN = "kitchen";
-    /** 番号呼び出しサイネージ用チャンネル。 */
-    public static final String CHANNEL_DISPLAY = "display";
+    /** ホール（伝票・会計）画面用チャンネル。 */
+    public static final String CHANNEL_HALL = "hall";
 
     /** 接続が切れたとみなすまでの時間（ミリ秒）。長めにしておく。 */
     private static final long TIMEOUT_MILLIS = 30 * 60 * 1000L;
@@ -90,10 +90,10 @@ public class OrderEventPublisher {
         }
     }
 
-    /** 厨房とサイネージの両方へ流す（注文の増減はどちらにも影響するため）。 */
+    /** 厨房とホールの両方へ流す（注文の増減は伝票の金額にも影響するため）。 */
     public void publishOrderChanged(Object payload) {
         publish(CHANNEL_KITCHEN, "order-changed", payload);
-        publish(CHANNEL_DISPLAY, "order-changed", payload);
+        publish(CHANNEL_HALL, "order-changed", payload);
     }
 
     /**

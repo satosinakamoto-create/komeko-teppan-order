@@ -26,6 +26,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 「営業前のふるまい」を確かめるにはテストを朝 10 時に走らせるしかありません。
  * 時刻を引数で受け取る形にしておくと、好きな時刻を渡して何度でも試せます。
  * これは「テストしやすさのための設計（テスタビリティ）」の代表例です。
+ *
+ * <p><b>この店は日付をまたいで営業する</b><br>
+ * 実店舗「米粉と鉄板」は 17:30 開店・翌 2:00 閉店（ラストオーダー 翌 1:30）です。
+ * 開店時刻より閉店時刻のほうが「時刻としては小さい」ため、
+ * 素直に {@code open <= t && t <= lastOrder} と書くと<b>一日中 false</b> になります。
+ * ここを間違えると「営業中なのに一切注文できない」という致命的な状態になるので、
+ * 日をまたぐケースを重点的にテストしています。
  */
 @DisplayName("店舗設定（営業時間・営業日）")
 class ShopSettingTest {
@@ -36,6 +43,20 @@ class ShopSettingTest {
     /** 既定値の店舗設定（開店 11:00 / ラストオーダー 18:30 / 閉店 19:00 / 切替 5時）。 */
     private ShopSetting defaultSetting() {
         return new ShopSetting();
+    }
+
+    /**
+     * 実店舗「米粉と鉄板」の営業時間（17:30 開店・翌 1:30 ラストオーダー・翌 2:00 閉店）。
+     *
+     * <p>DataSeeder が初回起動時に入れている値と同じものを、テストでも組み立てています。
+     */
+    private ShopSetting lateNightShopSetting() {
+        ShopSetting setting = new ShopSetting();
+        setting.setOpenTime(LocalTime.of(17, 30));
+        setting.setLastOrderTime(LocalTime.of(1, 30));   // 翌 1:30
+        setting.setCloseTime(LocalTime.of(2, 0));        // 翌 2:00（＝26:00）
+        setting.setBusinessDayCutoverHour(5);
+        return setting;
     }
 
     private LocalDateTime at(int hour, int minute) {
@@ -100,6 +121,145 @@ class ShopSettingTest {
             assertThat(setting.isOrderAcceptable(at(8, 0))).isTrue();
             assertThat(setting.isOrderAcceptable(at(9, 30))).isTrue();
             assertThat(setting.isOrderAcceptable(at(9, 31))).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("日をまたぐ営業時間（17:30 開店・翌1:30 ラストオーダー）")
+    class LateNightBusinessHours {
+
+        @Test
+        @DisplayName("前提：開店17:30 / ラストオーダー翌1:30 / 閉店翌2:00")
+        void premise() {
+            ShopSetting setting = lateNightShopSetting();
+
+            assertThat(setting.getOpenTime()).isEqualTo(LocalTime.of(17, 30));
+            assertThat(setting.getLastOrderTime()).isEqualTo(LocalTime.of(1, 30));
+            assertThat(setting.getCloseTime()).isEqualTo(LocalTime.of(2, 0));
+            // 開店より「時刻として小さい」ラストオーダー＝日をまたぐ営業、という関係
+            assertThat(setting.getLastOrderTime()).isBefore(setting.getOpenTime());
+        }
+
+        /**
+         * 判定に使うのは<b>時刻だけ</b>で、日付は見ていません。
+         * そのため「翌 1:00」も {@code at(1, 0)} と書けば同じ意味になります。
+         */
+        @ParameterizedTest(name = "{0}時{1}分 → 受付可能: {2}")
+        @CsvSource({
+                "15,  0, false",  // 昼。まだ開いていない
+                "17, 29, false",  // 開店1分前（境界の直前）
+                "17, 30, true",   // 開店ちょうど
+                "20,  0, true",   // ピークタイム
+                "23,  0, true",   // 深夜料金が始まる時刻。まだ受付は続く
+                " 0, 30, true",   // 日付をまたいだ直後。ここが false になる実装ミスが多い
+                " 1,  0, true",   // 翌1時。まだラストオーダー前
+                " 1, 30, true",   // ラストオーダーちょうどは「まだ間に合う」
+                " 1, 31, false",  // 1分過ぎたら受け付けない
+                " 2,  0, false",  // 閉店時刻
+                " 5,  0, false",  // 早朝。完全に営業時間外
+                "12,  0, false"   // 昼
+        })
+        void byTimeOfDay(int hour, int minute, boolean expected) {
+            // ★このクラスでいちばん大事なテスト★
+            // 「0:30 も 1:00 も受付可、1:31 は不可」が正しく出せるかどうか。
+            // ここを単純な比較で書くと、営業のいちばん忙しい時間帯に
+            // 全員が注文できなくなる（＝店が止まる）。
+            ShopSetting setting = lateNightShopSetting();
+
+            assertThat(setting.isOrderAcceptable(at(hour, minute))).isEqualTo(expected);
+        }
+
+        @Test
+        @DisplayName("日をまたぐ営業でも、手動の受付停止のほうが優先される")
+        void manualStopWinsEvenAtNight() {
+            ShopSetting setting = lateNightShopSetting();
+            setting.setAcceptingOrders(false);
+
+            assertThat(setting.isOrderAcceptable(at(23, 0))).isFalse();
+            assertThat(setting.isOrderAcceptable(at(0, 30))).isFalse();
+        }
+
+        @Test
+        @DisplayName("開店前は開店時刻を、ラストオーダー後は受付終了を案内する")
+        void rejectReasonTellsWhich() {
+            // 日をまたぐ営業では「開店前」と「LO 後」の境目があいまいになる。
+            // 15:00 は開店待ち、3:00 は店じまい、と人の感覚どおりに出し分けたい。
+            ShopSetting setting = lateNightShopSetting();
+
+            assertThat(setting.orderRejectReason(at(15, 0)))
+                    .contains("17:30")
+                    .contains("営業");
+            assertThat(setting.orderRejectReason(at(3, 0)))
+                    .contains("01:30")
+                    .contains("終了");
+        }
+
+        @Test
+        @DisplayName("深夜1時の注文は「前日の営業日」として集計される")
+        void midnightOrdersBelongToPreviousBusinessDate() {
+            // 深夜 1 時は店の感覚では「昨日の営業ぶん」。
+            // 暦の日付で集計すると 1 日の売上が 2 日に割れて、日報が実感と合わなくなる。
+            ShopSetting setting = lateNightShopSetting();
+
+            assertThat(setting.businessDateOf(at(1, 0))).isEqualTo(DAY.minusDays(1));
+            assertThat(setting.businessDateOf(at(23, 0))).isEqualTo(DAY);
+        }
+    }
+
+    @Nested
+    @DisplayName("深夜料金の判定")
+    class LateNightSurcharge {
+
+        @Test
+        @DisplayName("既定は 23:00 から 10% 割増")
+        void defaults() {
+            ShopSetting setting = defaultSetting();
+
+            assertThat(setting.getLateNightStartTime()).isEqualTo(LocalTime.of(23, 0));
+            assertThat(setting.getLateNightSurchargePercent()).isEqualTo(10);
+        }
+
+        @ParameterizedTest(name = "{0}時{1}分 → 深夜料金: {2}")
+        @CsvSource({
+                "18,  0, false",  // 夕方。通常料金
+                "22, 59, false",  // 開始1分前（境界の直前）
+                "23,  0, true",   // 開始ちょうどから割増
+                "23, 59, true",
+                " 0,  0, true",   // 日付をまたいでも深夜のまま
+                " 1, 30, true",   // ラストオーダーの時刻も深夜
+                " 4, 59, true",   // 営業日の切り替え（5時）直前まで
+                " 5,  0, false",  // 5時以降は「翌日の昼」として通常料金
+                "10,  0, false"
+        })
+        void byTimeOfDay(int hour, int minute, boolean expected) {
+            // 「23:00 以降」を単純に t >= 23:00 と書くと、深夜 1:00 が対象外になる。
+            // 日をまたぐ側にこそ深夜料金がかかるので、そこを取りこぼさないことが要点。
+            ShopSetting setting = lateNightShopSetting();
+
+            assertThat(setting.isLateNight(at(hour, minute))).isEqualTo(expected);
+        }
+
+        @Test
+        @DisplayName("割増率を 0% にすると、深夜でも対象にならない")
+        void zeroPercentDisablesSurcharge() {
+            // 深夜料金をとらない運用に切り替えたときに、
+            // 「0% を掛ける」のではなく「そもそも対象外」と判定させておくと、
+            // 伝票の表示（深夜料金の行を出すか）も素直に書ける。
+            ShopSetting setting = lateNightShopSetting();
+            setting.setLateNightSurchargePercent(0);
+
+            assertThat(setting.isLateNight(at(23, 30))).isFalse();
+            assertThat(setting.isLateNight(at(1, 0))).isFalse();
+        }
+
+        @Test
+        @DisplayName("開始時刻を変えると判定もそれに追従する")
+        void customStartTime() {
+            ShopSetting setting = lateNightShopSetting();
+            setting.setLateNightStartTime(LocalTime.of(22, 0));
+
+            assertThat(setting.isLateNight(at(21, 59))).isFalse();
+            assertThat(setting.isLateNight(at(22, 0))).isTrue();
         }
     }
 
@@ -200,9 +360,22 @@ class ShopSettingTest {
     class Defaults {
 
         @Test
-        @DisplayName("テイクアウトなので税率は軽減税率の 8%")
+        @DisplayName("クラスの既定値は 8%（実店舗の 10% は DataSeeder が上書きする）")
         void taxRate() {
+            // ここは「新しい ShopSetting を作ったときの初期値」の確認です。
+            // 実店舗は酒類を扱うため軽減税率の対象外（10%）で、
+            // その値は初回起動時に DataSeeder が入れています。
+            // 過去の伝票の税率は TableSession / Order 側にコピーされるので、
+            // ここを変えても既存の会計は変わりません。
             assertThat(defaultSetting().getTaxRatePercent()).isEqualTo(8);
+        }
+
+        @Test
+        @DisplayName("テーブルチャージは1名あたり ¥450")
+        void tableCharge() {
+            // 席についた時点で必ず発生する金額。
+            // 0 になっていると、伝票から丸ごと抜け落ちて毎組ぶん取りっぱぐれる。
+            assertThat(defaultSetting().getTableChargePerGuest()).isEqualTo(450);
         }
 
         @Test

@@ -47,6 +47,17 @@ public class Order {
     private Long id;
 
     /**
+     * この注文が属する伝票（＝卓の来店）。
+     *
+     * <p>イートインでは 1 組のお客さんが何度も注文するので、
+     * 注文は必ずどれかの伝票にぶら下がります。
+     * 会計はこの伝票の単位で行います。
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "session_id", nullable = false)
+    private TableSession session;
+
+    /**
      * 営業日。深夜営業を考慮して「暦の日付」とは別に持つ。
      * 例: 深夜 2 時の注文は前日の営業日として集計したい。
      */
@@ -91,6 +102,7 @@ public class Order {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
+    @org.hibernate.annotations.BatchSize(size = 50)
     private List<OrderLine> lines = new ArrayList<>();
 
     @Column(nullable = false)
@@ -229,6 +241,27 @@ public class Order {
 
     public Long getId() {
         return id;
+    }
+
+    public TableSession getSession() {
+        return session;
+    }
+
+    /**
+     * 伝票に紐づける。
+     *
+     * <p>コンストラクタの引数にしていないのは、
+     * 金額計算だけを確かめる単体テストで伝票を用意せずに済むようにするためです
+     * （保存する前に必ずセットしてください）。
+     */
+    public void setSession(TableSession session) {
+        this.session = session;
+    }
+
+    /** 卓名（厨房ボードで「どこに運ぶか」を出すのに使う）。 */
+    public String getTableName() {
+        return (session == null || session.getDiningTable() == null)
+                ? "―" : session.getDiningTable().getName();
     }
 
     public LocalDate getBusinessDate() {

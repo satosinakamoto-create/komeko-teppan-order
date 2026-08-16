@@ -3,7 +3,12 @@
   ============================================================================
    厨房ボード（現場でいちばん長く開きっぱなしになる画面）
   ============================================================================
-   ・3 レーン（受付 → 調理中 → お渡し可）を左から右へ流していく作りです。
+   イートイン（卓ごとの QR）のお店なので、厨房が知りたいのは
+   「何番のお客さまを呼ぶか」ではなく **どの卓へ運ぶか** です。
+   そのためチケットの主役は注文番号ではなく **卓名** にしています。
+   注文番号は伝票と突き合わせるときの目印として小さく併記するだけです。
+
+   ・3 レーン（受付 → 調理中 → 提供待ち）を左から右へ流していく作りです。
    ・ボタンは「いま押せるもの」だけを出します。押せる状態の一覧は
      OrderStatus#allowedNext() が持っていて、サーバ側の遷移チェックも
      同じメソッドを見ています。画面とサーバで判断がズレません。
@@ -29,13 +34,18 @@
       </div>
 
       <div class="row row--wrap">
-        <!--/* 注文受付の稼働状況。止まっているのに気づかないのが一番こわいので目立たせる */-->
-        <span class="status-chip" style="color: var(--ok)"
-              th:if="${shop.acceptingOrders}">注文受付中</span>
-        <span class="status-chip" style="color: var(--danger)"
-              th:unless="${shop.acceptingOrders}">受付停止中</span>
+        <!--/* 注文受付の稼働状況。止まっているのに気づかないのが一番こわいので目立たせる。
 
-        <!--/* 未処理件数＝受付＋調理中＋お渡し可の合計 */-->
+               判定に使うのは shop.acceptingOrders（店長が倒す非常ブレーキ）ではなく、
+               コントローラが用意した accepting です。営業時間前・ラストオーダー後も
+               注文は通らないので、フラグだけを見ると「受付中」と出したまま
+               実際には 1 件も入ってこない、という一番まずい状態になります。 */-->
+        <span class="status-chip" style="color: var(--ok)"
+              th:if="${accepting}">注文受付中</span>
+        <span class="status-chip" style="color: var(--danger)"
+              th:unless="${accepting}">受付停止中</span>
+
+        <!--/* 未処理件数＝受付＋調理中＋提供待ちの合計 */-->
         <span class="badge badge--rec"
               th:text="'未処理 ' + ${board.activeCount()} + ' 件'">未処理 0 件</span>
 
@@ -72,10 +82,35 @@
         <article class="ticket" th:each="order : ${lane.orders()}"
                  th:classappend="${order.elapsedMinutes >= lateMinutes} ? 'is-late'">
 
+          <!--/* ===== チケットの頭 =====
+                 いちばん大きく出すのは卓名（＝運び先）です。
+                 .ticket__num はもともと 3 桁の番号を大きく出すための見た目
+                 （数字用フォント・1.75rem）なので、
+                 「カウンター2」のような日本語が入ると横にはみ出します。
+                 app.css は共用ファイルで勝手に触れないため、
+                 この画面の都合ぶんだけ inline style で
+                 文字サイズを落とし、書体を本文用（--font-sans）に戻しています。
+          */-->
           <div class="ticket__head">
-            <span class="ticket__num" th:text="${order.orderNumber}">101</span>
-            <span class="ticket__name" th:if="${order.customerName != null}"
-                  th:text="${order.customerName} + ' 様'">やまだ 様</span>
+            <span class="ticket__num"
+                  style="font-family: var(--font-sans); font-size: 1.25rem; letter-spacing: .02em; word-break: break-all;"
+                  th:text="${order.tableName}">3番テーブル</span>
+
+            <!--/* 注文番号。厨房の控えや伝票と突き合わせるときだけ使うので小さく併記する */-->
+            <span class="ticket__name" th:text="'#' + ${order.orderNumber}">#101</span>
+
+            <!--/* ===== 同じ卓の注文が複数あるときの注意喚起 =====
+                   イートインでは 1 つの卓から何度も追加注文が入ります。
+                   バラバラに運ぶとホールが同じ卓を何度も往復することになるので、
+                   「この卓はほかにも出るものがある」と気づけるようにしています。
+
+                   件数は KitchenController が数えて sameTableCount（卓名 → 件数）に
+                   詰めてくれています。Map なので [キー] の形で引きます。
+                   1 件だけのときは当たり前なので出しません（バッジだらけになると誰も見なくなる）。 */-->
+            <span class="badge badge--rec"
+                  th:if="${sameTableCount[order.tableName] != null and sameTableCount[order.tableName] > 1}"
+                  th:text="'同卓 ' + ${sameTableCount[order.tableName]} + ' 件'">同卓 2 件</span>
+
             <span class="ticket__time" th:text="${order.elapsedMinutes} + ' 分'">3 分</span>
           </div>
 
@@ -115,10 +150,21 @@
               <input type="hidden" name="status" th:value="${next.name()}">
               <button type="submit" class="btn"
                       th:classappend="${next.name() == 'COMPLETED'} ? 'btn--primary btn--lg' : (${next.name() == 'READY'} ? 'btn--ok' : '')">
+                <!--/* ボタンの文言はイートインの動きに合わせています。
+                       OrderStatus の staffLabel（「お渡し可」「受渡済」）は
+                       テイクアウト時代の言葉のままで、他の画面も使っているため変更できません。
+                       そこで、この画面に出す文字だけをここで上書きしています。
+
+                       COOKING へ進むボタンだけは、いまいるレーンで意味が変わります。
+                       受付 → 調理中 は前へ進める操作ですが、
+                       提供待ち → 調理中 は「焼き直す」ために一段戻す操作です。
+                       どちらも「焼きはじめ」と書くと、提供待ちのレーンで
+                       押した人が戻したことに気づけません。 */-->
                 <th:block th:switch="${next.name()}">
-                  <span th:case="'COOKING'">焼きはじめ</span>
+                  <span th:case="'COOKING'"
+                        th:text="${order.status.name() == 'READY'} ? '調理中に戻す' : '焼きはじめ'">焼きはじめ</span>
                   <span th:case="'READY'">焼き上がり</span>
-                  <span th:case="'COMPLETED'">お渡し完了</span>
+                  <span th:case="'COMPLETED'">提供済みにする</span>
                   <span th:case="*" th:text="${next.staffLabel}">次へ</span>
                 </th:block>
               </button>
@@ -127,21 +173,25 @@
 
           <!--/* ===== キャンセル =====
                  誤タップの影響が大きいので、確認ダイアログを挟み、一段下げて置きます。
-                 伝票が閉じていない間だけ表示（CANCELED は allowedNext に必ず含まれる状態）。
+                 注文が閉じていない間だけ表示（CANCELED は allowedNext に必ず含まれる状態）。
                  理由の入力欄は置かず既定値を送ります。自動リロードのある画面で
                  入力途中の文字が消えるのを避けるためです。
+
+                 キャンセルした品はその卓の伝票（お会計）からも外れます。
+                 金額の計算し直しはサーバ側（TableSession）が一手に引き受けるので、
+                 この画面では一切金額に触れません。
           */-->
           <div class="ticket__actions mt-4" th:unless="${order.status.closed}">
             <form th:each="next : ${order.status.allowedNext()}"
                   th:if="${next.name() == 'CANCELED'}"
                   th:action="@{/kitchen/orders/{id}/cancel(id=${order.id})}" method="post">
               <input type="hidden" name="reason" value="店舗都合">
-              <!--/* 確認ダイアログに番号を出したいので、値は data-* 属性で渡します。
+              <!--/* 確認ダイアログに卓名と番号を出したいので、値は data-* 属性で渡します。
                      onclick の中に Thymeleaf の式を直接書くと引用符の扱いが複雑になるため、
                      「値は Thymeleaf、組み立ては JavaScript」と役割を分けています。 */-->
               <button type="submit" class="btn btn--danger"
-                      th:attr="data-number=${order.orderNumber}"
-                      onclick="return confirm('#' + this.dataset.number + ' の注文をキャンセルします。よろしいですか？');">
+                      th:attr="data-table=${order.tableName},data-number=${order.orderNumber}"
+                      onclick="return confirm(this.dataset.table + ' の注文（#' + this.dataset.number + '）をキャンセルします。お会計からも取り除かれます。よろしいですか？');">
                 キャンセル
               </button>
             </form>

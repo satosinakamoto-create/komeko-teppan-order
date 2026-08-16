@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<!--/*
+   卓（テーブル）の管理。1 つの画面に
+     ・新規追加フォーム（1 個）
+     ・行ごとの更新フォーム（卓の数だけ）
+     ・行ごとの QR 再発行フォーム
+     ・行ごとの削除フォーム
+   が同居します。HTML のフォームは入れ子にできないので、
+   「更新」「再発行」「削除」は必ず別々の <form> に分けてあります。
+
+   使えるモデルの値：
+     ${tables}      … List<DiningTable>（並び順 → id の順）
+     ${totalSeats}  … 席数の合計（int）
+     ${activeCount} … 稼働中の卓の数（long）
+     ${tableForm}   … 新規追加フォームの入れ物（TableForm）
+     ${editingId}   … 更新でエラーが出た行の id（エラーが無ければ null）
+     ${editForm}    … その行に送信された内容（TableForm）
+     ${editErrors}  … 項目名 → メッセージ の Map
+
+   DiningTable から読める値（getter があるものだけ）：
+     t.id / t.name / t.capacity / t.sortOrder / t.active / t.accessToken
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('卓の管理', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/admin-nav :: nav('tables')}"></div>
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">卓</h1>
+    <span class="section-title__count" th:text="${tables.size()} + ' 卓 / ' + ${totalSeats} + ' 席'">12 卓 / 30 席</span>
+  </div>
+
+  <p class="lead">
+    店内の席をここに登録します。<strong>登録した卓ごとに QR コードが 1 枚ずつ</strong>できるので、
+    印刷して各テーブルに貼ってください。お客さんがその QR を読むと、
+    どの席からの注文かがそのまま伝わります。
+  </p>
+
+  <div class="alert alert--info">
+    <p class="mb-0">
+      卓の名前は厨房のボードとホールの一覧にそのまま出ます。
+      席に貼ってある番号札と同じ呼び方（例：<code>3番テーブル</code>、<code>カウンター2</code>）にしておくと、
+      料理を運ぶときに迷いません。
+    </p>
+  </div>
+
+  <!--/* ====== 新規追加 ======
+         こちらは 1 画面に 1 つしかないフォームなので、Spring 標準の
+         th:object / th:field / th:errors をそのまま使えます。
+           th:object … このフォームがどのオブジェクトの入力かを宣言する
+           th:field  … name・id・value をまとめて生成し、エラー時は入力値を復元する
+           th:errors … そのフィールドのエラーメッセージを出す
+         th:action を使うと CSRF トークンの hidden が自動で入ります。
+         素の action="..." で書くと 403 になるので必ず th:action にします。
+  */-->
+  <form class="card" method="post" th:action="@{/admin/tables}" th:object="${tableForm}">
+    <div class="card__head">卓を追加</div>
+    <div class="card__body">
+      <div class="grid grid--4">
+
+        <div class="field">
+          <label class="label" for="name">卓名<span class="req">必須</span></label>
+          <input class="input" type="text" th:field="*{name}" maxlength="20"
+                 placeholder="例：3番テーブル"
+                 th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
+          <p class="help">20文字まで。同じ名前の卓は登録できません。</p>
+          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="capacity">席数</label>
+          <input class="input" type="number" th:field="*{capacity}" min="1" max="99"
+                 inputmode="numeric"
+                 th:classappend="${#fields.hasErrors('capacity')} ? 'is-error'">
+          <p class="help">ご案内のときの人数の初期値に使います。</p>
+          <p class="error" th:if="${#fields.hasErrors('capacity')}" th:errors="*{capacity}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="sortOrder">並び順</label>
+          <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
+                 inputmode="numeric"
+                 th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
+          <p class="help">小さいほど先に表示されます。</p>
+          <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <span class="label">この席を使うか</span>
+          <label class="choice">
+            <input type="checkbox" th:field="*{active}">
+            <span class="choice__name">お客さまをご案内する</span>
+          </label>
+          <p class="help">外すと、この卓の QR を読んでも注文できなくなります。</p>
+        </div>
+
+      </div>
+      <button class="btn btn--primary" type="submit">追加する</button>
+    </div>
+  </form>
+
+  <!--/* ====== 一覧 ====== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">登録済みの卓</h2>
+    <span class="section-title__count" th:text="'稼働中 ' + ${activeCount} + ' 卓'">稼働中 12 卓</span>
+  </div>
+
+  <div th:if="${tables.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('席', '卓がまだありません。上のフォームから、店内の席の数だけ追加してください')}"></div>
+  </div>
+
+  <ul class="stack" style="list-style:none;padding:0;margin:0">
+    <li class="card" th:each="t : ${tables}"
+        th:with="editing=${editingId != null and editingId == t.id},
+                 errs=${(editingId != null and editingId == t.id) ? editErrors : null}">
+      <div class="card__body">
+
+        <div class="row row--wrap" style="align-items:flex-end">
+
+          <!--/* 更新フォーム。行ごとに独立した <form> になっています */-->
+          <form class="row row--wrap" style="flex:1 1 460px;align-items:flex-end"
+                method="post" th:action="@{/admin/tables/{id}(id=${t.id})}">
+
+            <!--/*
+              チェックを外したチェックボックスは、そもそもリクエストに含まれません。
+              そのままだとサーバ側では「送られてこなかった＝初期値のまま」となり、
+              利用停止にできません。
+              そこで「この項目は送信対象だが空だった」と Spring に伝える目印
+              （名前の先頭に _ を付けた hidden）を一緒に送ります。
+              th:field を使うとこれが自動で付きますが、1 画面に多数のフォームが並ぶ
+              この画面では th:field が使えないため手書きしています。
+            */-->
+            <input type="hidden" name="_active" value="on">
+
+            <div class="field" style="flex:2 1 180px;margin-bottom:0">
+              <label class="label" th:for="'tbl-name-' + ${t.id}">卓名</label>
+              <input class="input" type="text" name="name" maxlength="20"
+                     th:id="'tbl-name-' + ${t.id}"
+                     th:value="${editing ? editForm.name : t.name}"
+                     th:classappend="${errs != null and errs.containsKey('name')} ? 'is-error'">
+              <p class="error" th:if="${errs != null and errs.containsKey('name')}"
+                 th:text="${errs.get('name')}">エラー内容</p>
+            </div>
+
+            <div class="field" style="flex:0 1 100px;margin-bottom:0">
+              <label class="label" th:for="'tbl-cap-' + ${t.id}">席数</label>
+              <input class="input" type="number" name="capacity" min="1" max="99"
+                     inputmode="numeric"
+                     th:id="'tbl-cap-' + ${t.id}"
+                     th:value="${editing ? editForm.capacity : t.capacity}"
+                     th:classappend="${errs != null and errs.containsKey('capacity')} ? 'is-error'">
+              <p class="error" th:if="${errs != null and errs.containsKey('capacity')}"
+                 th:text="${errs.get('capacity')}">エラー内容</p>
+            </div>
+
+            <div class="field" style="flex:0 1 100px;margin-bottom:0">
+              <label class="label" th:for="'tbl-sort-' + ${t.id}">並び順</label>
+              <input class="input" type="number" name="sortOrder" min="0" max="9999"
+                     inputmode="numeric"
+                     th:id="'tbl-sort-' + ${t.id}"
+                     th:value="${editing ? editForm.sortOrder : t.sortOrder}"
+                     th:classappend="${errs != null and errs.containsKey('sortOrder')} ? 'is-error'">
+              <p class="error" th:if="${errs != null and errs.containsKey('sortOrder')}"
+                 th:text="${errs.get('sortOrder')}">エラー内容</p>
+            </div>
+
+            <label class="choice" style="flex:0 1 auto">
+              <input type="checkbox" name="active" value="true"
+                     th:checked="${editing ? editForm.active : t.active}">
+              <span class="choice__name">使う</span>
+            </label>
+
+            <button class="btn btn--primary" type="submit">更新</button>
+          </form>
+
+          <!--/* QR の再発行。取り返しがつかないので confirm() を必ず通します。
+                 onsubmit は素の HTML 属性（th: を付けない固定文言）にしています。
+                 卓名を式で埋め込もうとすると引用符とエスケープが入り組み、
+                 かえって壊れやすくなるためです。 */-->
+          <form method="post" th:action="@{/admin/tables/{id}/regenerate(id=${t.id})}"
+                onsubmit="return confirm('この卓の QR コードを作り直します。\n\nいま席に貼ってある QR は読み取れなくなり、新しい QR を印刷して貼り替えるまで、この席からは注文できません。\n\n本当に再発行しますか？')">
+            <button class="btn btn--danger" type="submit">QR を再発行</button>
+          </form>
+
+          <!--/* 削除は別フォーム。フォームは入れ子にできません */-->
+          <form method="post" th:action="@{/admin/tables/{id}/delete(id=${t.id})}"
+                onsubmit="return confirm('この卓を削除します。よろしいですか？')">
+            <button class="btn btn--danger" type="submit">削除</button>
+          </form>
+
+        </div>
+
+        <!--/* ===== この卓の状態と QR の目印 ===== */-->
+        <div class="row row--wrap mt-4" style="align-items:center">
+          <span class="badge badge--soldout" th:unless="${t.active}">利用停止中</span>
+          <span class="badge badge--gf" th:if="${t.active}">稼働中</span>
+
+          <!--/*
+            トークン全体は QR そのものと同じ意味を持つ「鍵」なので、
+            画面には先頭の 8 文字だけを出します。
+            印刷した QR がどの卓のものか照合するには、これだけあれば足ります。
+          */-->
+          <span class="tiny faint num"
+                th:text="'QR: ' + ${#strings.substring(t.accessToken, 0, 8)} + '…'">QR: 3f9a21b0…</span>
+
+          <span class="spacer"></span>
+          <a class="btn btn--ghost btn--sm" th:href="@{/admin/qr}">QR を見る・印刷する</a>
+        </div>
+
+        <p class="help mb-0" th:unless="${t.active}">
+          この卓の QR を読み取っても「ただいまご利用いただけません」と表示され、注文できません。
+          席をまた使うときは「使う」にチェックを入れて更新してください。
+        </p>
+
+      </div>
+    </li>
+  </ul>
+
+  <div class="card mt-6">
+    <div class="card__head">卓を消したいとき</div>
+    <div class="card__body">
+      <p class="mb-0">
+        一度でもお会計をした卓は<strong>削除できません</strong>。
+        削除してしまうと、売上や注文履歴から「どの席の会計だったか」が失われるためです。
+        席を畳んだときは、削除ではなく<strong>「使う」のチェックを外して更新</strong>してください。
+        一覧には残りますが、その QR からは注文できなくなります。
+      </p>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

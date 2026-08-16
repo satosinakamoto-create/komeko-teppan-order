@@ -11,6 +11,9 @@ import jp.komeko.order.web.admin.form.OptionChoiceForm;
 import jp.komeko.order.web.admin.form.OptionGroupForm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.MessageSource;
+import org.springframework.context.NoSuchMessageException;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
@@ -54,15 +57,18 @@ public class AdminOptionController {
     private final MenuItemRepository menuItemRepository;
     private final OptionGroupRepository optionGroupRepository;
     private final OptionChoiceRepository optionChoiceRepository;
+    private final MessageSource messageSource;
 
     public AdminOptionController(MenuService menuService,
                                  MenuItemRepository menuItemRepository,
                                  OptionGroupRepository optionGroupRepository,
-                                 OptionChoiceRepository optionChoiceRepository) {
+                                 OptionChoiceRepository optionChoiceRepository,
+                                 MessageSource messageSource) {
         this.menuService = menuService;
         this.menuItemRepository = menuItemRepository;
         this.optionGroupRepository = optionGroupRepository;
         this.optionChoiceRepository = optionChoiceRepository;
+        this.messageSource = messageSource;
     }
 
     // ========================================================================
@@ -257,8 +263,27 @@ public class AdminOptionController {
     private Map<String, String> fieldErrors(BindingResult binding) {
         Map<String, String> errors = new LinkedHashMap<>();
         for (FieldError error : binding.getFieldErrors()) {
-            errors.putIfAbsent(error.getField(), error.getDefaultMessage());
+            errors.putIfAbsent(error.getField(), resolveMessage(error));
         }
         return errors;
+    }
+
+    /**
+     * エラーを画面に出す日本語の文言に直す。
+     *
+     * <p>追加料金や並び順の欄に文字を入れられると型変換に失敗しますが、
+     * そのときの {@code error.getDefaultMessage()} は
+     * 「Failed to convert property value of type ...」という Spring 内部の英語文です。
+     * MessageSource を通すと messages.properties の
+     * {@code typeMismatch.java.lang.Integer=数値を入力してください} が効くので、
+     * {@code th:errors} で出しているほかの欄と文言がそろいます。
+     */
+    private String resolveMessage(FieldError error) {
+        try {
+            return messageSource.getMessage(error, LocaleContextHolder.getLocale());
+        } catch (NoSuchMessageException e) {
+            // メッセージ定義も既定メッセージも無い、という想定外のときの保険
+            return error.getDefaultMessage();
+        }
     }
 }

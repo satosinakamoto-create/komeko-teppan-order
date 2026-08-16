@@ -21,12 +21,18 @@ import org.springframework.security.web.SecurityFilterChain;
  *
  * <p><b>このアプリの「誰が何を見られるか」</b>
  * <table border="1">
+ *   <caption>URL ごとの権限</caption>
  *   <tr><th>URL</th><th>誰が見られるか</th></tr>
- *   <tr><td>/ , /items/** , /cart/** , /o/**</td><td>誰でも（お客さん）</td></tr>
- *   <tr><td>/display</td><td>誰でも（店内サイネージ）</td></tr>
- *   <tr><td>/kitchen/**</td><td>STAFF 以上</td></tr>
+ *   <tr><td>/t/**</td><td>誰でも（卓の QR の飛び先）</td></tr>
+ *   <tr><td>/ , /items/** , /cart/** , /bill/**</td><td>誰でも（お客さん）</td></tr>
+ *   <tr><td>/kitchen/** , /hall/**</td><td>STAFF 以上</td></tr>
  *   <tr><td>/admin/**</td><td>ADMIN のみ</td></tr>
  * </table>
+ *
+ * <p>お客さん側にログインはありません。かわりに
+ * 「推測できないトークンを知っていること」を本人確認の材料にしています
+ * （ケイパビリティ URL）。連番の ID を URL に出すと、
+ * 番号を変えるだけで他の卓の伝票が覗けてしまいます。
  *
  * <p><b>CSRF について</b><br>
  * Spring Security は既定で CSRF 対策が有効です。
@@ -87,11 +93,12 @@ public class SecurityConfig {
                             "/uploads/**", "/error").permitAll()
 
                     // ── お客さん向け（ログイン不要） ──
+                    //   /t/{トークン} が卓の QR の飛び先。
+                    //   ログインの代わりに「推測できないトークンを知っていること」を
+                    //   本人確認の材料にしている（ケイパビリティ URL）。
                     .requestMatchers("/", "/menu", "/items/**", "/cart/**",
-                            "/checkout", "/o/**", "/api/public/**").permitAll()
-
-                    // ── 店内サイネージ（大画面に出しっぱなしにするのでログイン不要） ──
-                    .requestMatchers("/display", "/api/stream/display").permitAll()
+                            "/checkout", "/t/**", "/bill/**", "/o/**",
+                            "/api/public/**").permitAll()
 
                     // ── ログイン画面 ──
                     .requestMatchers("/login").permitAll();
@@ -106,8 +113,9 @@ public class SecurityConfig {
                 auth
                     // ── 管理画面は ADMIN のみ ──
                     .requestMatchers("/admin/**").hasRole("ADMIN")
-                    // ── 厨房はスタッフ以上 ──
-                    .requestMatchers("/kitchen/**", "/api/kitchen/**", "/api/stream/kitchen")
+                    // ── 厨房・ホール（会計）はスタッフ以上 ──
+                    .requestMatchers("/kitchen/**", "/hall/**",
+                            "/api/kitchen/**", "/api/stream/**")
                         .hasAnyRole("STAFF", "ADMIN")
                     // ── 上記以外はすべて要ログイン ──
                     .anyRequest().authenticated();

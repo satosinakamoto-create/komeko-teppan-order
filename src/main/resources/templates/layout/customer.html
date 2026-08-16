@@ -36,9 +36,16 @@
     <div class="container app-header__inner">
       <div>
         <a class="app-header__title" th:href="@{/}" th:text="${shop.shopName}">米粉と鉄板</a>
-        <p class="app-header__sub" th:text="${shop.tagline}">グルテンフリーの焼きたてを、鉄板から。</p>
+        <p class="app-header__sub" th:if="${tableName == null}" th:text="${shop.tagline}">
+          グルテンフリーの米粉生地で焼き上げる鉄板料理</p>
+        <p class="app-header__sub" th:if="${tableName != null}" th:text="${tableName}">3番テーブル</p>
       </div>
       <nav class="app-header__nav">
+        <a th:href="@{/bill}" th:if="${bill != null}">
+          お席の伝票
+          <span class="badge badge--rec" style="margin-left:4px"
+                th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥0</span>
+        </a>
         <a th:href="@{/cart}" th:if="${cartCount != null and cartCount > 0}">
           カート
           <span class="badge badge--rec" style="margin-left:4px" th:text="${cartCount}">0</span>
@@ -55,7 +62,8 @@
   <footer class="app-footer">
     <div class="container">
       <p class="mb-0" th:text="${shop.shopName}">米粉と鉄板</p>
-      <p class="mb-0">お会計はお受け取り時に店頭でお願いします</p>
+      <p class="mb-0">お会計はご退店時にレジまでお願いします</p>
+      <p class="mb-0 tiny">20歳未満の方への酒類のご提供はできません</p>
     </div>
   </footer>
 

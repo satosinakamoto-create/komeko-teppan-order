@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout('ご来店ありがとうございます', ~{::main})}">
+<body>
+<main>
+  <div class="container">
+
+    <div class="section-title mt-4">
+      <h1 class="section-title__text">ご来店ありがとうございます</h1>
+    </div>
+
+    <div class="card">
+      <div class="card__body">
+        <p class="lead mb-0">
+          <b th:text="${table.name}">3番テーブル</b> でご案内しております。
+        </p>
+        <p class="small muted mt-4 mb-0">
+          お連れさまを含めた人数をお選びください。
+          <span th:if="${shop.tableChargePerGuest > 0}">
+            テーブルチャージ（お一人様
+            <b th:text="'¥' + ${#numbers.formatInteger(shop.tableChargePerGuest, 1, 'COMMA')}">¥450</b>）
+            の計算に使用します。
+          </span>
+        </p>
+      </div>
+    </div>
+
+    <!--/* 営業時間外・受付停止中 */-->
+    <div class="alert alert--warn mt-6" th:unless="${accepting}" role="alert">
+      <p class="mb-0" th:text="${rejectReason}">ただいまご注文を受け付けておりません</p>
+      <p class="mb-0 small">お手数ですがスタッフにお声がけください。</p>
+    </div>
+
+    <!--/* 人数選択。指で押しやすいよう大きめのボタンを並べる */-->
+    <form th:action="@{/t/{token}/start(token=${table.accessToken})}" method="post" class="mt-6">
+      <p class="label">人数</p>
+      <div class="grid grid--4" style="grid-template-columns:repeat(4,1fr)">
+        <button th:each="n : ${#numbers.sequence(1, 8)}"
+                type="submit" name="guestCount" th:value="${n}"
+                class="btn btn--lg"
+                th:classappend="${n == table.capacity} ? 'btn--primary'"
+                th:disabled="${!accepting}"
+                th:text="${n} + '名'">1名</button>
+      </div>
+
+      <div class="field mt-6">
+        <label class="label" for="guestCountOther">9名以上のとき</label>
+        <div class="row">
+          <input class="input" type="number" id="guestCountOther" name="guestCount"
+                 min="9" max="20" inputmode="numeric" placeholder="人数">
+          <button type="submit" class="btn btn--primary" th:disabled="${!accepting}">決定</button>
+        </div>
+        <p class="help">人数が違っていた場合は、スタッフが修正できますのでご安心ください。</p>
+      </div>
+    </form>
+
+    <div class="alert alert--info mt-6">
+      <p class="mb-0" th:text="${shop.pickupNotice}">
+        お会計はお席の伝票にまとめてお付けします。
+      </p>
+    </div>
+
+  </div>
+</main>
+</body>
+</html>

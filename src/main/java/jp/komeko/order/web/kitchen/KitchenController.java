@@ -3,9 +3,11 @@ package jp.komeko.order.web.kitchen;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
+import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.security.StaffUserDetails;
 import jp.komeko.order.service.MenuService;
 import jp.komeko.order.service.OrderService;
+import jp.komeko.order.service.ShopSettingService;
 import jp.komeko.order.service.dto.KitchenBoard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,13 +21,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * 厨房（キッチン）の画面を担当するコントローラ。
+ *
+ * <p><b>イートイン（卓番 QR）方式での厨房ボード</b><br>
+ * このお店はテーブルでご注文をいただく居酒屋なので、
+ * 厨房が知りたいのは「何番のお客さまを呼ぶか」ではなく
+ * <b>「焼き上がった料理をどの卓へ運ぶか」</b>です。
+ * そのため画面の主役は注文番号ではなく<b>卓名</b>（3番テーブル／カウンター2 など）にしています。
+ * 注文番号は厨房と伝票を突き合わせるときの目印として小さく併記するだけです。
  *
  * <p><b>コントローラの役割</b><br>
  * 「HTTP のリクエストを受け取り → サービスに仕事を頼み → 画面に渡す値を用意する」だけの
@@ -71,11 +82,12 @@ public class KitchenController {
 
     private final OrderService orderService;
     private final MenuService menuService;
+    private final ShopSettingService shopSettingService;
 
     /**
      * コンストラクタインジェクション。
      *
-     * <p>Spring は「このクラスを作るのに OrderService と MenuService が要るんだな」と判断して、
+     * <p>Spring は「このクラスを作るのにこれらのサービスが要るんだな」と判断して、
      * 自動で渡してくれます（DI＝依存性の注入）。
      * フィールドに {@code @Autowired} を付ける書き方もありますが、
      * コンストラクタで受け取る形にすると
@@ -86,9 +98,12 @@ public class KitchenController {
      * という利点があるため、現在はこちらが推奨されています。
      * 引数が 1 つでも複数でも、コンストラクタが 1 つだけなら {@code @Autowired} は不要です。
      */
-    public KitchenController(OrderService orderService, MenuService menuService) {
+    public KitchenController(OrderService orderService,
+                             MenuService menuService,
+                             ShopSettingService shopSettingService) {
         this.orderService = orderService;
         this.menuService = menuService;
+        this.shopSettingService = shopSettingService;
     }
 
     // ========================================================================
@@ -96,23 +111,52 @@ public class KitchenController {
     // ========================================================================
 
     /**
-     * 厨房ボード（受付／調理中／お渡し可の 3 レーン）を表示する。
+     * 厨房ボード（受付／調理中／提供待ちの 3 レーン）を表示する。
      *
      * <p>{@link Model} に入れた値が、そのままテンプレート側で
      * {@code ${board}} のように参照できます。
+     *
+     * <p><b>「同卓 ◯件」を数えているのはなぜか</b><br>
+     * イートインでは、1 つの卓から何度も追加注文が入ります。
+     * 別々のチケットとしてバラバラに焼き上がると、ホールが同じ卓へ
+     * 何度も往復することになり、料理も冷めてしまいます。
+     * そこで「いまこの卓の注文はボード上に何件あるか」をあらかじめ数えておき、
+     * 画面のチケットにバッジとして出しています。
+     * 数えるのを画面（Thymeleaf）でやろうとすると式が複雑になり読めなくなるので、
+     * <b>数える仕事は Java 側で済ませてから渡す</b>のが定石です。
+     *
+     * <p><b>なぜ {@code accepting} をここで計算するのか</b><br>
+     * 画面には {@code ${shop}}（{@link ShopSetting}）も届いていますが、
+     * {@code shop.acceptingOrders} は<b>店長が手で倒した非常ブレーキの状態だけ</b>を表します。
+     * 実際にお客さんが注文できるかは、それに加えて開店時刻とラストオーダーにも左右されます
+     * （{@link ShopSetting#isOrderAcceptable(LocalDateTime)}）。
+     * ブレーキが入っていなくても営業時間外なら注文は通らないので、
+     * フラグだけを見て「注文受付中」と出すと<b>止まっているのに気づけません</b>。
+     * お客さん側の画面（{@code CartController}）と同じ判定をここでも通し、
+     * 店とお客さんで表示が食い違わないようにしています。
      */
     @GetMapping
     public String board(Model model) {
         KitchenBoard board = orderService.kitchenBoard();
+        ShopSetting setting = shopSettingService.currentReadOnly();
 
         model.addAttribute("board", board);
+        model.addAttribute("accepting", setting.isOrderAcceptable(LocalDateTime.now()));
         // 3 レーンを「見出し・CSS 修飾クラス・注文リスト」の組にして渡す。
         // テンプレート側で同じチケットの HTML を 3 回コピペしなくて済む。
+        //
+        // 見出しの 3 つめが「お渡し可」ではなく「提供待ち」なのはイートインだからです。
+        // お客さまはカウンターに取りに来ません。焼き上がった料理を卓まで運ぶ、
+        // その「運ぶのを待っている」状態を表す言葉にしています。
+        // （OrderStatus.READY という enum の名前自体は他の画面でも使うので変えません。
+        //   画面に出す文言だけをここで差し替えています）
         model.addAttribute("lanes", List.of(
                 new BoardLane("受付", "lane--received", board.received()),
                 new BoardLane("調理中", "lane--cooking", board.cooking()),
-                new BoardLane("お渡し可", "lane--ready", board.ready())));
+                new BoardLane("提供待ち", "lane--ready", board.ready())));
         model.addAttribute("lateMinutes", LATE_MINUTES);
+        // 卓名 → その卓のチケット枚数。テンプレートでは ${sameTableCount[order.tableName]} で引く
+        model.addAttribute("sameTableCount", countByTableName(board));
         // レイアウト（layout/staff.html）のナビで、いまいる場所に色を付けるための目印
         model.addAttribute("activeNav", "kitchen");
         return "kitchen/board";
@@ -127,7 +171,7 @@ public class KitchenController {
      * ここで受け止めます。
      *
      * <p><b>なぜ例外をここで catch するのか</b><br>
-     * 状態遷移の違反（例：すでに受渡済の伝票をもう一度進めようとした）は
+     * 状態遷移の違反（例：すでに提供済みの注文をもう一度進めようとした）は
      * {@link IllegalStateException} になります。これを素通しすると
      * {@code GlobalExceptionHandler} がエラーページを表示し、
      * 厨房ボードから離脱してしまいます。忙しい現場では致命的に使いづらいので、
@@ -146,8 +190,11 @@ public class KitchenController {
         try {
             OrderStatus next = OrderStatus.valueOf(status);
             Order order = orderService.changeStatus(id, next, staffNameOf(user));
+            // 操作した本人が「どの卓を進めたか」をすぐ確かめられるよう、卓名を先頭に出す。
+            // 番号だけだと、卓が 10 も 20 もある店では結局伝票を探し直すことになります。
             redirectAttributes.addFlashAttribute("flashSuccess",
-                    "#%d を「%s」にしました".formatted(order.getOrderNumber(), next.getStaffLabel()));
+                    "%s（#%d）を「%s」にしました"
+                            .formatted(order.getTableName(), order.getOrderNumber(), boardLabelOf(next)));
 
         } catch (IllegalArgumentException e) {
             // valueOf の失敗（存在しない状態名）。通常の操作では起こらない。
@@ -168,7 +215,11 @@ public class KitchenController {
     }
 
     /**
-     * 店側から注文をキャンセルする（材料切れ・お客さんが来ないなど）。
+     * 店側から注文をキャンセルする（材料切れ・お客さまからの取り消しの申し出など）。
+     *
+     * <p>キャンセルされた注文は伝票の請求対象から外れます。
+     * 金額の計算し直しは {@code OrderService} が伝票側へ依頼するので、
+     * ここで金額に触れることは一切ありません。
      *
      * <p>{@code required = false} を付けた引数は、フォームから送られてこなくても
      * エラーにならず null になります。
@@ -180,8 +231,10 @@ public class KitchenController {
                          RedirectAttributes redirectAttributes) {
         try {
             Order order = orderService.cancelByStaff(id, cancelReasonOf(reason), staffNameOf(user));
+            // キャンセルした品は伝票の請求からも外れます（金額の再計算は OrderService 側で実行済み）。
             redirectAttributes.addFlashAttribute("flashInfo",
-                    "#%d をキャンセルしました".formatted(order.getOrderNumber()));
+                    "%s（#%d）をキャンセルしました。お会計からも取り除かれます"
+                            .formatted(order.getTableName(), order.getOrderNumber()));
 
         } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("flashErrors",
@@ -245,7 +298,7 @@ public class KitchenController {
 
             if (soldOut) {
                 redirectAttributes.addFlashAttribute("flashInfo",
-                        "「%s」を品切れにしました。お客さまの画面から注文できなくなります".formatted(name));
+                        "「%s」を品切れにしました。各卓のメニューから注文できなくなります".formatted(name));
             } else {
                 redirectAttributes.addFlashAttribute("flashSuccess",
                         "「%s」の販売を再開しました".formatted(name));
@@ -259,6 +312,63 @@ public class KitchenController {
     // ========================================================================
     //  内部ヘルパー
     // ========================================================================
+
+    /**
+     * ボードに出ている注文を卓名ごとに数える。
+     *
+     * <p>戻り値は {@code 卓名 → 件数} の {@link Map} です。
+     * 画面では {@code ${sameTableCount[order.tableName]}} と書くと件数が取り出せます。
+     *
+     * <p><b>{@code merge} の読み方</b><br>
+     * {@code counts.merge(key, 1L, Long::sum)} は
+     * 「キーが無ければ 1 を入れる。あれば今の値と 1 を足した結果を入れる」という意味です。
+     * {@code get} して null かどうか調べて…と書かなくて済むので、
+     * 数え上げではよく使われる書き方です。
+     *
+     * <p>件数は {@code Long}（long のラッパー）で持ちます。
+     * {@code merge} の第 3 引数に渡した {@code Long::sum} が Long を返すためで、
+     * {@code Integer} にすると型が合わずコンパイルできません。
+     *
+     * @param board 厨房ボードの 3 レーン
+     * @return 卓名ごとの件数。ボードに 1 件も無い卓は入っていない（＝画面では null になる）
+     */
+    private static Map<String, Long> countByTableName(KitchenBoard board) {
+        // 3 レーンをまとめて 1 本のリストにしてから数える。
+        // 「受付にも調理中にも同じ卓の注文がある」ケースを取りこぼさないためです。
+        List<Order> all = new ArrayList<>();
+        all.addAll(board.received());
+        all.addAll(board.cooking());
+        all.addAll(board.ready());
+
+        Map<String, Long> counts = new HashMap<>();
+        for (Order order : all) {
+            // getTableName() は伝票や卓が取れなくても "―" を返してくれる（null 安全）ので、
+            // ここで null チェックを書く必要はありません。
+            counts.merge(order.getTableName(), 1L, Long::sum);
+        }
+        return counts;
+    }
+
+    /**
+     * 状態の名前を、この厨房ボードの言い方に直す。
+     *
+     * <p>{@link OrderStatus} が持っている {@code staffLabel} は
+     * 「お渡し可」「受渡済」というテイクアウト時代の言葉のままです。
+     * enum のラベルはお客さま画面や管理画面など他の担当も使っているので<b>書き換えず</b>、
+     * 厨房ボードに出す文言だけをこのメソッドで置き換えます。
+     *
+     * <p>{@code switch} 式で全部の値を書いておくと、
+     * あとで状態が増えたときに「ここも直してね」とコンパイラが教えてくれます。
+     */
+    private static String boardLabelOf(OrderStatus status) {
+        return switch (status) {
+            case RECEIVED -> "受付";
+            case COOKING -> "調理中";
+            case READY -> "提供待ち";
+            case COMPLETED -> "提供済み";
+            case CANCELED -> "キャンセル";
+        };
+    }
 
     /**
      * 操作したスタッフの表示名を取り出す（null 安全）。
@@ -316,7 +426,7 @@ public class KitchenController {
      * ただし getter の名前は {@code getTitle()} ではなく {@code title()} なので、
      * Thymeleaf からは {@code ${lane.title()}} のように<b>括弧付きで</b>呼びます。
      *
-     * @param title    レーンの見出し（受付／調理中／お渡し可）
+     * @param title    レーンの見出し（受付／調理中／提供待ち）
      * @param modifier CSS の修飾クラス（lane--received など）
      * @param orders   そのレーンに並ぶ注文
      */

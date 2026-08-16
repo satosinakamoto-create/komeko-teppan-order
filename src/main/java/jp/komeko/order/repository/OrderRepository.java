@@ -24,17 +24,17 @@ import java.util.Optional;
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
     /** お客さん専用 URL からの取得。 */
-    @EntityGraph(attributePaths = {"lines"})
+    @EntityGraph(attributePaths = {"lines", "session", "session.diningTable"})
     Optional<Order> findByPublicToken(String publicToken);
 
-    @EntityGraph(attributePaths = {"lines"})
+    @EntityGraph(attributePaths = {"lines", "session", "session.diningTable"})
     Optional<Order> findWithLinesById(Long id);
 
     /**
      * 厨房ボード用。指定した状態の注文を、受付が古い順に取得する。
      * 「先に来たお客さんから焼く」ため createdAt 昇順が業務的に正しい並び。
      */
-    @EntityGraph(attributePaths = {"lines"})
+    @EntityGraph(attributePaths = {"lines", "session", "session.diningTable"})
     List<Order> findByBusinessDateAndStatusInOrderByCreatedAtAsc(
             LocalDate businessDate, Collection<OrderStatus> statuses);
 
@@ -46,7 +46,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     long countByBusinessDateAndStatusIn(LocalDate businessDate, Collection<OrderStatus> statuses);
 
     /** その営業日の全注文（管理画面の一覧用）。新しい順。 */
-    @EntityGraph(attributePaths = {"lines"})
+    @EntityGraph(attributePaths = {"lines", "session", "session.diningTable"})
     List<Order> findByBusinessDateOrderByOrderNumberDesc(LocalDate businessDate);
 
     Optional<Order> findByBusinessDateAndOrderNumber(LocalDate businessDate, int orderNumber);

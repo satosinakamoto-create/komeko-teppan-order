@@ -90,6 +90,29 @@ public class ShopSetting {
     @Column(nullable = false)
     private int griddleCapacity = 4;
 
+    /**
+     * テーブルチャージ（お通し代・席料）。お一人様あたりの金額（税込・円）。
+     * 0 にすると請求しません。
+     */
+    @Min(0)
+    @Column(nullable = false)
+    private int tableChargePerGuest = 450;
+
+    /** 深夜料金がかかり始める時刻。 */
+    @Column(nullable = false)
+    private LocalTime lateNightStartTime = LocalTime.of(23, 0);
+
+    /**
+     * 深夜料金の割増率（%）。
+     * 会計時刻が {@link #lateNightStartTime} 以降のとき、
+     * 小計＋テーブルチャージに対してこの割合を加算します。
+     * 0 にすると請求しません。
+     */
+    @Min(0)
+    @Max(100)
+    @Column(nullable = false)
+    private int lateNightSurchargePercent = 10;
+
     /** お客さんの注文完了画面に出す案内文。 */
     @Size(max = 200)
     @Column(length = 200)
@@ -274,6 +297,49 @@ public class ShopSetting {
 
     public void setGriddleCapacity(int griddleCapacity) {
         this.griddleCapacity = griddleCapacity;
+    }
+
+    public int getTableChargePerGuest() {
+        return tableChargePerGuest;
+    }
+
+    public void setTableChargePerGuest(int tableChargePerGuest) {
+        this.tableChargePerGuest = tableChargePerGuest;
+    }
+
+    public LocalTime getLateNightStartTime() {
+        return lateNightStartTime;
+    }
+
+    public void setLateNightStartTime(LocalTime lateNightStartTime) {
+        this.lateNightStartTime = lateNightStartTime;
+    }
+
+    public int getLateNightSurchargePercent() {
+        return lateNightSurchargePercent;
+    }
+
+    public void setLateNightSurchargePercent(int lateNightSurchargePercent) {
+        this.lateNightSurchargePercent = lateNightSurchargePercent;
+    }
+
+    /**
+     * 指定時刻に深夜料金がかかるか。
+     *
+     * <p>深夜料金は「23:00 以降」のように<b>日付をまたいだ側</b>にかかるので、
+     * 23:00〜翌 5:00（営業日の切り替え時刻）までを対象とみなします。
+     * 単純に {@code t >= 23:00} と書くと、深夜 1:00 が対象外になってしまいます。
+     */
+    public boolean isLateNight(LocalDateTime at) {
+        if (lateNightSurchargePercent <= 0) {
+            return false;
+        }
+        LocalTime t = at.toLocalTime();
+        if (!t.isBefore(lateNightStartTime)) {
+            return true;   // 23:00 〜 23:59
+        }
+        // 0:00 〜 営業日切り替え時刻（既定 5:00）も「深夜」として扱う
+        return t.getHour() < businessDayCutoverHour;
     }
 
     public String getPickupNotice() {

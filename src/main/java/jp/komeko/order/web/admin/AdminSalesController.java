@@ -1,8 +1,11 @@
 package jp.komeko.order.web.admin;
 
+import jp.komeko.order.domain.SessionStatus;
 import jp.komeko.order.domain.ShopSetting;
+import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.service.SalesReportService;
 import jp.komeko.order.service.ShopSettingService;
+import jp.komeko.order.service.TableService;
 import jp.komeko.order.service.dto.DailySales;
 import jp.komeko.order.service.dto.DaySummary;
 import jp.komeko.order.service.dto.ItemSales;
@@ -25,6 +28,15 @@ import java.util.Map;
  *
  * <p>集計そのものは {@link SalesReportService} が行います。
  * このコントローラの仕事は「どの日を見るか決める」「表示用に整える」の 2 つだけです。
+ *
+ * <p><b>数字が 2 種類あることに注意</b><br>
+ * イートインでは<b>お会計の単位は伝票（{@link TableSession}）</b>です。
+ * ところが {@link SalesReportService} は「受渡済の注文の合計」を売上とみなす作りなので、
+ * テーブルチャージと深夜料金が入りません。
+ * どちらか一方を消すのではなく、
+ * <b>「伝票ベース（実際にいただいた金額）」と「注文ベース（商品の売れ行き）」を並べて出し、
+ * それぞれ何の数字かを画面に明記する</b>方針にしています。
+ * 数字が 2 つあること自体より、どちらが何なのか分からないことのほうが現場は混乱します。
  *
  * <p><b>グラフを外部ライブラリなしで描く</b><br>
  * 店内の PC はインターネットに繋がっていないこともあるため、
@@ -58,11 +70,14 @@ public class AdminSalesController {
 
     private final SalesReportService salesReportService;
     private final ShopSettingService shopSettingService;
+    private final TableService tableService;
 
     public AdminSalesController(SalesReportService salesReportService,
-                                ShopSettingService shopSettingService) {
+                                ShopSettingService shopSettingService,
+                                TableService tableService) {
         this.salesReportService = salesReportService;
         this.shopSettingService = shopSettingService;
+        this.tableService = tableService;
     }
 
     /**
@@ -88,8 +103,18 @@ public class AdminSalesController {
         List<DaySummary> series = salesReportService.recentDays(RECENT_DAYS);
         Map<Integer, Long> hourly = salesReportService.hourlyAmount(target);
 
+        // 伝票（＝実際にいただいた金額）の集計。
+        // TableService#sessionsOf は
+        // TableSessionRepository#findByBusinessDateOrderByOpenedAtDesc を呼ぶだけの薄い窓口です。
+        // 卓（diningTable）まで読み終えた状態で返ってくるので、
+        // open-in-view: false でも画面で困りません（今回は金額しか使いませんが）。
+        List<TableSession> sessions = tableService.sessionsOf(target);
+
         model.addAttribute("activeNav", "admin");
         model.addAttribute("summary", summary);
+        // モデル名に "session" は使えない（Thymeleaf では HttpSession を指す予約語とぶつかる）ので
+        // 伝票の集計は billSummary という名前で渡す。
+        model.addAttribute("billSummary", summarizeBills(sessions));
         model.addAttribute("ranking", ranking);
         model.addAttribute("dailyBars", toDailyBars(series));
         model.addAttribute("hourlyBars", toHourlyBars(hourly));
@@ -105,6 +130,84 @@ public class AdminSalesController {
         model.addAttribute("recentDays", RECENT_DAYS);
 
         return "admin/sales";
+    }
+
+    // ========================================================================
+    //  伝票（お会計）ベースの集計
+    // ========================================================================
+
+    /**
+     * 1 営業日ぶんの「伝票ベース」の集計結果。
+     *
+     * <p>画面に出すためだけの入れ物なので record にしています。
+     * record のアクセサは {@code getBills()} ではなく {@code bills()} なので、
+     * テンプレートからは {@code ${billSummary.bills()}} のように括弧付きで呼びます。
+     *
+     * <p><b>金額を自分で足し算しているのは「伝票が持っている確定値」だけ</b>です。
+     * 小計・チャージ・深夜料金の<b>計算式は {@code TableSession#recalculate} にしかありません</b>。
+     * ここで割合を掛けたり足す順番を変えたりすると、
+     * 画面の数字とレシートの数字が食い違う（＝金銭事故）ので絶対にしないでください。
+     *
+     * @param bills       会計済みの伝票の数（＝組数）
+     * @param openBills   まだ会計していない伝票の数（この集計には入っていない）
+     * @param guests      お客さまの人数の合計
+     * @param total       ご請求額の合計
+     * @param subtotal    小計（注文ぶん）の合計
+     * @param tableCharge テーブルチャージの合計
+     * @param lateNight   深夜料金の合計
+     * @param tax         ご請求額に含まれる消費税の合計
+     */
+    public record BillSummary(long bills, long openBills, long guests, long total,
+                              long subtotal, long tableCharge, long lateNight, long tax) {
+
+        /** 客単価（お一人あたり）。人数 0 のときは 0（0 で割らない）。 */
+        public long averagePerGuest() {
+            return guests == 0 ? 0 : total / guests;
+        }
+
+        /** 組単価（1 伝票あたり）。0 組のときは 0。 */
+        public long averagePerBill() {
+            return bills == 0 ? 0 : total / bills;
+        }
+    }
+
+    /**
+     * その営業日の伝票を「会計済みのものだけ」集計する。
+     *
+     * <p>まだお会計していない伝票（OPEN）を混ぜてはいけません。
+     * 金額が途中経過のうえ、そのあと追加注文が入れば変わるからです。
+     * ただし「何組ぶんがまだ入っていないのか」は店長が知りたい情報なので、
+     * 件数だけ数えて画面に出しています。
+     *
+     * <p>リポジトリには {@code summarizeClosed} という集計クエリもありますが、
+     * 戻り値が {@code Object[]}（列が並んだだけの配列）で、
+     * どの位置が何の金額かを人が覚えておかなければならず間違えやすいので使っていません。
+     * 1 営業日ぶんの伝票はせいぜい数十件なので、Java 側で数えれば十分です。
+     */
+    private BillSummary summarizeBills(List<TableSession> sessions) {
+        long bills = 0;
+        long openBills = 0;
+        long guests = 0;
+        long total = 0;
+        long subtotal = 0;
+        long tableCharge = 0;
+        long lateNight = 0;
+        long tax = 0;
+
+        for (TableSession bill : sessions) {
+            if (bill.getStatus() != SessionStatus.CLOSED) {
+                openBills++;
+                continue;
+            }
+            bills++;
+            guests += bill.getGuestCount();
+            total += bill.getTotalAmount();
+            subtotal += bill.getSubtotalAmount();
+            tableCharge += bill.getTableChargeAmount();
+            lateNight += bill.getLateNightAmount();
+            tax += bill.getTaxAmount();
+        }
+        return new BillSummary(bills, openBills, guests, total, subtotal, tableCharge, lateNight, tax);
     }
 
     // ========================================================================
@@ -149,16 +252,28 @@ public class AdminSalesController {
      *
      * <p>24 時間ぶんすべて並べるとラベルが潰れるので、
      * 営業時間帯を基本にしつつ、その外側でも売上がある時間は含める、という範囲にします。
+     *
+     * <p><b>「何時」ではなく「営業日の何番目の時間帯か」で並べる</b><br>
+     * 深夜営業の店では、同じ営業日の中に 23 時と翌 0 時が同居します。
+     * 単純に時刻の小さい順（0,1,…,23）に並べると、
+     * <b>いちばん遅い時間帯の棒がグラフのいちばん左に来てしまい</b>、
+     * 時間の流れが読めないグラフになります。
+     * そこで、営業日の切り替え時刻（{@code businessDayCutoverHour}）を 0 番目とする
+     * 通し位置に直してから並べます。
+     * 深夜営業をしない店では、切り替え時刻をまたがないので並びは今までどおりです。
      */
     private List<BarPoint> toHourlyBars(Map<Integer, Long> hourly) {
         ShopSetting setting = shopSettingService.currentReadOnly();
-        int from = setting.getOpenTime().getHour();
-        int to = setting.getCloseTime().getHour();
+        int cutover = setting.getBusinessDayCutoverHour();
+
+        int from = positionOf(setting.getOpenTime().getHour(), cutover);
+        int to = positionOf(setting.getCloseTime().getHour(), cutover);
 
         for (Map.Entry<Integer, Long> entry : hourly.entrySet()) {
             if (entry.getValue() != null && entry.getValue() > 0) {
-                from = Math.min(from, entry.getKey());
-                to = Math.max(to, entry.getKey());
+                int position = positionOf(entry.getKey(), cutover);
+                from = Math.min(from, position);
+                to = Math.max(to, position);
             }
         }
         if (to < from) {
@@ -166,20 +281,35 @@ public class AdminSalesController {
         }
 
         long max = 0;
-        for (int h = from; h <= to; h++) {
-            max = Math.max(max, valueAt(hourly, h));
+        for (int p = from; p <= to; p++) {
+            max = Math.max(max, valueAt(hourly, hourAt(p, cutover)));
         }
 
         List<BarPoint> bars = new ArrayList<>();
-        for (int h = from; h <= to; h++) {
-            long amount = valueAt(hourly, h);
+        for (int p = from; p <= to; p++) {
+            int hour = hourAt(p, cutover);
+            long amount = valueAt(hourly, hour);
             bars.add(new BarPoint(
-                    String.valueOf(h),
+                    String.valueOf(hour),
                     amount,
                     percentOf(amount, max),
-                    "%d時台 ／ %,d円".formatted(h, amount)));
+                    "%d時台 ／ %,d円".formatted(hour, amount)));
         }
         return bars;
+    }
+
+    /**
+     * 時刻（0〜23）を「営業日の何番目の時間帯か」（0〜23）に直す。
+     * {@code Math.floorMod} を使うのは、引き算がマイナスになっても
+     * 0〜23 に収めたいためです（{@code %} だとマイナスがそのまま残ります）。
+     */
+    private static int positionOf(int hour, int cutoverHour) {
+        return Math.floorMod(hour - cutoverHour, 24);
+    }
+
+    /** {@link #positionOf} の逆変換。通し位置を実際の時刻に戻す。 */
+    private static int hourAt(int position, int cutoverHour) {
+        return Math.floorMod(cutoverHour + position, 24);
     }
 
     private long valueAt(Map<Integer, Long> hourly, int hour) {
