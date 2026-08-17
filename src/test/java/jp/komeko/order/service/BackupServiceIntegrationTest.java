@@ -50,6 +50,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "app.backup.enabled=true",
         "app.backup.backup-on-shutdown=false",
+        // 起動時の追いつきバックアップも止める。動いたままだと
+        // 「テストが作ったのではないバックアップ」が混ざり、件数の検証が不安定になる
+        "app.backup.backup-on-startup=false",
         "app.backup.dir=${java.io.tmpdir}/komeko-backup-test/backups",
         "app.backup.keep=3",
         "app.upload-dir=${java.io.tmpdir}/komeko-backup-test/uploads"

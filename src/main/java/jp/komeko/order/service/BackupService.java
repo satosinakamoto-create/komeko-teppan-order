@@ -4,6 +4,8 @@ import jakarta.annotation.PreDestroy;
 import jp.komeko.order.config.BackupProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -99,6 +101,38 @@ public class BackupService {
             return;
         }
         runQuietly("定時");
+    }
+
+    /**
+     * ①' 起動時の「追いつきバックアップ」。
+     *
+     * <p><b>なぜ要るのか</b><br>
+     * 定時実行（{@link #scheduledBackup}）はアプリが動いている間しか走りません。
+     * 閉店後に PC を落とす店では 4:30 に PC が存在しないので、定時は一度も走らない。
+     * しかも Spring のスケジューラには「逃した回をあとで実行する」機能がありません。
+     *
+     * <p>そこで、起動のたびに「最後のバックアップからどれくらい空いたか」を確かめ、
+     * しきい値（既定 20 時間）以上空いていたら 1 本取ります。
+     * これで前夜に電源を直接切られても、翌日アプリを起動した瞬間に追いつけます。
+     * 昨夜の分はトランザクションのおかげで DB に無事残っているので、
+     * ここで取るバックアップにはそれも全部含まれます。
+     *
+     * <p>{@link ApplicationReadyEvent} は「アプリの起動が完全に終わった」合図です。
+     * 起動処理の途中でバックアップを走らせて起動を遅くしないよう、このタイミングにしています。
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void backupOnStartupIfStale() {
+        if (!properties.enabled() || !properties.backupOnStartup()) {
+            return;
+        }
+        LocalDateTime newest = newestBackupTime();
+        if (newest != null && Duration.between(newest, LocalDateTime.now()).toHours()
+                < properties.startupMaxAgeHours()) {
+            log.info("最後のバックアップ（{}）から {} 時間経っていないため、起動時バックアップを見送ります",
+                    newest, properties.startupMaxAgeHours());
+            return;
+        }
+        runQuietly("起動時");
     }
 
     /**
@@ -263,6 +297,29 @@ public class BackupService {
             }
             return Duration.between(lastSuccessAt, LocalDateTime.now()).toMinutes()
                     < properties.minIntervalMinutes();
+        }
+    }
+
+    /**
+     * いちばん新しいバックアップの取得日時（フォルダ名から読み取る）。1 つも無ければ null。
+     * フォルダの更新日時ではなく名前を見るのは、コピーや解凍で日時が変わっても
+     * 判定がブレないようにするため。
+     */
+    private LocalDateTime newestBackupTime() {
+        Path root = Paths.get(properties.dir()).toAbsolutePath().normalize();
+        if (!Files.isDirectory(root)) {
+            return null;
+        }
+        try (Stream<Path> children = Files.list(root)) {
+            return children.filter(Files::isDirectory)
+                    .map(p -> p.getFileName().toString())
+                    .filter(name -> DIR_PATTERN.matcher(name).matches())
+                    .max(Comparator.naturalOrder())
+                    .map(name -> LocalDateTime.parse(name.substring(0, 15), DIR_FORMAT))
+                    .orElse(null);
+        } catch (IOException e) {
+            log.warn("バックアップ履歴の確認に失敗しました", e);
+            return null;
         }
     }
 

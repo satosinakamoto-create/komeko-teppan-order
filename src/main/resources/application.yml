@@ -92,6 +92,12 @@ app:
     keep: 14
     # アプリを閉じたときにも 1 回取る（閉店後に PC を落とす店ではこれが本命）
     backup-on-shutdown: true
+    # 起動時の「追いつき」。最後のバックアップから startup-max-age-hours 以上
+    # 空いていたら、起動した瞬間に 1 本取る。
+    # 定時(4:30)に PC が落ちていた日や、前夜に電源を直接切られた日でも、
+    # 翌日の起動時に必ず追いつけるようにするための保険
+    backup-on-startup: true
+    startup-max-age-hours: 20
     # 前回成功から N 分以内の自動バックアップは見送る（開発中の再起動連発対策）
     min-interval-minutes: 10
     # 2次コピー先。USB ドライブや OneDrive のフォルダを指定すると

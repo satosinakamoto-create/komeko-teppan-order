@@ -46,7 +46,8 @@
       <div class="card__body">
         <table class="total-table">
           <tbody>
-          <tr><td class="muted">毎日の定時</td><td>4:30（営業日の締め後）</td></tr>
+          <tr><td class="muted">毎日の定時</td><td>4:30（PC とアプリが動いていれば）</td></tr>
+          <tr><td class="muted">アプリ起動時</td><td>前回から 20 時間以上空いていたら（追いつき）</td></tr>
           <tr><td class="muted">アプリ終了時</td><td>自動で 1 回</td></tr>
           <tr><td class="muted">手動</td><td>左のボタン</td></tr>
           </tbody>
@@ -55,8 +56,8 @@
           保存先：<span class="num" th:text="${backupDir}">C:\...\backups</span>
         </p>
         <p class="help mb-0">
-          ⚠ 電源を直接切った場合、終了時バックアップは走りません。
-          閉店後に PC を落とす運用なら「アプリを閉じてから PC を落とす」を習慣にしてください。
+          定時は PC が落ちていると走りませんが、その場合も
+          <b>翌日アプリを起動した瞬間に「追いつき」が自動で取られます</b>。
           設定（時刻・世代数・2次コピー先）は application.yml の <code>app.backup</code> で変更できます。
           <b>2次コピー先に USB ドライブか OneDrive のフォルダを指定しておくと、
           この PC のディスクが壊れたときの保険になります。</b>
