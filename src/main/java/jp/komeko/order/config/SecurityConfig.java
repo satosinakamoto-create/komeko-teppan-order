@@ -1,6 +1,7 @@
 package jp.komeko.order.config;
 
 import jp.komeko.order.security.StaffUserDetailsService;
+import jp.komeko.order.security.StaffZoneIpFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -15,6 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * ログインとアクセス制御の設定。
@@ -82,8 +84,16 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                           SecurityAccessProperties accessProperties) throws Exception {
         boolean devMode = environment.matchesProfiles("dev");
+
+        // ── 接続元 IP によるスタッフゾーンの制限（第二の錠） ──
+        // ログイン処理よりも前（UsernamePasswordAuthenticationFilter の手前）に置くことで、
+        // 許可外の端末には /login の表示すらさせない。
+        // app.staff-access.allowed-ips が空なら何もしない（従来どおり）。
+        http.addFilterBefore(new StaffZoneIpFilter(accessProperties),
+                UsernamePasswordAuthenticationFilter.class);
 
         http
             .authorizeHttpRequests(auth -> {

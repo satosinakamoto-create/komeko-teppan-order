@@ -151,6 +151,9 @@ DB をリセットしたいときは `data\` フォルダを削除して再起�
   セッションのカートの値をそのまま信じて会計しない（`CartService.refresh`）。
 - アップロードファイル名は必ず自前で作り直す。元のファイル名を使わない。
 - 認可ルールを増やすときは `SecurityConfig` の URL とコントローラのマッピングを必ず突き合わせる。
+- スタッフ用 URL は `app.staff-access.allowed-ips` で接続元 IP を制限できる
+  （`StaffZoneIpFilter`）。スタッフゾーンに URL を足したら、このフィルタの
+  `STAFF_PREFIXES` にも追加すること。localhost は常に許可（閉め出し防止）。
 
 ### テスト
 
