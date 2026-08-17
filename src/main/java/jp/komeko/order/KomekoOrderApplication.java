@@ -1,6 +1,7 @@
 package jp.komeko.order;
 
 import jp.komeko.order.config.AppProperties;
+import jp.komeko.order.config.BackupProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -29,7 +30,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  * </ul>
  */
 @SpringBootApplication
-@EnableConfigurationProperties(AppProperties.class)
+@EnableConfigurationProperties({AppProperties.class, BackupProperties.class})
 public class KomekoOrderApplication {
 
     public static void main(String[] args) {

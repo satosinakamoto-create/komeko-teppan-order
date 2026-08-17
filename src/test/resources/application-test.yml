@@ -54,6 +54,15 @@ app:
   initial-admin-username: test-admin
   initial-admin-password: test-password-0000
 
+  # 自動バックアップはテストでは止める。
+  # 特に backup-on-shutdown を止めないと、@SpringBootTest が終わるたびに
+  # @PreDestroy が走って ./backups にゴミができてしまう。
+  # バックアップ自体のテスト（BackupServiceIntegrationTest）は
+  # @TestPropertySource で個別に有効化している。
+  backup:
+    enabled: false
+    backup-on-shutdown: false
+
 logging:
   level:
     # テスト出力を読みやすくするため、アプリのログは警告以上だけに絞る

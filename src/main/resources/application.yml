@@ -79,6 +79,26 @@ app:
   initial-admin-username: admin
   initial-admin-password: ${INITIAL_ADMIN_PASSWORD:}
 
+  # ── 自動バックアップ ──────────────────────────────────────────
+  # DB（注文・伝票・会計）と商品画像を、定期的に別フォルダへ退避する。
+  # 停電では DB は壊れないが、ディスク故障では全部消える。その保険。
+  backup:
+    enabled: true
+    # 保存先。できれば別ドライブを指すよう変更するとなお安全（.gitignore 済み）
+    dir: ./backups
+    # 毎日 4:30（閉店 26:00 の後、営業日切替 5:00 の前）。書式は「秒 分 時 日 月 曜日」
+    cron: "0 30 4 * * *"
+    # 残す世代数。超えた分は古いものから自動削除
+    keep: 14
+    # アプリを閉じたときにも 1 回取る（閉店後に PC を落とす店ではこれが本命）
+    backup-on-shutdown: true
+    # 前回成功から N 分以内の自動バックアップは見送る（開発中の再起動連発対策）
+    min-interval-minutes: 10
+    # 2次コピー先。USB ドライブや OneDrive のフォルダを指定すると
+    # この PC のディスク故障にも備えられる。例: "D:\\komeko-backup" や
+    # "C:\\Users\\zaki\\OneDrive\\komeko-backup"。空なら無効
+    extra-copy-dir: ""
+
 logging:
   level:
     jp.komeko.order: INFO

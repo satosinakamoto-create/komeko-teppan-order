@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('バックアップ', ~{::main})}">
+<body>
+<main>
+  <div th:replace="~{fragments/admin-nav :: nav('backups')}"></div>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">バックアップ</h1>
+    <span class="section-title__count" th:text="${backups.size()} + ' 世代'">14 世代</span>
+  </div>
+
+  <!--/* ===== この DB では取れない場合（PostgreSQL 運用時） ===== */-->
+  <div class="alert alert--warn" th:unless="${supported}" role="alert">
+    <p class="mb-0">
+      現在の DB はアプリ内バックアップの対象外です。
+      PostgreSQL の場合は <code>pg_dump</code> を毎晩実行する構成にしてください
+      （クラウドの managed DB なら自動バックアップ機能をそのまま使えます）。
+    </p>
+  </div>
+
+  <!--/* ===== 直近の状況 ===== */-->
+  <div class="grid grid--2 mt-4">
+    <div class="card">
+      <div class="card__head">直近の実行</div>
+      <div class="card__body">
+        <div class="alert" th:classappend="${lastFailed} ? 'alert--error' : 'alert--info'" role="status">
+          <p class="mb-0" th:text="${lastMessage}">まだ実行されていません</p>
+        </div>
+        <p class="small muted mt-4 mb-0"
+           th:text="'最後に成功した日時：' + ${lastSuccessLabel}">最後に成功した日時：8月17日 04:30</p>
+      </div>
+      <div class="card__foot">
+        <form th:action="@{/admin/backups/run}" method="post">
+          <button type="submit" class="btn btn--primary" th:disabled="${!supported}">
+            今すぐバックアップを取る
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__head">いつ・どこに取られるか</div>
+      <div class="card__body">
+        <table class="total-table">
+          <tbody>
+          <tr><td class="muted">毎日の定時</td><td>4:30（営業日の締め後）</td></tr>
+          <tr><td class="muted">アプリ終了時</td><td>自動で 1 回</td></tr>
+          <tr><td class="muted">手動</td><td>左のボタン</td></tr>
+          </tbody>
+        </table>
+        <p class="help mt-4">
+          保存先：<span class="num" th:text="${backupDir}">C:\...\backups</span>
+        </p>
+        <p class="help mb-0">
+          ⚠ 電源を直接切った場合、終了時バックアップは走りません。
+          閉店後に PC を落とす運用なら「アプリを閉じてから PC を落とす」を習慣にしてください。
+          設定（時刻・世代数・2次コピー先）は application.yml の <code>app.backup</code> で変更できます。
+          <b>2次コピー先に USB ドライブか OneDrive のフォルダを指定しておくと、
+          この PC のディスクが壊れたときの保険になります。</b>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!--/* ===== バックアップの一覧 ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">これまでのバックアップ</h2>
+  </div>
+
+  <div th:if="${backups.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('保', 'まだバックアップがありません')}"></div>
+  </div>
+
+  <div class="card" th:unless="${backups.isEmpty()}">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+        <tr>
+          <th>取得日時</th>
+          <th>フォルダ名</th>
+          <th class="num">サイズ</th>
+        </tr>
+        </thead>
+        <tbody>
+        <!--/* BackupInfo は record なので、アクセサはメソッド呼び出しの形（xxx()）で書く */-->
+        <tr th:each="b : ${backups}">
+          <td th:text="${b.createdLabel()}">2026-08-17 04:30</td>
+          <td class="small muted" th:text="${b.name()}">20260817-043000</td>
+          <td class="num" th:text="${b.sizeLabel()}">1.2 MB</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!--/* ===== 復元のしかた（概要だけ。詳細は docs） ===== */-->
+  <div class="card mt-6">
+    <div class="card__head">復元のしかた（もしものとき）</div>
+    <div class="card__body">
+      <p class="small">
+        復元は誤操作の被害が大きいため、<b>画面からのボタン操作ではできないようにしています。</b>
+        手順の概要は次の通りです（詳細は <code>docs\バックアップと復元.md</code>）。
+      </p>
+      <ol class="small muted" style="padding-left:1.4em; margin:0">
+        <li>アプリを停止する</li>
+        <li>いまの <code>data\komeko.mv.db</code> を別名にして退避する（すぐ消さない）</li>
+        <li>戻したい世代の <code>database.zip</code> を展開し、出てきた
+            <code>.mv.db</code> ファイルを <code>data\komeko.mv.db</code> として置く</li>
+        <li><code>uploads.zip</code> を <code>data\uploads\</code> に展開する</li>
+        <li>アプリを起動し、メニュー・伝票が戻っていることを確認する</li>
+      </ol>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>
