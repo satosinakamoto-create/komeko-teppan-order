@@ -293,6 +293,19 @@ New-NetFirewallRule -DisplayName "Komeko Order 8080" -Direction Inbound -Protoco
 未設定だと同じディスク内へのコピーなので、ディスク故障には無力です。
 復元の手順（と練習方法）は `docs\バックアップと復元.md` にあります。
 
+### 6. ライブラリの自動更新（GitHub 連携・初回のみ 3 手順）
+
+```powershell
+winget install --id GitHub.cli   # ① インストール後、PowerShell を開き直す
+gh auth login                    # ② ブラウザで GitHub にログイン
+.\tools\setup-github.ps1         # ③ あとは全部このスクリプトがやる
+```
+
+以後は自動で回ります：脆弱性が見つかれば**メール通知**、
+ライブラリ更新は**テスト 215 件が通ったものだけ自動で取り込み**
+（Spring Boot 4 のような大型更新だけは人間の確認待ちで止まる）。
+店の PC への反映は月 1 回 `.\tools\run.ps1 -Update` を実行するだけです。
+
 ---
 
 ## よくあるつまずき

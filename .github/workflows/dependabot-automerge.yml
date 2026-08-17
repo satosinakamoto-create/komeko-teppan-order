@@ -1,0 +1,40 @@
+# ============================================================================
+#  Dependabot の更新 PR を「テストが通ったら」自動マージする
+# ----------------------------------------------------------------------------
+#  自動更新の全体像:
+#    1. Dependabot がライブラリ更新の PR を作る（週1 / 脆弱性は即時）
+#    2. ci.yml がテスト 215 件を実行
+#    3. このワークフローが「自動マージ予約」を入れる
+#    4. テストが全部通った時点で GitHub が自動でマージ
+#
+#  ただし【メジャーバージョン更新だけは自動マージしない】。
+#  例: Spring Boot 3.x → 4.x のような大型更新は互換性が壊れることがあり、
+#  テストが通っても人間が変更内容を読むべきなので、PR を残して通知だけにする。
+#  パッチ（3.3.5→3.3.6）とマイナー（3.3→3.4）は自動。
+# ============================================================================
+name: dependabot-automerge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    # Dependabot が作った PR のときだけ動く（人間の PR には何もしない）
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 更新の種類（パッチ/マイナー/メジャー）を調べる
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: メジャー以外なら自動マージを予約
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

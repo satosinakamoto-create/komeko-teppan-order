@@ -1,0 +1,33 @@
+# ============================================================================
+#  CI（継続的インテグレーション）: push や PR のたびに GitHub 上でテストを回す
+# ----------------------------------------------------------------------------
+#  ローカルの .\tools\run.ps1 -Test と同じことを GitHub のサーバでもやる。
+#  これが「自動更新」の安全装置になる:
+#    Dependabot が更新 PR を作る → この CI がテスト 215 件を実行
+#    → 全部通ったときだけ自動マージが動く（dependabot-automerge.yml）
+#  つまり「テストが落ちる更新は絶対に取り込まれない」。
+# ============================================================================
+name: test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  # このジョブ名「test」は、ブランチ保護の必須チェック名として参照される。
+  # 変えるときは tools/setup-github.ps1 の contexts も合わせて変えること。
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 21 を用意
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven   # 依存ライブラリをキャッシュして 2 回目以降を速くする
+
+      - name: テスト実行（215件）
+        run: mvn -B test

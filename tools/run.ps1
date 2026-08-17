@@ -15,6 +15,7 @@
 param(
     [switch]$Package,
     [switch]$Test,
+    [switch]$Update,
     [int]$Port = 8080
 )
 
@@ -117,6 +118,40 @@ else {
 # 3. 実行
 # ---------------------------------------------------------------------------
 Write-Host ""
+
+# ---------------------------------------------------------------------------
+# 更新の取り込み（GitHub で自動マージされた分を、この PC に反映する）
+#   使い方: .\tools\run.ps1 -Update   ← 月1くらいで実行すれば十分
+#   流れ:   GitHub から取得 → テストを全部回す → 通れば完了
+#           （次にアプリを起動したときから新しいコードで動く）
+# ---------------------------------------------------------------------------
+if ($Update) {
+    $hasRemote = (git remote) -contains "origin"
+    if (-not $hasRemote) {
+        Write-Host "[NG] GitHub 連携がまだです。先に .\tools\setup-github.ps1 を実行してください。" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "GitHub から最新を取得します..." -ForegroundColor Cyan
+    # --ff-only: ローカルに独自の変更があると失敗する安全側の取得。
+    #            勝手にマージして壊れた状態を作らないため。
+    git pull --ff-only
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[NG] 取得に失敗しました。ローカルに未コミットの変更がないか確認してください。" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "取得した内容でテストを回します..." -ForegroundColor Cyan
+    & $mavenExe -q test
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[NG] テストが失敗しました。この状態でお店で使わないでください。" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host ""
+    Write-Host "[OK] 更新完了。次にアプリを起動したときから反映されます。" -ForegroundColor Green
+    exit 0
+}
 
 if ($Test) {
     Write-Host "テストを実行します..." -ForegroundColor Cyan

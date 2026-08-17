@@ -18,8 +18,10 @@
 ```powershell
 .\tools\run.ps1                 # 開発起動（http://localhost:8080）
 .\tools\run.ps1 -Test           # テスト
+.\tools\run.ps1 -Update         # GitHub の更新を取り込み（テスト込み・要 setup-github 済み）
 .\tools\run.ps1 -Package        # 実行可能 jar
 .\tools\run.ps1 -Port 8081      # ポート変更
+.\tools\setup-github.ps1        # GitHub 連携の初期設定（一度だけ。要 gh auth login）
 ```
 
 DB をリセットしたいときは `data\` フォルダを削除して再起動する。
