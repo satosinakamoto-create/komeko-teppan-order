@@ -8,7 +8,16 @@
 # ============================================================================
 spring:
   datasource:
-    url: jdbc:h2:file:./data/komeko;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE
+    # DB_CLOSE_ON_EXIT=FALSE:
+    #   H2 は既定で「JVM 終了時に自分で DB を閉じる」フックを仕掛けるが、
+    #   それが Spring の終了処理（終了時バックアップなど）より先に走ると困るので無効化する。
+    #
+    # ※ ここに AUTO_SERVER=TRUE（別プロセスからの同時接続を許す設定）を
+    #   足してはいけない。H2 2.x では DB_CLOSE_ON_EXIT との併用が
+    #   「機能はサポートされていません」エラーになり、起動できなくなる。
+    #   実際に初回起動で踏んだ実話（テストは自分専用の URL を使うため、
+    #   この行の間違いはテスト 220 件では検出できなかった）。
+    url: jdbc:h2:file:./data/komeko;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
