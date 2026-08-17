@@ -385,10 +385,18 @@ public class DataSeeder implements ApplicationRunner {
 
     private void seedLimitedTeppan() {
         Menu m = new Menu(category("数量限定鉄板焼き", 50), 15);
-        m.add("国産豚ロースステーキ", 2180, null);
+
+        // 「数量限定」カテゴリなので、残数管理の実例として初期値を入れておく。
+        // 数字は仮。実際の仕込み数は開店前に 厨房画面 → 品切れ・残数管理 で設定する。
+        // 残数は注文で自動的に減り、0 になると各卓のメニューで売り切れ表示になる。
+        MenuItem pork = m.add("国産豚ロースステーキ", 2180, null);
+        pork.setStockRemaining(8);
+
         m.askStaff("国産牛サーロインステーキ", "時価。仕入れ状況により価格が変わります。");
         m.askStaff("国産牛赤身ステーキ", "時価。仕入れ状況により価格が変わります。");
-        m.add("鉄板たこ足塊ステーキ", 2180, null);
+
+        MenuItem tako = m.add("鉄板たこ足塊ステーキ", 2180, null);
+        tako.setStockRemaining(5);
     }
 
     private void seedSideDishes() {

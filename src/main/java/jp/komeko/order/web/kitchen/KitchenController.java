@@ -283,6 +283,43 @@ public class KitchenController {
     }
 
     /**
+     * 残数（本日の数）を設定する。
+     *
+     * <p>数量限定の品に「今日は 8 皿」と入れておくと、
+     * 注文のたびに自動で減り、0 になった瞬間から各卓のメニューで売り切れ表示になります。
+     * 減らす処理は条件付き UPDATE（{@code MenuService#tryConsumeStock}）なので、
+     * 2 卓が同時に最後の 1 皿を頼んでも売り越えません。
+     */
+    @PostMapping("/stock/{itemId}/stock")
+    public String setStock(@PathVariable Long itemId,
+                           @RequestParam Integer stockCount,
+                           RedirectAttributes redirectAttributes) {
+        try {
+            String name = menuService.setStock(itemId, stockCount);
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    "「%s」の残数を %d に設定しました".formatted(name, stockCount));
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+        } catch (MenuService.MenuItemNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+        }
+        return "redirect:/kitchen/stock";
+    }
+
+    /** 残数管理をやめる（数を数えない品に戻す）。 */
+    @PostMapping("/stock/{itemId}/stock/clear")
+    public String clearStock(@PathVariable Long itemId, RedirectAttributes redirectAttributes) {
+        try {
+            String name = menuService.setStock(itemId, null);
+            redirectAttributes.addFlashAttribute("flashInfo",
+                    "「%s」の残数管理を解除しました（無制限に戻ります）".formatted(name));
+        } catch (MenuService.MenuItemNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+        }
+        return "redirect:/kitchen/stock";
+    }
+
+    /**
      * 品切れフラグを反転させる（ワンタップで「売り切れ／販売再開」）。
      *
      * <p>戻り先は品切れパネルです。厨房ボードに飛ばすと、

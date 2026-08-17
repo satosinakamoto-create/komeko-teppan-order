@@ -63,6 +63,25 @@ public class MenuItem {
     @Column(nullable = false)
     private boolean soldOut = false;
 
+    /**
+     * 残数（在庫）。
+     *
+     * <p><b>null は「在庫を管理しない」という意味</b>です。
+     * ドリンクのように実質無限の品まで数を数えるのは現場の負担にしかならないので、
+     * 「数量限定の品だけ数字を入れる」というオプトイン方式にしています。
+     *
+     * <p>だからこそ型は {@code int} ではなく {@link Integer}（ラッパー型）。
+     * プリミティブの {@code int} は null を表現できないため、
+     * 「0 個」と「管理していない」を区別できなくなってしまいます。
+     *
+     * <p>注文が入ると減り、キャンセルで戻ります。増減は必ず
+     * {@code MenuItemRepository#tryDecrementStock}（条件付き UPDATE）経由で行い、
+     * Java 側で「読んで、引いて、書き戻す」は<b>絶対にしない</b>こと。
+     * その書き方は 2 人が同時に注文したとき最後の 1 個を 2 人に売ってしまいます。
+     */
+    @Column(name = "stock_remaining")
+    private Integer stockRemaining;
+
     /** 掲載フラグ。false は「季節外れなので今は出さない」など。 */
     @Column(nullable = false)
     private boolean visible = true;
@@ -125,9 +144,23 @@ public class MenuItem {
         return !allergens.contains(Allergen.WHEAT);
     }
 
-    /** いま注文できる状態か（掲載中かつ品切れでない）。 */
+    /** 残数を管理している商品か。 */
+    public boolean isStockTracked() {
+        return stockRemaining != null;
+    }
+
+    /** 残数管理していて、かつ売り切れた（0 以下になった）か。 */
+    public boolean isOutOfStock() {
+        return stockRemaining != null && stockRemaining <= 0;
+    }
+
+    /**
+     * いま注文できる状態か。
+     * 「掲載中」かつ「手動の品切れフラグが立っていない」かつ「残数が尽きていない」。
+     * 品切れの理由が手動フラグでも残数ゼロでも、お客さまから見れば同じ「売り切れ」です。
+     */
     public boolean isOrderable() {
-        return visible && !soldOut;
+        return visible && !soldOut && !isOutOfStock();
     }
 
     /** 双方向関連を安全に張るためのヘルパー。 */
@@ -193,6 +226,14 @@ public class MenuItem {
 
     public void setSoldOut(boolean soldOut) {
         this.soldOut = soldOut;
+    }
+
+    public Integer getStockRemaining() {
+        return stockRemaining;
+    }
+
+    public void setStockRemaining(Integer stockRemaining) {
+        this.stockRemaining = stockRemaining;
     }
 
     public boolean isVisible() {

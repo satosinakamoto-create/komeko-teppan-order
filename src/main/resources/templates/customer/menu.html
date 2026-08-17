@@ -43,7 +43,7 @@
       <div class="stack">
         <a th:each="item, s : ${entry.value}"
            class="menu-item reveal"
-           th:classappend="${item.soldOut} ? 'is-soldout'"
+           th:classappend="${!item.orderable} ? 'is-soldout'"
            th:href="@{/items/{id}(id=${item.id})}"
            th:style="'animation-delay:' + ${s.index * 45} + 'ms'">
 

@@ -47,19 +47,22 @@ public class OrderService {
     private final CartService cartService;
     private final OrderEventPublisher eventPublisher;
     private final TableService tableService;
+    private final MenuService menuService;
 
     public OrderService(OrderRepository orderRepository,
                         OrderNumberService orderNumberService,
                         ShopSettingService shopSettingService,
                         CartService cartService,
                         OrderEventPublisher eventPublisher,
-                        TableService tableService) {
+                        TableService tableService,
+                        MenuService menuService) {
         this.orderRepository = orderRepository;
         this.orderNumberService = orderNumberService;
         this.shopSettingService = shopSettingService;
         this.cartService = cartService;
         this.eventPublisher = eventPublisher;
         this.tableService = tableService;
+        this.menuService = menuService;
     }
 
     // ========================================================================
@@ -110,6 +113,25 @@ public class OrderService {
         }
         if (cart.isEmpty()) {
             throw new OrderRejectedException("ご注文の品がすべて売り切れました。申し訳ありません");
+        }
+
+        // ── 残数を引く（数量限定の品の売り越え防止） ──
+        // 条件付き UPDATE なので、2 卓が同時に最後の 1 皿を頼んでも片方だけが通る。
+        // 途中の品で失敗したら OrderRejectedException を投げる
+        // → このメソッドは @Transactional なので、それまでに引いた分は自動で巻き戻る。
+        // 番号の採番（別トランザクションで即確定＝巻き戻らない）より前にやるのは、
+        // 在庫切れで断るたびに番号が飛ぶのを避けるため。
+        for (CartLine line : cart.getLines()) {
+            if (!menuService.tryConsumeStock(line.getMenuItemId(), line.getQuantity())) {
+                Integer left = menuService.stockRemainingOf(line.getMenuItemId());
+                if (left != null && left > 0) {
+                    throw new OrderRejectedException(
+                            "「%s」は残り %d 点です。数量を変更してください"
+                                    .formatted(line.getMenuItemName(), left));
+                }
+                throw new OrderRejectedException(
+                        "「%s」は売り切れました".formatted(line.getMenuItemName()));
+            }
         }
 
         // 営業日と税率は「伝票（＝来店）」の値に合わせる。
@@ -276,8 +298,15 @@ public class OrderService {
     public Order changeStatus(Long orderId, OrderStatus next, String staffName) {
         Order order = orderRepository.findWithLinesById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
+        boolean becomesCanceled = next == OrderStatus.CANCELED
+                && order.getStatus() != OrderStatus.CANCELED;
         order.changeStatus(next, staffName);
         hydrate(order);
+        // キャンセル経路はどこを通っても在庫を戻す（cancelByStaff / cancelByCustomer /
+        // この汎用メソッド）。「取り消したのに残数が戻らない」は現場で必ず混乱を生む。
+        if (becomesCanceled) {
+            restoreStockOf(order);
+        }
         refreshSessionOf(order);
 
         log.info("注文 #{} → {} ({})", order.getOrderNumber(), next.getStaffLabel(), staffName);
@@ -291,8 +320,12 @@ public class OrderService {
     public Order cancelByStaff(Long orderId, String reason, String staffName) {
         Order order = orderRepository.findWithLinesById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
+        boolean alreadyCanceled = order.getStatus() == OrderStatus.CANCELED;
         order.cancel(reason, staffName);
         hydrate(order);
+        if (!alreadyCanceled) {
+            restoreStockOf(order);
+        }
         refreshSessionOf(order);
 
         eventPublisher.publishOrderChanged(
@@ -311,8 +344,12 @@ public class OrderService {
         if (!order.isCustomerCancelable()) {
             throw new OrderRejectedException("すでに調理を開始しているためキャンセルできません。お手数ですが店頭スタッフへお声がけください");
         }
+        boolean alreadyCanceled = order.getStatus() == OrderStatus.CANCELED;
         order.cancel("お客様都合", "customer");
         hydrate(order);
+        if (!alreadyCanceled) {
+            restoreStockOf(order);
+        }
         refreshSessionOf(order);
 
         eventPublisher.publishOrderChanged(
@@ -337,6 +374,22 @@ public class OrderService {
             line.getOptions().size();
         }
         return order;
+    }
+
+    /**
+     * キャンセルされた注文の分だけ、残数（在庫）を戻す。
+     *
+     * <p>呼び出し側で「初めてキャンセルになったときだけ」を保証すること。
+     * 二重に戻すと、実際には無い在庫が画面に現れて売り越えの原因になる。
+     * 在庫を管理していない商品や、すでに削除された商品は
+     * {@code restoreStock} 側が素通りしてくれる。
+     */
+    private void restoreStockOf(Order order) {
+        for (OrderLine line : order.getLines()) {
+            if (line.getMenuItemId() != null) {
+                menuService.restoreStock(line.getMenuItemId(), line.getQuantity());
+            }
+        }
     }
 
     /**

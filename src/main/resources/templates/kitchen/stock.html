@@ -32,8 +32,11 @@
   <section class="card mt-4">
     <div class="card__body row row--between row--wrap">
       <div>
-        <h1 class="mb-0">品切れ管理</h1>
-        <p class="small muted mb-0">品切れにすると、卓の QR から開くメニューで注文できなくなります</p>
+        <h1 class="mb-0">品切れ・残数管理</h1>
+        <p class="small muted mb-0">
+          品切れにすると、卓の QR から開くメニューで注文できなくなります。
+          数量限定の品は「残数」に今日の数を入れると、自動で減って 0 で売り切れになります
+        </p>
       </div>
       <div class="row row--wrap">
         <span class="status-chip" style="color: var(--danger)" th:if="${soldOutCount > 0}"
@@ -73,6 +76,7 @@
             <th>商品</th>
             <th class="num">価格</th>
             <th>状態</th>
+            <th>残数（数量限定の品だけ）</th>
             <th>操作</th>
           </tr>
           </thead>
@@ -80,7 +84,7 @@
           <tr th:each="item : ${group.value}">
 
             <td>
-              <span class="bold" th:classappend="${item.soldOut} ? 'muted'"
+              <span class="bold" th:classappend="${!item.orderable} ? 'muted'"
                     th:text="${item.name}">ハムチーズガレット</span>
               <span class="badge badge--rec" th:if="${item.recommended}">おすすめ</span>
             </td>
@@ -91,8 +95,36 @@
             <td>
               <span class="status-chip" style="color: var(--danger)"
                     th:if="${item.soldOut}">品切れ中</span>
+              <span class="status-chip" style="color: var(--danger)"
+                    th:if="${!item.soldOut and item.outOfStock}">残数ゼロ</span>
               <span class="status-chip" style="color: var(--ok)"
-                    th:unless="${item.soldOut}">販売中</span>
+                    th:if="${item.orderable}">販売中</span>
+            </td>
+
+            <!--/* ===== 残数の表示と設定 =====
+                   「残数」は数量限定の品のためのオプション機能です。
+                   数字を入れる → 注文のたびに自動で減り、0 で売り切れ表示になる。
+                   キャンセルされた分は自動で戻ります。
+                   「解除」→ 数を数えない品（無制限）に戻る。
+                   HTML のフォームは入れ子にできないため、設定と解除は別々の form です。
+            */-->
+            <td>
+              <div class="row" style="gap: 6px">
+                <form th:action="@{/kitchen/stock/{id}/stock(id=${item.id})}" method="post"
+                      class="row" style="gap: 6px">
+                  <input class="input" type="number" name="stockCount"
+                         min="0" max="999" inputmode="numeric"
+                         style="width: 90px"
+                         th:value="${item.stockRemaining}"
+                         th:placeholder="${item.stockTracked} ? '' : '—'"
+                         th:aria-label="${item.name} + ' の残数'">
+                  <button type="submit" class="btn btn--sm" style="min-height: 48px">設定</button>
+                </form>
+                <form th:if="${item.stockTracked}"
+                      th:action="@{/kitchen/stock/{id}/stock/clear(id=${item.id})}" method="post">
+                  <button type="submit" class="btn btn--sm btn--ghost" style="min-height: 48px">解除</button>
+                </form>
+              </div>
             </td>
 
             <!--/* トグルのフォーム。th:action で書くと CSRF トークンが自動で入ります

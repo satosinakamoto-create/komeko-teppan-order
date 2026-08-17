@@ -35,7 +35,13 @@
      th:with="checked=${!item.allergens.isEmpty()}">
   <span class="badge badge--gf" th:if="${checked and item.glutenFree}">小麦不使用</span>
   <span class="badge badge--rec" th:if="${item.recommended}">おすすめ</span>
-  <span class="badge badge--soldout" th:if="${item.soldOut}">売り切れ</span>
+  <!--/* 売り切れの理由は「手動フラグ」と「残数ゼロ」の 2 通りあるが、
+         お客さまに見せる言葉はどちらも「売り切れ」で統一する */-->
+  <span class="badge badge--soldout" th:if="${item.soldOut or item.outOfStock}">売り切れ</span>
+  <!--/* 数量限定の品は残りの数を出す。「限定」感は注文の後押しにもなる */-->
+  <span class="badge badge--rec"
+        th:if="${item.stockTracked and !item.outOfStock and !item.soldOut}"
+        th:text="'残り ' + ${item.stockRemaining} + ' 点'">残り 3 点</span>
   <span class="badge badge--allergen"
         th:each="a : ${item.allergens}"
         th:text="${a.label}">卵</span>

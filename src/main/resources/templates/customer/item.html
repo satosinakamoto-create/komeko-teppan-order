@@ -24,21 +24,27 @@
           <small>税込</small>
         </p>
 
+        <!--/* 数量限定の品は残りの数を目立たせる */-->
+        <p class="small bold mb-0" style="color: var(--accent)"
+           th:if="${item.stockTracked and !item.outOfStock}"
+           th:text="'数量限定 ― 残り ' + ${item.stockRemaining} + ' 点'">数量限定 ― 残り 3 点</p>
+
         <p class="tiny faint mb-0" th:if="${item.cookMinutes > 0}"
            th:text="'焼き上がりの目安：約 ' + ${item.cookMinutes} + ' 分'">焼き上がりの目安：約 8 分</p>
       </div>
     </article>
 
-    <!--/* ===== 売り切れ・受付停止のときは注文フォームを出さない ===== */-->
-    <div class="alert alert--warn mt-6" th:if="${item.soldOut}" role="alert">
+    <!--/* ===== 売り切れ・受付停止のときは注文フォームを出さない =====
+           「手動の品切れフラグ」と「残数ゼロ」はどちらも売り切れとして扱う */-->
+    <div class="alert alert--warn mt-6" th:if="${item.soldOut or item.outOfStock}" role="alert">
       <p class="mb-0">申し訳ありません。こちらの商品は売り切れました。</p>
     </div>
-    <div class="alert alert--warn mt-6" th:if="${!item.soldOut and !accepting}" role="alert">
+    <div class="alert alert--warn mt-6" th:if="${item.orderable and !accepting}" role="alert">
       <p class="mb-0">ただいまご注文を受け付けておりません。</p>
     </div>
 
     <!--/* ===== 注文フォーム ===== */-->
-    <form th:if="${!item.soldOut and accepting}"
+    <form th:if="${item.orderable and accepting}"
           th:action="@{/cart/add}" method="post"
           id="add-form" class="mt-6"
           th:attr="data-base-price=${item.price}">
@@ -86,8 +92,12 @@
         <span class="label mb-0" style="margin:0">個数</span>
         <div class="qty">
           <button type="button" class="qty__btn" data-qty-step="-1" aria-label="1つ減らす">−</button>
+          <!--/* 数量限定の品は、残数より多い個数を最初から選べないようにする。
+                 これは使い勝手のための制限で、本当の売り越え防止は
+                 サーバ側（注文確定時の条件付き UPDATE）が行う */-->
           <input class="qty__value" type="number" name="quantity" id="quantity"
-                 value="1" min="1" max="20" inputmode="numeric" aria-label="個数">
+                 value="1" min="1" inputmode="numeric" aria-label="個数"
+                 th:max="${item.stockTracked and item.stockRemaining < 20} ? ${item.stockRemaining} : 20">
           <button type="button" class="qty__btn" data-qty-step="1" aria-label="1つ増やす">＋</button>
         </div>
       </div>

@@ -53,8 +53,17 @@ public class CartService {
         if (!item.isVisible()) {
             throw new OrderRejectedException("「%s」は現在お取り扱いしていません".formatted(item.getName()));
         }
-        if (item.isSoldOut()) {
+        if (item.isSoldOut() || item.isOutOfStock()) {
             throw new OrderRejectedException("「%s」は売り切れました".formatted(item.getName()));
+        }
+        // 残数管理している品は、この時点でも軽くチェックして早めに知らせる。
+        // ただしこれは UX のための「早い警告」でしかない。
+        // 本当の売り越え防止は注文確定時の条件付き UPDATE（OrderService 側）が行う。
+        // ここで OK でも、確定までの間に他の卓が買っていく可能性は常にある。
+        if (item.isStockTracked() && quantity > item.getStockRemaining()) {
+            throw new OrderRejectedException(
+                    "「%s」は残り %d 点です。数量を変更してください"
+                            .formatted(item.getName(), item.getStockRemaining()));
         }
 
         // 重複を除いた選択 ID の集合（同じ ID が 2 回来ても 1 回として扱う）
@@ -98,8 +107,9 @@ public class CartService {
                 continue;
             }
             if (!item.isOrderable()) {
-                changes.add("「%s」は%sのため、カートから外しました"
-                        .formatted(item.getName(), item.isSoldOut() ? "売り切れ" : "取り扱い終了"));
+                // 手動の品切れフラグでも残数ゼロでも、お客さまへの言葉は同じ「売り切れ」
+                String reason = (item.isSoldOut() || item.isOutOfStock()) ? "売り切れ" : "取り扱い終了";
+                changes.add("「%s」は%sのため、カートから外しました".formatted(item.getName(), reason));
                 continue;
             }
             if (item.getPrice() != line.getBasePrice()) {

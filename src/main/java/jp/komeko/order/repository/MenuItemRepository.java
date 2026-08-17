@@ -3,6 +3,7 @@ package jp.komeko.order.repository;
 import jp.komeko.order.domain.MenuItem;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -60,6 +61,48 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
             where m.id = :id
             """)
     Optional<MenuItem> findByIdWithOptions(@Param("id") Long id);
+
+    /**
+     * 残数を「あれば引く」— 在庫管理の心臓部。
+     *
+     * <p><b>なぜ「読んで、引いて、書き戻す」ではダメなのか</b><br>
+     * 残り 1 個の品に 2 人が同時に注文すると、両方が「1 個ある」と読んでしまい、
+     * 両方の注文が通って残数が -1 になります（採番のときと同じ競合状態）。
+     *
+     * <p>そこで<b>条件付き UPDATE</b> を使います。
+     * 「残数が足りている行だけを、1 文で引く」を DB にやらせると、
+     * DB は同じ行への UPDATE を必ず 1 つずつ順番に処理するので、
+     * 2 人同時でも片方は条件を満たさず 0 行更新＝注文失敗になります。
+     * 戻り値（更新できた行数）が 1 なら成功、0 なら在庫不足です。
+     *
+     * <p><b>在庫を管理していない商品（stockRemaining が null）の扱い</b><br>
+     * SQL では {@code null - 3} の結果は null のままなので、
+     * WHERE で null を許しておけば「無制限の品は何もせず成功」が同じ 1 文で表現できます。
+     *
+     * <p>{@code @Modifying} は「このクエリは SELECT ではなく更新だ」という宣言。
+     * {@code clearAutomatically = true} は、UPDATE が Hibernate のキャッシュを素通りするため、
+     * 古い残数を抱えたキャッシュを捨てて次の読み取りを DB に向かわせる指定です。
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update MenuItem m
+            set m.stockRemaining = m.stockRemaining - :qty
+            where m.id = :id
+              and (m.stockRemaining is null or m.stockRemaining >= :qty)
+            """)
+    int tryDecrementStock(@Param("id") Long id, @Param("qty") int qty);
+
+    /**
+     * キャンセルで残数を戻す。
+     * 在庫を管理していない商品（null）や、すでに削除された商品は 0 行更新で素通りする。
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update MenuItem m
+            set m.stockRemaining = m.stockRemaining + :qty
+            where m.id = :id and m.stockRemaining is not null
+            """)
+    int restoreStock(@Param("id") Long id, @Param("qty") int qty);
 
     /** カテゴリに属する商品数（カテゴリ削除の可否判定に使う）。 */
     long countByCategoryId(Long categoryId);
