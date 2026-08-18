@@ -28,6 +28,7 @@
   <meta name="theme-color" content="#ffffff">
   <meta name="robots" content="noindex">
   <title th:text="${pageTitle} + ' | ' + ${shop.shopName} + ' 店舗管理'">店舗管理</title>
+  <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body class="theme-staff">
@@ -37,7 +38,7 @@
   <aside class="sb">
 
     <div class="sb__brand">
-      <span class="sb__brand-mark" aria-hidden="true">米</span>
+      <img class="sb__brand-logo" th:src="@{/images/logo.jpg}" alt="" aria-hidden="true">
       <span class="sb__brand-text">
         <span class="sb__brand-name" th:text="${shop.shopName}">米粉と鉄板</span>
         <span class="sb__brand-sub">店舗管理</span>

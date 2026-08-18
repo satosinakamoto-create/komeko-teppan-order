@@ -1458,3 +1458,27 @@ body.theme-staff { background-image: none; }
   .sb__account { flex-direction: column; gap: 6px; padding: 8px 0 0; }
   .staff-main { padding: 16px 16px 40px; }
 }
+
+/* ==========================================================================
+   22. 店ロゴ（公式サイトと同じ画像 /images/logo.jpg）— 2026-08-18
+   -------------------------------------------------------------------------- */
+/* お客さん側ヘッダー。稲穂の円形ロゴを「のれんの紋」として置く */
+.brand-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+  background: #fff;   /* ロゴの白地を保つ（ダークモードでも紋として成立させる） */
+}
+
+/* スタッフ側サイドバーのブランドマーク */
+.sb__brand-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+  background: #fff;
+  border: 1px solid var(--border);
+}

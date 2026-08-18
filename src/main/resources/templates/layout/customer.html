@@ -27,6 +27,7 @@
   <meta name="theme-color" content="#14110f" media="(prefers-color-scheme: dark)">
   <meta name="robots" content="noindex">
   <title th:text="${pageTitle} + ' | ' + ${shop.shopName}">米粉と鉄板</title>
+  <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
@@ -34,6 +35,10 @@
 
   <header class="app-header">
     <div class="container app-header__inner">
+      <!--/* 店のロゴ（公式サイトと同じもの）。丸くトリミングして「のれんの紋」として置く */-->
+      <a th:href="@{/}" aria-hidden="true" tabindex="-1">
+        <img class="brand-logo" th:src="@{/images/logo.jpg}" th:alt="${shop.shopName} + ' ロゴ'">
+      </a>
       <div>
         <a class="app-header__title" th:href="@{/}" th:text="${shop.shopName}">米粉と鉄板</a>
         <p class="app-header__sub" th:if="${tableName == null}" th:text="${shop.tagline}">
