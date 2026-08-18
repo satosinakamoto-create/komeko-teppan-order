@@ -156,9 +156,14 @@ public class ShopSetting {
 
     /**
      * 深夜料金の割増率（%）。
-     * 会計時刻が {@link #lateNightStartTime} 以降のとき、
-     * 小計＋テーブルチャージに対してこの割合を加算します。
-     * 0 にすると請求しません。
+     *
+     * <p>{@link #lateNightStartTime}〜{@link #lateNightEndTime} に
+     * <b>出された注文</b>の合計に対して、この割合を加算します
+     * （テーブルチャージは、その時間帯に着席した卓のぶんだけ対象）。
+     * 会計時刻ではなく<b>注文時刻</b>で決まる点に注意してください。
+     * 計算の本体は {@code TableSession#recalculate} にあります。
+     *
+     * <p>0 にすると請求しません。
      */
     @Min(0)
     @Max(100)

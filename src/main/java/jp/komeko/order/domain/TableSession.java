@@ -27,12 +27,18 @@ import java.util.List;
  *
  * <p><b>金額の計算</b>
  * <pre>
- *   小計          = キャンセル以外の注文の合計（税込）
- *   テーブルチャージ = 単価 × 人数
- *   深夜料金       = (小計 + テーブルチャージ) × 割増率
- *   ─────────────────────────────
- *   ご請求額       = 小計 + テーブルチャージ + 深夜料金
+ *   小計            = キャンセル以外の注文の合計（税込）
+ *   テーブルチャージ  = 単価 × 人数
+ *   深夜料金の対象額  = 深夜帯に出した注文の合計
+ *                    ＋ 深夜帯に着席していればテーブルチャージ
+ *   深夜料金         = 対象額 × 割増率            ← 1円未満は切り捨て
+ *   ────────────────────────────────
+ *   ご請求額         = 小計 + テーブルチャージ + 深夜料金
  * </pre>
+ *
+ * <p><b>深夜料金は注文ごとに、その注文が出された時刻で決まります。</b>
+ * 同じ伝票に通常料金の注文と深夜料金の注文が混在します。
+ * 詳しくは {@link #recalculate(LateNightPolicy)} を読んでください。
  *
  * <p>単価・割増率は<b>来店時点の設定をコピーして保存</b>します。
  * あとから店舗設定を変えても、過去の伝票の金額が変わらないようにするためです。
@@ -113,9 +119,36 @@ public class TableSession {
     @Column(nullable = false)
     private int taxAmount;
 
-    /** 深夜料金を適用したか。スタッフが手動で外すこともできる。 */
+    /**
+     * 深夜料金が実際にかかったか（＝ {@link #lateNightAmount} が 1 円以上か）。
+     *
+     * <p>画面はこれを見て「深夜料金」の行を出すかどうかを決めます。
+     * 「対象の注文があったか」ではなく<b>「金額が出たか」</b>にしてあるのは、
+     * 対象額が 9 円以下だと 10% の割増が切り捨てで 0 円になり、
+     * 「深夜料金（10%） ¥0」という無意味な行が伝票に出てしまうためです。
+     */
     @Column(nullable = false)
     private boolean lateNightApplied;
+
+    /**
+     * スタッフが深夜料金を免除したか。
+     *
+     * <p><b>なぜ「免除した」ことを伝票に覚えさせるのか</b><br>
+     * 深夜料金をかけるかどうかは、ふだんは注文時刻から自動で決まります。
+     * ところがスタッフが会計画面でチェックを外して免除した場合、
+     * それは<b>計算では再現できない、人の判断</b>です。
+     * 覚えておかないと、次に金額を計算し直した瞬間に免除が消えてしまいます。
+     *
+     * <p>実際、これを持たせる前は<b>会計を取り消して開け直す（reopen）だけで
+     * 免除が黙って復活していました</b>。
+     * 人数を直したくて開け直したら、お客さまに伝えた金額と違う額に戻っていた、
+     * ということが起こります。金額は上がる方向なので、そのまま請求すると事故です。
+     *
+     * <p>スタッフがもう一度チェックを入れて締めれば false に戻り、
+     * 通常どおり注文時刻のルールで計算されます。
+     */
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean lateNightWaived;
 
     /** 会計時のメモ（割引理由など）。 */
     @Column(length = 200)
@@ -145,35 +178,79 @@ public class TableSession {
      *
      * <p>注文が増えたとき、人数が変わったとき、会計するときに呼びます。
      *
-     * @param at            計算の基準時刻（深夜料金の判定に使う）
-     * @param applyLateNight 深夜料金を適用するか（スタッフが手動で外せる）
+     * <p><b>深夜料金は「注文時刻」で決まります（会計時刻ではありません）。</b><br>
+     * 22:00 に頼んだ品は通常料金、23:30 に頼んだ品は深夜料金、というように
+     * <b>同じ伝票の中で混在します</b>。だから注文を 1 件ずつ見て、
+     * 深夜帯に出たものだけを割増の対象に積み上げます。
+     *
+     * <pre>
+     *   20:00 着席 4名（チャージ ¥450 × 4 = ¥1,800）
+     *   22:00 注文 ¥5,000  → 通常料金
+     *   23:30 注文 ¥3,000  → 深夜料金の対象
+     *
+     *   割増の対象 = ¥3,000（チャージは 20:00 着席なので対象外）
+     *   深夜料金   = ¥3,000 × 10% = ¥300
+     *   ご請求     = 5,000 + 3,000 + 1,800 + 300 = ¥10,100
+     * </pre>
+     *
+     * <p><b>会計時刻で判定してはいけない理由</b><br>
+     * 会計時刻で伝票全体を判定すると、22:00 に注文を終えたお客さまが
+     * 23:00 過ぎまで話し込んだだけで、注文すべてに割増がかかってしまいます。
+     * 逆に 23:30 に注文して 5:00 過ぎに帰れば割増ゼロになります。
+     * どちらも「深夜に出した品に割増する」という趣旨と合いません。
+     * （2026-08-18 まで会計時刻で判定していました。実店舗の運用と違っていたので直しました）
+     *
+     * <p>テーブルチャージは注文ではないので、<b>着席時刻</b>で判定します。
+     * 深夜に席を使い始めた卓のぶんだけ割増になります。
+     *
+     * @param policy 深夜料金をかけるかどうかの判定役。
+     *               ふつうは {@code shopSetting::isLateNight}。
+     *               スタッフが免除したときは {@link LateNightPolicy#NONE}
      */
-    public void recalculate(LocalDateTime at, boolean applyLateNight) {
+    public void recalculate(LateNightPolicy policy) {
+        // スタッフが免除した伝票は、以後どんな方針を渡されても割増しない。
+        // 会計を取り消して開け直したときに、免除が黙って復活しないようにするため
+        LateNightPolicy effective = lateNightWaived ? LateNightPolicy.NONE : policy;
+
         int subtotal = 0;
+        int lateNightBase = 0;
         for (Order order : orders) {
             // キャンセルされた注文は請求しない
             if (order.getStatus() == OrderStatus.CANCELED) {
                 continue;
             }
             subtotal += order.getTotalAmount();
+            // ここが要。伝票の時刻でも「いま」でもなく、その注文が出された時刻で判定する
+            if (effective.appliesAt(order.getCreatedAt())) {
+                lateNightBase += order.getTotalAmount();
+            }
         }
         this.subtotalAmount = subtotal;
         this.tableChargeAmount = tableChargePerGuest * guestCount;
 
-        int base = subtotalAmount + tableChargeAmount;
-        this.lateNightApplied = applyLateNight && lateNightSurchargePercent > 0;
-        // 1 円未満は切り捨て（お客さんに有利な方向に丸める）
-        this.lateNightAmount = lateNightApplied
-                ? (int) ((long) base * lateNightSurchargePercent / 100)
-                : 0;
+        // チャージは「席を使い始めた時刻」＝ 着席時刻で判定する
+        if (effective.appliesAt(openedAt)) {
+            lateNightBase += tableChargeAmount;
+        }
 
-        this.totalAmount = base + lateNightAmount;
+        // 1 円未満は切り捨て（お客さんに有利な方向に丸める）。
+        // 対象額を合計してから 1 回だけ割増を計算する。
+        // 注文ごとに割増して足すと、切り捨てが注文の件数だけ効いて
+        // 「同じ品を 1 回で頼むか 2 回に分けるか」で金額が変わってしまう。
+        this.lateNightAmount = lateNightSurchargePercent > 0
+                ? (int) ((long) lateNightBase * lateNightSurchargePercent / 100)
+                : 0;
+        // 「対象があったか」ではなく「金額が出たか」。
+        // 対象額 9 円以下だと 10% が切り捨てで 0 円になり、¥0 の行が伝票に出てしまう
+        this.lateNightApplied = lateNightAmount > 0;
+
+        this.totalAmount = subtotalAmount + tableChargeAmount + lateNightAmount;
         this.taxAmount = TaxCalculator.includedTax(totalAmount, taxRatePercent);
     }
 
     /** 会計を締める。以後は追加注文できない。 */
-    public void close(LocalDateTime at, boolean applyLateNight, String staffName, String note) {
-        recalculate(at, applyLateNight);
+    public void close(LocalDateTime at, LateNightPolicy policy, String staffName, String note) {
+        recalculate(policy);
         this.status = SessionStatus.CLOSED;
         this.closedAt = at;
         this.closedBy = staffName;
@@ -245,13 +322,21 @@ public class TableSession {
         return subtotalAmount + tableChargeAmount;
     }
 
-    /** 深夜料金を<b>付けた</b>場合のご請求額。 */
+    /**
+     * 深夜料金を<b>付けた</b>場合のご請求額。
+     *
+     * <p>深夜料金は注文時刻ごとに決まるので、「付けた場合いくらか」は
+     * ここで計算し直すのではなく、{@link #recalculate(LateNightPolicy)} が
+     * すでに出した {@link #lateNightAmount} をそのまま使います。
+     * 開いている伝票は表示のたびに店舗設定のルールで計算し直されているため、
+     * この値が「ルールどおりに付けた場合」の答えになります。
+     *
+     * <p>以前はここで「小計＋チャージの全額 × 割増率」を計算していましたが、
+     * それは会計時刻で伝票全体を判定していた頃の名残です。
+     * いまその式を使うと、22:00 の注文にも割増が乗った金額が画面に出てしまいます。
+     */
     public int getTotalWithLateNight() {
-        int base = subtotalAmount + tableChargeAmount;
-        if (lateNightSurchargePercent <= 0) {
-            return base;
-        }
-        return base + (int) ((long) base * lateNightSurchargePercent / 100);
+        return subtotalAmount + tableChargeAmount + lateNightAmount;
     }
 
     // ── getter / setter ──────────────────────────────────────────
@@ -282,6 +367,17 @@ public class TableSession {
 
     public LocalDateTime getOpenedAt() {
         return openedAt;
+    }
+
+    /**
+     * 着席時刻を差し替える。<b>テスト専用</b>。
+     *
+     * <p>テーブルチャージに深夜料金がかかるかは着席時刻で決まるので、
+     * 「20:00 に案内した卓」と「23:30 に案内した卓」をテストで作り分ける必要があります。
+     * 理由と、public にしていない意図は {@link Order#setCreatedAtForTest} と同じです。
+     */
+    void setOpenedAtForTest(LocalDateTime openedAt) {
+        this.openedAt = openedAt;
     }
 
     public LocalDateTime getClosedAt() {
@@ -326,6 +422,22 @@ public class TableSession {
 
     public int getTaxAmount() {
         return taxAmount;
+    }
+
+    public boolean isLateNightWaived() {
+        return lateNightWaived;
+    }
+
+    /**
+     * スタッフによる深夜料金の免除を設定する。
+     *
+     * <p>{@code true} にすると、以後この伝票には深夜料金がかかりません
+     * （会計を取り消して開け直しても維持されます）。
+     * {@code false} に戻せば、通常どおり注文時刻のルールで計算されます。
+     * 呼ぶのは会計処理（{@code TableService#closeSession}）だけです。
+     */
+    public void setLateNightWaived(boolean lateNightWaived) {
+        this.lateNightWaived = lateNightWaived;
     }
 
     public boolean isLateNightApplied() {

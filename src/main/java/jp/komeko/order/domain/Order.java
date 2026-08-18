@@ -320,6 +320,26 @@ public class Order {
         return createdAt;
     }
 
+    /**
+     * 注文時刻を差し替える。<b>テスト専用</b>。
+     *
+     * <p>深夜料金は注文時刻で決まる（{@link TableSession#recalculate}）ので、
+     * 「22:00 の注文と 23:30 の注文が同じ伝票にある」状況をテストで作る必要があります。
+     * ところが {@code createdAt} はコンストラクタで {@code now()} が入るため、
+     * ふつうに作った注文はどれも「たったいま」になってしまい、区別できません。
+     *
+     * <p><b>public にしていないのは意図的です。</b>
+     * 修飾子を書かない（package-private）と、同じ
+     * {@code jp.komeko.order.domain} パッケージからしか呼べません。
+     * テストクラスは同じパッケージに置いてあるので使えますが、
+     * サービスや画面からは<b>そもそも見えない</b>ので、
+     * 「注文時刻をあとから書き換える」という会計の証跡を壊す操作が
+     * 業務コードに紛れ込みようがありません。
+     */
+    void setCreatedAtForTest(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }

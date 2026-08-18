@@ -159,7 +159,7 @@ public class TableService {
                 table, setting.businessDateOf(now),
                 guestCount > 0 ? guestCount : 1,
                 setting);
-        session.recalculate(now, setting.isLateNight(now));
+        session.recalculate(setting::isLateNight);
 
         TableSession saved = sessionRepository.save(session);
         log.info("伝票を開きました: 卓={} 人数={}", table.getName(), saved.getGuestCount());
@@ -217,8 +217,13 @@ public class TableService {
     /**
      * お会計（伝票を締める）。
      *
-     * @param applyLateNight 深夜料金を適用するか。既定は時刻から自動判定するが、
-     *                       スタッフの判断で外せるようにしている
+     * <p>深夜料金は注文ごとに注文時刻で決まります（{@link TableSession#recalculate}）。
+     * ここで渡す {@code applyLateNight} は、その計算をするかどうかの
+     * <b>スタッフによる免除スイッチ</b>です。
+     * false にすると、深夜帯の注文があっても深夜料金を一切かけずに締めます
+     * （常連さんへのサービスなど、現場の判断のため）。
+     *
+     * @param applyLateNight false ならスタッフが深夜料金を免除したという意味
      */
     @Transactional
     public TableSession closeSession(Long sessionId, boolean applyLateNight, String staffName, String note) {
@@ -228,7 +233,11 @@ public class TableService {
             throw new IllegalStateException("この伝票はすでに会計済みです");
         }
         hydrate(session);
-        session.close(LocalDateTime.now(), applyLateNight, staffName, note);
+        // 免除は伝票に記録する。ここで LateNightPolicy.NONE を渡すだけだと、
+        // あとで会計を取り消して開け直したときに再計算で免除が消えてしまう
+        session.setLateNightWaived(!applyLateNight);
+        ShopSetting setting = shopSettingService.currentReadOnly();
+        session.close(LocalDateTime.now(), setting::isLateNight, staffName, note);
         log.info("会計しました: 卓={} 人数={} 合計={}円",
                 session.getDiningTable().getName(), session.getGuestCount(), session.getTotalAmount());
         return session;
@@ -249,8 +258,12 @@ public class TableService {
     }
 
     /**
-     * いまの時刻で伝票の金額を計算し直す。
-     * 深夜料金は時刻で自動判定するので、23 時をまたぐと表示金額が変わります。
+     * 伝票の金額を、いまの店舗設定のルールで計算し直す。
+     *
+     * <p>深夜料金は<b>注文ごとに、その注文が出された時刻</b>で判定されるので、
+     * ただ 23 時をまたいだだけでは金額は変わりません。
+     * 変わるのは、深夜帯に入ってから注文が追加されたときと、
+     * 店長が深夜料金の設定（時刻・割増率）を変えたときです。
      */
     @Transactional
     public TableSession refresh(TableSession session) {
@@ -258,7 +271,7 @@ public class TableService {
     }
 
     /**
-     * 関連を読み込み、開いている伝票なら「いまの時刻」で金額を計算し直す。
+     * 関連を読み込み、開いている伝票なら金額を計算し直す。
      *
      * <p><b>読み取り用と書き込み用で同じ処理を使っている理由</b><br>
      * 呼び出し元が {@code @Transactional(readOnly = true)} なら、
@@ -275,8 +288,7 @@ public class TableService {
         hydrate(session);
         if (session.isOpen()) {
             ShopSetting setting = shopSettingService.currentReadOnly();
-            LocalDateTime now = LocalDateTime.now();
-            session.recalculate(now, setting.isLateNight(now));
+            session.recalculate(setting::isLateNight);
         }
         return session;
     }

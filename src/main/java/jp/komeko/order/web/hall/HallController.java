@@ -193,16 +193,31 @@ public class HallController {
             tableService.refresh(bill);
         }
 
-        ShopSetting shop = shopSettingService.currentReadOnly();
-
+        // 画面が使う店舗設定（${shop}）は GlobalModelAttributes が入れてくれるので、
+        // ここで取り出す必要はありません。
+        // 以前は深夜料金チェックの初期値を shop.isLateNight(now) で決めていたため
+        // ここで読んでいましたが、その判定をやめたので不要になりました。
         model.addAttribute("bill", bill);
         // キャンセル済みの注文は請求から外れるので、明細も billable のものだけ出す
         model.addAttribute("orders", bill.getBillableOrders());
         model.addAttribute("openedAtLabel", bill.getOpenedAt().format(TIME_FORMAT));
         model.addAttribute("closedAtLabel",
                 bill.getClosedAt() == null ? null : bill.getClosedAt().format(TIME_FORMAT));
-        // 深夜料金チェックボックスの初期状態。自動で入れておき、スタッフが外せるようにする
-        model.addAttribute("lateNightDefault", shop.isLateNight(LocalDateTime.now()));
+        // 深夜料金チェックボックスの初期状態。
+        //
+        // 「いま深夜帯か（shop.isLateNight(now)）」で決めてはいけません。
+        // 深夜料金は注文時刻ごとに決まるので、
+        //   ・23:30 に注文があった卓を、5:30（深夜帯の外）に会計する
+        //   ・22:00 で注文が終わった卓を、23:30（深夜帯の中）に会計する
+        // のどちらも起こります。前者はチェックが外れて取りっぱぐれ、
+        // 後者は対象が無いのにチェックが入って紛らわしい、となります。
+        //
+        // 開いている伝票は表示のたびにルールで計算し直されているので、
+        // その結果をそのまま初期状態にします。
+        // ただし一度スタッフが免除した伝票は、開け直しても外れたままにします
+        // （人の判断を、計算結果で上書きしない）。
+        model.addAttribute("lateNightDefault",
+                !bill.isLateNightWaived() && bill.isLateNightApplied());
         // いまの人数が選択肢に無いと「変更したら人数が減った」という事故になるので、
         // 現在値より小さい範囲で切らないようにしておく
         model.addAttribute("guestOptions",

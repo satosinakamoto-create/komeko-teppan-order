@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,11 +26,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <pre>
  *   小計             = キャンセル以外の注文の合計（税込）
  *   テーブルチャージ  = 単価 × 人数
- *   深夜料金         = (小計 + テーブルチャージ) × 割増率 ÷ 100   ← 1円未満は切り捨て
+ *   深夜料金の対象額  = 深夜帯に出した注文の合計
+ *                     ＋ 深夜帯に着席していればテーブルチャージ
+ *   深夜料金         = 対象額 × 割増率 ÷ 100                     ← 1円未満は切り捨て
  *   ─────────────────────────────────────────
  *   ご請求額         = 小計 + テーブルチャージ + 深夜料金
  *   内消費税         = ご請求額に含まれる消費税（TaxCalculator が計算）
  * </pre>
+ *
+ * <p><b>深夜料金は「注文時刻」で決まります（会計時刻ではありません）。</b>
+ * 22:00 の注文は通常料金、23:30 の注文は深夜料金、と同じ伝票で混在します。
+ * 2026-08-18 まで会計時刻で伝票全体を判定していたので直しました。
+ * 詳しくは下の「深夜料金は注文時刻で決まる」を参照。
  *
  * <p><b>なぜ Spring を起動しないのか</b><br>
  * {@link TableSession} の金額計算は DB もネットワークも使わない、
@@ -49,16 +57,23 @@ class TableSessionTest {
     /** 判定に使う営業日。日付そのものは計算に影響しないので、どの日でもよい。 */
     private static final LocalDate BUSINESS_DATE = LocalDate.of(2026, 8, 16);
 
-    /**
-     * 会計の基準時刻（23:30）。
-     *
-     * <p>{@code recalculate(at, applyLateNight)} の第 1 引数は「いつの会計か」を表しますが、
-     * 深夜料金を掛けるかどうかは<b>第 2 引数で明示的に</b>渡す設計です。
-     * 時刻から自動判定するのは {@code ShopSetting#isLateNight} の仕事で、
-     * 伝票側は「掛ける／掛けない」の指示に従うだけ、と役割を分けています。
-     * こうしておくと「深夜だけどスタッフの判断で外す」がそのまま表現できます。
-     */
+    /** 会計した時刻（23:30）。{@code closedAt} に入るだけで、金額計算には使われません。 */
     private static final LocalDateTime AT = LocalDateTime.of(2026, 8, 16, 23, 30);
+
+    /**
+     * 「どの注文も深夜帯だった」とみなす判定役。
+     *
+     * <p>深夜料金を掛けるかどうかは、伝票が時計を見て決めるのではなく
+     * <b>{@link LateNightPolicy} を渡して指示する</b>設計です。
+     * 時刻から判定するのは {@code ShopSetting#isLateNight} の仕事で、
+     * 伝票側は渡された方針に従うだけ、と役割を分けています。
+     * おかげでテストは実時刻に左右されず、
+     * 「深夜だけどスタッフの判断で外す」も {@link LateNightPolicy#NONE} で素直に書けます。
+     *
+     * <p>注文ごとに掛かる／掛からないが分かれるケースは、
+     * 下の「深夜料金は注文時刻で決まる」のテストを見てください。
+     */
+    private static final LateNightPolicy ALWAYS_LATE_NIGHT = at -> true;
 
     // ========================================================================
     //  テスト用の材料を組み立てるヘルパー
@@ -129,7 +144,7 @@ class TableSessionTest {
             // ここが 0 円になっていると、会計画面で見落として取りっぱぐれる。
             TableSession bill = openBill(2);
 
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
 
             assertThat(bill.getSubtotalAmount()).isZero();
             assertThat(bill.getTableChargeAmount()).isEqualTo(900);   // 450 × 2名
@@ -147,7 +162,7 @@ class TableSessionTest {
         void chargeIsUnitPriceTimesGuests(int guestCount, int expected) {
             TableSession bill = openBill(guestCount);
 
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
 
             assertThat(bill.getTableChargeAmount()).isEqualTo(expected);
         }
@@ -159,7 +174,7 @@ class TableSessionTest {
             // そのまま受けるとチャージが 0 円になり、無料で席を使えてしまう。
             TableSession bill = openBill(0);
 
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
 
             assertThat(bill.getGuestCount()).isEqualTo(1);
             assertThat(bill.getTableChargeAmount()).isEqualTo(450);
@@ -172,11 +187,11 @@ class TableSessionTest {
             // ホール画面から人数を直したとき、金額が追従しないと請求漏れになる。
             TableSession bill = openBill(2);
             addOrder(bill, 101, "肉玉米粉そば", 1180, 1);
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
             assertThat(bill.getTotalAmount()).isEqualTo(1180 + 900);
 
             bill.setGuestCount(4);
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
 
             assertThat(bill.getTableChargeAmount()).isEqualTo(1800);
             assertThat(bill.getTotalAmount()).isEqualTo(1180 + 1800);
@@ -197,7 +212,7 @@ class TableSessionTest {
             TableSession bill = openBill(1);
             addOrder(bill, 101, "国産豚ロースステーキ", 1635, 1);
 
-            bill.recalculate(AT, true);
+            bill.recalculate(ALWAYS_LATE_NIGHT);
 
             assertThat(bill.getSubtotalAmount()).isEqualTo(1635);
             assertThat(bill.getTableChargeAmount()).isEqualTo(450);
@@ -214,7 +229,7 @@ class TableSessionTest {
             TableSession bill = openBill(2);   // チャージ 900円
             addOrder(bill, 101, "自家製レモンサワー", 850, 2);  // 小計 1,700円
 
-            bill.recalculate(AT, true);
+            bill.recalculate(ALWAYS_LATE_NIGHT);
 
             // 基準額 = 1,700 + 900 = 2,600 → 10% = 260円
             assertThat(bill.getLateNightAmount()).isEqualTo(260);
@@ -229,7 +244,7 @@ class TableSessionTest {
             TableSession bill = openBill(2);
             addOrder(bill, 101, "肉玉米粉そば", 1180, 1);
 
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
 
             assertThat(bill.getLateNightAmount()).isZero();
             assertThat(bill.isLateNightApplied()).isFalse();
@@ -244,7 +259,7 @@ class TableSessionTest {
             TableSession bill = openBill(2, settingOf(10, 450, 0));
             addOrder(bill, 101, "肉玉米粉そば", 1180, 1);
 
-            bill.recalculate(AT, true);
+            bill.recalculate(ALWAYS_LATE_NIGHT);
 
             assertThat(bill.getLateNightAmount()).isZero();
             assertThat(bill.isLateNightApplied()).isFalse();
@@ -266,7 +281,7 @@ class TableSessionTest {
             Order canceled = addOrder(bill, 102, "牡蠣と豚肉米粉そば", 1680, 1);  // 1,680円
 
             canceled.cancel("材料切れ", "店長");
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
 
             assertThat(canceled.getStatus()).isEqualTo(OrderStatus.CANCELED);
             assertThat(bill.getSubtotalAmount()).isEqualTo(2360);              // 1,680円は入らない
@@ -283,7 +298,7 @@ class TableSessionTest {
             Order canceled = addOrder(bill, 102, "冷やしトマト", 600, 3);
 
             canceled.cancel("お客様都合", "customer");
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
 
             assertThat(bill.getBillableOrders()).containsExactly(alive);
             assertThat(bill.getTotalQuantity()).isEqualTo(1);   // 3点は数えない
@@ -296,7 +311,7 @@ class TableSessionTest {
             Order order = addOrder(bill, 101, "肉玉米粉そば", 1180, 1);
 
             order.cancel("材料切れ", "店長");
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
 
             assertThat(bill.getSubtotalAmount()).isZero();
             assertThat(bill.getTotalAmount()).isEqualTo(1350);   // 450 × 3名
@@ -315,7 +330,7 @@ class TableSessionTest {
             TableSession bill = openBill(2);
             addOrder(bill, 101, "肉玉米粉そば", 1180, 1);
 
-            bill.recalculate(AT, true);
+            bill.recalculate(ALWAYS_LATE_NIGHT);
 
             int expectedTax = TaxCalculator.includedTax(bill.getTotalAmount(), 10);
             assertThat(bill.getTaxAmount()).isEqualTo(expectedTax);
@@ -330,7 +345,7 @@ class TableSessionTest {
             TableSession bill = openBill(2);
             addOrder(bill, 101, "自家製レモンサワー", 850, 2);
 
-            bill.recalculate(AT, true);
+            bill.recalculate(ALWAYS_LATE_NIGHT);
 
             // 1,700 + 900 = 2,600 → 深夜料金 260 → ご請求額 2,860円
             assertThat(bill.getTotalAmount()).isEqualTo(2860);
@@ -355,7 +370,7 @@ class TableSessionTest {
             setting.setTableChargePerGuest(1000);
             setting.setTaxRatePercent(8);
             setting.setLateNightSurchargePercent(30);
-            bill.recalculate(AT, true);
+            bill.recalculate(ALWAYS_LATE_NIGHT);
 
             assertThat(bill.getTableChargePerGuest()).isEqualTo(450);
             assertThat(bill.getTaxRatePercent()).isEqualTo(10);
@@ -374,7 +389,7 @@ class TableSessionTest {
             TableSession bill = openBill(2);
             addOrder(bill, 101, "肉玉米粉そば", 1180, 1);
 
-            bill.close(AT, false, "店長", "常連さん");
+            bill.close(AT, LateNightPolicy.NONE, "店長", "常連さん");
 
             assertThat(bill.getStatus()).isEqualTo(SessionStatus.CLOSED);
             assertThat(bill.isOpen()).isFalse();
@@ -390,10 +405,10 @@ class TableSessionTest {
             // close が recalculate を呼んでいないと、その1杯が請求から抜け落ちる。
             TableSession bill = openBill(2);
             addOrder(bill, 101, "肉玉米粉そば", 1180, 1);
-            bill.recalculate(AT, false);
+            bill.recalculate(LateNightPolicy.NONE);
 
             addOrder(bill, 102, "自家製レモンサワー", 850, 1);   // recalculate はあえて呼ばない
-            bill.close(AT, false, "店長", null);
+            bill.close(AT, LateNightPolicy.NONE, "店長", null);
 
             assertThat(bill.getSubtotalAmount()).isEqualTo(2030);
             assertThat(bill.getTotalAmount()).isEqualTo(2030 + 900);
@@ -406,7 +421,7 @@ class TableSessionTest {
             TableSession bill = openBill(2);
             assertThat(bill.isOrderable()).isTrue();
 
-            bill.close(AT, false, "店長", null);
+            bill.close(AT, LateNightPolicy.NONE, "店長", null);
 
             assertThat(bill.isOrderable()).isFalse();
         }
@@ -417,7 +432,7 @@ class TableSessionTest {
             // 誤って別の卓を会計してしまったときのリカバリ手段。
             // 記録が残ったままだと「会計済みなのに OPEN」というちぐはぐな状態になる。
             TableSession bill = openBill(2);
-            bill.close(AT, false, "店長", null);
+            bill.close(AT, LateNightPolicy.NONE, "店長", null);
 
             bill.reopen();
 
@@ -446,6 +461,243 @@ class TableSessionTest {
 
             order.changeStatus(OrderStatus.COMPLETED, "ホール");
             assertThat(bill.hasPendingOrders()).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("深夜料金は注文時刻で決まる")
+    class LateNightByOrderTime {
+
+        /** 23:00〜5:00 を深夜とみなす、実店舗と同じ判定役。 */
+        private static final LateNightPolicy AFTER_23 =
+                at -> at.getHour() >= 23 || at.getHour() < 5;
+
+        /** 指定した時刻に出された注文を足す（営業日の当日）。 */
+        private Order addOrderAt(TableSession bill, int orderNumber, String name,
+                                 int unitPrice, int quantity, int hour, int minute) {
+            return addOrderAt(bill, orderNumber, name, unitPrice, quantity, 0, hour, minute);
+        }
+
+        /**
+         * 指定した時刻に出された注文を足す。
+         *
+         * @param dayOffset 営業日から何日ずらすか。深夜営業で日付をまたいだ注文は 1
+         */
+        private Order addOrderAt(TableSession bill, int orderNumber, String name,
+                                 int unitPrice, int quantity, int dayOffset, int hour, int minute) {
+            Order order = addOrder(bill, orderNumber, name, unitPrice, quantity);
+            order.setCreatedAtForTest(
+                    LocalDateTime.of(BUSINESS_DATE.plusDays(dayOffset), LocalTime.of(hour, minute)));
+            return order;
+        }
+
+        /** 指定した時刻に着席した伝票にする。 */
+        private void seatAt(TableSession bill, int hour, int minute) {
+            bill.setOpenedAtForTest(LocalDateTime.of(BUSINESS_DATE, LocalTime.of(hour, minute)));
+        }
+
+        @Test
+        @DisplayName("深夜に出した注文だけが割増の対象になる（通常料金の注文とは混在する）")
+        void onlyLateNightOrdersAreSurcharged() {
+            // 実店舗に確認した運用そのもの。
+            // 2026-08-18 まで「会計時刻で伝票全体」を判定していたので直した。
+            //
+            //   20:00 着席 4名 → チャージ ¥450 × 4 = ¥1,800（着席が 20:00 なので対象外）
+            //   22:00 注文 ¥5,000 → 通常料金
+            //   23:30 注文 ¥3,000 → 深夜料金の対象
+            TableSession bill = openBill(4);
+            seatAt(bill, 20, 0);
+            addOrderAt(bill, 101, "肉玉米粉そば", 5000, 1, 22, 0);
+            addOrderAt(bill, 102, "追加のハイボール", 3000, 1, 23, 30);
+
+            bill.recalculate(AFTER_23);
+
+            assertThat(bill.getSubtotalAmount()).isEqualTo(8000);
+            assertThat(bill.getTableChargeAmount()).isEqualTo(1800);
+            // 対象は 23:30 の ¥3,000 だけ
+            assertThat(bill.getLateNightAmount()).isEqualTo(300);
+            assertThat(bill.getTotalAmount()).isEqualTo(10_100);
+            assertThat(bill.isLateNightApplied()).isTrue();
+        }
+
+        @Test
+        @DisplayName("深夜の注文が 1 件も無ければ、いくら長居しても割増ゼロ")
+        void noLateNightOrderMeansNoSurcharge() {
+            // 会計時刻で判定していた頃は、22 時に注文を終えて 23 時過ぎまで
+            // 話し込んだだけで全額に割増がかかっていた。それを直したことの確認。
+            TableSession bill = openBill(2);
+            seatAt(bill, 19, 0);
+            addOrderAt(bill, 101, "お好み焼き", 1200, 2, 21, 0);
+
+            bill.recalculate(AFTER_23);
+
+            assertThat(bill.getLateNightAmount()).isZero();
+            assertThat(bill.isLateNightApplied()).isFalse();
+            assertThat(bill.getTotalAmount()).isEqualTo(2400 + 900);
+        }
+
+        @Test
+        @DisplayName("テーブルチャージは着席時刻で決まる（深夜に案内した卓だけ割増）")
+        void tableChargeFollowsSeatingTime() {
+            // 23:30 に案内した 2 名。チャージ ¥450 × 2 = ¥900 も対象になる。
+            TableSession bill = openBill(2);
+            seatAt(bill, 23, 30);
+            addOrderAt(bill, 101, "締めの焼きそば", 1100, 1, 23, 45);
+
+            bill.recalculate(AFTER_23);
+
+            // 対象 = 注文 ¥1,100 + チャージ ¥900 = ¥2,000 → 10% で ¥200
+            assertThat(bill.getLateNightAmount()).isEqualTo(200);
+            assertThat(bill.getTotalAmount()).isEqualTo(1100 + 900 + 200);
+        }
+
+        @Test
+        @DisplayName("日をまたいだ注文も深夜のまま（翌 0:30 の追加注文）")
+        void afterMidnightIsStillLateNight() {
+            // dayOffset=1 を渡して、本当に「翌日の 0:30」にしている点が要。
+            // 同じ日付の 0:30 にしてしまうと 22:30 より前になり、
+            // 時系列が逆転した伝票をテストしていることになる（判定は時刻しか見ないので
+            // アサーションは通ってしまい、間違いに気づけない）。
+            TableSession bill = openBill(2);
+            seatAt(bill, 22, 0);
+            addOrderAt(bill, 101, "生ビール", 600, 2, 0, 22, 30);
+            addOrderAt(bill, 102, "ハイボール", 500, 2, 1, 0, 30);
+
+            assertThat(bill.getOrders().get(1).getCreatedAt())
+                    .isAfter(bill.getOrders().get(0).getCreatedAt());
+
+            bill.recalculate(AFTER_23);
+
+            // 対象は 0:30 の ¥1,000 だけ（22:30 の ¥1,200 と 22:00 着席のチャージは対象外）
+            assertThat(bill.getLateNightAmount()).isEqualTo(100);
+        }
+
+        @Test
+        @DisplayName("割増が 1 円未満に切り捨てられたら「深夜料金あり」にはしない")
+        void zeroYenSurchargeIsNotMarkedApplied() {
+            // 対象額 ¥9 × 10% = 0.9 → 切り捨てで ¥0。
+            // ここで「適用あり」にしてしまうと、伝票に「深夜料金（10%） ¥0」の行が出る。
+            // チャージ 0 円の設定にして、対象額を注文ぶんだけにする
+            TableSession bill = openBill(1, settingOf(10, 0, 10));
+            seatAt(bill, 20, 0);
+            addOrderAt(bill, 101, "駄菓子", 9, 1, 23, 30);
+
+            bill.recalculate(AFTER_23);
+
+            assertThat(bill.getLateNightAmount()).isZero();
+            assertThat(bill.isLateNightApplied()).isFalse();
+        }
+
+        @Test
+        @DisplayName("スタッフが免除した伝票は、会計を取り消して開け直しても免除のまま")
+        void waiverSurvivesReopen() {
+            // ここが崩れると実害が出る。
+            // 常連さんに「深夜料金は結構です」と伝えて締めたあと、
+            // 人数の入力ミスに気づいて開け直しただけで割増が復活し、
+            // 伝えた金額より高い額を請求してしまう。
+            TableSession bill = openBill(2);
+            seatAt(bill, 23, 0);
+            addOrderAt(bill, 101, "締めの一品", 1500, 1, 23, 30);
+
+            bill.setLateNightWaived(true);
+            bill.close(AT, AFTER_23, "店長", "常連さんのためサービス");
+            assertThat(bill.getLateNightAmount()).isZero();
+            int closedTotal = bill.getTotalAmount();
+
+            // 会計を取り消して、ふつうに再計算する（TableService#reopenSession がやること）
+            bill.reopen();
+            bill.recalculate(AFTER_23);
+
+            assertThat(bill.getLateNightAmount()).isZero();
+            assertThat(bill.getTotalAmount()).isEqualTo(closedTotal);
+        }
+
+        @Test
+        @DisplayName("免除を解除すれば、通常どおり深夜料金がかかる")
+        void waiverCanBeCleared() {
+            // スタッフが会計画面でチェックを入れ直したときの経路。
+            TableSession bill = openBill(2);
+            seatAt(bill, 23, 0);
+            addOrderAt(bill, 101, "締めの一品", 1500, 1, 23, 30);
+
+            bill.setLateNightWaived(true);
+            bill.recalculate(AFTER_23);
+            assertThat(bill.getLateNightAmount()).isZero();
+
+            bill.setLateNightWaived(false);
+            bill.recalculate(AFTER_23);
+
+            // 対象 = 注文 ¥1,500 + チャージ ¥900（23:00 着席）= ¥2,400 → ¥240
+            assertThat(bill.getLateNightAmount()).isEqualTo(240);
+        }
+
+        @Test
+        @DisplayName("キャンセルした深夜の注文には割増がかからない")
+        void canceledLateNightOrderIsNotSurcharged() {
+            // 請求から消える注文に割増だけ残ると、伝票の内訳が合わなくなる。
+            TableSession bill = openBill(2);
+            seatAt(bill, 20, 0);
+            Order canceled = addOrderAt(bill, 101, "作り間違い", 2000, 1, 23, 30);
+            canceled.changeStatus(OrderStatus.CANCELED, "ホール");
+
+            bill.recalculate(AFTER_23);
+
+            assertThat(bill.getSubtotalAmount()).isZero();
+            assertThat(bill.getLateNightAmount()).isZero();
+            assertThat(bill.isLateNightApplied()).isFalse();
+        }
+
+        @Test
+        @DisplayName("スタッフが免除すると、深夜の注文があっても割増ゼロ")
+        void staffCanWaive() {
+            TableSession bill = openBill(2);
+            seatAt(bill, 23, 0);
+            addOrderAt(bill, 101, "締めの一品", 1500, 1, 23, 30);
+
+            bill.recalculate(LateNightPolicy.NONE);
+
+            assertThat(bill.getLateNightAmount()).isZero();
+            assertThat(bill.isLateNightApplied()).isFalse();
+        }
+
+        @Test
+        @DisplayName("同じ品を 1 回で頼んでも 2 回に分けても、深夜料金は変わらない")
+        void splittingOrdersDoesNotChangeTheSurcharge() {
+            // 対象額を合計してから 1 回だけ割増を計算している理由。
+            // 注文ごとに割増して足すと、切り捨てが注文の件数だけ効いて
+            // 「分けて頼んだほうが安い」という抜け道ができてしまう。
+            TableSession oneOrder = openBill(2);
+            seatAt(oneOrder, 20, 0);
+            addOrderAt(oneOrder, 101, "まとめて", 105, 2, 23, 30);   // ¥210
+
+            TableSession twoOrders = openBill(2);
+            seatAt(twoOrders, 20, 0);
+            addOrderAt(twoOrders, 101, "1 回目", 105, 1, 23, 30);    // ¥105
+            addOrderAt(twoOrders, 102, "2 回目", 105, 1, 23, 40);    // ¥105
+
+            oneOrder.recalculate(AFTER_23);
+            twoOrders.recalculate(AFTER_23);
+
+            // ¥210 × 10% = ¥21。注文ごとに切り捨てると 10 + 10 = ¥20 になってしまう
+            assertThat(oneOrder.getLateNightAmount()).isEqualTo(21);
+            assertThat(twoOrders.getLateNightAmount()).isEqualTo(21);
+        }
+
+        @Test
+        @DisplayName("会計画面の「付けた場合／付けなかった場合」も注文時刻の計算に従う")
+        void previewAmountsFollowTheSameRule() {
+            // ホール画面はこの 2 つを並べてスタッフに見せる。
+            // ここが伝票本体と別の式で計算されていると、表示と請求がずれる。
+            TableSession bill = openBill(4);
+            seatAt(bill, 20, 0);
+            addOrderAt(bill, 101, "通常料金の注文", 5000, 1, 22, 0);
+            addOrderAt(bill, 102, "深夜の注文", 3000, 1, 23, 30);
+
+            bill.recalculate(AFTER_23);
+
+            assertThat(bill.getTotalWithoutLateNight()).isEqualTo(9800);
+            assertThat(bill.getTotalWithLateNight()).isEqualTo(10_100);
+            assertThat(bill.getTotalWithLateNight()).isEqualTo(bill.getTotalAmount());
         }
     }
 }

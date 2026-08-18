@@ -212,9 +212,15 @@
                     th:text="'深夜料金を適用する（' + ${bill.lateNightSurchargePercent} + '%）'">
                 深夜料金を適用する（10%）</span>
             </label>
-            <p class="help" th:text="${shop.lateNightStartTime} + '〜' + ${shop.lateNightEndTime}
-                    + ' のあいだは自動でチェックが入ります。チェックを外すと深夜料金なしで締めます（上の内訳より安くなります）。'">
-              23:00〜05:00 のあいだは自動でチェックが入ります。</p>
+            <p class="help">
+              深夜料金は<strong>注文した時刻</strong>で決まります。
+              <span th:text="${shop.lateNightStartTime} + '〜' + ${shop.lateNightEndTime}">23:00〜05:00</span>
+              に出たご注文にだけかかるので、
+              <strong>同じ伝票でも、早い時間のご注文にはかかりません</strong>
+              （テーブルチャージは、その時間帯にご案内した卓のぶんだけ対象です）。<br>
+              対象のご注文があるときは自動でチェックが入ります。
+              <strong>チェックを外すと深夜料金なしで締めます</strong>（上の内訳より安くなります）。
+            </p>
           </div>
 
           <div class="field">
