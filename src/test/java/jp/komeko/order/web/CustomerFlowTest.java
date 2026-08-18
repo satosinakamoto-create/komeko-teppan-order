@@ -297,20 +297,24 @@ class CustomerFlowTest {
     }
 
     @Nested
-    @DisplayName("カートへの追加と CSRF 対策")
+    @DisplayName("注文リストへの追加と CSRF 対策")
     class CartPost {
 
         @Test
-        @DisplayName("CSRF トークン付きの POST /cart/add は /cart へリダイレクトされる")
+        @DisplayName("追加したらメニューへ戻す（続けて選べるように）")
         void addToCartRedirects() throws Exception {
             // 更新系の POST は処理後に必ずリダイレクトする（PRG パターン）。
             // そのまま HTML を返すと、ブラウザの再読み込みで二重に追加されてしまう。
+            //
+            // 戻し先はメニュー。飲食店では「いくつか見て回って、最後にまとめて注文する」ので、
+            // 1 品足すたびに注文リストへ連れて行くと、そのたびに戻る操作が要る。
+            // （2026-08-18 に /cart から /menu へ変更。体験を決める 1 行なのでテストで固定する）
             mockMvc.perform(post("/cart/add")
                             .with(csrf())
                             .param("menuItemId", String.valueOf(menuItemId))
                             .param("quantity", "2"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/cart"));
+                    .andExpect(redirectedUrl("/menu"));
         }
 
         @Test

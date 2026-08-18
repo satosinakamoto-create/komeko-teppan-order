@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{layout/customer :: layout('カート', ~{::main})}">
+      th:replace="~{layout/customer :: layout('ご注文リスト', ~{::main})}">
 <body>
 <main>
   <div class="container">
@@ -10,14 +10,23 @@
     <div th:replace="~{fragments/common :: flash}"></div>
 
     <div class="section-title">
-      <h1 class="section-title__text">ご注文内容</h1>
+      <h1 class="section-title__text">ご注文リスト</h1>
       <span class="section-title__count" th:text="${cart.totalQuantity} + ' 点'">3 点</span>
     </div>
 
-    <!--/* ===== カートが空 ===== */-->
+    <!--/*
+      この画面はまだ「頼む前」です。いちばん下のボタンを押して初めて厨房に届きます。
+      押し忘れたまま待たれるのがいちばん困るので、中身があるときは必ず書きます。
+    */-->
+    <p class="lead" th:unless="${cart.empty}">
+      内容をご確認のうえ、<strong>いちばん下の「この内容で注文する」</strong>を押してください。
+      押すまで厨房には届きません。
+    </p>
+
+    <!--/* ===== まだ何も選ばれていない ===== */-->
     <div th:if="${cart.empty}">
-      <div th:replace="~{fragments/common :: empty('空', 'カートに商品がありません')}"></div>
-      <a class="btn btn--primary btn--block" th:href="@{/}">メニューを見る</a>
+      <div th:replace="~{fragments/common :: empty('未', 'まだ何も選ばれていません')}"></div>
+      <a class="btn btn--primary btn--block" th:href="@{/menu}">メニューを見る</a>
     </div>
 
     <!--/* ===== 明細 ===== */-->
@@ -114,7 +123,7 @@
 
       <p class="center mt-6">
         <a class="small muted" href="#" onclick="document.getElementById('clear-cart').submit();return false;">
-          カートを空にする
+          すべて取り消す
         </a>
       </p>
       <form id="clear-cart" th:action="@{/cart/clear}" method="post" hidden></form>

@@ -69,7 +69,14 @@
     </section>
   </div>
 
-  <!--/* カートに何か入っていれば、画面下に固定バーを出す */-->
+  <!--/*
+    注文リストに何か入っていれば、画面下に固定バーを出す。
+    お客さまは「いくつか見て回って、最後にまとめて注文する」ので、
+    選んでいる最中もいまの点数と金額が常に見えているようにしておきます。
+
+    ボタンは「注文する」ではなく「見る」。ここを押しても注文は確定しません。
+    確定するのは注文リスト画面のいちばん下のボタンだけ、と経路を1つに絞っています。
+  */-->
   <div class="cart-bar" th:if="${cartCount > 0}">
     <div class="cart-bar__inner">
       <div class="cart-bar__summary">
@@ -77,7 +84,7 @@
         <div class="cart-bar__total"
              th:text="'¥' + ${#numbers.formatInteger(cartTotal, 1, 'COMMA')}">¥2,540</div>
       </div>
-      <a class="btn btn--primary btn--lg spacer" th:href="@{/cart}">カートを見る</a>
+      <a class="btn btn--primary btn--lg spacer" th:href="@{/cart}">注文リストを見る</a>
     </div>
   </div>
 

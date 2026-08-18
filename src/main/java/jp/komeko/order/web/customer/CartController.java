@@ -92,8 +92,19 @@ public class CartController {
 
         try {
             cartService.addToCart(cart, menuItemId, selected, quantity);
-            redirectAttributes.addFlashAttribute("flashSuccess", "カートに追加しました");
-            return "redirect:/cart";
+            // 追加したらメニューへ戻す。
+            //
+            // 以前はここで注文リストへ飛ばしていましたが、
+            // 飲食店では「いくつか見て回って、最後にまとめて注文する」のがふつうです。
+            // 1 品足すたびにリストへ連れて行かれると、そのたびに戻る操作が要ります。
+            // メニューに戻せば続けて選べますし、画面下の固定バーに
+            // 「注文リストを見る（N 点）」が出ているので、いつでも確認へ移れます。
+            //
+            // 「追加した」だけでは注文が入ったと勘違いされるので、
+            // まだ確定していないことを必ず書き添えます。
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    "注文リストに追加しました（まだ注文は確定していません）");
+            return "redirect:/menu";
         } catch (OrderRejectedException e) {
             redirectAttributes.addFlashAttribute("flashErrors", e.getReasons());
             return "redirect:/items/" + menuItemId;

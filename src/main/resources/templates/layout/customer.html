@@ -54,8 +54,10 @@
           <span class="badge badge--rec" style="margin-left:4px"
                 th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥0</span>
         </a>
+        <!--/* 「カート」は通販の言葉なので使いません。飲食店なら「注文リスト」。
+               ここに出ているのは、まだ厨房に送っていない“これから頼むもの”です。 */-->
         <a th:href="@{/cart}" th:if="${cartCount != null and cartCount > 0}">
-          カート
+          注文リスト
           <span class="badge badge--rec" style="margin-left:4px" th:text="${cartCount}">0</span>
         </a>
       </nav>
