@@ -116,6 +116,29 @@
 
       <p class="small muted mt-4 mb-0" th:if="${order.note != null}"
          th:text="'ご要望：' + ${order.note}">ご要望：ソース少なめ</p>
+
+      <!--/*
+        明細ごとの深夜料金スイッチ。
+        打ち直しの救済用です（22:55 の注文を 23:05 に取り消して 23:06 に入れ直すと、
+        注文時刻が新しくなるぶん 10% が乗ってしまう。店のミスなので外せるようにする）。
+
+        会計が済んだ伝票では出しません。締めたあとに金額が動くと証跡が壊れるためです。
+        深夜料金を取らない設定（割増率 0）のときも出しません。
+      */-->
+      <form th:if="${bill.open and bill.lateNightSurchargePercent > 0}"
+            th:action="@{/hall/bills/{id}/orders/{orderId}/late-night(id=${bill.id},orderId=${order.id})}"
+            method="post" class="mt-4">
+        <input type="hidden" name="exempt" th:value="${!order.lateNightExempt}">
+        <button type="submit" class="btn btn--ghost btn--sm"
+                th:text="${order.lateNightExempt}
+                         ? '深夜料金の対象に戻す'
+                         : 'この注文を深夜料金の対象外にする'">
+          この注文を深夜料金の対象外にする
+        </button>
+        <span class="tiny faint" th:if="${order.lateNightExempt}">
+          対象外にしています（打ち直しなど）
+        </span>
+      </form>
     </div>
 
   </article>

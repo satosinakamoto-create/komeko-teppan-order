@@ -96,6 +96,37 @@ public class Order {
     @Column(nullable = false)
     private int taxRatePercent;
 
+    /**
+     * この注文を深夜料金の対象から外すか（スタッフが明細ごとに切り替える）。
+     *
+     * <p><b>なぜ注文ごとに必要なのか — 打ち直し事故</b><br>
+     * 深夜料金は注文時刻（{@link #createdAt}）で決まります。これは正しいのですが、
+     * <b>注文をやり直すと時刻も新しくなる</b>という副作用があります。
+     *
+     * <pre>
+     *   22:55  お客さまが注文        → 通常料金のはず
+     *   23:05  スタッフが誤って取り消し
+     *   23:06  お客さまが入れ直す    → 注文時刻が 23:06 になり 10% が乗る
+     * </pre>
+     *
+     * <p>お客さまは同じ品を同じ時間に頼んだつもりなのに、
+     * <b>店側のミスのせいで 10% 高くなります</b>。
+     * 説明のしようがなく、その場で揉めます。
+     *
+     * <p>そこでスタッフが会計画面で明細ごとにチェックを外し、
+     * 「この注文は深夜料金の対象にしない」と指定できるようにしています。
+     * チェックを戻せば、また対象に戻ります（何度でも切り替えられます）。
+     *
+     * <p><b>注文時刻そのものを書き換えないのはなぜか</b><br>
+     * {@link #createdAt} は「いつ厨房に入ったか」の記録でもあり、
+     * 提供時間の集計にも使われます。ここを人が書き換えられるようにすると、
+     * <b>会計の証跡が信用できなくなります</b>。
+     * 事実（何時に入った注文か）はそのまま残し、
+     * 判断（割増を取るか）だけを別の項目として持つ、という分け方です。
+     */
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean lateNightExempt;
+
     /** 受付時に算出した調理時間の見込み（分）。 */
     @Column(nullable = false)
     private int estimatedCookMinutes;
@@ -314,6 +345,21 @@ public class Order {
 
     public List<OrderLine> getLines() {
         return lines;
+    }
+
+    public boolean isLateNightExempt() {
+        return lateNightExempt;
+    }
+
+    /**
+     * この注文を深夜料金の対象から外す／戻す。
+     *
+     * <p>切り替えたあとは、必ず伝票を計算し直してください
+     * （{@code TableService#setOrderLateNightExempt} が両方まとめてやります）。
+     */
+    public void setLateNightExempt(boolean lateNightExempt) {
+        this.lateNightExempt = lateNightExempt;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public LocalDateTime getCreatedAt() {

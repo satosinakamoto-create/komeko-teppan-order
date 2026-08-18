@@ -220,8 +220,10 @@ public class TableSession {
                 continue;
             }
             subtotal += order.getTotalAmount();
-            // ここが要。伝票の時刻でも「いま」でもなく、その注文が出された時刻で判定する
-            if (effective.appliesAt(order.getCreatedAt())) {
+            // ここが要。伝票の時刻でも「いま」でもなく、その注文が出された時刻で判定する。
+            // ただしスタッフが「この注文は対象外」と指定したものは飛ばす
+            // （打ち直しで時刻が新しくなった注文を救うため。Order#lateNightExempt 参照）
+            if (!order.isLateNightExempt() && effective.appliesAt(order.getCreatedAt())) {
                 lateNightBase += order.getTotalAmount();
             }
         }

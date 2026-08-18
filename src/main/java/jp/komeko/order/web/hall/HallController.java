@@ -6,6 +6,7 @@ import jp.komeko.order.domain.SessionStatus;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.security.StaffUserDetails;
+import jp.komeko.order.service.OrderService;
 import jp.komeko.order.service.ShopSettingService;
 import jp.komeko.order.service.TableService;
 import org.slf4j.Logger;
@@ -84,17 +85,21 @@ public class HallController {
 
     private final TableService tableService;
     private final ShopSettingService shopSettingService;
+    private final OrderService orderService;
 
     /**
      * コンストラクタインジェクション。
      *
-     * <p>Spring が「このクラスを作るにはこの 2 つが要る」と判断して自動で渡してくれます。
+     * <p>Spring が「このクラスを作るにはこれらが要る」と判断して自動で渡してくれます。
      * フィールドに {@code @Autowired} を付ける書き方より、
      * final にできてテストもしやすいので、こちらが推奨です。
      */
-    public HallController(TableService tableService, ShopSettingService shopSettingService) {
+    public HallController(TableService tableService,
+                          ShopSettingService shopSettingService,
+                          OrderService orderService) {
         this.tableService = tableService;
         this.shopSettingService = shopSettingService;
+        this.orderService = orderService;
     }
 
     // ========================================================================
@@ -249,6 +254,34 @@ public class HallController {
         } catch (TableService.SessionNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/hall";
+        }
+        return "redirect:/hall/bills/" + id;
+    }
+
+    /**
+     * 明細ごとの「深夜料金の対象にする／しない」を切り替える。
+     *
+     * <p>打ち直しの救済用です。詳しくは
+     * {@code OrderService#setLateNightExempt} と {@code Order#lateNightExempt} を読んでください。
+     *
+     * <p>チェックボックスを押した瞬間に送信されるので、
+     * {@code exempt} には切り替え<b>後</b>の状態が入ります。
+     * チェックが外れた状態で送信されるとパラメータ自体が来ないため、
+     * {@code defaultValue} で false を受け取ります（会計の締めと同じ理由）。
+     */
+    @PostMapping("/bills/{id}/orders/{orderId}/late-night")
+    public String toggleOrderLateNight(@PathVariable Long id,
+                                       @PathVariable Long orderId,
+                                       @RequestParam(defaultValue = "false") boolean exempt,
+                                       @AuthenticationPrincipal StaffUserDetails user,
+                                       RedirectAttributes redirectAttributes) {
+        try {
+            orderService.setLateNightExempt(orderId, exempt, staffNameOf(user));
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    exempt ? "この注文を深夜料金の対象外にしました"
+                           : "この注文を深夜料金の対象に戻しました");
+        } catch (RuntimeException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
         }
         return "redirect:/hall/bills/" + id;
     }

@@ -315,6 +315,38 @@ public class OrderService {
         return order;
     }
 
+    /**
+     * この注文を深夜料金の対象から外す／戻す（スタッフ操作）。
+     *
+     * <p>いちばんの用途は<b>打ち直しの救済</b>です。
+     * 22:55 に受けた注文を 23:05 に誤って取り消し、23:06 に入れ直すと、
+     * 注文時刻が新しくなるぶん 10% が乗ってしまいます。
+     * お客さまから見れば同じ品を同じ時間に頼んだだけなので、これは説明がつきません。
+     * その場合はスタッフがここで対象から外します。戻すこともできます。
+     *
+     * <p><b>注文時刻そのものは書き換えません。</b>
+     * 「いつ厨房に入ったか」は提供時間の集計にも使う事実の記録です。
+     * 事実は残したまま、判断（割増を取るか）だけを別の項目として持たせています。
+     *
+     * @param exempt true で対象外にする。false で通常どおり注文時刻で判定する
+     */
+    @Transactional
+    public Order setLateNightExempt(Long orderId, boolean exempt, String staffName) {
+        Order order = orderRepository.findWithLinesById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+        if (order.isLateNightExempt() == exempt) {
+            return order;   // 変化なし。伝票の再計算もログも要らない
+        }
+        order.setLateNightExempt(exempt);
+        hydrate(order);
+        // 計算し直さないと画面の合計が変わらない
+        refreshSessionOf(order);
+
+        log.info("注文 #{} の深夜料金を{}にしました（操作者={}）",
+                order.getOrderNumber(), exempt ? "対象外" : "対象", staffName);
+        return order;
+    }
+
     /** 店側からのキャンセル（材料切れなど）。 */
     @Transactional
     public Order cancelByStaff(Long orderId, String reason, String staffName) {

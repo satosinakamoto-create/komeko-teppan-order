@@ -613,6 +613,63 @@ class TableSessionTest {
         }
 
         @Test
+        @DisplayName("打ち直し救済：対象外にした注文には、深夜帯でも割増がかからない")
+        void exemptOrderIsNotSurcharged() {
+            // 22:55 に受けた注文を 23:05 に誤って取り消し、23:06 に入れ直した状況。
+            // 入れ直した注文は時刻が新しいので、そのままだと 10% が乗る。
+            // お客さまから見れば同じ品を同じ時間に頼んだだけなので説明がつかない。
+            TableSession bill = openBill(2);
+            seatAt(bill, 20, 0);
+            Order reentered = addOrderAt(bill, 102, "打ち直した注文", 2000, 1, 23, 6);
+            addOrderAt(bill, 103, "本当に深夜の注文", 1000, 1, 23, 30);
+
+            bill.recalculate(AFTER_23);
+            assertThat(bill.getLateNightAmount()).isEqualTo(300);   // 3,000 の 10%
+
+            reentered.setLateNightExempt(true);
+            bill.recalculate(AFTER_23);
+
+            // 対象は本当に深夜の ¥1,000 だけになる
+            assertThat(bill.getLateNightAmount()).isEqualTo(100);
+            // 小計は変わらない（請求から消えるわけではない）
+            assertThat(bill.getSubtotalAmount()).isEqualTo(3000);
+        }
+
+        @Test
+        @DisplayName("対象外を解除すれば、また深夜料金がかかる（何度でも切り替えられる）")
+        void exemptionCanBeToggledBack() {
+            // 押し間違えても戻せること。片道だと現場で困る。
+            TableSession bill = openBill(2);
+            seatAt(bill, 20, 0);
+            Order order = addOrderAt(bill, 101, "締めの一品", 1000, 1, 23, 30);
+
+            order.setLateNightExempt(true);
+            bill.recalculate(AFTER_23);
+            assertThat(bill.getLateNightAmount()).isZero();
+
+            order.setLateNightExempt(false);
+            bill.recalculate(AFTER_23);
+
+            assertThat(bill.getLateNightAmount()).isEqualTo(100);
+        }
+
+        @Test
+        @DisplayName("対象外にしても、深夜帯でない注文の扱いは変わらない")
+        void exemptionDoesNotAffectNormalOrders() {
+            // 「対象外にする」は割増を外すだけ。もともと対象でない注文には何の影響もない。
+            TableSession bill = openBill(2);
+            seatAt(bill, 20, 0);
+            Order daytime = addOrderAt(bill, 101, "夕方の注文", 5000, 1, 20, 30);
+
+            daytime.setLateNightExempt(true);
+            bill.recalculate(AFTER_23);
+
+            assertThat(bill.getSubtotalAmount()).isEqualTo(5000);
+            assertThat(bill.getLateNightAmount()).isZero();
+            assertThat(bill.getTotalAmount()).isEqualTo(5000 + 900);
+        }
+
+        @Test
         @DisplayName("免除を解除すれば、通常どおり深夜料金がかかる")
         void waiverCanBeCleared() {
             // スタッフが会計画面でチェックを入れ直したときの経路。
