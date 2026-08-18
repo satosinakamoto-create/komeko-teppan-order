@@ -60,6 +60,21 @@
           注文リスト
           <span class="badge badge--rec" style="margin-left:4px" th:text="${cartCount}">0</span>
         </a>
+
+        <!--/*
+          未確定のお知らせ。
+          「追加した＝注文した」と思われたまま待たれるのが、実店舗でいちばん困ります。
+          注文リストに品が入っているあいだ、押すべき場所（右上の注文リスト）を
+          指し続ける吹き出しを出します。
+
+          注文リストの画面自体では出しません。そこには
+          「いちばん下のボタンを押してください」がすでに書いてあり、
+          同じことを二重に言うと、かえって読み飛ばされます。
+        */-->
+        <div class="pending-note" role="status"
+             th:if="${cartCount != null and cartCount > 0 and !#strings.contains(currentPath ?: '', '/cart')}">
+          まだ注文は確定していません
+        </div>
       </nav>
     </div>
   </header>

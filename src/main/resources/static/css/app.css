@@ -1621,3 +1621,112 @@ body.theme-snow { background-image: none; }
 /* 指で払ったときに文字を選択してしまわないように（誤操作が地味に多い） */
 .pager { -webkit-user-select: none; user-select: none; }
 .pager a, .pager p { -webkit-user-select: text; user-select: text; }
+
+/* ==========================================================================
+   25. ヘッダーの作り直し（2026-08-19）
+   --------------------------------------------------------------------------
+   実機で「米粉と鉄板」が3行に折り返し、ヘッダーが背高くなっていた。
+   ヘッダーは position: sticky で上に居座るので、背が高くなると
+   その下に貼り付くはずのタブを覆い隠してしまう
+   （タブが消えたように見えたのは、これが原因）。
+
+   直し方は「折り返させない」こと。
+   店名と卓名は1行に固定し、入りきらないぶんは … で省く。
+   ========================================================================== */
+
+.app-header__inner {
+  /* 縦位置を揃えたまま、名前の側だけが縮むようにする */
+  flex-wrap: nowrap;
+}
+
+/* 店名と卓名をまとめている箱。
+   min-width: 0 を書かないと、flex の子は「中身より小さくならない」ため
+   いくら nowrap にしても隣を押しのけて溢れる。ここが要点。 */
+.app-header__inner > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-header__title {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header__sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 右側の「お席の伝票 / 注文リスト」は縮ませない。金額と点数は常に読めること */
+.app-header__nav {
+  flex: 0 0 auto;
+  position: relative;   /* 未確定の吹き出しを、この中に絶対配置するため */
+}
+
+/* 画面が狭いときは、文字と余白を詰めて1行に収める */
+@media (max-width: 480px) {
+  .app-header__title { font-size: .9375rem; letter-spacing: .06em; }
+  .app-header__sub   { font-size: .6875rem; letter-spacing: .04em; }
+  .app-header__nav a { padding: 6px 7px; font-size: .8125rem; gap: 2px; }
+  .brand-logo        { width: 32px; height: 32px; }
+}
+
+/* --------------------------------------------------------------------------
+   未確定のお知らせ（注文リストの真下に出る赤い吹き出し）
+   「追加した＝注文した」と思われるのが、実店舗でいちばん困る誤解。
+   注文リストに何か入っているあいだ、押すべき場所を指して出し続ける。
+   -------------------------------------------------------------------------- */
+.pending-note {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  max-width: min(78vw, 320px);
+  padding: 7px 11px;
+  border-radius: var(--r-md);
+  background: var(--danger);
+  color: #fff;
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1.55;
+  letter-spacing: .02em;
+  white-space: normal;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+  pointer-events: none;   /* 吹き出しが下のリンクを塞がないように */
+}
+
+/* 吹き出しの三角。注文リストのあたりを指す */
+.pending-note::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 26px;
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   ヘッダーの高さを確定させ、タブをその真下に固定する（2026-08-19）
+
+   当初は JavaScript でヘッダーの高さを測って CSS 変数に入れていましたが、
+   測るタイミング（フォント読み込みの前後など）で 1px ずれ、
+   タブとの間に細い隙間ができてスクロール中に下の文字がチラつきました。
+
+   測るのをやめ、高さそのものを決め打ちにします。
+   店名・卓名は 25章 で1行に固定してあるので、中身が高さを押し広げません。
+   「測って合わせる」より「動かないようにする」ほうが確実です。
+   -------------------------------------------------------------------------- */
+.app-header__inner {
+  height: var(--header-h);
+}
+
+.tabs {
+  /* +1px はヘッダーの下罫線のぶん。これが無いと罫線1本ぶん隙間になる */
+  top: calc(var(--header-h) + 1px);
+}

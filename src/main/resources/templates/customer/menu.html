@@ -102,23 +102,12 @@
   </div>
 
   <!--/*
-    注文リストに何か入っていれば、画面下に固定バーを出す。
-    お客さまは「いくつか見て回って、最後にまとめて注文する」ので、
-    選んでいる最中もいまの点数と金額が常に見えているようにしておきます。
-
-    ボタンは「注文する」ではなく「見る」。ここを押しても注文は確定しません。
-    確定するのは注文リスト画面のいちばん下のボタンだけ、と経路を1つに絞っています。
+    画面下の固定バー（点数・金額・注文リストを見る）は置きません。
+    同じことが右上の「注文リスト ②」で分かるうえ、
+    下に固定するとメニューが1品ぶん隠れ、
+    スマホでは「戻る」の指の通り道とも重なります。
+    入口は右上の1つに絞り、そこに未確定の吹き出しを出しています。
   */-->
-  <div class="cart-bar" th:if="${cartCount > 0}">
-    <div class="cart-bar__inner">
-      <div class="cart-bar__summary">
-        <div class="cart-bar__count" th:text="${cartCount} + ' 点'">3 点</div>
-        <div class="cart-bar__total"
-             th:text="'¥' + ${#numbers.formatInteger(cartTotal, 1, 'COMMA')}">¥2,540</div>
-      </div>
-      <a class="btn btn--primary btn--lg spacer" th:href="@{/cart}">注文リストを見る</a>
-    </div>
-  </div>
 
   <!--/*
     タブと面（パネル）の同期。
@@ -139,6 +128,12 @@
       var tabs = Array.prototype.slice.call(tabBar.querySelectorAll('.tab'));
       var panels = Array.prototype.slice.call(pager.querySelectorAll('.pager__panel'));
       if (tabs.length === 0) return;
+
+      // タブが貼り付く位置（ヘッダーの高さ）は CSS 側で確定させています。
+      // 一度は JS で実測して合わせていましたが、測るタイミングによって
+      // 1px ずれ、タブとの隙間から下の文字がチラつきました。
+      // 店名・卓名を1行に固定してヘッダーの高さを動かさないようにしたので、
+      // 測る必要そのものが無くなっています（app.css の 25章）。
 
       var current = -1;
 
