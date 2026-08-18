@@ -33,3 +33,6 @@ Thumbs.db
 
 # ローカル環境変数
 .env
+
+# Tomcat のアクセスログ（開発時の切り分け用。実行のたびに増える）
+data/tomcat/

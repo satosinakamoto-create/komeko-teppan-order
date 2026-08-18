@@ -35,6 +35,19 @@ spring:
       enabled: true
       path: /h2-console
 
+# ── アクセスログ（開発用） ──────────────────────────────────────
+# 「スマホから開けない」の切り分けで一番効くのがこれ。
+# ここに行が出る＝リクエストはサーバまで届いている（アプリ側の問題）、
+# 出ない＝途中で消えている（Wi-Fi・ファイアウォール・スマホ側の問題）と
+# 一発で二分できる。data/logs/access_log.*.log に記録される。
+server:
+  tomcat:
+    basedir: ./data/tomcat
+    accesslog:
+      enabled: true
+      directory: logs
+      pattern: "%h %t \"%r\" %s %b"
+
   thymeleaf:
     # false にすると HTML を保存しただけで画面に反映される（再起動不要）
     cache: false
