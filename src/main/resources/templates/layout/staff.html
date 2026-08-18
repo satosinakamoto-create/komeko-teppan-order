@@ -1,7 +1,23 @@
 <!DOCTYPE html>
 <!--/*
-   店側（厨房・管理）画面の共通レイアウト。
-   お客さん向けと違い、横幅を広く取り、ナビゲーションを常に出します。
+  ============================================================================
+   店側（厨房・ホール・管理）画面の共通レイアウト — サイドバー方式
+  ============================================================================
+   2026-08-18 に横タブ方式から作り替えた。
+   トンマナは SnowUI（Figma Community の Dashboard UI Kit）を参考にしている：
+   白基調・黒の透過階調・角丸大きめ・Phosphor duotone アイコン。
+   スタイルの実体は app.css の「.theme-staff」ブロック。
+
+   ── ナビの分類（大カテゴリ＝権限の境界に一致させている） ──
+     営業中につかう   … STAFF でも見える（厨房・ホール・品切れ）
+     それ以外の 4 群  … ADMIN のみ（sec:authorize で丸ごと隠す）
+     ログアウト       … カテゴリではなくアカウント操作なので左下に固定
+
+   ── 現在地の判定 ──
+   どの項目を光らせるかは URL（${currentPath}）から判定する。
+   コントローラごとに目印を渡す方式だと、画面を増やすたびに
+   「目印の渡し忘れ」が起きるため、URL という嘘をつけない情報源に寄せた。
+   （currentPath は GlobalModelAttributes が全画面に自動で渡している）
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
@@ -9,37 +25,128 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#14110f">
+  <meta name="theme-color" content="#ffffff">
   <meta name="robots" content="noindex">
   <title th:text="${pageTitle} + ' | ' + ${shop.shopName} + ' 店舗管理'">店舗管理</title>
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
-<body>
-<div class="page">
+<body class="theme-staff">
+<div class="staff-shell" th:with="p=${currentPath} ?: ''">
 
-  <header class="app-header">
-    <div class="container container--wide app-header__inner">
-      <div>
-        <a class="app-header__title" th:href="@{/kitchen}" th:text="${shop.shopName}">米粉と鉄板</a>
-        <p class="app-header__sub">店舗管理</p>
-      </div>
-      <nav class="app-header__nav">
-        <a th:href="@{/kitchen}" th:classappend="${activeNav == 'kitchen'} ? 'is-active'">厨房</a>
-        <a th:href="@{/hall}" th:classappend="${activeNav == 'hall'} ? 'is-active'">ホール・会計</a>
-        <a th:href="@{/kitchen/stock}" th:classappend="${activeNav == 'stock'} ? 'is-active'">品切れ</a>
-        <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin}"
-           th:classappend="${activeNav != null and #strings.startsWith(activeNav, 'admin')} ? 'is-active'">管理</a>
-        <form th:action="@{/logout}" method="post" style="display:inline">
-          <button type="submit" class="btn btn--ghost btn--sm">ログアウト</button>
-        </form>
-      </nav>
-    </div>
-  </header>
+  <!--/* ============ サイドバー ============ */-->
+  <aside class="sb">
 
-  <div class="page__body">
-    <div class="container container--wide">
-      <div th:replace="${content}">ページ本文</div>
+    <div class="sb__brand">
+      <span class="sb__brand-mark" aria-hidden="true">米</span>
+      <span class="sb__brand-text">
+        <span class="sb__brand-name" th:text="${shop.shopName}">米粉と鉄板</span>
+        <span class="sb__brand-sub">店舗管理</span>
+      </span>
     </div>
+
+    <!--/* ダッシュボード（ADMIN のみ・大カテゴリの外） */-->
+    <nav class="sb__nav" aria-label="店舗管理メニュー">
+
+      <a sec:authorize="hasRole('ADMIN')" class="sb__item" th:href="@{/admin}"
+         th:classappend="${p == '/admin'} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_chart_pie_slice}"/><span>ダッシュボード</span>
+      </a>
+
+      <!--/* ── 営業中につかう（STAFF も見える唯一のグループ） ── */-->
+      <p class="sb__label">営業中につかう</p>
+      <a class="sb__item" th:href="@{/kitchen}"
+         th:classappend="${#strings.startsWith(p, '/kitchen') and !#strings.startsWith(p, '/kitchen/stock')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_cooking_pot}"/><span>厨房ボード</span>
+      </a>
+      <a class="sb__item" th:href="@{/hall}"
+         th:classappend="${#strings.startsWith(p, '/hall')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_receipt}"/><span>ホール・会計</span>
+      </a>
+      <a class="sb__item" th:href="@{/kitchen/stock}"
+         th:classappend="${#strings.startsWith(p, '/kitchen/stock')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_package}"/><span>品切れ・残数</span>
+      </a>
+
+      <!--/* ── ここから下は店長（ADMIN）のみ ── */-->
+      <th:block sec:authorize="hasRole('ADMIN')">
+
+        <p class="sb__label">メニュー管理</p>
+        <a class="sb__item" th:href="@{/admin/items}"
+           th:classappend="${#strings.startsWith(p, '/admin/items') or #strings.startsWith(p, '/admin/options') or #strings.startsWith(p, '/admin/choices')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_fork_knife}"/><span>商品</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/categories}"
+           th:classappend="${#strings.startsWith(p, '/admin/categories')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_squares_four}"/><span>カテゴリ</span>
+        </a>
+
+        <p class="sb__label">店舗</p>
+        <a class="sb__item" th:href="@{/admin/tables}"
+           th:classappend="${#strings.startsWith(p, '/admin/tables')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_armchair}"/><span>卓</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/qr}"
+           th:classappend="${#strings.startsWith(p, '/admin/qr')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_qr_code}"/><span>QRコード</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/settings}"
+           th:classappend="${#strings.startsWith(p, '/admin/settings')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_gear_six}"/><span>店舗設定</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/staff}"
+           th:classappend="${#strings.startsWith(p, '/admin/staff')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_users_three}"/><span>スタッフ</span>
+        </a>
+
+        <p class="sb__label">記録・分析</p>
+        <a class="sb__item" th:href="@{/admin/sales}"
+           th:classappend="${#strings.startsWith(p, '/admin/sales')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_chart_line_up}"/><span>売上</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/orders}"
+           th:classappend="${#strings.startsWith(p, '/admin/orders')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_clock_counter_clockwise}"/><span>注文履歴</span>
+        </a>
+
+        <p class="sb__label">システム</p>
+        <a class="sb__item" th:href="@{/admin/backups}"
+           th:classappend="${#strings.startsWith(p, '/admin/backups')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_database}"/><span>バックアップ</span>
+        </a>
+
+      </th:block>
+    </nav>
+
+    <!--/* ============ アカウント欄（左下固定・カテゴリの外） ============
+          ログイン中のユーザー表示。テストでは @WithMockUser（displayName を
+          持たない素の User）が入るため、instanceof で型を確かめてから
+          displayName を読む。確かめずに読むとテストと本番で挙動が割れる。 */-->
+    <div class="sb__account"
+         th:with="pr=${#authentication != null} ? ${#authentication.principal} : null">
+      <span class="sb__avatar" aria-hidden="true"
+            th:text="${pr instanceof T(jp.komeko.order.security.StaffUserDetails)} ? ${#strings.substring(pr.displayName, 0, 1)} : '店'">店</span>
+      <span class="sb__account-text">
+        <span class="sb__account-name"
+              th:text="${pr instanceof T(jp.komeko.order.security.StaffUserDetails)} ? ${pr.displayName} : (${#authentication != null} ? ${#authentication.name} : '')">店長</span>
+        <span class="sb__account-role">
+          <th:block sec:authorize="hasRole('ADMIN')">管理者</th:block>
+          <th:block sec:authorize="!hasRole('ADMIN')">スタッフ</th:block>
+        </span>
+      </span>
+      <form th:action="@{/logout}" method="post" class="sb__logout-form">
+        <button type="submit" class="sb__logout" title="ログアウト">
+          <th:block th:replace="~{fragments/icons :: ic_sign_out}"/><span class="visually-hidden">ログアウト</span>
+        </button>
+      </form>
+    </div>
+
+  </aside>
+
+  <!--/* ============ コンテンツ ============
+        各ページの <main> がこの div の中に差し込まれる。
+        外側を <main> にすると main が二重になる（HTML として不正）ので div。 */-->
+  <div class="staff-main">
+    <div th:replace="${content}">ページ本文</div>
   </div>
 
 </div>

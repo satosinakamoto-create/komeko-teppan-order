@@ -1,27 +1,18 @@
 <!DOCTYPE html>
 <!--/*
-   管理画面の中で使うサブナビゲーション。
-   使う側:  <div th:replace="~{fragments/admin-nav :: nav('items')}"></div>
-   引数には現在のページのキーを渡し、そこだけ強調表示します。
+   【2026-08-18 サイドバー化にともない役目を終えた部品】
+
+   かつてはここに管理画面の横タブが並んでいたが、
+   ナビゲーションは layout/staff.html のサイドバーに一本化された。
+   現在地の判定も activeNav の手渡しではなく URL（currentPath）から行う。
+
+   このファイルを空のまま残しているのは、各ページに
+     <div th:replace="~{fragments/admin-nav :: nav('items')}"></div>
+   という呼び出しが残っているため。ファイルごと消すと全ページが
+   テンプレートエラーで落ちる。呼び出し側を全部掃除したら削除してよい。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org">
 <body>
-
-<nav th:fragment="nav(current)" class="tabs" style="position:static;background:transparent;border-bottom:0"
-     aria-label="管理メニュー">
-  <a class="tab" th:href="@{/admin}"           th:classappend="${current == 'home'}     ? 'is-active'">ダッシュボード</a>
-  <a class="tab" th:href="@{/admin/items}"     th:classappend="${current == 'items'}    ? 'is-active'">商品</a>
-  <a class="tab" th:href="@{/admin/categories}" th:classappend="${current == 'categories'} ? 'is-active'">カテゴリ</a>
-  <!--/* 卓（テーブル）の登録。ここで作った卓の数だけ QR ができるので、
-         「QRコード」タブのすぐ近くに置いています。 */-->
-  <a class="tab" th:href="@{/admin/tables}"    th:classappend="${current == 'tables'}   ? 'is-active'">卓</a>
-  <a class="tab" th:href="@{/admin/orders}"    th:classappend="${current == 'orders'}   ? 'is-active'">注文履歴</a>
-  <a class="tab" th:href="@{/admin/sales}"     th:classappend="${current == 'sales'}    ? 'is-active'">売上</a>
-  <a class="tab" th:href="@{/admin/qr}"        th:classappend="${current == 'qr'}       ? 'is-active'">QRコード</a>
-  <a class="tab" th:href="@{/admin/settings}"  th:classappend="${current == 'settings'} ? 'is-active'">店舗設定</a>
-  <a class="tab" th:href="@{/admin/staff}"     th:classappend="${current == 'staff'}    ? 'is-active'">スタッフ</a>
-  <a class="tab" th:href="@{/admin/backups}"   th:classappend="${current == 'backups'}  ? 'is-active'">バックアップ</a>
-</nav>
-
+<th:block th:fragment="nav(current)"><!--/* 何も描画しない */--></th:block>
 </body>
 </html>

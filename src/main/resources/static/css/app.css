@@ -1236,3 +1236,225 @@ hr {
   text-align: center;
   letter-spacing: .06em;
 }
+
+/* ==========================================================================
+   21. スタッフ側テーマ「.theme-staff」— SnowUI トンマナ（2026-08-18）
+   --------------------------------------------------------------------------
+   店側（厨房・ホール・管理）の画面だけに適用する配色・質感の上書き。
+   参考: Figma Community「Dashboard UI Kit (SnowUI)」
+     ・白基調、色はほぼ「黒の透過階調」だけで組む（100/40/20/10/4%）
+     ・カードは枠線なし・薄いグレー面 #F7F9FB・角丸大きめ
+     ・数値カードだけパステル 2 色（#E3F5FF / #EDEEFC）で差す
+     ・アイコンは Phosphor duotone（fragments/icons.html）
+
+   仕組み: body に .theme-staff が付くと、ここで CSS 変数を上書きする。
+   既存の部品（.card .btn .table .stat …）は全部トークン経由で
+   色を参照しているので、変数の差し替えだけで全画面が転調する。
+   お客さん側（layout/customer）は和モダンのまま一切変わらない。
+   ========================================================================== */
+.theme-staff {
+  --bg:            #ffffff;
+  --bg-elevated:   #ffffff;
+  --surface:       #f7f9fb;
+  --surface-2:     #eef1f4;
+  --text:          #1c1c1c;
+  --text-muted:    rgba(28, 28, 28, .55);
+  --text-faint:    rgba(28, 28, 28, .38);
+  --border:        rgba(28, 28, 28, .10);
+  --border-strong: rgba(28, 28, 28, .20);
+
+  /* SnowUI の主役は「黒」。押せるものは黒、が基本文法 */
+  --accent:        #1c1c1c;
+  --accent-hover:  #000000;
+  --accent-soft:   rgba(28, 28, 28, .05);
+  --on-accent:     #ffffff;
+
+  --ok:            #3f8e6d;
+  --ok-soft:       #def8ee;
+  --danger:        #d33f3f;
+  --danger-soft:   #fdebeb;
+  --info:          #4e5ba6;
+  --info-soft:     #edeefc;
+
+  --shadow-sm: none;
+  --shadow-md: 0 1px 2px rgba(28, 28, 28, .04);
+  --shadow-lg: 0 8px 24px rgba(28, 28, 28, .08);
+
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 20px;
+
+  /* 明朝はブランド専用に格下げし、見出しもゴシックで組む */
+  --font-serif: var(--font-sans);
+
+  color: var(--text);
+  background-color: var(--bg);
+}
+
+/* 紙のノイズテクスチャは和モダン専用。SnowUI はフラットな白 */
+body.theme-staff { background-image: none; }
+
+/* 見出しの「和」の演出（字間・右へ抜ける罫線）を落としてミニマルに */
+.theme-staff .section-title__text { letter-spacing: 0; }
+.theme-staff .section-title::after { display: none; }
+
+/* カード: 枠線を消して面の色だけで区切る（SnowUI 流） */
+.theme-staff .card,
+.theme-staff .stat,
+.theme-staff .lane,
+.theme-staff .print-sheet {
+  border-color: transparent;
+  box-shadow: none;
+}
+.theme-staff .card__head { border-bottom-color: rgba(28, 28, 28, .06); }
+.theme-staff .card__foot { border-top-color: rgba(28, 28, 28, .06); background: rgba(28, 28, 28, .02); }
+
+/* 数値カード: 最初の 2 枚だけパステルで差す（キットの Overview と同じ手つき） */
+.theme-staff .grid .stat:nth-child(1) { background: #e3f5ff; }
+.theme-staff .grid .stat:nth-child(2) { background: #edeefc; }
+
+/* 入力欄: 枠線を薄く、面をわずかに沈める */
+.theme-staff .input,
+.theme-staff .select,
+.theme-staff .textarea {
+  background: #ffffff;
+  border-color: rgba(28, 28, 28, .14);
+}
+
+/* テーブルの見出し行はほぼ気配だけ */
+.theme-staff .table th { background: rgba(28, 28, 28, .03); }
+
+/* --------------------------------------------------------------------------
+   サイドバーシェル（layout/staff.html 専用）
+   -------------------------------------------------------------------------- */
+.staff-shell {
+  display: flex;
+  min-height: 100dvh;
+}
+
+.sb {
+  flex: 0 0 232px;
+  width: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--border);
+  background: #ffffff;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+}
+
+.sb__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+.sb__brand-mark {
+  width: 28px; height: 28px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  /* ブランドの一文字だけは明朝を残す（店の顔） */
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 15px;
+}
+.sb__brand-text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.sb__brand-name { font-weight: 700; font-size: 14px; white-space: nowrap; }
+.sb__brand-sub  { font-size: 11px; color: var(--text-faint); }
+
+.sb__nav { display: flex; flex-direction: column; gap: 2px; }
+
+.sb__label {
+  margin: 14px 0 2px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.sb__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--text);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.sb__item:hover { background: rgba(28, 28, 28, .04); color: var(--text); }
+.sb__item.is-active { background: rgba(28, 28, 28, .05); font-weight: 700; }
+/* アクティブ項目の左に付く短い黒バー（SnowUI の目印） */
+.sb__item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 4px; height: 16px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.sb .ic { width: 20px; height: 20px; flex: none; }
+.sb__item .ic { opacity: .85; }
+
+/* アカウント欄（左下固定） */
+.sb__account {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px 4px;
+  border-top: 1px solid var(--border);
+}
+.sb__avatar {
+  width: 28px; height: 28px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+.sb__account-text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; flex: 1; }
+.sb__account-name { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb__account-role { font-size: 11px; color: var(--text-faint); }
+.sb__logout-form { flex: none; }
+.sb__logout {
+  display: grid; place-items: center;
+  width: 36px; height: 36px;
+  border: 0; border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.sb__logout:hover { background: rgba(28, 28, 28, .05); color: var(--text); }
+
+/* コンテンツ側 */
+.staff-main {
+  flex: 1;
+  min-width: 0;
+  padding: 20px 28px 48px;
+}
+
+/* --------------------------------------------------------------------------
+   タブレット（厨房・ホール）: サイドバーをアイコンだけの細い帯に畳む。
+   現場は画面が狭く、濡れた手で押すので、文字より面積を優先する。
+   -------------------------------------------------------------------------- */
+@media (max-width: 960px) {
+  .sb { flex-basis: 64px; width: 64px; padding: 12px 8px; }
+  .sb__brand { justify-content: center; padding: 4px; }
+  .sb__brand-text, .sb__label, .sb__item span,
+  .sb__account-text { display: none; }
+  .sb__item { justify-content: center; padding: 11px 0; }
+  .sb__account { flex-direction: column; gap: 6px; padding: 8px 0 0; }
+  .staff-main { padding: 16px 16px 40px; }
+}
