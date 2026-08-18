@@ -63,6 +63,13 @@ public class ShopSettingService {
      * 入力フォームの値を既存レコードに写して更新します
      * （新しいインスタンスを save すると id が固定 1 なので上書きになりますが、
      * 更新日時の管理などを一箇所にまとめるためこの形にしています）。
+     *
+     * <p><b>項目を増やしたら、必ずここにも 1 行足してください。</b><br>
+     * 足し忘れると「画面に入力欄はあるのに、保存を押しても何も変わらない」という、
+     * いちばん気づきにくい不具合になります。例外も出ず、店長は保存できたつもりでいるので、
+     * テーブルチャージのような金額項目だとそのまま金銭事故になります。
+     * 実際イートイン化のときにこれをやらかし、コントローラ側で 3 項目だけ
+     * 別途保存する応急処置が入っていました（2026-08-18 に撤去して、この形に統一）。
      */
     @Transactional
     public void save(ShopSetting form) {
@@ -71,6 +78,7 @@ public class ShopSettingService {
         setting.setTagline(form.getTagline());
         setting.setAcceptingOrders(form.isAcceptingOrders());
         setting.setClosedMessage(form.getClosedMessage());
+        setting.setAlwaysOpen(form.isAlwaysOpen());
         setting.setOpenTime(form.getOpenTime());
         setting.setCloseTime(form.getCloseTime());
         setting.setLastOrderTime(form.getLastOrderTime());
@@ -78,6 +86,10 @@ public class ShopSettingService {
         setting.setOrderNumberStart(form.getOrderNumberStart());
         setting.setBusinessDayCutoverHour(form.getBusinessDayCutoverHour());
         setting.setGriddleCapacity(form.getGriddleCapacity());
+        setting.setTableChargePerGuest(form.getTableChargePerGuest());
+        setting.setLateNightStartTime(form.getLateNightStartTime());
+        setting.setLateNightEndTime(form.getLateNightEndTime());
+        setting.setLateNightSurchargePercent(form.getLateNightSurchargePercent());
         setting.setPickupNotice(form.getPickupNotice());
         setting.touch();
     }

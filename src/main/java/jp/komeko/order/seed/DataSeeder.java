@@ -178,6 +178,10 @@ public class DataSeeder implements ApplicationRunner {
         // 公式サイト記載の「終日テーブルチャージ ¥450／23時以降は深夜料金 10%」
         setting.setTableChargePerGuest(450);
         setting.setLateNightStartTime(LocalTime.of(23, 0));
+        // 深夜の終わり。閉店（翌 2:00）より後の 5:00 にしてあるので、
+        // 実質「23:00 以降のお会計はすべて深夜料金」になる。
+        // 閉店までに限定したければ 2:00 にする。
+        setting.setLateNightEndTime(LocalTime.of(5, 0));
         setting.setLateNightSurchargePercent(10);
 
         setting.setPickupNotice(
@@ -193,9 +197,11 @@ public class DataSeeder implements ApplicationRunner {
                    営業時間        17:30 〜 翌2:00（ラストオーダー 翌1:30）
                    消費税率        10%（酒類を扱うため軽減税率の対象外）
                    テーブルチャージ ¥450 / 人
-                   深夜料金        23:00 以降 10%
+                   深夜料金        23:00 〜 5:00 は 10%
                  ※土日は 16:00 開店ですが、曜日別の営業時間には未対応です。
                    管理画面 → 店舗設定 から必要に応じて変更してください。
+                 ※時間を気にせず動作確認したいときは、店舗設定の
+                   「24 時間受付」を ON にしてください。
                 ============================================================
                 """);
     }

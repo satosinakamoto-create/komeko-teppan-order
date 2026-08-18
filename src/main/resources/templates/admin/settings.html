@@ -98,7 +98,7 @@
           保存のたびに勝手に再開されてしまいます。
 
           同じ理由で、テーブルチャージ・深夜料金の入力欄も外さないでください。
-          外すと初期値（¥450 ／ 23:00 ／ 10%）が書き込まれます。
+          外すと初期値（¥450 ／ 23:00〜5:00 ／ 10%）が書き込まれます。
         */-->
         <div class="field">
           <label class="choice" for="acceptingOrders">
@@ -117,6 +117,23 @@
                  th:errorclass="is-error" maxlength="100">
           <p class="error" th:if="${#fields.hasErrors('closedMessage')}" th:errors="*{closedMessage}">エラー</p>
           <p class="help">受付を止めているあいだ、お客さんの画面に出る文章です。理由と再開の見込みを書くと親切です。</p>
+        </div>
+
+        <!--/* ===== 時刻で止めるかどうか。営業時間の入力欄より前に置く ===== */-->
+        <div class="field">
+          <label class="choice" for="alwaysOpen">
+            <input type="checkbox" id="alwaysOpen" th:field="*{alwaysOpen}">
+            <span class="choice__name">24 時間受付にする（時刻で受付を止めない）</span>
+          </label>
+          <p class="help">
+            ON のあいだは、開店時刻とラストオーダーによる自動停止をしません。
+            <strong>動作確認をしたいとき</strong>や、<strong>今夜だけ朝まで営業するとき</strong>に、
+            時刻を計算し直さずワンタップで対応できます。<br>
+            下の 3 つの時刻は消えません。OFF に戻せばそのまま元の営業時間に戻ります
+            （ON のあいだも、案内表示や売上グラフには使われます）。<br>
+            <strong>「今すぐ止める」は別のスイッチです。</strong>
+            24 時間受付にしていても、上の受付停止はいつでも効きます。
+          </p>
         </div>
 
         <div class="grid grid--3">
@@ -157,7 +174,11 @@
           （17:30 &gt; 01:30 なので日をまたぐと判断されます）。<br>
           昼だけの営業なら 11:00 ／ 18:30 ／ 19:00 のように、ふつうに大小関係が揃った時刻を入れてください。
           どちらの書き方でも同じ欄で扱えます。<br>
-          ただし<strong>開店時刻とラストオーダーを同じ時刻にはできません</strong>。
+          <strong>時刻はどれも 0:00〜23:59 の好きな値を入れられます</strong>
+          （選択肢は決まっていません。24 時間のどこでも指定できます）。<br>
+          ただし<strong>開店時刻とラストオーダーを同じ時刻にはできません</strong>
+          （受け付けられるのがその一瞬だけになるため。
+          時間で止めたくないときは上の「24 時間受付」を使ってください）。
           受け付けられるのがその 1 分間だけになってしまうためです。<br>
           なお「その注文がどの営業日か」は、この欄ではなく下の
           <strong>営業日の切り替え時刻</strong>で決まります。深夜 1 時の注文を前日の売上にしたいなら、
@@ -232,9 +253,20 @@
             <p class="error" th:if="${#fields.hasErrors('lateNightStartTime')}"
                th:errors="*{lateNightStartTime}">エラー</p>
             <p class="help">
-              この時刻以降のお会計に深夜料金がかかります（既定は 23:00）。<br>
-              0 時をまたいだあとも、営業日の切り替え時刻までは「深夜」として扱われるので、
-              深夜 1 時のお会計にもきちんとかかります。
+              この時刻<strong>ちょうどから</strong>、お会計に深夜料金がかかります（既定は 23:00）。
+            </p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="lateNightEndTime">深夜料金の終了時刻<span class="req">必須</span></label>
+            <input class="input" type="time" id="lateNightEndTime" th:field="*{lateNightEndTime}"
+                   th:errorclass="is-error" required>
+            <p class="error" th:if="${#fields.hasErrors('lateNightEndTime')}"
+               th:errors="*{lateNightEndTime}">エラー</p>
+            <p class="help">
+              この時刻<strong>になったら、もう深夜ではありません</strong>（既定は 5:00）。<br>
+              営業時間と同じで、<strong>0 時をまたぐ指定がそのまま書けます</strong>。
+              23:00 → 5:00 と入れれば、深夜 1 時のお会計にもきちんとかかります。
             </p>
           </div>
 
@@ -314,8 +346,9 @@
               注文番号も前日からの続き番号になります。<br>
               夜まで営業しないお店なら 0〜5 のどれでも実害はありません。
               迷ったら 5 のままにしてください。<br>
-              この時刻は<strong>深夜料金の「深夜」がいつ終わるか</strong>の目安にも使われます
-              （開始時刻からこの時刻までが深夜あつかいです）。<br>
+              この設定は<strong>売上をどの日に数えるか（と注文番号）だけ</strong>に効きます。
+              深夜料金の範囲とは無関係です（以前は連動していましたが、
+              集計を直したいだけなのに料金まで動くのが分かりにくいため切り離しました）。<br>
               <strong>営業中に変更しないでください。</strong>その瞬間から採番と集計の基準日が変わり、
               同じ番号のお客さんが 2 組できてしまう可能性があります。
             </p>

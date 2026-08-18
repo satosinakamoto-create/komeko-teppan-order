@@ -390,4 +390,135 @@ class ShopSettingTest {
             assertThat(defaultSetting().getGriddleCapacity()).isGreaterThanOrEqualTo(1);
         }
     }
+
+    @Nested
+    @DisplayName("24 時間受付モード")
+    class AlwaysOpen {
+
+        /**
+         * <b>なぜこのモードが要るのか</b><br>
+         * 営業時間外は人数選択のボタンすら押せません。仕様としては正しいのですが、
+         * 動作確認をしたいだけのときも毎回営業時間をいじる羽目になり、
+         * 直したあと戻し忘れる（＝ 開店しても注文を受けられない）事故のもとでした。
+         * 「今夜だけ朝までやる」のような急な変更にも、時刻を計算し直さず対応できます。
+         */
+        @Test
+        @DisplayName("既定は OFF（従来どおり時刻で受付を止める）")
+        void defaultIsOff() {
+            assertThat(defaultSetting().isAlwaysOpen()).isFalse();
+        }
+
+        @ParameterizedTest(name = "{0}時{1}分でも受け付ける")
+        @CsvSource({" 3, 0", " 9, 0", "12, 0", "16, 0", "23, 59"})
+        @DisplayName("ON にすると、営業時間外でも一日中受け付ける")
+        void acceptsAnyTime(int hour, int minute) {
+            // 既定（11:00〜18:30）なら、このうち 12:00 と 16:00 以外は受け付けない時刻。
+            ShopSetting setting = defaultSetting();
+            setting.setAlwaysOpen(true);
+
+            assertThat(setting.isOrderAcceptable(at(hour, minute))).isTrue();
+        }
+
+        @Test
+        @DisplayName("24 時間受付でも「今すぐ止める」は効く（非常ブレーキは独立）")
+        void manualStopStillWins() {
+            // ここが崩れると、混雑時に注文を止める手段が無くなる。
+            // 2 つのスイッチが別物であることを保証しておく。
+            ShopSetting setting = defaultSetting();
+            setting.setAlwaysOpen(true);
+            setting.setAcceptingOrders(false);
+
+            assertThat(setting.isOrderAcceptable(at(12, 0))).isFalse();
+            assertThat(setting.orderRejectReason(at(12, 0))).isEqualTo(setting.getClosedMessage());
+        }
+
+        @Test
+        @DisplayName("受け付けているあいだは、断り文句を出さない")
+        void noRejectReasonWhileOpen() {
+            ShopSetting setting = defaultSetting();
+            setting.setAlwaysOpen(true);
+
+            assertThat(setting.orderRejectReason(at(3, 0))).isEmpty();
+        }
+
+        @Test
+        @DisplayName("OFF に戻すと、元の営業時間がそのまま復活する")
+        void turningOffRestoresHours() {
+            // 営業時間を消さずに「使わないだけ」にしてあるので、
+            // 戻したときに入れ直す必要がない。
+            ShopSetting setting = defaultSetting();
+            setting.setAlwaysOpen(true);
+            assertThat(setting.isOrderAcceptable(at(9, 0))).isTrue();
+
+            setting.setAlwaysOpen(false);
+
+            assertThat(setting.isOrderAcceptable(at(9, 0))).isFalse();
+            assertThat(setting.isOrderAcceptable(at(12, 0))).isTrue();
+        }
+
+        @Test
+        @DisplayName("24 時間受付にしても、深夜料金は時刻どおりにかかる")
+        void lateNightStillApplies() {
+            // 「止めない」と「割増しない」は別の話。
+            // 24 時間営業でも深夜料金は取る、という運用があり得る。
+            ShopSetting setting = defaultSetting();
+            setting.setAlwaysOpen(true);
+
+            assertThat(setting.isLateNight(at(23, 30))).isTrue();
+            assertThat(setting.isLateNight(at(12, 0))).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("深夜料金の範囲（開始〜終了）")
+    class LateNightRange {
+
+        @Test
+        @DisplayName("既定は 23:00 〜 5:00")
+        void defaults() {
+            assertThat(defaultSetting().getLateNightStartTime()).isEqualTo(LocalTime.of(23, 0));
+            assertThat(defaultSetting().getLateNightEndTime()).isEqualTo(LocalTime.of(5, 0));
+        }
+
+        @Test
+        @DisplayName("終了時刻を変えると、そこで深夜が終わる")
+        void customEndTime() {
+            // 「閉店の 2:00 までを深夜料金の対象にしたい」という設定ができる。
+            ShopSetting setting = lateNightShopSetting();
+            setting.setLateNightEndTime(LocalTime.of(2, 0));
+
+            assertThat(setting.isLateNight(at(1, 59))).isTrue();
+            assertThat(setting.isLateNight(at(2, 0))).isFalse();   // 終了ちょうどは対象外
+            assertThat(setting.isLateNight(at(4, 0))).isFalse();
+        }
+
+        @Test
+        @DisplayName("営業日の切り替え時刻を変えても、深夜料金の範囲は動かない")
+        void independentFromBusinessDayCutover() {
+            // 以前は切り替え時刻を深夜の終わりに流用していたため、
+            // 売上の集計基準を直すだけのつもりが料金まで変わってしまった。
+            // この 2 つが無関係であることを、テストで固定しておく。
+            ShopSetting setting = lateNightShopSetting();
+            setting.setBusinessDayCutoverHour(3);
+
+            assertThat(setting.isLateNight(at(4, 0))).isTrue();            // 深夜の終わりは 5:00 のまま
+            assertThat(setting.businessDateOf(at(4, 0))).isEqualTo(DAY);   // 集計だけが変わる
+        }
+
+        @Test
+        @DisplayName("日をまたがない範囲（14:00〜17:00 のような昼の割増）も同じ欄で書ける")
+        void nonWrappingRange() {
+            // 「深夜」という名前だが、中身はただの時刻範囲。
+            // 日をまたぐ・またがないを場合分けせずに扱えるのがこの実装の狙い。
+            ShopSetting setting = defaultSetting();
+            setting.setLateNightStartTime(LocalTime.of(14, 0));
+            setting.setLateNightEndTime(LocalTime.of(17, 0));
+
+            assertThat(setting.isLateNight(at(13, 59))).isFalse();
+            assertThat(setting.isLateNight(at(14, 0))).isTrue();
+            assertThat(setting.isLateNight(at(16, 59))).isTrue();
+            assertThat(setting.isLateNight(at(17, 0))).isFalse();
+            assertThat(setting.isLateNight(at(23, 0))).isFalse();   // 夜は対象外になる
+        }
+    }
 }

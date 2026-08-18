@@ -52,6 +52,38 @@ public class ShopSetting {
     @Column(length = 100)
     private String closedMessage = "ただいま大変混み合っております。しばらくお待ちください。";
 
+    /**
+     * 時刻で受付を止めない（24 時間いつでも受け付ける）モード。
+     *
+     * <p>ON にすると開店時刻・ラストオーダーによる自動停止をしません。
+     * 次のような場面のための逃げ道です。
+     * <ul>
+     *   <li><b>開発・動作確認</b>… 営業時間外に触ると人数選択すら押せず、
+     *       確認のたびに営業時間をいじる羽目になる。ON にすれば常に通せる</li>
+     *   <li><b>急な営業時間の変更</b>… 「今日は貸切で朝までやる」のような
+     *       その場の判断に、時刻を計算し直さずワンタップで対応できる</li>
+     *   <li><b>24 時間営業の店</b>… そもそも開店・閉店という区切りが無い</li>
+     * </ul>
+     *
+     * <p><b>受付停止フラグ {@link #acceptingOrders} との違い</b><br>
+     * あちらは「今すぐ止める」非常ブレーキ、こちらは「時計で止めるのをやめる」設定です。
+     * 両方が独立して効くので、24 時間受付にしても非常ブレーキはいつでも踏めます
+     * （＝ このモードにすると止められなくなる、ということはありません）。
+     *
+     * <p><b>{@code columnDefinition} に default を書いてある理由（実際に踏んだ話）</b><br>
+     * すでに行が入っているテーブルに「NOT NULL の列」をあとから足すことはできません。
+     * 既存の行に何を入れればいいか DB が決められないからです。
+     * {@code ddl-auto: update} は黙って
+     * {@code ALTER TABLE ... ADD COLUMN always_open BOOLEAN NOT NULL} を投げるので、
+     * 実データの入った DB では起動時にこけます
+     * （2026-08-18 に実際にこれで起動できなくなりました）。
+     * <b>しかもテストでは絶対に再現しません。</b>テストは毎回まっさらな DB を作るので、
+     * 「無いテーブルを作る」経路しか通らず、「既存テーブルに足す」経路を踏まないからです。
+     * {@code default} を書いておくと、既存の行にはその値が入って ALTER が通ります。
+     */
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean alwaysOpen = false;
+
     @Column(nullable = false)
     private LocalTime openTime = LocalTime.of(11, 0);
 
@@ -103,6 +135,26 @@ public class ShopSetting {
     private LocalTime lateNightStartTime = LocalTime.of(23, 0);
 
     /**
+     * 深夜料金が終わる時刻（この時刻ちょうどは、もう深夜ではない）。
+     *
+     * <p>「23:00 〜 翌 5:00」のように<b>日付をまたぐ指定</b>ができます。
+     *
+     * <p><b>なぜ「終わり」を持たせたのか</b><br>
+     * 以前は終わりを持たず、代わりに営業日の切り替え時刻
+     * （{@link #businessDayCutoverHour}）を深夜の終わりとして流用していました。
+     * しかしこの 2 つは本来まったく別のもので、
+     * 「売上をどの日に数えるか」を変えたいだけなのに深夜料金の範囲まで動いてしまう、
+     * という分かりにくい連動が起きていました。
+     * 深夜料金は深夜料金として、開始と終了を自分で持つようにしています。
+     *
+     * <p>{@code default} の意味は {@link #alwaysOpen} のコメントを参照してください
+     * （既存の DB に列を足せるようにするため）。
+     * 既存店のデータには、これまでの挙動と同じ 5:00 が入ります。
+     */
+    @Column(nullable = false, columnDefinition = "time not null default '05:00:00'")
+    private LocalTime lateNightEndTime = LocalTime.of(5, 0);
+
+    /**
      * 深夜料金の割増率（%）。
      * 会計時刻が {@link #lateNightStartTime} 以降のとき、
      * 小計＋テーブルチャージに対してこの割合を加算します。
@@ -141,30 +193,77 @@ public class ShopSetting {
 
     /**
      * ラストオーダーまでの時間帯に入っているか。
-     *
-     * <p><b>深夜営業への対応</b><br>
-     * 「17:30 開店・翌 1:30 ラストオーダー」のように<b>日付をまたぐ営業</b>があります。
-     * このとき {@code openTime}(17:30) より {@code lastOrderTime}(01:30) のほうが
-     * 「時刻としては小さい」ため、単純に
-     * {@code open <= t && t <= lastOrder} と書くと一日中 false になってしまいます。
-     *
-     * <pre>
-     *   日をまたがない例（11:00〜18:30）
-     *      0        11:00 ████████ 18:30         24
-     *      判定: open <= t かつ t <= lastOrder
-     *
-     *   日をまたぐ例（17:30〜翌01:30）
-     *      0 ███ 01:30              17:30 ██████ 24
-     *      判定: open <= t <b>または</b> t <= lastOrder
-     * </pre>
+     * 24 時間受付モードならいつでも true。
      */
     private boolean isWithinOrderableHours(LocalTime t) {
-        if (!lastOrderTime.isBefore(openTime)) {
-            // 同じ日のうちに閉まる、ふつうの営業時間
-            return !t.isBefore(openTime) && !t.isAfter(lastOrderTime);
+        if (alwaysOpen) {
+            return true;
         }
-        // 日付をまたぐ営業時間
-        return !t.isBefore(openTime) || !t.isAfter(lastOrderTime);
+        // ラストオーダー「ちょうど」はまだ注文できる（だから終端を含む判定）
+        return isBetween(t, openTime, lastOrderTime);
+    }
+
+    // ── 時刻の範囲判定（日をまたぐ営業のかなめ） ────────────────────
+
+    private static final int SECONDS_PER_DAY = 24 * 60 * 60;
+
+    /**
+     * {@code from} から {@code t} まで、時計回りに何秒進んだか。
+     *
+     * <p><b>この 1 行がこのクラスの心臓部です。</b><br>
+     * 時刻を「0 時から何秒」という直線ではなく、
+     * <b>24 時間でひと回りする円</b>として扱うための計算です。
+     *
+     * <pre>
+     *                 0時/24時
+     *                    ↑
+     *          18時 ←    ●    → 6時        時計回りに進む
+     *                    ↓
+     *                   12時
+     * </pre>
+     *
+     * <p>{@code Math.floorMod} は「余り」を必ず 0 以上にしてくれる割り算です。
+     * Java の {@code %} 演算子は負の数に対して負の余りを返してしまう
+     * （{@code -3 % 24 == -3}）ので、円をぐるっと回す計算には
+     * {@code floorMod}（{@code -3} → {@code 21}）を使います。
+     *
+     * <p>たとえば from=17:30、t=1:00 なら、17:30 から時計回りに 7 時間半で 1:00。
+     * 日付をまたいでいるかどうかを場合分けしなくても、答えは自然に 7.5 時間になります。
+     */
+    private static int secondsFrom(LocalTime from, LocalTime t) {
+        return Math.floorMod(t.toSecondOfDay() - from.toSecondOfDay(), SECONDS_PER_DAY);
+    }
+
+    /**
+     * {@code t} が {@code from} 〜 {@code toInclusive} の範囲にあるか（終端を含む）。
+     *
+     * <p><b>日をまたぐ範囲もそのまま書けます。</b>
+     * 「17:30 〜 翌 1:30」でも「11:00 〜 18:30」でも、呼び方は同じです。
+     * 場合分けが要らないのは、上の {@link #secondsFrom} が
+     * 「起点からどれだけ進んだか」に揃えてくれるからです。
+     * <b>進んだ距離が範囲の長さ以内なら中にいる</b>、それだけの話になります。
+     *
+     * <pre>
+     *   from ●━━━━━━━━━━━● toInclusive
+     *          ↑ t         範囲の長さ = secondsFrom(from, to)
+     *          進んだ距離  = secondsFrom(from, t)   これが範囲の長さ以下なら中
+     * </pre>
+     *
+     * <p>{@code from} と {@code to} が同じ時刻のときは、範囲の長さが 0 なので
+     * <b>その一瞬だけ</b>が対象になります（＝ ほぼ入力ミス）。
+     */
+    private static boolean isBetween(LocalTime t, LocalTime from, LocalTime toInclusive) {
+        return secondsFrom(from, t) <= secondsFrom(from, toInclusive);
+    }
+
+    /**
+     * {@code t} が {@code from} 〜 {@code toExclusive} の範囲にあるか（終端を含まない）。
+     *
+     * <p>深夜料金のように「5:00 になったら、もう深夜ではない」と言いたい範囲に使います。
+     * 終端を含む {@link #isBetween} と、含むか含まないかだけが違います。
+     */
+    private static boolean isBetweenExcludingEnd(LocalTime t, LocalTime from, LocalTime toExclusive) {
+        return secondsFrom(from, t) < secondsFrom(from, toExclusive);
     }
 
     /** 受付できない理由をお客さん向けの文章で返す。 */
@@ -243,6 +342,14 @@ public class ShopSetting {
         this.closedMessage = closedMessage;
     }
 
+    public boolean isAlwaysOpen() {
+        return alwaysOpen;
+    }
+
+    public void setAlwaysOpen(boolean alwaysOpen) {
+        this.alwaysOpen = alwaysOpen;
+    }
+
     public LocalTime getOpenTime() {
         return openTime;
     }
@@ -315,6 +422,14 @@ public class ShopSetting {
         this.lateNightStartTime = lateNightStartTime;
     }
 
+    public LocalTime getLateNightEndTime() {
+        return lateNightEndTime;
+    }
+
+    public void setLateNightEndTime(LocalTime lateNightEndTime) {
+        this.lateNightEndTime = lateNightEndTime;
+    }
+
     public int getLateNightSurchargePercent() {
         return lateNightSurchargePercent;
     }
@@ -326,20 +441,23 @@ public class ShopSetting {
     /**
      * 指定時刻に深夜料金がかかるか。
      *
-     * <p>深夜料金は「23:00 以降」のように<b>日付をまたいだ側</b>にかかるので、
-     * 23:00〜翌 5:00（営業日の切り替え時刻）までを対象とみなします。
-     * 単純に {@code t >= 23:00} と書くと、深夜 1:00 が対象外になってしまいます。
+     * <p>深夜料金は「23:00 〜 翌 5:00」のように<b>日付をまたいだ側</b>にかかります。
+     * 単純に {@code t >= 23:00} と書くと深夜 1:00 が対象外になってしまいますが、
+     * {@link #isBetweenExcludingEnd} が円としての時刻を扱うので、
+     * ここでは日をまたぐかどうかを気にせずそのまま書けます。
+     *
+     * <p>営業時間の判定とまったく同じ道具を使っている点に注目してください。
+     * 「営業時間」と「深夜料金」は別の話ですが、
+     * <b>どちらも「日をまたぐかもしれない時刻の範囲」</b>という同じ形をしています。
+     * 同じ形のものを同じ道具で扱えるようにしておくと、
+     * 営業時間を 24 時間に変えても深夜料金の実装は 1 行も変わりません。
      */
     public boolean isLateNight(LocalDateTime at) {
         if (lateNightSurchargePercent <= 0) {
             return false;
         }
-        LocalTime t = at.toLocalTime();
-        if (!t.isBefore(lateNightStartTime)) {
-            return true;   // 23:00 〜 23:59
-        }
-        // 0:00 〜 営業日切り替え時刻（既定 5:00）も「深夜」として扱う
-        return t.getHour() < businessDayCutoverHour;
+        // 開始ちょうど（23:00）から深夜。終了ちょうど（5:00）は、もう深夜ではない
+        return isBetweenExcludingEnd(at.toLocalTime(), lateNightStartTime, lateNightEndTime);
     }
 
     public String getPickupNotice() {
