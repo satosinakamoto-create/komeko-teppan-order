@@ -43,6 +43,10 @@ public class CategoryForm {
     @Size(max = 40, message = "カテゴリ名は40文字以内で入力してください")
     private String name;
 
+    /** 大カテゴリ（メニュー画面のタブ名）。空なら、このカテゴリ名がそのままタブになる。 */
+    @Size(max = 20, message = "大カテゴリは20文字以内で入力してください")
+    private String groupName;
+
     @NotNull(message = "並び順を入力してください")
     @Min(value = 0, message = "並び順は0以上で入力してください")
     @Max(value = 9999, message = "並び順は9999以下で入力してください")
@@ -64,6 +68,7 @@ public class CategoryForm {
         CategoryForm form = new CategoryForm();
         form.setId(category.getId());
         form.setName(category.getName());
+        form.setGroupName(category.getGroupName());
         form.setSortOrder(category.getSortOrder());
         form.setVisible(category.isVisible());
         return form;
@@ -80,6 +85,14 @@ public class CategoryForm {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getGroupName() {
+        return groupName;
+    }
+
+    public void setGroupName(String groupName) {
+        this.groupName = groupName;
     }
 
     public String getName() {

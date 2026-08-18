@@ -115,10 +115,42 @@ public class DataSeeder implements ApplicationRunner {
         seedTables();
 
         if (categoryRepository.count() > 0) {
+            backfillGroupNames();
             log.info("メニューは登録済みのため、サンプル投入をスキップしました");
             return;
         }
         seedMenu();
+    }
+
+    /**
+     * すでに登録済みのカテゴリに、大カテゴリ（タブ名）を一度だけ埋める。
+     *
+     * <p>大カテゴリは 2026-08-19 に追加した項目です。
+     * それ以前から動いている DB のカテゴリは空のままなので、
+     * 放っておくと 14 個のカテゴリが 14 本のタブになり、
+     * せっかくまとめた意味がなくなります。そこで初回起動時に補います。
+     *
+     * <p><b>すでに値が入っているものには触りません。</b>
+     * 店長が管理画面で決めた分類を、起動のたびに書き戻してしまうと
+     * 「直したのに元に戻る」という最悪の挙動になります。
+     *
+     * <p>本来こういうデータの移行は Flyway のようなマイグレーションツールの仕事です
+     * （docs/仕様.md「今後の課題」参照）。導入するまでの暫定措置として、
+     * <b>やることが一度きりで、やり直しても結果が変わらない</b>形に留めています。
+     */
+    private void backfillGroupNames() {
+        List<Category> targets = categoryRepository.findAll().stream()
+                .filter(c -> c.getGroupName() == null)
+                .toList();
+        if (targets.isEmpty()) {
+            return;
+        }
+        for (Category c : targets) {
+            c.setGroupName(groupNameFor(c.getSortOrder()));
+        }
+        categoryRepository.saveAll(targets);
+        log.info("既存カテゴリ {} 件に大カテゴリ（メニュー画面のタブ名）を設定しました。"
+                + "変更したいときは 管理画面 → カテゴリ から", targets.size());
     }
 
     /**
@@ -515,7 +547,35 @@ public class DataSeeder implements ApplicationRunner {
     // ========================================================================
 
     private Category category(String name, int sortOrder) {
-        return categoryRepository.save(new Category(name, sortOrder));
+        Category c = new Category(name, sortOrder);
+        c.setGroupName(groupNameFor(sortOrder));
+        return categoryRepository.save(c);
+    }
+
+    /**
+     * 並び順から大カテゴリ（メニュー画面のタブ名）を決める。
+     *
+     * <p>タブは横に並ぶので、多すぎると端まで探しに行けません。
+     * 14 個のカテゴリを 5 つのタブにまとめています。
+     *
+     * <p>ここで決めているのは<b>初期値だけ</b>です。
+     * 開店後は管理画面（カテゴリ）から自由に変えられますし、
+     * 並び順を変えてもこの割り当ては追随しません（DB に保存された値が正）。
+     */
+    private String groupNameFor(int sortOrder) {
+        if (sortOrder < 20) {
+            return "お好み焼き";
+        }
+        if (sortOrder < 30) {
+            return "たこ焼き";
+        }
+        if (sortOrder < 60) {
+            return "鉄板料理";      // 鉄板おつまみ / 鉄板麺 / 数量限定鉄板焼き
+        }
+        if (sortOrder < 80) {
+            return "一品料理";      // 一品料理 / 甘味
+        }
+        return "ドリンク";          // ビール・サワー 〜 日本酒・ワイン
     }
 
     /**

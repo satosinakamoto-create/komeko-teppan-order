@@ -1527,3 +1527,97 @@ body.theme-snow { background-image: none; }
 
 /* 会計金額などの合計行の罫線もごく薄く */
 .theme-snow .total-table tr.is-grand td { border-top-color: rgba(28, 28, 28, .15); }
+
+/* ==========================================================================
+   24. ジャンルのタブと、スワイプで切り替わる面（2026-08-19）
+   --------------------------------------------------------------------------
+   お客さんのメニュー画面。マクドナルドのモバイル注文と同じ形にしています。
+
+     ・上のタブは画面に貼り付いたまま動かない（position: sticky）
+     ・左右のスワイプでジャンルが切り替わる
+     ・タブを押しても切り替わる
+
+   スワイプは JavaScript で指の動きを追いかけているのではなく、
+   ブラウザ標準の「横スクロール ＋ scroll-snap」でやっています。
+   自前で実装すると慣性やはじきの加減が不自然になりがちですが、
+   標準の仕組みに任せると OS 本来の動きがそのまま出ます。
+   ========================================================================== */
+
+/* --- タブ本体。既存の .tabs は sticky 済みなので、見た目だけ下線タイプにする --- */
+.tabs {
+  gap: 0;
+  padding-inline: var(--sp-4);
+}
+
+.tab {
+  /* 丸いピル型から、下線で選択を示す形に変える */
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 12px 16px 10px;
+  font-size: .9375rem;
+  cursor: pointer;
+  position: relative;
+  /* タブは指で押すものなので、確実に届く高さを確保する */
+  min-height: 44px;
+}
+
+.tab.is-active {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* 選択中の下線。::after を伸ばすことで、文字幅にぴったり合う */
+.tab::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform .18s ease;
+}
+.tab.is-active::after { transform: scaleX(1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tab::after { transition: none; }
+}
+
+/* --- 横に並ぶ面。ここをスワイプする --- */
+.pager {
+  display: flex;
+  overflow-x: auto;
+  /* mandatory: 指を離したら必ずどれかの面に吸い付く（中途半端な位置で止まらない） */
+  scroll-snap-type: x mandatory;
+  /* iOS で画面の端から戻る操作と喧嘩しないようにする */
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  /* 面の高さは中身なりにする。stretch のままだと全部いちばん高い面に揃ってしまう */
+  align-items: flex-start;
+  /* 高さは JS が表示中の面に合わせて詰める（menu.html の fitHeight）。
+     何もしないと、いちばん高い面（ドリンク）に全部が引きずられ、
+     お好み焼きを見ているとき下に何画面ぶんもの空白が続く */
+  overflow-y: hidden;
+}
+.pager::-webkit-scrollbar { display: none; }
+
+.pager__panel {
+  flex: 0 0 100%;
+  min-width: 0;          /* flex の子が中身の幅で押し広げられるのを防ぐ */
+  scroll-snap-align: start;
+  scroll-snap-stop: always;   /* 一気に何ジャンルも飛ばさない。1回のスワイプで1つ隣へ */
+}
+
+/* 面の中の余白。container が両側に付くので、ここでは上下だけ */
+.pager__panel > .container {
+  padding-top: var(--sp-4);
+}
+
+/* 指で払ったときに文字を選択してしまわないように（誤操作が地味に多い） */
+.pager { -webkit-user-select: none; user-select: none; }
+.pager a, .pager p { -webkit-user-select: text; user-select: text; }

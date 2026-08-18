@@ -55,11 +55,28 @@
         </div>
 
         <div class="field">
+          <label class="label" for="groupName">大カテゴリ（タブ名）</label>
+          <input class="input" type="text" th:field="*{groupName}" maxlength="20"
+                 placeholder="例：鉄板料理"
+                 th:classappend="${#fields.hasErrors('groupName')} ? 'is-error'">
+          <p class="help">
+            お客さんのメニュー画面で、いちばん上に並ぶタブの名前です。
+            同じ名前を付けたカテゴリは<strong>1 つのタブにまとまります</strong>
+            （「鉄板おつまみ」と「鉄板麺」に どちらも <em>鉄板料理</em> と入れる、など）。<br>
+            <strong>空のままなら、このカテゴリ名がそのままタブになります。</strong>
+          </p>
+          <p class="error" th:if="${#fields.hasErrors('groupName')}" th:errors="*{groupName}">エラー内容</p>
+        </div>
+
+        <div class="field">
           <label class="label" for="sortOrder">並び順</label>
           <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
                  inputmode="numeric"
                  th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
-          <p class="help">小さいほど先に表示されます。</p>
+          <p class="help">
+            小さいほど先に表示されます。
+            タブの並びも、そのタブに入っているカテゴリのいちばん小さい並び順で決まります。
+          </p>
           <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
         </div>
 
@@ -116,6 +133,17 @@
                      th:classappend="${errs != null and errs.containsKey('name')} ? 'is-error'">
               <p class="error" th:if="${errs != null and errs.containsKey('name')}"
                  th:text="${errs.get('name')}">エラー内容</p>
+            </div>
+
+            <div class="field" style="flex:1 1 150px;margin-bottom:0">
+              <label class="label" th:for="'cat-group-' + ${c.id}">大カテゴリ</label>
+              <input class="input" type="text" name="groupName" maxlength="20"
+                     placeholder="空ならカテゴリ名"
+                     th:id="'cat-group-' + ${c.id}"
+                     th:value="${editing ? editForm.groupName : c.groupName}"
+                     th:classappend="${errs != null and errs.containsKey('groupName')} ? 'is-error'">
+              <p class="error" th:if="${errs != null and errs.containsKey('groupName')}"
+                 th:text="${errs.get('groupName')}">エラー内容</p>
             </div>
 
             <div class="field" style="flex:0 1 110px;margin-bottom:0">

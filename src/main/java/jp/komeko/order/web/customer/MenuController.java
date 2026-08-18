@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -57,10 +58,41 @@ public class MenuController {
         LocalDateTime now = LocalDateTime.now();
 
         model.addAttribute("menu", menu);
+        model.addAttribute("tabs", groupIntoTabs(menu));
         model.addAttribute("accepting", setting.isOrderAcceptable(now));
         model.addAttribute("rejectReason", setting.orderRejectReason(now));
         model.addAttribute("src", src);
         return "customer/menu";
+    }
+
+    /**
+     * カテゴリを大カテゴリ（タブ）ごとにまとめ直す。
+     *
+     * <p>このお店はカテゴリが 14 個あります。そのまま横一列のタブにすると
+     * 端まで探しに行けないので、{@code Category#getTabName()} が同じものを
+     * 1 つのタブにまとめ、タブの中では従来どおりカテゴリごとの見出しを出します。
+     *
+     * <p><b>{@link java.util.LinkedHashMap} を使う理由</b><br>
+     * ふつうの {@code HashMap} は<b>入れた順番を覚えていません</b>。
+     * それだとタブの並びが起動のたびに変わりかねず、
+     * 「昨日はここにあったのに」という混乱のもとになります。
+     * {@code LinkedHashMap} は入れた順を保つので、
+     * 渡された時点の並び（カテゴリの並び順）がそのままタブの並びになります。
+     *
+     * @param menu カテゴリ順に並んだメニュー（{@code MenuService} が並べ替え済み）
+     * @return タブ名 → そのタブに属するカテゴリとその商品
+     */
+    private Map<String, Map<Category, List<MenuItem>>> groupIntoTabs(
+            Map<Category, List<MenuItem>> menu) {
+
+        Map<String, Map<Category, List<MenuItem>>> tabs = new LinkedHashMap<>();
+        for (Map.Entry<Category, List<MenuItem>> entry : menu.entrySet()) {
+            // computeIfAbsent は「無ければ作って入れる、あればそれを返す」。
+            // if (get == null) { put } と書くのと同じことを 1 行で書ける
+            tabs.computeIfAbsent(entry.getKey().getTabName(), name -> new LinkedHashMap<>())
+                    .put(entry.getKey(), entry.getValue());
+        }
+        return tabs;
     }
 
     /**

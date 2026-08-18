@@ -13,59 +13,91 @@
     </div>
   </div>
 
-  <!--/* カテゴリへのショートカット。横スクロールする追従タブ */-->
-  <div class="container" th:if="${!menu.isEmpty()}">
-    <nav class="tabs" aria-label="カテゴリ">
-      <a class="tab" th:each="entry : ${menu}"
-         th:href="'#cat-' + ${entry.key.id}"
-         th:text="${entry.key.name}">カテゴリ</a>
+  <!--/*
+    ===== 大カテゴリのタブ =====
+    画面の上に貼り付いたまま動きません（CSS の position: sticky）。
+    スクロールしても常に見えているので、いつでも他のジャンルへ移れます。
+
+    中身は <button> です。<a href="#..."> にすると押した瞬間に
+    URL が変わって「戻る」の履歴が増え、戻るボタンの挙動が分かりにくくなります。
+    ここは画面内の移動なので、履歴を汚さないボタンにしています。
+  */-->
+  <div class="container" th:if="${!tabs.isEmpty()}">
+    <nav class="tabs" aria-label="メニューのジャンル" id="menuTabs" role="tablist">
+      <button type="button" class="tab" th:each="tab, ts : ${tabs}"
+              role="tab"
+              th:classappend="${ts.first} ? 'is-active'"
+              th:attr="aria-selected=${ts.first} ? 'true' : 'false',
+                       aria-controls='panel-' + ${ts.index},
+                       data-index=${ts.index}"
+              th:id="'tab-' + ${ts.index}"
+              th:text="${tab.key}">お好み焼き</button>
     </nav>
   </div>
 
-  <div class="container">
+  <!--/*
+    th:if と th:replace を同じタグに書くと th:replace が先に評価されてしまい、
+    条件が効きません（Thymeleaf の属性の優先順位）。外側のタグで条件を判定します。
+  */-->
+  <div class="container" th:if="${tabs.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('米', 'メニューを準備中です')}"></div>
+  </div>
 
-    <!--/*
-      th:if と th:replace を同じタグに書くと th:replace が先に評価されてしまい、
-      条件が効きません（Thymeleaf の属性の優先順位）。外側のタグで条件を判定します。
-    */-->
-    <div th:if="${menu.isEmpty()}">
-      <div th:replace="~{fragments/common :: empty('米', 'メニューを準備中です')}"></div>
-    </div>
+  <!--/*
+    ===== ジャンルごとの面（パネル）=====
+    横に並べた面を、左右のスワイプで切り替えます。
 
-    <section th:each="entry : ${menu}" th:id="'cat-' + ${entry.key.id}">
+    これは JavaScript のスワイプ判定ではなく、ブラウザの
+    「横スクロール ＋ scroll-snap」でやっています。指を離した位置に
+    いちばん近い面へ自動で吸い付くので、慣性もはたらいて自然に動きます。
+    JS は「いまどの面にいるか」をタブに反映するのと、
+    タブを押されたときにそこへ寄せるためだけに使います。
+  */-->
+  <div class="pager" id="menuPager" th:if="${!tabs.isEmpty()}">
+    <section class="pager__panel" th:each="tab, ts : ${tabs}"
+             role="tabpanel"
+             th:id="'panel-' + ${ts.index}"
+             th:attr="aria-labelledby='tab-' + ${ts.index}">
+      <div class="container">
 
-      <div class="section-title">
-        <h2 class="section-title__text" th:text="${entry.key.name}">米粉ガレット</h2>
-        <span class="section-title__count"
-              th:text="${entry.value.size()} + ' 品'">4 品</span>
-      </div>
+        <div th:each="entry : ${tab.value}" th:id="'cat-' + ${entry.key.id}">
 
-      <div class="stack">
-        <a th:each="item, s : ${entry.value}"
-           class="menu-item reveal"
-           th:classappend="${!item.orderable} ? 'is-soldout'"
-           th:href="@{/items/{id}(id=${item.id})}"
-           th:style="'animation-delay:' + ${s.index * 45} + 'ms'">
-
-          <img class="menu-item__thumb" th:if="${item.imagePath != null}"
-               th:src="${item.imagePath}" th:alt="${item.name}" loading="lazy">
-          <div class="menu-item__thumb menu-item__thumb--empty" th:if="${item.imagePath == null}"
-               aria-hidden="true"
-               th:text="${#strings.substring(item.name, 0, 1)}">米</div>
-
-          <div class="menu-item__body">
-            <h3 class="menu-item__name" th:text="${item.name}">コンプレット</h3>
-            <p class="menu-item__desc" th:if="${item.description}"
-               th:text="${item.description}">説明</p>
-            <div class="menu-item__price">
-              <span th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
-              <small>税込</small>
-            </div>
-            <div th:replace="~{fragments/common :: allergens(${item})}"></div>
+          <!--/* タブ名とカテゴリ名が同じときは、同じ言葉が 2 段に重なるので見出しを省く */-->
+          <div class="section-title" th:unless="${entry.key.name == tab.key}">
+            <h2 class="section-title__text" th:text="${entry.key.name}">鉄板おつまみ</h2>
+            <span class="section-title__count"
+                  th:text="${entry.value.size()} + ' 品'">4 品</span>
           </div>
-        </a>
-      </div>
 
+          <div class="stack">
+            <a th:each="item, s : ${entry.value}"
+               class="menu-item reveal"
+               th:classappend="${!item.orderable} ? 'is-soldout'"
+               th:href="@{/items/{id}(id=${item.id})}"
+               th:style="'animation-delay:' + ${s.index * 45} + 'ms'">
+
+              <img class="menu-item__thumb" th:if="${item.imagePath != null}"
+                   th:src="${item.imagePath}" th:alt="${item.name}" loading="lazy">
+              <div class="menu-item__thumb menu-item__thumb--empty" th:if="${item.imagePath == null}"
+                   aria-hidden="true"
+                   th:text="${#strings.substring(item.name, 0, 1)}">米</div>
+
+              <div class="menu-item__body">
+                <h3 class="menu-item__name" th:text="${item.name}">コンプレット</h3>
+                <p class="menu-item__desc" th:if="${item.description}"
+                   th:text="${item.description}">説明</p>
+                <div class="menu-item__price">
+                  <span th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
+                  <small>税込</small>
+                </div>
+                <div th:replace="~{fragments/common :: allergens(${item})}"></div>
+              </div>
+            </a>
+          </div>
+
+        </div>
+
+      </div>
     </section>
   </div>
 
@@ -87,6 +119,106 @@
       <a class="btn btn--primary btn--lg spacer" th:href="@{/cart}">注文リストを見る</a>
     </div>
   </div>
+
+  <!--/*
+    タブと面（パネル）の同期。
+    スワイプそのものは CSS がやるので、ここでやるのは 2 つだけです。
+
+      1. 面が切り替わったら、対応するタブに印を付ける
+      2. タブが押されたら、その面へ寄せる
+
+    th:inline="none" は「この中の [[...]] を Thymeleaf に触らせない」という指示です。
+    JavaScript の配列や比較演算子が Thymeleaf の記法と衝突するのを防ぎます。
+  */-->
+  <script th:inline="none">
+    (function () {
+      var pager = document.getElementById('menuPager');
+      var tabBar = document.getElementById('menuTabs');
+      if (!pager || !tabBar) return;
+
+      var tabs = Array.prototype.slice.call(tabBar.querySelectorAll('.tab'));
+      var panels = Array.prototype.slice.call(pager.querySelectorAll('.pager__panel'));
+      if (tabs.length === 0) return;
+
+      var current = -1;
+
+      // 面の高さは中身の量でまるで違います（お好み焼き 5 品 ／ ドリンク 30 品以上）。
+      // 横に並べた箱の高さは「いちばん高い面」に合ってしまうので、
+      // 何もしないと短い面を見ているとき、下に何画面ぶんもの空白が続きます。
+      // 表示中の面の高さに合わせて、箱の高さを詰めます。
+      function fitHeight(index) {
+        var panel = panels[index];
+        if (panel) pager.style.height = panel.offsetHeight + 'px';
+      }
+
+      function activate(index) {
+        if (index === current || index < 0 || index >= tabs.length) return;
+        current = index;
+        fitHeight(index);
+        tabs.forEach(function (tab, i) {
+          var on = (i === index);
+          tab.classList.toggle('is-active', on);
+          tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        // 選ばれたタブが画面の外にあると押せたことに気づけないので、見える位置へ寄せる
+        tabs[index].scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+      }
+
+      // 1. いまどの面にいるかを、スクロール位置から求める。
+      //
+      //    面はどれも画面ぴったりの幅なので、
+      //    「横に何画面ぶん進んだか」を四捨五入すれば面の番号になります。
+      //
+      //    最初は IntersectionObserver（要素が見えたら教えてくれる仕組み）で
+      //    書いていましたが、横スクロールする箱を root にすると
+      //    環境によってはコールバックが一度も飛ばず、タブが追随しませんでした。
+      //    割り算 1 回で確実に出せるものを、わざわざ凝った仕組みに任せる必要はありません。
+      //
+      //    scroll は指を動かしているあいだ何十回も飛んできますが、
+      //    ここでやるのは割り算 1 回だけで、
+      //    番号が変わらなければ activate() が即座に戻ります。
+      //    requestAnimationFrame で間引く手もありますが、
+      //    タブが裏に回っているあいだ rAF は呼ばれないため、
+      //    「間引き待ち」のまま止まる状態を作らないほうが確実です。
+      pager.addEventListener('scroll', function () {
+        var width = pager.clientWidth;
+        if (width === 0) return;
+        activate(Math.round(pager.scrollLeft / width));
+      }, { passive: true });   // passive: スクロールを妨げないと宣言して滑らかさを保つ
+
+      // 2. タブを押したらその面へ寄せる
+      tabs.forEach(function (tab, index) {
+        tab.addEventListener('click', function () {
+          var panel = panels[index];
+          if (!panel) return;
+          pager.scrollTo({ left: panel.offsetLeft, behavior: 'smooth' });
+          activate(index);
+        });
+      });
+
+      // 3. キーボードの左右でも動かせるようにする（タブに焦点がある間だけ）
+      tabBar.addEventListener('keydown', function (e) {
+        var delta = (e.key === 'ArrowRight') ? 1 : (e.key === 'ArrowLeft') ? -1 : 0;
+        if (delta === 0) return;
+        var next = current + delta;
+        if (next < 0 || next >= tabs.length) return;
+        e.preventDefault();
+        tabs[next].click();
+        tabs[next].focus();
+      });
+
+      // 画面の向きを変えたり文字サイズを変えたりすると高さが変わるので測り直す。
+      // このとき面の幅も変わっているので、いまの面へ位置を合わせ直します。
+      window.addEventListener('resize', function () {
+        if (current < 0) return;
+        pager.style.height = '';                    // いったん外して本来の高さを測れるようにする
+        pager.scrollLeft = panels[current].offsetLeft;
+        fitHeight(current);
+      });
+
+      activate(0);
+    })();
+  </script>
 
 </main>
 </body>

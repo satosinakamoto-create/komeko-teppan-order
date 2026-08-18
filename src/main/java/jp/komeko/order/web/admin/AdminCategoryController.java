@@ -105,6 +105,7 @@ public class AdminCategoryController {
         }
 
         Category category = new Category(form.getName().trim(), form.getSortOrder());
+        category.setGroupName(form.getGroupName());   // 空白だけなら setter 側で未設定に揃える
         category.setVisible(form.isVisible());
         categoryRepository.save(category);
 
@@ -155,6 +156,7 @@ public class AdminCategoryController {
         // ここで setter を呼ぶだけで UPDATE 文が発行される（ダーティチェック）。
         // save() を書かなくてよいのは、このメソッドが @Transactional だから。
         category.setName(form.getName().trim());
+        category.setGroupName(form.getGroupName());   // 空白だけなら setter 側で未設定に揃える
         category.setSortOrder(form.getSortOrder());
         category.setVisible(form.isVisible());
 
