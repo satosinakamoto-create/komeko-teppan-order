@@ -102,10 +102,20 @@
       </div>
 
       <div class="card__foot">
+        <!--/*
+          深夜料金は「お会計の時刻」で決まります（着席時刻ではありません）。
+          いま 22:50 のお客さまは 23:00 を過ぎた時点でご請求額が増えるので、
+          そうなる前に必ずお伝えしておきます。
+          先に書いてあれば案内、黙っていて後から増えればクレームです。
+
+          開始時刻だけを書くと、終了時刻を設定している店で
+          「それ以降ずっと」と誤解されるため、範囲で書きます。
+        */-->
         <p class="tiny faint mb-0"
            th:if="${!bill.lateNightApplied and shop.lateNightSurchargePercent > 0}"
-           th:text="${shop.lateNightStartTime} + ' 以降は深夜料金 ' + ${shop.lateNightSurchargePercent} + '% を頂戴いたします'">
-          23:00 以降は深夜料金 10% を頂戴いたします</p>
+           th:text="${shop.lateNightStartTime} + '〜' + ${shop.lateNightEndTime}
+                    + ' のお会計には深夜料金 ' + ${shop.lateNightSurchargePercent} + '% を頂戴いたします'">
+          23:00〜05:00 のお会計には深夜料金 10% を頂戴いたします</p>
         <p class="tiny faint mb-0">お会計はご退店時にレジまでお願いします</p>
       </div>
     </div>

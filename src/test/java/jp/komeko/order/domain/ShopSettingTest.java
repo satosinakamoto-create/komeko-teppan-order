@@ -506,6 +506,59 @@ class ShopSettingTest {
         }
 
         @Test
+        @DisplayName("開店時刻を動かしても、深夜料金の境界は 1 秒も動かない")
+        void independentFromOpenTime() {
+            // 「時刻を円として扱い、起点から何秒進んだかで比較する」と説明すると、
+            // 起点が 1 つしか無いように聞こえて
+            // 「開店を早めたら深夜料金も早く始まるのでは？」と読めてしまう。
+            // 実際は範囲ごとに自分の起点を持つ。深夜料金の起点は lateNightStartTime であって、
+            // openTime は isLateNight の計算に一度も登場しない。
+            // 開店時刻を大きく動かしても境界が動かないことを、ここで固定しておく。
+            ShopSetting setting = lateNightShopSetting();
+
+            for (LocalTime open : new LocalTime[]{
+                    LocalTime.of(11, 0), LocalTime.of(17, 30),
+                    LocalTime.of(0, 0), LocalTime.of(22, 59)}) {
+                setting.setOpenTime(open);
+
+                assertThat(setting.isLateNight(at(22, 59)))
+                        .as("開店 %s のとき 22:59 は深夜ではない", open).isFalse();
+                assertThat(setting.isLateNight(at(23, 0)))
+                        .as("開店 %s のとき 23:00 は深夜", open).isTrue();
+                assertThat(setting.isLateNight(at(4, 59)))
+                        .as("開店 %s のとき 4:59 は深夜", open).isTrue();
+                assertThat(setting.isLateNight(at(5, 0)))
+                        .as("開店 %s のとき 5:00 は深夜ではない", open).isFalse();
+            }
+        }
+
+        @Test
+        @DisplayName("ラストオーダー・閉店・24時間受付を変えても、深夜料金の境界は動かない")
+        void independentFromOtherHours() {
+            ShopSetting setting = lateNightShopSetting();
+            setting.setLastOrderTime(LocalTime.of(3, 0));
+            setting.setCloseTime(LocalTime.of(4, 0));
+            setting.setAlwaysOpen(true);
+
+            assertThat(setting.isLateNight(at(22, 59))).isFalse();
+            assertThat(setting.isLateNight(at(23, 0))).isTrue();
+            assertThat(setting.isLateNight(at(5, 0))).isFalse();
+        }
+
+        @Test
+        @DisplayName("深夜料金の境界は秒単位まで正確（分に丸められたりしない）")
+        void boundaryIsExactToTheSecond() {
+            // 「数分ずれる」ことがないのを固定する。
+            // 22:59:59 はまだ通常料金、23:00:00 ちょうどから深夜。
+            ShopSetting setting = lateNightShopSetting();
+
+            assertThat(setting.isLateNight(LocalDateTime.of(DAY, LocalTime.of(22, 59, 59)))).isFalse();
+            assertThat(setting.isLateNight(LocalDateTime.of(DAY, LocalTime.of(23, 0, 0)))).isTrue();
+            assertThat(setting.isLateNight(LocalDateTime.of(DAY, LocalTime.of(4, 59, 59)))).isTrue();
+            assertThat(setting.isLateNight(LocalDateTime.of(DAY, LocalTime.of(5, 0, 0)))).isFalse();
+        }
+
+        @Test
         @DisplayName("日をまたがない範囲（14:00〜17:00 のような昼の割増）も同じ欄で書ける")
         void nonWrappingRange() {
             // 「深夜」という名前だが、中身はただの時刻範囲。
