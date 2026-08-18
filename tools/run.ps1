@@ -8,6 +8,7 @@
          .\tools\run.ps1 -Package        … 実行可能 jar を作る
          .\tools\run.ps1 -Test           … テストを流す
          .\tools\run.ps1 -Port 8081      … ポートを変えて起動
+         .\tools\run.ps1 -Demo           … 撮影用のデモデータを入れて起動
 
      Maven が入っていない場合は .tools\ 配下に自動でダウンロードして使います。
     ============================================================================
@@ -16,6 +17,11 @@ param(
     [switch]$Package,
     [switch]$Test,
     [switch]$Update,
+    # ポートフォリオ用の画面録画を撮るとき用。
+    # 厨房ボードが埋まり、在庫の残数・売り切れも映る状態にしてから起動する。
+    # 撮影に使う「カウンター1」だけは空けたまま（そこで QR を読んで撮る）。
+    # dev プロファイルでしか効かないので、本番データを荒らすことはない。
+    [switch]$Demo,
     [int]$Port = 8080
 )
 
@@ -177,5 +183,20 @@ Write-Host "  厨房       : http://localhost:$Port/kitchen" -ForegroundColor Da
 Write-Host "  呼び出し   : http://localhost:$Port/display" -ForegroundColor DarkYellow
 Write-Host "  管理       : http://localhost:$Port/admin"   -ForegroundColor DarkYellow
 Write-Host ""
+
+# デモデータの有無は環境変数で渡す。
+# Maven の -Dspring-boot.run.arguments に複数の引数を並べると
+# 区切りが解釈されず、ポート番号が "8080,--app.demo-data=true" という
+# 文字列になって起動に失敗した（実際に踏んだ）。
+# 環境変数なら Spring Boot が APP_DEMO_DATA → app.demo-data と読み替えてくれるので、
+# 途中の道具の癖に左右されない。
+if ($Demo) {
+    Write-Host "  ※ 撮影用のデモデータを入れて起動します（カウンター1 は空けたまま）" -ForegroundColor Magenta
+    Write-Host ""
+    $env:APP_DEMO_DATA = "true"
+} else {
+    # 同じ窓で -Demo 付きのあとに素で起動したとき、値が残らないように必ず戻す
+    $env:APP_DEMO_DATA = "false"
+}
 
 & $mavenExe spring-boot:run "-Dspring-boot.run.arguments=--server.port=$Port"
