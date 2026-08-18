@@ -1238,7 +1238,7 @@ hr {
 }
 
 /* ==========================================================================
-   21. スタッフ側テーマ「.theme-staff」— SnowUI トンマナ（2026-08-18）
+   21. SnowUI テーマ「.theme-snow」（2026-08-18: スタッフ側 → 08-18夜: お客さん側にも拡大）
    --------------------------------------------------------------------------
    店側（厨房・ホール・管理）の画面だけに適用する配色・質感の上書き。
    参考: Figma Community「Dashboard UI Kit (SnowUI)」
@@ -1247,12 +1247,12 @@ hr {
      ・数値カードだけパステル 2 色（#E3F5FF / #EDEEFC）で差す
      ・アイコンは Phosphor duotone（fragments/icons.html）
 
-   仕組み: body に .theme-staff が付くと、ここで CSS 変数を上書きする。
+   仕組み: body に .theme-snow が付くと、ここで CSS 変数を上書きする。
    既存の部品（.card .btn .table .stat …）は全部トークン経由で
    色を参照しているので、変数の差し替えだけで全画面が転調する。
    お客さん側（layout/customer）は和モダンのまま一切変わらない。
    ========================================================================== */
-.theme-staff {
+.theme-snow {
   --bg:            #ffffff;
   --bg-elevated:   #ffffff;
   --surface:       #f7f9fb;
@@ -1292,37 +1292,37 @@ hr {
 }
 
 /* 紙のノイズテクスチャは和モダン専用。SnowUI はフラットな白 */
-body.theme-staff { background-image: none; }
+body.theme-snow { background-image: none; }
 
 /* 見出しの「和」の演出（字間・右へ抜ける罫線）を落としてミニマルに */
-.theme-staff .section-title__text { letter-spacing: 0; }
-.theme-staff .section-title::after { display: none; }
+.theme-snow .section-title__text { letter-spacing: 0; }
+.theme-snow .section-title::after { display: none; }
 
 /* カード: 枠線を消して面の色だけで区切る（SnowUI 流） */
-.theme-staff .card,
-.theme-staff .stat,
-.theme-staff .lane,
-.theme-staff .print-sheet {
+.theme-snow .card,
+.theme-snow .stat,
+.theme-snow .lane,
+.theme-snow .print-sheet {
   border-color: transparent;
   box-shadow: none;
 }
-.theme-staff .card__head { border-bottom-color: rgba(28, 28, 28, .06); }
-.theme-staff .card__foot { border-top-color: rgba(28, 28, 28, .06); background: rgba(28, 28, 28, .02); }
+.theme-snow .card__head { border-bottom-color: rgba(28, 28, 28, .06); }
+.theme-snow .card__foot { border-top-color: rgba(28, 28, 28, .06); background: rgba(28, 28, 28, .02); }
 
 /* 数値カード: 最初の 2 枚だけパステルで差す（キットの Overview と同じ手つき） */
-.theme-staff .grid .stat:nth-child(1) { background: #e3f5ff; }
-.theme-staff .grid .stat:nth-child(2) { background: #edeefc; }
+.theme-snow .grid .stat:nth-child(1) { background: #e3f5ff; }
+.theme-snow .grid .stat:nth-child(2) { background: #edeefc; }
 
 /* 入力欄: 枠線を薄く、面をわずかに沈める */
-.theme-staff .input,
-.theme-staff .select,
-.theme-staff .textarea {
+.theme-snow .input,
+.theme-snow .select,
+.theme-snow .textarea {
   background: #ffffff;
   border-color: rgba(28, 28, 28, .14);
 }
 
 /* テーブルの見出し行はほぼ気配だけ */
-.theme-staff .table th { background: rgba(28, 28, 28, .03); }
+.theme-snow .table th { background: rgba(28, 28, 28, .03); }
 
 /* --------------------------------------------------------------------------
    サイドバーシェル（layout/staff.html 専用）
@@ -1482,3 +1482,48 @@ body.theme-staff { background-image: none; }
   background: #fff;
   border: 1px solid var(--border);
 }
+
+/* ==========================================================================
+   23. お客さん側の SnowUI 磨き込み（2026-08-18）
+   --------------------------------------------------------------------------
+   theme-snow をお客さん側にも適用したうえでの、QR注文フロー特有の調整。
+   構造・文言・機能は一切変えず、見た目の文法だけを SnowUI に揃える。
+   ========================================================================== */
+
+/* のれんの二重線（和の記号）は外す。区切りは通常の 1px ボーダーだけで足りる */
+.theme-snow .app-header::after { display: none; }
+
+/* 店名のワードマークだけは明朝を残す（ロゴと同じ「店の顔」。
+   theme-snow は --font-serif をゴシックに倒すので、ここだけ書体を明示する） */
+.theme-snow .app-header__title {
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "Noto Serif JP", serif;
+}
+
+/* メニューカード: 枠線を消して面(#F7F9FB)と角丸で区切る。ホバーは影でなく沈み色 */
+.theme-snow .menu-item {
+  border-color: transparent;
+  box-shadow: none;
+  border-radius: var(--r-md);
+}
+.theme-snow .menu-item:hover {
+  transform: none;
+  box-shadow: none;
+  background: #f0f3f6;
+  border-color: transparent;
+}
+
+/* 写真なしプレースホルダ: 焼き目ストライプ → フラットな面＋頭文字 */
+.theme-snow .menu-item__thumb--empty {
+  background-image: none;
+  background-color: var(--surface-2);
+}
+
+/* カテゴリタブ: アクティブは黒（--accent がそのまま黒になるので実は無指定でOKだが、
+   非アクティブの枠線を SnowUI らしく薄める） */
+.theme-snow .tab { border-color: rgba(28, 28, 28, .12); }
+
+/* 下部固定バー: 白面＋上ボーダーのみ（にじみ背景はそのまま活きる） */
+.theme-snow .cart-bar { border-top-color: rgba(28, 28, 28, .08); }
+
+/* 会計金額などの合計行の罫線もごく薄く */
+.theme-snow .total-table tr.is-grand td { border-top-color: rgba(28, 28, 28, .15); }
