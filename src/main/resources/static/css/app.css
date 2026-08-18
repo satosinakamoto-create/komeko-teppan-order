@@ -1730,3 +1730,52 @@ body.theme-snow { background-image: none; }
   /* +1px はヘッダーの下罫線のぶん。これが無いと罫線1本ぶん隙間になる */
   top: calc(var(--header-h) + 1px);
 }
+
+/* ==========================================================================
+   26. 大カテゴリのタブを画面に固定する（2026-08-19）
+   --------------------------------------------------------------------------
+   sticky で書いていたが、実機ではスクロールすると上に消えていた。
+
+   原因は position: sticky の性質。
+   sticky は「親要素の箱の中でだけ」貼り付きます。
+   タブを包んでいた <div> はタブと同じ高さしか無かったため、
+   貼り付ける余地が 0 で、スクロールした瞬間に一緒に流れていました。
+   （親を content 全体に広げれば sticky でも直りますが、
+     入れ子の作りに依存しない fixed のほうが、あとから中身を足しても壊れません）
+
+   fixed は流れから外れるので、
+   ・タブの高さを決め打ちにする（--tabs-h）
+   ・同じ高さの空箱 .tabs-slot を元の位置に置く
+   の2つで、下のメニューが裏に潜らないようにしています。
+   ========================================================================== */
+
+:root {
+  --tabs-h: 46px;
+}
+
+.tabs-slot {
+  height: var(--tabs-h);
+}
+
+.tabs {
+  position: fixed;
+  /* +1px はヘッダーの下罫線のぶん。無いとタブが罫線を 1px 覆ってしまう */
+  top: calc(var(--header-h) + 1px);
+  left: 0;
+  right: 0;
+  height: var(--tabs-h);
+  margin-inline: 0;
+  padding-block: 0;
+  align-items: stretch;
+  /* 中身は本文と同じ幅で中央に。画面が広いときだけ左右の余白が増える */
+  padding-inline: max(var(--sp-4), calc((100vw - var(--page-max)) / 2));
+  /* 背景が透けるとメニューの文字が裏に見えてしまうので、しっかり塗る */
+  background: var(--bg);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  min-height: 0;
+}

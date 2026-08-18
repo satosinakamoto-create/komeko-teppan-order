@@ -4,25 +4,24 @@
 <body>
 <main>
 
-  <div class="container">
-    <div th:replace="~{fragments/common :: flash}"></div>
-
-    <!--/* 受付停止中・時間外のお知らせ */-->
-    <div class="alert alert--warn mt-4" th:unless="${accepting}" role="alert">
-      <p class="mb-0" th:text="${rejectReason}">ただいま受付を停止しております</p>
-    </div>
-  </div>
-
   <!--/*
     ===== 大カテゴリのタブ =====
-    画面の上に貼り付いたまま動きません（CSS の position: sticky）。
-    スクロールしても常に見えているので、いつでも他のジャンルへ移れます。
+    画面に固定され、スクロールしても動きません（CSS の position: fixed）。
+    いつでも他のジャンルへ移れます。
 
     中身は <button> です。<a href="#..."> にすると押した瞬間に
     URL が変わって「戻る」の履歴が増え、戻るボタンの挙動が分かりにくくなります。
     ここは画面内の移動なので、履歴を汚さないボタンにしています。
+
+    tabs-slot は「タブが本来いた場所」を空けておくための箱です。
+    中のタブは fixed で流れから外れるため、
+    この箱が高さを持っていないと、下のメニューがタブの裏に潜り込みます。
+
+    ★ この塊は、お知らせ（flash）より前に置くこと。
+      あとに置くと、お知らせが画面のいちばん上に来てしまい、
+      同じ位置に固定されているタブの裏に隠れて読めなくなります。
   */-->
-  <div class="container" th:if="${!tabs.isEmpty()}">
+  <div class="tabs-slot" th:if="${!tabs.isEmpty()}">
     <nav class="tabs" aria-label="メニューのジャンル" id="menuTabs" role="tablist">
       <button type="button" class="tab" th:each="tab, ts : ${tabs}"
               role="tab"
@@ -33,6 +32,16 @@
               th:id="'tab-' + ${ts.index}"
               th:text="${tab.key}">お好み焼き</button>
     </nav>
+  </div>
+
+  <!--/* お知らせはタブの下に置く（上に置くと固定タブの裏に隠れて読めない） */-->
+  <div class="container">
+    <div th:replace="~{fragments/common :: flash}"></div>
+
+    <!--/* 受付停止中・時間外のお知らせ */-->
+    <div class="alert alert--warn mt-4" th:unless="${accepting}" role="alert">
+      <p class="mb-0" th:text="${rejectReason}">ただいま受付を停止しております</p>
+    </div>
   </div>
 
   <!--/*
