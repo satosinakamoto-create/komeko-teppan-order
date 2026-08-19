@@ -129,6 +129,23 @@ class DemoEntryTest {
         }
 
         @Test
+        @DisplayName("お客さま画面に「QR を読んだ直後」であることの前置きが出る")
+        void customerScreenExplainsTheQrPremise() throws Exception {
+            // 実店舗では、席の QR を読んだ人がこの画面を開く。
+            // つまり自分がどこの席にいるか分かった状態で始まる。
+            //
+            // 公開デモはポートフォリオのボタンから直接ここへ来るので、
+            // その前提が無いまま、いきなり人数を聞かれる。
+            // 「なぜ人数を聞かれるのか」が分からないと、その先へ進んでもらえない。
+            DiningTable table = tableRepository.save(new DiningTable("カウンター1", 2, 10));
+
+            mockMvc.perform(get("/t/" + table.getAccessToken()))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.containsString("席に貼ってある QR コード")));
+        }
+
+        @Test
         @DisplayName("店舗側の見学入口はログインなしで開ける")
         void staffEntryIsPublic() throws Exception {
             // ポートフォリオから 1 クリックで来る入口。
@@ -255,11 +272,37 @@ class DemoEntryTest {
     @SpringBootTest
     @AutoConfigureMockMvc
     @ActiveProfiles("test")
+    @Transactional
     @DisplayName("実店舗の設定のとき（既定）")
     class DisabledByDefault {
 
         @Autowired
         MockMvc mockMvc;
+
+        @Autowired
+        DiningTableRepository tableRepository;
+
+        @Test
+        @DisplayName("お客さま画面にデモの前置きは出ない")
+        void customerScreenHasNoDemoNote() throws Exception {
+            // ★ ここが本番。
+            //   前置きは公開デモのための文章で、実店舗のお客さまには意味が無い。
+            //   むしろ「架空のデータです」と書いてあるものを
+            //   本物の注文画面で見せることになる。
+            //
+            //   出す条件を間違えても画面は普通に動いてしまうので、
+            //   気づけるのは店頭でお客さまが見たときになる。だから固定する。
+            DiningTable table = tableRepository.save(new DiningTable("3番テーブル", 4, 10));
+
+            mockMvc.perform(get("/t/" + table.getAccessToken()))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.not(
+                                    org.hamcrest.Matchers.containsString("席に貼ってある QR コード"))))
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.not(
+                                    org.hamcrest.Matchers.containsString("架空のデータ"))));
+        }
 
         @Test
         @DisplayName("経路そのものが存在しない")
