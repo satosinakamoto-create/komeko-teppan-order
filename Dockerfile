@@ -37,14 +37,42 @@ WORKDIR /app
 
 # root のまま動かさない。もし中に入られても、できることを減らしておく。
 RUN useradd --create-home --shell /usr/sbin/nologin komeko
-USER komeko
 
 COPY --from=build /build/target/*.jar app.jar
 
+# ---------------------------------------------------------------------------
 # H2 のファイルと商品画像の置き場所。
 # 無料ホスティングでは再起動で消えますが、デモではむしろ好都合
 # （荒らされても次の起動できれいに戻る）。
-RUN mkdir -p /app/data
+#
+# ★ ここは必ず USER を切り替える「前」に、root のまま作って chown する。
+#
+# 最初は USER komeko のあとに mkdir を書いていたが、それでは動かなかった。
+#   ・WORKDIR /app は root が作る（所有者 root・755）
+#   ・そのあと USER komeko に切り替わる
+#   ・komeko には /app への書き込み権が無いので mkdir が Permission denied
+#     → docker build がそこで失敗する
+#
+# 仮にビルドが通っても、起動時に同じ壁に当たる。
+#   ・H2 が ./data/komeko-demo を作れない
+#   ・ImageStorageService はコンストラクタで Files.createDirectories を呼び、
+#     失敗すると例外を投げる（＝ Bean が作れず、アプリが起動しない）
+#
+# 「非 root で動かす」と「アプリが書き込む場所」は必ずセットで考える。
+# 権限を下げるだけでは足りず、下げた先に必要な権限を渡すところまでが一組。
+# ---------------------------------------------------------------------------
+RUN mkdir -p /app/data/uploads && chown -R komeko:komeko /app
+
+USER komeko
+
+# ---------------------------------------------------------------------------
+# タイムゾーン。コンテナの既定は UTC。
+# このアプリは営業日の切り替え（5:00）・ラストオーダー・深夜料金を
+# すべて日本時間の「壁時計」で判断するので、UTC のままだと 9 時間ずれる。
+# 厨房ボードは「その営業日ぶん」しか出さないため、
+# ずれると起動時に入れたデモの注文が 1 件も表示されない、という形で現れる。
+# ---------------------------------------------------------------------------
+ENV TZ=Asia/Tokyo
 
 EXPOSE 8080
 
@@ -54,7 +82,12 @@ EXPOSE 8080
 # コンテナごと停止させられます（OOM Killed）。
 # MaxRAMPercentage は「コンテナに割り当てられた量の何％まで使うか」。
 # ---------------------------------------------------------------------------
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k"
+#
+# user.timezone も明示する。TZ 環境変数だけでも JVM は追随するが、
+# ベースイメージに tzdata が無い環境へ引っ越したときに黙って UTC へ戻る。
+# 時刻がずれても例外は出ず、ただ「注文が受け付けられない」形で現れるため、
+# 気付きにくい。二重に指定しておく。
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k -Duser.timezone=Asia/Tokyo"
 
 # ホスティング側が PORT を指定してくることがあるので、それに合わせる。
 # 指定が無ければ 8080。
