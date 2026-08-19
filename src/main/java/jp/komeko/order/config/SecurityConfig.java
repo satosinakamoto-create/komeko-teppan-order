@@ -181,6 +181,22 @@ public class SecurityConfig {
                     // POST は下の /admin/** ルールに落ちて ADMIN 限定のまま。
                     auth.requestMatchers(HttpMethod.GET, "/admin", "/admin/**")
                             .hasAnyRole("STAFF", "ADMIN");
+
+                    // ── 品切れ・残数の変更は見学者に許さない ──
+                    //
+                    // この画面は /kitchen 配下にあるため、下の
+                    // 「/kitchen/** は STAFF 以上」に引っかかって通ってしまいます。
+                    // 実際、公開デモで見学者が品切れボタンを押せる状態になっていました。
+                    //
+                    // 厨房ボードの「焼きはじめ／焼き上がり」は<b>あえて押せるまま</b>にします。
+                    // 注文の状態を進めると客側の画面がその場で変わる、が最大の見せ場だからです。
+                    // 一方、品切れ・残数は<b>次に見に来た人の画面を壊す</b>操作です。
+                    // 全品を品切れにされたら、そのあと誰も注文を試せません。
+                    //
+                    // 同じ「書き込み」でも、直後に元へ戻るものと、
+                    // 後から来る人に残るものは分けて考える必要があります。
+                    auth.requestMatchers(HttpMethod.POST, "/kitchen/stock/**")
+                            .hasRole("ADMIN");
                 }
 
                 auth

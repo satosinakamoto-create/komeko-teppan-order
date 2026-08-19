@@ -84,6 +84,14 @@
           <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
                  inputmode="numeric"
                  th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
+          <!--/* 何に効く数字なのかが書いていなかった。
+                 「並び順」とだけ言われても、どの画面の並びが変わるのか分からない。 */-->
+          <p class="help">
+            <strong>スタッフが見る画面での卓の並び</strong>です。小さいほど先に出ます。
+            ホール・会計、QRコード、この一覧の 3 つに効きます。<br>
+            お客さんの画面には出ません（お客さんは自分の卓の QR しか読まないため）。
+            <strong>店内の並びと同じ順にしておくと、ホール画面と実際の席が対応して探しやすくなります。</strong>
+          </p>
           <p class="help">小さいほど先に表示されます。</p>
           <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
         </div>

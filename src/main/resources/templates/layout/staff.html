@@ -223,12 +223,23 @@
             エラー画面に飛ばされて「壊れている」と受け取ります。
             守ることと、伝えることは別の仕事です。
 
+          ★ 品切れ・残数（/kitchen/stock）も対象に含める
+            この画面は /kitchen 配下にありますが、性質は管理画面です。
+            全品を品切れにされると、次に見に来た人が何も注文できなくなります。
+
+            同じ「書き込み」でも、
+              注文の状態（焼きはじめ／焼き上がり）… その場限り。次の人に残らない
+              品切れ・残数                        … 残る。後から来る人の画面を壊す
+            が分かれます。パスの形ではなく、影響の残り方で線を引きます。
+
           ★ 条件を「管理画面のときだけ」に絞っている理由
             厨房ボードとホールのボタンは、ゲストにも押してもらう前提です。
             注文の状態を進めると客側の画面がその場で変わる、というのが
             このデモのいちばんの見せ場なので、そこを無効化しては本末転倒。
             /kitchen と /hall の POST は STAFF に許可してあります。 */-->
-    <div th:if="${guestLogin and currentPath != null and #strings.startsWith(currentPath, '/admin')}"
+    <div th:if="${guestLogin and currentPath != null
+                  and (#strings.startsWith(currentPath, '/admin')
+                       or #strings.startsWith(currentPath, '/kitchen/stock'))}"
          sec:authorize="!hasRole('ADMIN')"
          class="viewer-note" role="status">
       <strong>見学モードです。</strong>
@@ -255,7 +266,9 @@
         最初 p のまま書いていて、#strings.startsWith(null, …) で
         全画面がテンプレート解析エラーになりました。
         変数のスコープは、閉じタグの外まで持ち越せません。 */-->
-<script th:if="${guestLogin and currentPath != null and #strings.startsWith(currentPath, '/admin')}"
+<script th:if="${guestLogin and currentPath != null
+                 and (#strings.startsWith(currentPath, '/admin')
+                      or #strings.startsWith(currentPath, '/kitchen/stock'))}"
         sec:authorize="!hasRole('ADMIN')">
   document.addEventListener('DOMContentLoaded', function () {
     var main = document.querySelector('.staff-main');

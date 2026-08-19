@@ -1238,6 +1238,10 @@ hr {
 .small   { font-size: .8125rem; }
 .tiny    { font-size: .75rem; }
 .center  { text-align: center; }
+/* img はグローバルで display: block にしてある（下に隙間ができるのを防ぐため）。
+   ブロック要素は text-align では中央に寄らないので、余白を自動にして寄せる。
+   .center の中の文字だけ中央、画像は左のまま、という食い違いが起きていた。 */
+.center > img { margin-inline: auto; }
 .right   { text-align: right; }
 .bold    { font-weight: 700; }
 .serif   { font-family: var(--font-serif); }

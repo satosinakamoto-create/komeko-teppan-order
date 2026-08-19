@@ -46,14 +46,10 @@
     <div class="card__body">
       <div class="grid grid--3">
 
-        <div class="field">
-          <label class="label" for="name">カテゴリ名<span class="req">必須</span></label>
-          <input class="input" type="text" th:field="*{name}" maxlength="40"
-                 placeholder="例：米粉ガレット"
-                 th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
-          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
-        </div>
-
+        <!--/* ★ 大カテゴリを先に置く。
+               お客さんは「タブを選ぶ → その中のカテゴリを見る」の順で辿ります。
+               登録する側も同じ順で考えるので、広いほうから並べたほうが迷いません。
+               もとはカテゴリ名が先で、階層と入力順が逆になっていました。 */-->
         <div class="field">
           <label class="label" for="groupName">大カテゴリ（タブ名）</label>
           <input class="input" type="text" th:field="*{groupName}" maxlength="20"
@@ -66,6 +62,14 @@
             <strong>空のままなら、このカテゴリ名がそのままタブになります。</strong>
           </p>
           <p class="error" th:if="${#fields.hasErrors('groupName')}" th:errors="*{groupName}">エラー内容</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="name">カテゴリ名<span class="req">必須</span></label>
+          <input class="input" type="text" th:field="*{name}" maxlength="40"
+                 placeholder="例：米粉ガレット"
+                 th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
+          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
         </div>
 
         <div class="field">
@@ -125,16 +129,6 @@
             */-->
             <input type="hidden" name="_visible" value="on">
 
-            <div class="field" style="flex:2 1 200px;margin-bottom:0">
-              <label class="label" th:for="'cat-name-' + ${c.id}">カテゴリ名</label>
-              <input class="input" type="text" name="name" maxlength="40"
-                     th:id="'cat-name-' + ${c.id}"
-                     th:value="${editing ? editForm.name : c.name}"
-                     th:classappend="${errs != null and errs.containsKey('name')} ? 'is-error'">
-              <p class="error" th:if="${errs != null and errs.containsKey('name')}"
-                 th:text="${errs.get('name')}">エラー内容</p>
-            </div>
-
             <div class="field" style="flex:1 1 150px;margin-bottom:0">
               <label class="label" th:for="'cat-group-' + ${c.id}">大カテゴリ</label>
               <input class="input" type="text" name="groupName" maxlength="20"
@@ -144,6 +138,16 @@
                      th:classappend="${errs != null and errs.containsKey('groupName')} ? 'is-error'">
               <p class="error" th:if="${errs != null and errs.containsKey('groupName')}"
                  th:text="${errs.get('groupName')}">エラー内容</p>
+            </div>
+
+            <div class="field" style="flex:2 1 200px;margin-bottom:0">
+              <label class="label" th:for="'cat-name-' + ${c.id}">カテゴリ名</label>
+              <input class="input" type="text" name="name" maxlength="40"
+                     th:id="'cat-name-' + ${c.id}"
+                     th:value="${editing ? editForm.name : c.name}"
+                     th:classappend="${errs != null and errs.containsKey('name')} ? 'is-error'">
+              <p class="error" th:if="${errs != null and errs.containsKey('name')}"
+                 th:text="${errs.get('name')}">エラー内容</p>
             </div>
 
             <div class="field" style="flex:0 1 110px;margin-bottom:0">
