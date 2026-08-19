@@ -5,6 +5,13 @@
 <main>
   <div class="container">
 
+    <!--/*
+      入力の案内（人数を選ばずに「決定」を押したときなど）を出す場所。
+      これが無いと、コントローラで案内を渡しても画面には何も出ません。
+      以前この画面は「必ず成功する」前提で作られていて、置いていませんでした。
+    */-->
+    <div th:replace="~{fragments/common :: flash}"></div>
+
     <div class="section-title mt-4">
       <h1 class="section-title__text">ご来店ありがとうございます</h1>
     </div>
@@ -43,12 +50,27 @@
                 th:text="${n} + '名'">1名</button>
       </div>
 
+      <!--/*
+        9名以上の自由入力。
+
+        ★ 空のまま「決定」を押されると、以前は 400 エラーの画面が出ていました。
+          お客さまが QR を読んだ直後の最初の操作なので、
+          意味の分からないエラーが出ると店員を呼ぶしかなくなります。
+
+          いまは 2 段構えで防いでいます。
+            1. ここで onclick を使い、空なら押しても送信しない（すぐ気づける）
+            2. それでも空が届いたら、サーバ側が案内を出して同じ画面に戻す
+          画面側だけの対策では、JavaScript が動かない環境で素通りします。
+          サーバ側だけだと、往復してからでないと気づけません。両方あって初めて親切になります。
+      */-->
       <div class="field mt-6">
         <label class="label" for="guestCountOther">9名以上のとき</label>
         <div class="row">
           <input class="input" type="number" id="guestCountOther" name="guestCount"
                  min="9" max="20" inputmode="numeric" placeholder="人数">
-          <button type="submit" class="btn btn--primary" th:disabled="${!accepting}">決定</button>
+          <button type="submit" class="btn btn--primary" th:disabled="${!accepting}"
+                  onclick="var v=document.getElementById('guestCountOther');
+                           if (!v.value) { v.focus(); return false; }">決定</button>
         </div>
         <p class="help">人数が違っていた場合は、スタッフが修正できますのでご安心ください。</p>
       </div>

@@ -8,8 +8,10 @@ import jp.komeko.order.domain.OrderStatus;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.repository.DiningTableRepository;
 import jp.komeko.order.repository.MenuItemRepository;
+import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.service.CartService;
 import jp.komeko.order.service.OrderService;
+import jp.komeko.order.service.ShopSettingService;
 import jp.komeko.order.service.TableService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,11 +45,11 @@ import java.util.Optional;
  * <p><b>安全装置</b><br>
  * このクラスは 2 つの条件がそろったときだけ動きます。
  * <ol>
- *   <li>{@code dev} プロファイル（{@code @Profile("dev")}）</li>
+ *   <li>{@code dev}（手元）か {@code demo}（公開デモ）のプロファイル</li>
  *   <li>設定 {@code app.demo-data} が {@code true}
- *       （{@code run.ps1 -Demo} が環境変数 {@code APP_DEMO_DATA} で渡します）</li>
+ *       （手元は {@code run.ps1 -Demo}、公開デモは demo プロファイルが渡します）</li>
  * </ol>
- * 本番（{@code prod}）ではクラスそのものが読み込まれないので、
+ * <b>本番（{@code prod}）ではクラスそのものが読み込まれません。</b>
  * 起動オプションを間違えても、お客さまのデータに架空の注文が混ざることはありません。
  *
  * <p><b>なぜ起動引数ではなく設定値で受けるのか</b><br>
@@ -70,7 +72,7 @@ import java.util.Optional;
  * <b>撮る直前に走らせてください。</b>
  */
 @Component
-@Profile("dev")
+@Profile({"dev", "demo"})
 public class DemoDataSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeeder.class);
@@ -83,6 +85,7 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final TableService tableService;
     private final CartService cartService;
     private final OrderService orderService;
+    private final ShopSettingService shopSettingService;
 
     /** true のときだけデモデータを入れる。既定は false（うっかり動かないように）。 */
     private final boolean enabled;
@@ -92,12 +95,14 @@ public class DemoDataSeeder implements ApplicationRunner {
                           TableService tableService,
                           CartService cartService,
                           OrderService orderService,
+                          ShopSettingService shopSettingService,
                           @Value("${app.demo-data:false}") boolean enabled) {
         this.tableRepository = tableRepository;
         this.menuItemRepository = menuItemRepository;
         this.tableService = tableService;
         this.cartService = cartService;
         this.orderService = orderService;
+        this.shopSettingService = shopSettingService;
         this.enabled = enabled;
     }
 
@@ -118,7 +123,20 @@ public class DemoDataSeeder implements ApplicationRunner {
         if (!enabled) {
             return;
         }
-        seed();
+        try {
+            seed();
+        } catch (RuntimeException e) {
+            // ★ デモデータの投入に失敗しても、アプリは起動させる。
+            //
+            // ここを素通しにしていたら、営業時間外に起動したとき
+            //   OrderRejectedException: 本日の営業は 17:30 からです。
+            // で ApplicationRunner が落ち、アプリごと起動できませんでした。
+            //
+            // 撮影用のおまけデータが入らないことと、
+            // システムが起動しないことは、深刻さがまるで違います。
+            // 「あると嬉しい処理」で全体を止めない、が原則です。
+            log.warn("デモデータの投入に失敗しました（アプリは通常どおり起動します）: {}", e.toString());
+        }
     }
 
     void seed() {
@@ -128,6 +146,7 @@ public class DemoDataSeeder implements ApplicationRunner {
             return;
         }
 
+        openTheShop();
         setUpStock();
         int created = fillOtherTables();
 
@@ -142,6 +161,27 @@ public class DemoDataSeeder implements ApplicationRunner {
                  撮り終わったら ホール画面から会計して片付けてください。
                 ============================================================
                 """, created, STAGE_TABLE);
+    }
+
+    /**
+     * 時刻で受付が止まらないようにする（24 時間受付）。
+     *
+     * <p>実店舗の営業時間は 17:30〜翌 1:30 です。
+     * そのままだと昼間に触った人は<b>何も注文できません</b>。
+     * 公開デモは世界中から、どの時間帯にも見に来られるので、
+     * 「いまは営業時間外です」と言われて終わるのでは意味がありません。
+     *
+     * <p>撮影用に手元で使うときも同じです。
+     * 実際、営業時間外に起動したらここで注文が弾かれ、
+     * その例外でアプリごと起動できなくなりました。
+     */
+    private void openTheShop() {
+        ShopSetting setting = shopSettingService.current();
+        if (!setting.isAlwaysOpen()) {
+            setting.setAlwaysOpen(true);
+            setting.touch();
+            log.info("デモのため 24 時間受付に切り替えました（実店舗の営業時間は残っています）");
+        }
     }
 
     /**

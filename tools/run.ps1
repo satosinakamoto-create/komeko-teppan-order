@@ -195,8 +195,14 @@ if ($Demo) {
     Write-Host ""
     $env:APP_DEMO_DATA = "true"
 } else {
-    # 同じ窓で -Demo 付きのあとに素で起動したとき、値が残らないように必ず戻す
-    $env:APP_DEMO_DATA = "false"
+    # 同じ窓で -Demo のあとに素で起動したとき、値が残らないように消す。
+    #
+    # ★ "false" を代入してはいけない。
+    #   環境変数は application-demo.yml より強いので、
+    #   demo プロファイルで起動しても APP_DEMO_DATA=false が勝ってしまい、
+    #   「設定では true にしているのにデモデータが入らない」ことになる（実際に踏んだ）。
+    #   消せば、プロファイル側の設定がそのまま効く。
+    Remove-Item Env:\APP_DEMO_DATA -ErrorAction SilentlyContinue
 }
 
 & $mavenExe spring-boot:run "-Dspring-boot.run.arguments=--server.port=$Port"

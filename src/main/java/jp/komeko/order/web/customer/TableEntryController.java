@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -83,13 +85,61 @@ public class TableEntryController {
      *
      * <p>人数を聞くのはテーブルチャージの計算に必要だからです。
      * お客さんの申告なので、実際と違っていればスタッフがホール画面から直せます。
+     *
+     * <p><b>{@code int} ではなく {@code String} で受けている理由（実際に起きた不具合）</b><br>
+     * 以前は {@code @RequestParam int guestCount} でした。
+     * ところが「9名以上のとき」の欄を<b>空のまま「決定」を押す</b>と、
+     * ブラウザは {@code guestCount=}（空文字）を送ります。
+     * 空文字は数値に変換できないため Spring が 400 を返し、
+     * お客さまの画面には「400 Bad Request」とだけ出ていました。
+     *
+     * <p>ここは QR を読んだ直後の、いちばん最初の操作です。
+     * 意味の分からないエラーが出れば、お客さまは店員を呼ぶしかありません。
+     * <b>入力の間違いは「エラー」ではなく「案内」で返す</b>のが正しい扱いなので、
+     * いったん文字列で受け取って自分で解釈し、
+     * 数値として読めなければ元の画面へ案内を出して戻します。
+     *
+     * <p>{@code required = false} も付けています。
+     * 何かの拍子にパラメータ自体が届かなかったときも、400 ではなく案内で返すためです。
      */
     @PostMapping("/t/{accessToken}/start")
     public String start(@PathVariable String accessToken,
-                        @RequestParam int guestCount) {
+                        @RequestParam(required = false) String guestCount,
+                        RedirectAttributes redirectAttributes) {
         DiningTable table = tableService.getByAccessToken(accessToken);
         tableContext.bind(table.getId(), table.getName(), accessToken);
-        tableService.openSession(table.getId(), Math.max(1, Math.min(guestCount, 20)));
+
+        Integer parsed = parseGuestCount(guestCount);
+        if (parsed == null) {
+            redirectAttributes.addFlashAttribute("flashErrors",
+                    List.of("人数をお選びください（9名以上のときは、数字を入れてから「決定」を押してください）"));
+            return "redirect:/t/" + accessToken;
+        }
+
+        tableService.openSession(table.getId(), Math.max(1, Math.min(parsed, 20)));
         return "redirect:/";
+    }
+
+    /**
+     * 送られてきた人数を数値にする。数値として読めなければ {@code null}。
+     *
+     * <p>この画面には「1〜8名のボタン」と「9名以上の入力欄」があり、
+     * どちらも同じ {@code guestCount} という名前です。
+     * ボタンを押すと<b>両方が送られる</b>ため、Spring は
+     * {@code "2,"} のようにカンマで繋いだ 1 つの文字列として渡してきます。
+     * そこで<b>先頭から順に見て、最初に数値として読めたものを採用</b>します。
+     */
+    private Integer parseGuestCount(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        for (String part : raw.split(",")) {
+            try {
+                return Integer.valueOf(part.trim());
+            } catch (NumberFormatException ignored) {
+                // 空欄など、数値でないものは飛ばして次を見る
+            }
+        }
+        return null;
     }
 }
