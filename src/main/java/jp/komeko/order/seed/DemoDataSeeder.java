@@ -316,9 +316,18 @@ public class DemoDataSeeder implements ApplicationRunner {
 
     static {
         // ── 広島風お好み焼き ──
+        DEMO_PHOTOS.put("ねぎたっぷり米粉そば", "okonomi-negi.jpg");
         DEMO_PHOTOS.put("肉玉大葉げそ米粉そば", "hiroshima.jpg");
         DEMO_PHOTOS.put("牡蠣と豚肉米粉そば", "cheese-okonomi.jpg");
         DEMO_PHOTOS.put("海鮮スペシャル", "okonomi-kaisen.jpg");
+
+        // ── 選べる米粉たこ焼き ──
+        //   この店の看板メニュー。撮影データがそろっているので個数ごとに変えている。
+        //   同じ写真を使い回すと「個数で何が変わるのか」が伝わらない。
+        DEMO_PHOTOS.put("たこ焼 4個", "takoyaki-4.jpg");
+        DEMO_PHOTOS.put("たこ焼 12個", "takoyaki-12.jpg");
+        DEMO_PHOTOS.put("たこ焼 16個", "takoyaki-16.jpg");
+        DEMO_PHOTOS.put("たこ焼 20個", "takoyaki-20.jpg");
 
         // ── 鉄板おつまみ ──
         DEMO_PHOTOS.put("殻付きホタテバター醤油（北海道産）", "harasu.jpg");
