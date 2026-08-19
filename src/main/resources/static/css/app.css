@@ -472,7 +472,10 @@ hr {
 
 .badge--gf      { background: var(--ok-soft);     color: var(--ok);     border-color: currentColor; }
 .badge--rec     { background: var(--accent-soft); color: var(--accent); border-color: currentColor; }
-.badge--soldout { background: var(--surface-2);   color: var(--text-faint); border-color: var(--border-strong); }
+/* 売り切れは「タグ」ではなく「状態」。
+   ほかのバッジと同じ薄さだと、注文できない品だと気づかずに押される。
+   塗りつぶして、周りより一段強く見せる。 */
+.badge--soldout { background: var(--text-muted);  color: var(--bg);         border-color: transparent; }
 .badge--allergen{ background: transparent; color: var(--text-muted); border-color: var(--border-strong); font-weight: 500; }
 
 .status-chip {
@@ -514,8 +517,33 @@ hr {
   box-shadow: var(--shadow-md);
   border-color: var(--border-strong);
 }
-.menu-item.is-soldout { opacity: .55; }
-.menu-item.is-soldout:hover { transform: none; }
+/* --------------------------------------------------------------------------
+   売り切れの見せ方
+
+   もとは .menu-item 全体を opacity: .55 にしていた。
+   これだと「売り切れ」バッジまで一緒に薄くなり、
+   いちばん見せたい情報がいちばん見えなくなる。逆効果だった。
+
+   ★ 一度は写真を白黒にしたが、やめた。
+     たしかに一目で分かる。ただ、メニューは「食べたい」と思わせる場所で、
+     白黒の料理写真はその気持ちを削ぐ。
+     売り切れの品も、次に来たときは頼めるかもしれない。
+     色を奪うのは、伝えたいこと（いまは頼めない）に対して代償が大きすぎた。
+
+   いま効かせているのは 3 つだけ。
+     背景  … 一段沈める（カード自体が引っ込んで見える）
+     文字  … 少し落とす（読めなくはしない。値段は知りたい）
+     バッジ… 塗りつぶして強調する
+   写真はそのまま。料理は美味しそうなままにしておく。
+   -------------------------------------------------------------------------- */
+.menu-item.is-soldout { opacity: 1; background: var(--surface-2); }
+.menu-item.is-soldout:hover { transform: none; box-shadow: var(--shadow-sm); }
+
+.menu-item.is-soldout .menu-item__name,
+.menu-item.is-soldout .menu-item__desc,
+.menu-item.is-soldout .menu-item__price {
+  color: var(--text-faint);
+}
 
 .menu-item__thumb {
   width: 92px;

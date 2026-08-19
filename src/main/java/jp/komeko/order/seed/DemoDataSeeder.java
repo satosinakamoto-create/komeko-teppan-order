@@ -373,7 +373,9 @@ public class DemoDataSeeder implements ApplicationRunner {
 
         // ── ビール・サワー ──
         DEMO_PHOTOS.put("サッポロ赤星（中瓶）", "beer-akaboshi.jpg");
-        DEMO_PHOTOS.put("自家製レモンサワー", "lemon-sour.jpg");
+        // モクテルのレモンソーダと同じ画。中身がほぼ同じなので揃える
+        //（元は「レモンの絞り器」の写真で、飲み物そのものが写っていなかった）
+        DEMO_PHOTOS.put("自家製レモンサワー", "gpt-mocktail.jpg");
         DEMO_PHOTOS.put("ジャスミンハイボール", "jasmine-highball.jpg");
 
         // ── ウィスキー ──
@@ -401,14 +403,30 @@ public class DemoDataSeeder implements ApplicationRunner {
         }
 
         // ── ソフトドリンク ──
+        //   レモンの炭酸なので、モクテルの写真がそのまま合う
+        DEMO_PHOTOS.put("自家製レモンスカッシュ", "gpt-mocktail.jpg");
+        DEMO_PHOTOS.put("自家製レモネード", "gpt-mocktail.jpg");
         DEMO_PHOTOS.put("コカ・コーラ", "cola.jpg");
         DEMO_PHOTOS.put("ジンジャーエール", "ginger-ale.jpg");
         DEMO_PHOTOS.put("黒烏龍茶", "kuro-oolong.jpg");
         DEMO_PHOTOS.put("緑茶", "matcha.jpg");
         DEMO_PHOTOS.put("ジャスミンティー", "green-tea.jpg");
         DEMO_PHOTOS.put("オレンジジュース", "orange-juice.jpg");
+        //   どちらも無色の炭酸。グラスとボトルが1枚に写っているので両方に使える
+        DEMO_PHOTOS.put("トニックウォーター", "gpt-sparkling.jpg");
+        DEMO_PHOTOS.put("炭酸水", "gpt-sparkling.jpg");
+
+        // ── モクテル（ノンアルカクテル）──
+        //   3種とも炭酸系。中身が近いので共通の一枚で足りる。
+        for (String name : List.of(
+                "特製ノンアルレモンサワー", "ノンアルジントニック", "ノンアルシャンディガフ")) {
+            DEMO_PHOTOS.put(name, "gpt-mocktail.jpg");
+        }
 
         // ── 日本酒・ワイン ──
+        //   「本日の日本酒（おまかせ）」は銘柄が日替わりなので、
+        //   むしろ銘柄を写さない徳利の写真のほうが正しい。
+        DEMO_PHOTOS.put("本日の日本酒（おまかせ）", "gpt-nihonshu.jpg");
         DEMO_PHOTOS.put("グラスワイン（赤・白）", "wine-red.jpg");
         DEMO_PHOTOS.put("ボトルワイン", "wine-white.jpg");
     }

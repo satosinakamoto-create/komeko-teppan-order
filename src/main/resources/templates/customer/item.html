@@ -10,7 +10,7 @@
     <div th:replace="~{fragments/common :: flash}"></div>
 
     <article class="card mt-4">
-      <img th:if="${item.imagePath != null}" th:src="${item.imagePath}" th:alt="${item.name}"
+      <img th:if="${item.imagePath != null}" th:src="@{${item.imagePath}}" th:alt="${item.name}"
            style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px 12px 0 0">
 
       <div class="card__body">
@@ -20,8 +20,14 @@
         <p class="lead mt-4" th:if="${item.description}" th:text="${item.description}">説明文</p>
 
         <p class="menu-item__price" style="font-size:1.5rem">
-          <span th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
-          <small>税込</small>
+          <span th:replace="~{fragments/common :: price(${item})}">¥880</span>
+          <small th:if="${item.price > 0}">税込</small>
+        </p>
+
+        <!--/* 時価の品は、なぜ金額が出ていないのかをその場で説明する。
+               「時価」だけだと、値段を隠されたように受け取る人もいる */-->
+        <p class="help mb-0" th:if="${item.price <= 0}">
+          仕入れによって価格が変わるため、当日の金額はスタッフにお尋ねください。
         </p>
 
         <!--/* 数量限定の品は残りの数を目立たせる */-->
@@ -107,7 +113,9 @@
           <button type="submit" class="btn btn--primary btn--lg btn--block">
             注文リストに追加
             <span id="add-total"
-                  th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
+                  th:text="${item.price > 0}
+                           ? '¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}
+                           : '時価'">¥880</span>
           </button>
         </div>
       </div>

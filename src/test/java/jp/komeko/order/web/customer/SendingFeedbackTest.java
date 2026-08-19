@@ -94,6 +94,26 @@ class SendingFeedbackTest {
     }
 
     @Test
+    @DisplayName("9名以上の決定ボタンは、最初は主役の色にしない")
+    void otherSubmitStartsSecondary() throws Exception {
+        // 人数を入れる前から黒いボタンが置いてあると、
+        // 「まずこれを押すもの」に見えて空のまま押される。
+        // 色を付けるのは値が入ってから（customer.js が btn--primary を足す）。
+        String html = mockMvc.perform(get("/t/" + table.getAccessToken()))
+                .andReturn().getResponse().getContentAsString();
+
+        int start = html.indexOf("id=\"guestCountOtherSubmit\"");
+        org.assertj.core.api.Assertions.assertThat(start)
+                .as("決定ボタンに id が付いていること（JS がこれを見て色を変える）")
+                .isGreaterThanOrEqualTo(0);
+
+        String tag = html.substring(start, html.indexOf(">", start));
+        org.assertj.core.api.Assertions.assertThat(tag)
+                .as("初期状態で btn--primary が付いていないこと")
+                .doesNotContain("btn--primary");
+    }
+
+    @Test
     @DisplayName("customer.js はレイアウトで 1 回だけ読み込む")
     void scriptIsLoadedOnce() throws Exception {
         // もとは商品詳細と伝票が個別に読み込んでいた。

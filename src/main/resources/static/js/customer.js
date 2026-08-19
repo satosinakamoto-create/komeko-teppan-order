@@ -120,7 +120,63 @@
   }
 
   /* ------------------------------------------------------------------
-     4. 送信中であることを、押した瞬間に見せる
+     4. 「9名以上」の決定ボタンは、人数が入るまで押せない
+     ------------------------------------------------------------------
+     人数を入れる前から黒い（主役の）ボタンが置いてあると、
+     「まずこれを押すもの」に見えて、空のまま押されます。
+     実際「間違って押してしまう」と言われました。
+
+     空で押しても onclick とサーバ側で止まるので壊れはしません。
+     けれど、止められる操作をわざわざ用意しておく理由もない。
+     押せないものは押せなく見せる、が本筋です。
+
+     ★ 色を変えるだけでなく disabled にもします。
+       色だけだと「押せるが目立たないボタン」に見えます。
+       逆に disabled だけだと、入力しても見た目が変わらず
+       「入れたのに反応がない」と感じます。両方で1組。
+
+     ★ このボタンは name / value を持っていません（人数は input が運ぶ）。
+       名前付きの送信ボタンを disabled にすると値が送られなくなりますが、
+       ここはその心配がないので安全に無効化できます。
+       ------------------------------------------------------------------ */
+  var otherInput = document.getElementById('guestCountOther');
+  var otherSubmit = document.getElementById('guestCountOtherSubmit');
+  if (otherInput && otherSubmit) {
+    var blocked = otherSubmit.dataset.blocked === '1';   // 営業時間外は最初から押せない
+
+    /* 1〜8名のうち、席の定員と同じものは最初から黒く（主役に）してあります。
+       押しやすい候補を先に見せるためですが、9名以上を入力しはじめると
+       「黒いボタンが 2 つある」状態になり、どちらが効くのか分からなくなります。
+       入力があるあいだは既定の強調を外して、黒を 1 つに保ちます。 */
+    var presets = Array.prototype.slice.call(
+      document.querySelectorAll('button[name="guestCount"]'));
+    var highlighted = presets.filter(function (b) {
+      return b.classList.contains('btn--primary');
+    });
+
+    var syncOtherSubmit = function () {
+      var value = otherInput.value.trim();
+      var typing = value !== '';
+      var ok = !blocked && typing && Number(value) > 0;
+
+      otherSubmit.disabled = !ok;
+      otherSubmit.classList.toggle('btn--primary', ok);
+
+      /* 入力中は既定の強調を消し、消したら元に戻す */
+      highlighted.forEach(function (b) {
+        b.classList.toggle('btn--primary', !typing);
+      });
+    };
+
+    otherInput.addEventListener('input', syncOtherSubmit);
+    /* 戻るボタンで戻ったとき、ブラウザが入力値だけ復元することがある。
+       そのときも色と状態を合わせ直す */
+    window.addEventListener('pageshow', syncOtherSubmit);
+    syncOtherSubmit();
+  }
+
+  /* ------------------------------------------------------------------
+     5. 送信中であることを、押した瞬間に見せる
      ------------------------------------------------------------------
      公開デモは 1 リクエストにおよそ 1 秒かかる（無料枠の CPU）。
      手元では 60ms なので、開発中はまったく気づけない差です。

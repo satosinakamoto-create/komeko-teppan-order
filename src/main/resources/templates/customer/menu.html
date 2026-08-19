@@ -86,7 +86,7 @@
                th:style="'animation-delay:' + ${s.index * 45} + 'ms'">
 
               <img class="menu-item__thumb" th:if="${item.imagePath != null}"
-                   th:src="${item.imagePath}" th:alt="${item.name}" loading="lazy">
+                   th:src="@{${item.imagePath}}" th:alt="${item.name}" loading="lazy">
               <div class="menu-item__thumb menu-item__thumb--empty" th:if="${item.imagePath == null}"
                    aria-hidden="true"
                    th:text="${#strings.substring(item.name, 0, 1)}">米</div>
@@ -96,8 +96,10 @@
                 <p class="menu-item__desc" th:if="${item.description}"
                    th:text="${item.description}">説明</p>
                 <div class="menu-item__price">
-                  <span th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
-                  <small>税込</small>
+                  <span th:replace="~{fragments/common :: price(${item})}">¥880</span>
+                  <!--/* 時価のときは「税込」を出さない。
+                         金額が無いのに税の但し書きだけ残ると、意味が通らない */-->
+                  <small th:if="${item.price > 0}">税込</small>
                 </div>
                 <div th:replace="~{fragments/common :: allergens(${item})}"></div>
               </div>
@@ -155,9 +157,48 @@
         if (panel) pager.style.height = panel.offsetHeight + 'px';
       }
 
+      // どのタブを見ていたかを覚えておく場所。
+      // sessionStorage はタブを閉じると消えるので、次に来たお客さんには残りません。
+      // 卓ごとに分ける必要もありません（1台のスマホ＝1人の閲覧）。
+      var STORE_KEY = 'komeko.menuTab';
+      var SCROLL_KEY = 'komeko.menuScroll';
+
+      function remember(index) {
+        // プライベートモードや容量超過で例外が出ることがある。
+        // 覚えられなくても本体の動作は続けたいので、黙って諦める。
+        try { sessionStorage.setItem(STORE_KEY, String(index)); } catch (e) { /* 気にしない */ }
+      }
+
+      /* 縦の位置も覚える。
+         ドリンクは 30 品以上あるので、下のほうの品を見て戻ってくると
+         毎回いちばん上からスクロールし直すことになります。
+         タブだけ合っていても、探し直す手間は変わりません。
+
+         ★ タブごとに別々に覚えます。
+           面によって長さがまるで違う（お好み焼き 5 品／ドリンク 30 品以上）ので、
+           1 つの値を使い回すと、短い面に長い面の位置を当てることになります。 */
+      function rememberScroll() {
+        if (current < 0) return;
+        try {
+          var saved = {};
+          try { saved = JSON.parse(sessionStorage.getItem(SCROLL_KEY)) || {}; } catch (e) { saved = {}; }
+          saved[current] = Math.round(window.scrollY);
+          sessionStorage.setItem(SCROLL_KEY, JSON.stringify(saved));
+        } catch (e) { /* 気にしない */ }
+      }
+
+      function savedScrollFor(index) {
+        try {
+          var saved = JSON.parse(sessionStorage.getItem(SCROLL_KEY)) || {};
+          var y = saved[index];
+          return (typeof y === 'number' && y > 0) ? y : 0;
+        } catch (e) { return 0; }
+      }
+
       function activate(index) {
         if (index === current || index < 0 || index >= tabs.length) return;
         current = index;
+        remember(index);
         fitHeight(index);
         tabs.forEach(function (tab, i) {
           var on = (i === index);
@@ -220,7 +261,58 @@
         fitHeight(current);
       });
 
-      activate(0);
+      // 開いたときは「さっき見ていたタブ」から始める。
+      //
+      // もとは無条件に activate(0) でした。つまり、たこ焼きの商品を見てから
+      // 「メニューに戻る」を押すと、必ずお好み焼きに飛ばされていました。
+      // 一覧 → 商品 → 戻る、は注文のあいだ何度も繰り返す動きなので、
+      // そのたびに横スワイプで探し直すことになります。
+      //
+      // ★ scrollLeft を直接入れているのは、smooth にしないため。
+      //   戻った瞬間に画面が横に流れると「操作していないのに動いた」と感じます。
+      //   復元は一瞬で終わってほしい。
+      (function restore() {
+        var saved = -1;
+        try { saved = parseInt(sessionStorage.getItem(STORE_KEY), 10); } catch (e) { /* 読めなければ先頭 */ }
+        if (isNaN(saved) || saved < 0 || saved >= tabs.length) saved = 0;
+        if (saved > 0 && panels[saved]) {
+          pager.scrollLeft = panels[saved].offsetLeft;
+        }
+        activate(saved);
+
+        /* 縦の位置を戻す。
+           ★ 画像の読み込みで高さが変わるので、すぐに戻すとずれます。
+             fitHeight で面の高さを入れ直したあと、
+             もう一度だけ位置を合わせ直します。 */
+        var y = savedScrollFor(saved);
+        if (y > 0) {
+          window.scrollTo(0, y);
+          window.requestAnimationFrame(function () {
+            fitHeight(saved);
+            window.scrollTo(0, y);
+          });
+          window.addEventListener('load', function () {
+            fitHeight(saved);
+            window.scrollTo(0, y);
+          }, { once: true });
+        }
+      })();
+
+      /* 縦位置は動かすたびに覚える。
+         スクロールは何十回も飛んでくるので、少し待ってからまとめて書き込む。
+         書き込み自体は軽いが、毎回 JSON を作り直す必要はない。 */
+      var scrollTimer = null;
+      window.addEventListener('scroll', function () {
+        if (scrollTimer) return;
+        scrollTimer = window.setTimeout(function () {
+          scrollTimer = null;
+          rememberScroll();
+        }, 150);
+      }, { passive: true });
+
+      /* 商品を押して離れる瞬間にも確実に残す。
+         スマホでは pagehide のほうが確実に呼ばれる（beforeunload は無視されることがある）。 */
+      window.addEventListener('pagehide', rememberScroll);
     })();
   </script>
 

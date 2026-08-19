@@ -57,7 +57,7 @@
 
             <!--/* サムネイル。未登録なら焼き目模様のプレースホルダを出す */-->
             <img class="menu-item__thumb" th:if="${item.imagePath != null}"
-                 th:src="${item.imagePath}" th:alt="${item.name}" loading="lazy">
+                 th:src="@{${item.imagePath}}" th:alt="${item.name}" loading="lazy">
             <div class="menu-item__thumb menu-item__thumb--empty" th:if="${item.imagePath == null}"
                  aria-hidden="true" th:text="${#strings.substring(item.name, 0, 1)}">米</div>
 
@@ -65,7 +65,7 @@
               <h3 class="menu-item__name mb-0" th:text="${item.name}">コンプレット</h3>
 
               <div class="menu-item__price">
-                <span th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥880</span>
+                <span th:replace="~{fragments/common :: price(${item})}">¥880</span>
                 <small>税込</small>
               </div>
 

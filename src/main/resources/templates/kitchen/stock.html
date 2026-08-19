@@ -90,7 +90,7 @@
             </td>
 
             <!--/* 金額は必ず 3 桁区切りで。formatInteger(値, 最小桁数, 区切り) */-->
-            <td class="num" th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥980</td>
+            <td class="num"><span th:replace="~{fragments/common :: price(${item})}">¥980</span></td>
 
             <td>
               <span class="status-chip" style="color: var(--danger)"

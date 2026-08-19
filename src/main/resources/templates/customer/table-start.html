@@ -77,7 +77,22 @@
         <div class="row">
           <input class="input input--narrow" type="number" id="guestCountOther" name="guestCount"
                  min="9" max="20" inputmode="numeric" placeholder="人数">
-          <button type="submit" class="btn btn--primary" th:disabled="${!accepting}"
+          <!--/*
+            ★ 最初は btn--primary を付けない。
+
+              人数を入れる前から黒い（主役の）ボタンが並んでいると、
+              「まずこれを押すもの」に見えて、空のまま押されます。
+              実際「間違って押してしまう」と言われました。
+
+              人数が入ったら customer.js が btn--primary を足し、押せるようにします。
+              色が変わること自体が「入力できた」という合図にもなります。
+
+              data-blocked は営業時間外の印。
+              JavaScript 側がこれを見て、時間外なのに押せるようにしてしまうのを防ぎます。
+          */-->
+          <button type="submit" id="guestCountOtherSubmit" class="btn"
+                  th:disabled="${!accepting}"
+                  th:attr="data-blocked=${!accepting} ? '1' : '0'"
                   data-sending-label="準備中"
                   onclick="var v=document.getElementById('guestCountOther');
                            if (!v.value) { v.focus(); return false; }">決定</button>
