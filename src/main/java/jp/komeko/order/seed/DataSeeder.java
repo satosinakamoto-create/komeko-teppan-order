@@ -518,24 +518,39 @@ public class DataSeeder implements ApplicationRunner {
         m.recommend("ジャスミンハイボール", 800, "お店のおすすめ。");
     }
 
+    /**
+     * クラフトジン。
+     *
+     * <p><b>全品に同じ「氷のグラス」の写真を当てています。</b>
+     * 16 種それぞれのボトル写真は持っていません。
+     *
+     * <p>持っている素材で代用しようとすると、ジョッキに他社（ビールメーカー）の
+     * ロゴが入ったものしか無く、<b>クラフトジンの欄にビールのロゴが並ぶ</b>ことになります。
+     * 銘柄を名指ししている商品に別の銘柄の写真を出すのは、
+     * 「それっぽい」で済ませてよい範囲を越えます。
+     *
+     * <p>そこで<b>銘柄を写さない</b>共通の一枚にしました。
+     * 産地は説明文（横浜・フランス・京都…）で伝わるので、
+     * 写真は「氷のグラスで出てくる」ことだけを伝えれば足ります。
+     */
     private void seedCraftGin() {
         Menu m = new Menu(category("クラフトジン", 90), 3);
-        m.add("No.8", 800, "横浜");
-        m.recommend("メリフェラジン", 1000, "フランス");
-        m.add("マーメイドピンク", 1000, "イングランド");
-        m.add("アルケミスト", 1200, "スペイン");
-        m.add("ストランジネイチャー", 1200, "ニュージーランド");
-        m.recommend("HOLON 金木犀", 1200, "東京・蔵前");
-        m.recommend("ENGINE", 900, "イタリア");
-        m.add("ローンウルフ", 1000, "スコットランド");
-        m.recommend("バスタブ", 955, "イタリア");
-        m.add("KOMASA 小みかん・ほうじ茶・苺", 900, "鹿児島");
-        m.add("EMPRESS1908", 900, "カナダ");
-        m.add("サイレントプール", 800, "イギリス");
-        m.add("Bobby's", 900, "オランダ");
-        m.add("Monkey47", 1200, "ドイツ");
-        m.recommend("五島ジン GOTOGIN", 1300, "五島列島");
-        m.recommend("季の美", 800, "京都");
+        photo(m.add("No.8", 800, "横浜"), "ice-glass.jpg");
+        photo(m.recommend("メリフェラジン", 1000, "フランス"), "ice-glass.jpg");
+        photo(m.add("マーメイドピンク", 1000, "イングランド"), "ice-glass.jpg");
+        photo(m.add("アルケミスト", 1200, "スペイン"), "ice-glass.jpg");
+        photo(m.add("ストランジネイチャー", 1200, "ニュージーランド"), "ice-glass.jpg");
+        photo(m.recommend("HOLON 金木犀", 1200, "東京・蔵前"), "ice-glass.jpg");
+        photo(m.recommend("ENGINE", 900, "イタリア"), "ice-glass.jpg");
+        photo(m.add("ローンウルフ", 1000, "スコットランド"), "ice-glass.jpg");
+        photo(m.recommend("バスタブ", 955, "イタリア"), "ice-glass.jpg");
+        photo(m.add("KOMASA 小みかん・ほうじ茶・苺", 900, "鹿児島"), "ice-glass.jpg");
+        photo(m.add("EMPRESS1908", 900, "カナダ"), "ice-glass.jpg");
+        photo(m.add("サイレントプール", 800, "イギリス"), "ice-glass.jpg");
+        photo(m.add("Bobby's", 900, "オランダ"), "ice-glass.jpg");
+        photo(m.add("Monkey47", 1200, "ドイツ"), "ice-glass.jpg");
+        photo(m.recommend("五島ジン GOTOGIN", 1300, "五島列島"), "ice-glass.jpg");
+        photo(m.recommend("季の美", 800, "京都"), "ice-glass.jpg");
     }
 
     private void seedWhisky() {
