@@ -70,9 +70,26 @@ import java.util.Optional;
  * 実際、深夜 3:39 に作ったデータが翌朝 11:39 には 1 件も出ませんでした。
  * バグではなく、営業日で区切る仕様どおりの動きです。
  * <b>撮る直前に走らせてください。</b>
+ *
+ * <p><b>{@code @Order(2)} — {@link DataSeeder} の後に走らせる</b><br>
+ * このクラスは卓とメニューが<b>すでにある前提</b>で伝票を積みます。
+ * 土台を作るのは {@link DataSeeder} なので、必ずあちらが先です。
+ *
+ * <p>順序を指定していなかったときに、実際に事故が起きました。
+ * 手元では偶然 {@link DataSeeder} が先に走っていたのに、
+ * Render のコンテナでは<b>逆順になり</b>、卓もメニューも無い状態で
+ * このクラスが走って「0 卓ぶんの伝票を作成」で終わり、
+ * 公開デモの厨房ボードが空のままになりました。
+ * {@link ApplicationRunner} が複数あるとき Spring は実行順を保証しないので、
+ * 順番に意味があるなら必ず {@code @Order} で書きます。
+ *
+ * <p>注釈を {@code import} せず完全修飾で書いているのは、
+ * このクラスが注文エンティティ {@link Order} を使っており、
+ * 名前が衝突するためです（実際にコンパイルが通りませんでした）。
  */
 @Component
 @Profile({"dev", "demo"})
+@org.springframework.core.annotation.Order(2)
 public class DemoDataSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeeder.class);

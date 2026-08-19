@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,8 +63,28 @@ import java.util.List;
  *
  * <p>調理時間（{@code cookMinutes}）は待ち時間の目安を出すためだけの値で、
  * こちらで仮に置いたものです。実際の提供スピードに合わせて管理画面で調整してください。
+ *
+ * <hr>
+ *
+ * <h2>{@code @Order(1)} を付けている理由</h2>
+ *
+ * <p>{@link ApplicationRunner} が複数あるとき、<b>Spring は実行順を保証しません。</b>
+ * どちらにも順序を指定しないと両方が「最も低い優先度」として同じ扱いになり、
+ * 最終的な順番は Bean が見つかった順、つまり<b>クラスパスを走査した順</b>で決まります。
+ * これは環境によって変わりうる値です。
+ *
+ * <p>実際に事故が起きました。手元ではこちらが先に走っていたのに、
+ * Render のコンテナでは {@link DemoDataSeeder} が先に走り、
+ * 卓もメニューもまだ無い状態でデモデータを作ろうとして
+ * 「0 卓ぶんの伝票を作成」となり、公開デモの厨房ボードが空になりました。
+ * 例外は出ません。ログを順番に読むまで気付けませんでした。
+ *
+ * <p>このクラスは<b>土台</b>（卓・メニュー・初期アカウント）を作ります。
+ * {@link DemoDataSeeder} はその土台の上に伝票を積むので、必ずこちらが先です。
+ * <b>暗黙の順序に頼っている箇所は、いつか環境が変わった日に壊れます。</b>
  */
 @Component
+@Order(1)
 public class DataSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
