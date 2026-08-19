@@ -359,7 +359,7 @@ public class DemoDataSeeder implements ApplicationRunner {
         // ── 一品料理 ──
         DEMO_PHOTOS.put("たこのねぎまみれ", "gpt-tako-negi.jpg");
         DEMO_PHOTOS.put("冷やしトマト", "tomato.jpg");
-        DEMO_PHOTOS.put("蘭王ゆでねぎたま", "soup.jpg");
+        DEMO_PHOTOS.put("蘭王ゆでねぎたま", "gpt-negitama.jpg");
         DEMO_PHOTOS.put("自家製ポテサラ", "potato.jpg");
         DEMO_PHOTOS.put("ピリ辛豆板醤きゅうり", "gpt-kyuri.jpg");
         DEMO_PHOTOS.put("さっぱりたこぽん", "gpt-takopon.jpg");
@@ -370,7 +370,6 @@ public class DemoDataSeeder implements ApplicationRunner {
 
         // ── ビール・サワー ──
         DEMO_PHOTOS.put("サッポロ赤星（中瓶）", "beer-akaboshi.jpg");
-        DEMO_PHOTOS.put("オールフリー（ノンアルコールビール）", "nonal-beer.jpg");
         DEMO_PHOTOS.put("自家製レモンサワー", "lemon-sour.jpg");
         DEMO_PHOTOS.put("ジャスミンハイボール", "jasmine-highball.jpg");
 

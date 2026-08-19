@@ -512,7 +512,8 @@ public class DataSeeder implements ApplicationRunner {
     private void seedBeerAndSour() {
         Menu m = new Menu(category("ビール・サワー", 80), 2);
         m.add("サッポロ赤星（中瓶）", 700, null);
-        m.add("オールフリー（ノンアルコールビール）", 600, null);
+        // 公式サイトの素材。銘柄そのものの写真なので本番でも使える
+        photo(m.add("オールフリー（ノンアルコールビール）", 600, null), "allfree.jpg");
         m.recommend("自家製レモンサワー", 850, "お店のおすすめ。");
         m.recommend("ジャスミンハイボール", 800, "お店のおすすめ。");
     }
