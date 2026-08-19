@@ -1,24 +1,27 @@
 <!DOCTYPE html>
 <!--/*
   ============================================================================
-   店舗側の見学入口（ポートフォリオからの 1 クリック用）
+   店舗側の見学入口（ポートフォリオからの導線）
   ============================================================================
-   やっていることは「ゲストで参加する」を自動で押すだけです。
+
+   ★ 自動送信をやめた経緯
+
+     もとは「開いた瞬間にフォームを送信する」作りで、押す手間を無くしていました。
+     ですが実際に通してみると、押していないのに厨房ボードが出るため、
+     何が起きたのか分からないまま画面が切り替わります。
+     見学モードであること・データが架空であることも伝わりません。
+
+     手数を 1 つ減らすより、何の画面に入るのかを先に伝えるほうが大事なので、
+     いまは<b>押してから進む</b>形にしています。
+     ここで説明を読める時間ができるのが、むしろ本来の目的に合っています。
 
    ★ なぜ GET でそのままログインさせないのか
+
      手っ取り早いのは /demo/staff を開いた瞬間にログインさせることですが、
      それをやると外部サイトに <img src="…/demo/staff"> と書かれるだけで
      見た人が意図せずログイン状態になります。
      ゲストログインを POST ＋ CSRF にしているのは、まさにそれを塞ぐためでした。
      入口を増やすために、自分で塞いだ穴を開け直すのは筋が悪い。
-
-     この画面は「フォームを置いて、開いた瞬間に送信する」だけです。
-     送信の仕組み（POST ＋ CSRF）は今までと同じまま、
-     見た目だけ 1 クリックにしています。
-
-   ★ JavaScript が動かなくても行き止まりにしない
-     自動送信が効かない環境ではボタンが残るので、押せば入れます。
-     「白い画面で止まる」が最悪なので、必ず手動の道を残します。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org">
 <head>
@@ -31,44 +34,56 @@
 </head>
 <body class="theme-snow">
 <main>
-  <div class="container" style="max-width:520px;padding-top:15vh">
+  <div class="container" style="max-width:560px;padding-top:10vh">
     <div class="card">
-      <div class="card__body center">
+      <div class="card__body">
 
-        <h1 class="mb-0" style="font-size:1.25rem">店舗側の画面をご案内しています</h1>
+        <h1 class="mb-0" style="font-size:1.25rem">お店側の画面です</h1>
 
-        <p class="small muted mt-4">
-          見学モードで、厨房ボード・ホール会計・売上などをご覧いただけます。<br>
-          <strong>表示のみで、保存や削除はできません。</strong>
+        <p class="small mt-4 mb-0">
+          実際のお店では、この画面を<strong>厨房のタブレット</strong>で開いています。
+          お客さまがスマホで注文すると、リロードなしでここに届きます。
         </p>
 
-        <form th:action="@{/login/guest}" method="post" id="staffEntryForm" class="mt-6">
+        <!--/* 何が見られるのかを先に書く。入ってから探させない */-->
+        <ul class="small mt-4 mb-0">
+          <li><strong>厨房ボード</strong>：卓ごとの注文と、調理の進み具合</li>
+          <li><strong>ホール会計</strong>：伝票の確認とお会計</li>
+          <li><strong>売上・メニュー・QR・スタッフ</strong>の管理画面</li>
+        </ul>
+
+        <div class="alert alert--info mt-6">
+          <p class="mb-0 small">
+            <strong>見学モードでご案内します。</strong>
+            表示のみで、保存や削除はできません。
+            厨房ボードで<strong>注文の状態を進める操作だけ</strong>お試しいただけます
+            （お客さま側の画面がその場で変わります）。
+          </p>
+          <p class="mb-0 small">データはすべて架空です。実店舗の営業データとは別のデータベースで動いています。</p>
+        </div>
+
+        <!--/*
+          一度失敗して戻ってきたとき。原因と対処を書く。
+          「もう一度お試しください」だけだと、同じことを繰り返す人が多い。
+        */-->
+        <div class="alert alert--warn mt-6" th:if="${retryMode}">
+          <p class="mb-0 small">
+            前の画面が古くなっていたため、いったん止めました。<br>
+            <strong>下のボタンを押すと進めます。</strong>
+          </p>
+        </div>
+
+        <form th:action="@{/login/guest}" method="post" class="mt-6">
           <button type="submit" class="btn btn--primary btn--lg btn--block">
-            店舗側の画面へ進む
+            厨房ボードへ進む
           </button>
         </form>
 
-        <p class="tiny faint mt-6 mb-0" th:if="${autoSubmit}">
-          自動で移動しない場合は、上のボタンを押してください。
-        </p>
-        <!--/* 一度失敗して戻ってきたとき。原因（古いページ）と対処を書く。
-               「もう一度お試しください」だけだと、同じことを繰り返す人が多い。 */-->
-        <p class="small mt-6 mb-0" th:unless="${autoSubmit}">
-          前の画面が古くなっていたため、いったん止めました。<br>
-          <strong>上のボタンを押すと進めます。</strong>
-        </p>
+        <p class="tiny faint mt-4 mb-0 center">ID・パスワードは要りません</p>
 
       </div>
     </div>
   </div>
 </main>
-
-<!--/* 開いた瞬間に送信する。押す手間を無くすだけで、送る中身は上のフォームと同じ。 */-->
-<script th:if="${autoSubmit}" th:inline="none">
-  document.addEventListener('DOMContentLoaded', function () {
-    var form = document.getElementById('staffEntryForm');
-    if (form) { form.submit(); }
-  });
-</script>
 </body>
 </html>

@@ -153,7 +153,7 @@ class DemoEntryTest {
             mockMvc.perform(get("/demo/staff"))
                     .andExpect(status().isOk())
                     .andExpect(content().string(
-                            org.hamcrest.Matchers.containsString("店舗側の画面へ進む")));
+                            org.hamcrest.Matchers.containsString("厨房ボードへ進む")));
         }
 
         @Test
@@ -208,18 +208,59 @@ class DemoEntryTest {
         }
 
         @Test
-        @DisplayName("やり直しの画面では自動送信しない（往復が止まらなくなるため）")
-        void retryScreenDoesNotAutoSubmit() throws Exception {
-            String html = mockMvc.perform(get("/demo/staff").param("retry", "1"))
-                    .andExpect(status().isOk())
+        @DisplayName("勝手に進まない（人が押すまで待つ）")
+        void staffEntryNeverSubmitsByItself() throws Exception {
+            // ★ もとは開いた瞬間にフォームを送信していた。
+            //   押していないのに厨房ボードが出るので、
+            //   何が起きたのか分からないまま画面が切り替わる。
+            //   見学モードであることも、データが架空であることも伝わらない。
+            //
+            //   1 クリック減らすより、何の画面に入るのかを先に伝えるほうが大事。
+            //   自動送信が戻ってくると説明を読む時間が消えるので、ここで止める。
+            for (String url : new String[]{"/demo/staff", "/demo/staff?retry=1"}) {
+                String html = mockMvc.perform(get(url))
+                        .andExpect(status().isOk())
+                        .andReturn().getResponse().getContentAsString();
+
+                assertThat(html)
+                        .as("%s に自動送信を書かない", url)
+                        .doesNotContain(".submit()");
+                assertThat(html)
+                        .as("%s で押せるボタンを出す", url)
+                        .contains("厨房ボードへ進む");
+            }
+        }
+
+        @Test
+        @DisplayName("入る前に、見学モードであることと架空データであることを伝える")
+        void staffEntryExplainsWhatYouAreAbout() throws Exception {
+            // 入ってから探させない。この 1 画面で分かるようにする。
+            String html = mockMvc.perform(get("/demo/staff"))
                     .andReturn().getResponse().getContentAsString();
 
             assertThat(html)
-                    .as("ボタンは残す（人が押せば進める）")
-                    .contains("店舗側の画面へ進む");
+                    .as("何の画面かを先に言う")
+                    .contains("厨房のタブレット");
             assertThat(html)
-                    .as("自動送信のスクリプトは出さない")
-                    .doesNotContain("staffEntryForm');");
+                    .as("触れる範囲を先に言う")
+                    .contains("見学モード")
+                    .contains("保存や削除はできません");
+            assertThat(html)
+                    .as("実在の店の数字だと誤解させない")
+                    .contains("架空");
+        }
+
+        @Test
+        @DisplayName("やり直しの案内は、失敗して戻ってきたときだけ出す")
+        void retryNoticeOnlyOnRetry() throws Exception {
+            assertThat(mockMvc.perform(get("/demo/staff?retry=1"))
+                    .andReturn().getResponse().getContentAsString())
+                    .contains("前の画面が古くなっていたため");
+
+            assertThat(mockMvc.perform(get("/demo/staff"))
+                    .andReturn().getResponse().getContentAsString())
+                    .as("普通に来た人に、起きていない失敗の話をしない")
+                    .doesNotContain("前の画面が古くなっていたため");
         }
 
         @Test
