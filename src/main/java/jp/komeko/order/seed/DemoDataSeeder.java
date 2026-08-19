@@ -357,12 +357,12 @@ public class DemoDataSeeder implements ApplicationRunner {
         DEMO_PHOTOS.put("鉄板たこ足塊ステーキ", "gpt-tako-steak.jpg");
 
         // ── 一品料理 ──
-        DEMO_PHOTOS.put("たこのねぎまみれ", "tako-negi.jpg");
+        DEMO_PHOTOS.put("たこのねぎまみれ", "gpt-tako-negi.jpg");
         DEMO_PHOTOS.put("冷やしトマト", "tomato.jpg");
         DEMO_PHOTOS.put("蘭王ゆでねぎたま", "soup.jpg");
         DEMO_PHOTOS.put("自家製ポテサラ", "potato.jpg");
-        DEMO_PHOTOS.put("ピリ辛豆板醤きゅうり", "kyuri.jpg");
-        DEMO_PHOTOS.put("さっぱりたこぽん", "takopon.jpg");
+        DEMO_PHOTOS.put("ピリ辛豆板醤きゅうり", "gpt-kyuri.jpg");
+        DEMO_PHOTOS.put("さっぱりたこぽん", "gpt-takopon.jpg");
         DEMO_PHOTOS.put("本日の特製サラダ", "salad.jpg");
 
         // ── 甘味 ──
