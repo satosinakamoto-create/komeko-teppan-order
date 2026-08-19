@@ -111,7 +111,17 @@ public class SecurityConfig {
                             "/api/public/**").permitAll()
 
                     // ── ログイン画面 ──
-                    .requestMatchers("/login").permitAll();
+                    //   /login/guest はポートフォリオのデモ用。
+                    //   通ってもスタッフ権限しか付かない（/admin/** には入れない）。
+                    //   そもそも app.guest-login=true でないとコントローラが存在しないので、
+                    //   実店舗ではこのパスは 404 になる。
+                    .requestMatchers("/login", "/login/guest").permitAll()
+
+                    // ── 生存確認（スリープ防止の ping 用） ──
+                    //   無料ホスティングは無通信が続くとサーバを眠らせるので、
+                    //   外部から定期的にここを叩いて起こしておく。
+                    //   DB も画面も触らないため、叩かれてもほぼ無負荷。
+                    .requestMatchers("/ping").permitAll();
 
                 if (devMode) {
                     // H2 コンソールは dev プロファイルのときだけ開放する。

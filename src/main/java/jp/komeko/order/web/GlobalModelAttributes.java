@@ -3,6 +3,7 @@ package jp.komeko.order.web;
 import jakarta.servlet.http.HttpServletRequest;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.service.ShopSettingService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
@@ -22,8 +23,25 @@ public class GlobalModelAttributes {
 
     private final ShopSettingService shopSettingService;
 
-    public GlobalModelAttributes(ShopSettingService shopSettingService) {
+    /** ログイン画面に「ゲストで参加する」を出すか。公開デモでだけ true。 */
+    private final boolean guestLoginEnabled;
+
+    public GlobalModelAttributes(ShopSettingService shopSettingService,
+                                 @Value("${app.guest-login:false}") boolean guestLoginEnabled) {
         this.shopSettingService = shopSettingService;
+        this.guestLoginEnabled = guestLoginEnabled;
+    }
+
+    /**
+     * ログイン画面に「ゲストで参加する」を出すかどうか。
+     *
+     * <p>ポートフォリオの公開デモでだけ true にします（環境変数 {@code APP_GUEST_LOGIN=true}）。
+     * <b>実店舗の画面には出しません。</b>お客さまでもスタッフでもない人が
+     * 厨房ボードを開けるようにする理由がないためです。
+     */
+    @ModelAttribute("guestLogin")
+    public boolean guestLogin() {
+        return guestLoginEnabled;
     }
 
     @ModelAttribute("shop")

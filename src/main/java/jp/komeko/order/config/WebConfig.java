@@ -23,19 +23,21 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     /**
-     * ログイン画面のように「HTML を返すだけでロジックが無い」画面の登録。
+     * 「HTML を返すだけでロジックが無い」画面の登録場所。いまは空。
      *
-     * <p>Spring Security の {@code .loginPage("/login")} は
-     * 「ログイン画面の URL はここです」と伝えるだけで、
-     * <b>その URL を表示するコントローラまでは用意してくれません</b>。
-     * 何も登録しないと GET /login が 404 になり、
-     * さらに未ログイン時のリダイレクト先も /login なので無限ループに見える現象が起きます。
+     * <p><b>ログイン画面はここに書いていましたが、{@code LoginPageController} へ移しました。</b>
      *
-     * <p>わざわざ空のコントローラクラスを作らなくても、こうして 1 行で登録できます。
+     * <p>ビューコントローラは「URL とテンプレート名を結ぶだけ」の近道で、
+     * 便利な代わりに<b>{@code @ControllerAdvice} で用意した共通のモデル属性が渡りません</b>
+     * （{@code @Controller} のメソッドではないため、あの仕組みの対象外になる）。
+     * そのため画面側で {@code ${guestLogin}} が常に空になり、
+     * 「ゲストで参加する」のボタンが出ない、という詰まり方をしました。
+     *
+     * <p>共通の値を使う画面は、1 行の近道を使わず素直に {@code @Controller} で受けること。
      */
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        registry.addViewController("/login").setViewName("login");
+        // 現在は登録なし
     }
 
     @Override

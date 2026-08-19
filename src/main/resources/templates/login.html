@@ -117,6 +117,33 @@
           <button type="submit" class="btn btn--primary btn--block btn--lg">ログイン</button>
         </form>
 
+        <!--/*
+           ===== ゲストで参加する（ポートフォリオのデモ用） =====
+           ${guestLogin} は app.guest-login=true のときだけ true になります。
+           実店舗の設定では false なので、このボタンは出ません。
+
+           GET のリンクではなく POST のボタンにしています。
+           リンクにすると、外部のサイトに <img src=".../login/guest"> と書かれるだけで
+           見に来た人が意図せずログイン状態にされてしまうためです。
+           POST なら CSRF トークンが要るので、この画面のボタンからしか実行できません。
+        */-->
+        <div th:if="${guestLogin}" class="stack mt-4">
+          <div class="row" style="align-items:center;gap:var(--sp-3);color:var(--text-faint)">
+            <hr style="flex:1;border:0;border-top:1px solid var(--border)">
+            <span class="tiny">または</span>
+            <hr style="flex:1;border:0;border-top:1px solid var(--border)">
+          </div>
+
+          <form th:action="@{/login/guest}" method="post">
+            <button type="submit" class="btn btn--block btn--lg">ゲストで参加する</button>
+          </form>
+
+          <p class="tiny faint mb-0 center">
+            厨房ボードとホール画面をお試しいただけます。<br>
+            注文の状態を進めると、お客さまのスマホ画面もその場で変わります。
+          </p>
+        </div>
+
       </div>
 
       <!--/* ===== 初回セットアップ向けの注記 ===== */-->
