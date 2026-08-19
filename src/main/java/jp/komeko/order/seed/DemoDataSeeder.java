@@ -328,12 +328,18 @@ public class DemoDataSeeder implements ApplicationRunner {
         DEMO_PHOTOS.put("海鮮スペシャル", "okonomi-kaisen.jpg");
 
         // ── 選べる米粉たこ焼き ──
-        //   この店の看板メニュー。撮影データがそろっているので個数ごとに変えている。
+        //   この店の看板メニュー。個数ごとに写真を変えている。
         //   同じ写真を使い回すと「個数で何が変わるのか」が伝わらない。
+        //
+        //   ★ 12/16/20 個は生成画像に差し替えた。
+        //     実写のほうが質は高いが、写っている数が商品名と合っていなかった
+        //     （「20個」の欄に 8 個の写真）。メニューで数が違うのは、
+        //     見栄えの問題ではなく「頼んだものと違う」に直結する。
+        //     4 個だけは実写のまま（写真もちょうど 4 個で一致している）。
         DEMO_PHOTOS.put("たこ焼 4個", "takoyaki-4.jpg");
-        DEMO_PHOTOS.put("たこ焼 12個", "takoyaki-12.jpg");
-        DEMO_PHOTOS.put("たこ焼 16個", "takoyaki-16.jpg");
-        DEMO_PHOTOS.put("たこ焼 20個", "takoyaki-20.jpg");
+        DEMO_PHOTOS.put("たこ焼 12個", "gpt-takoyaki-12.jpg");
+        DEMO_PHOTOS.put("たこ焼 16個", "gpt-takoyaki-16.jpg");
+        DEMO_PHOTOS.put("たこ焼 20個", "gpt-takoyaki-20.jpg");
 
         // ── 鉄板おつまみ ──
         DEMO_PHOTOS.put("殻付きホタテバター醤油（北海道産）", "hotate.jpg");
