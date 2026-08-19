@@ -268,6 +268,12 @@ public class DemoDataSeeder implements ApplicationRunner {
      * 「それらしいものを当てる」方針で、系統（麺・肉・サラダ・海鮮）を合わせています。
      * 名前の付け替えは後日おこなう前提です。
      *
+     * <p><b>{@code gpt-} で始まるファイルは生成画像です。</b>
+     * 借り元にも該当する料理が無く、実物の写真が手に入らなかった品に使っています。
+     * 実写と生成が混ざるので、<b>ファイル名の先頭で区別が付く</b>ようにしてあります。
+     * 実店舗で使う写真に紛れ込ませない、が理由です。
+     * 本物の写真が撮れたら、この接頭辞のものから差し替えてください。
+     *
      * <p><b>置いていない品もあります。</b>
      * 写真の無い品はプレースホルダのままです。
      * 画面は写真あり・なしが混在しても崩れない作りにしてあります。
@@ -333,9 +339,11 @@ public class DemoDataSeeder implements ApplicationRunner {
         DEMO_PHOTOS.put("殻付きホタテバター醤油（北海道産）", "hotate.jpg");
         DEMO_PHOTOS.put("国産鶏皮にんにく醤油焼", "torikawa.jpg");
         DEMO_PHOTOS.put("鉄板わかめ焼き（北海道産）", "wakame.jpg");
-        DEMO_PHOTOS.put("鶏せせりとねぎの黒胡椒焼", "torisaseri.jpg");
+        DEMO_PHOTOS.put("鶏せせりとねぎの黒胡椒焼", "gpt-seseri.jpg");
         DEMO_PHOTOS.put("鉄板チョリソー五本", "chorizo.jpg");
-        DEMO_PHOTOS.put("国産豚たん塩たれ焼", "butatan.jpg");
+        DEMO_PHOTOS.put("国産豚たん塩たれ焼", "gpt-butatan.jpg");
+        DEMO_PHOTOS.put("国産砂肝の鉄板塩たれ焼", "gpt-sunagimo.jpg");
+        DEMO_PHOTOS.put("きのことチーズの鉄板オープンオムレツ", "gpt-omelette.jpg");
         DEMO_PHOTOS.put("鉄板自家製ジャークチキン", "jerk-chicken.jpg");
 
         // ── 鉄板麺 ──
@@ -346,7 +354,7 @@ public class DemoDataSeeder implements ApplicationRunner {
         DEMO_PHOTOS.put("国産豚ロースステーキ", "pork-loin.jpg");
         DEMO_PHOTOS.put("国産牛サーロインステーキ", "beef-sirloin.jpg");
         DEMO_PHOTOS.put("国産牛赤身ステーキ", "beef-akami.jpg");
-        DEMO_PHOTOS.put("鉄板たこ足塊ステーキ", "ika.jpg");
+        DEMO_PHOTOS.put("鉄板たこ足塊ステーキ", "gpt-tako-steak.jpg");
 
         // ── 一品料理 ──
         DEMO_PHOTOS.put("たこのねぎまみれ", "tako-negi.jpg");
