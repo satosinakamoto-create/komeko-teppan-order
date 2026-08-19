@@ -269,10 +269,36 @@ public class DemoDataSeeder implements ApplicationRunner {
      * 名前の付け替えは後日おこなう前提です。
      *
      * <p><b>置いていない品もあります。</b>
-     * 元データは印刷用の CMYK で、一部は画像ライブラリが正しく読めず
-     * 色が破綻しました（反転しても直らないので、圧縮形式ごと未対応と判断）。
-     * 無理に載せず、写真の無い品はプレースホルダのままにしています。
-     * 画面は写真あり・なしが混在しても崩れない作りです。
+     * 写真の無い品はプレースホルダのままです。
+     * 画面は写真あり・なしが混在しても崩れない作りにしてあります。
+     *
+     * <hr>
+     *
+     * <h2>変換でつまずいたこと（CMYK の 5 チャンネル）</h2>
+     *
+     * <p>元データは印刷用の PSD です。最初は素直に読んで RGB へ変換したところ、
+     * 一部が<b>虹色に破綻</b>し、瓶が二重に写るなど明らかにおかしくなりました。
+     * CMYK を反転する定番の対処も試しましたが、真っ黒になるだけでした。
+     *
+     * <p>PSD のヘッダを直接読んで分かった原因がこれです。
+     *
+     * <pre>
+     *   正常だったもの : ch=4  (C, M, Y, K)
+     *   壊れたもの     : ch=5  (C, M, Y, K ＋ もう 1 つ)
+     * </pre>
+     *
+     * <p>5 つ目はアルファか特色チャンネルです。
+     * 汎用の画像ライブラリは 4 チャンネル前提で読むため、
+     * <b>1 チャンネルぶん位置がずれ</b>、色が入れ替わって虹色になっていました。
+     * ビット深度でもファイル破損でもなく、チャンネル数の想定違いでした。
+     *
+     * <p>PSD 専用のライブラリでレイヤーを合成してから書き出すと、全点が正しい RGB に
+     * なりました。<b>「読めないファイル」ではなく「読み方が足りていない」だけだった</b>、
+     * というのが結論です。
+     *
+     * <p>変換元の PSD はリポジトリに入れていません（他社の制作データで、
+     * かつ 856MB あります）。作業用の複製は {@code data/psd-src/} に置いてあり、
+     * ここは {@code .gitignore} の対象です。元フォルダは読み取りのみで触っていません。
      */
     /**
      * 商品名 → 写真ファイル名の対応表。
@@ -295,8 +321,12 @@ public class DemoDataSeeder implements ApplicationRunner {
         DEMO_PHOTOS.put("海鮮スペシャル", "okonomi-kaisen.jpg");
 
         // ── 鉄板おつまみ ──
-        DEMO_PHOTOS.put("鉄板わかめ焼き（北海道産）", "wakame.jpg");
+        DEMO_PHOTOS.put("殻付きホタテバター醤油（北海道産）", "harasu.jpg");
         DEMO_PHOTOS.put("国産鶏皮にんにく醤油焼", "torikawa.jpg");
+        DEMO_PHOTOS.put("鉄板わかめ焼き（北海道産）", "wakame.jpg");
+        DEMO_PHOTOS.put("鶏せせりとねぎの黒胡椒焼", "torisaseri.jpg");
+        DEMO_PHOTOS.put("鉄板チョリソー五本", "gyoza.jpg");
+        DEMO_PHOTOS.put("国産豚たん塩たれ焼", "butatan.jpg");
         DEMO_PHOTOS.put("鉄板自家製ジャークチキン", "jerk-chicken.jpg");
 
         // ── 鉄板麺 ──
@@ -311,14 +341,40 @@ public class DemoDataSeeder implements ApplicationRunner {
 
         // ── 一品料理 ──
         DEMO_PHOTOS.put("たこのねぎまみれ", "tako-negi.jpg");
-        DEMO_PHOTOS.put("さっぱりたこぽん", "takopon.jpg");
         DEMO_PHOTOS.put("冷やしトマト", "tomato.jpg");
+        DEMO_PHOTOS.put("蘭王ゆでねぎたま", "soup.jpg");
+        DEMO_PHOTOS.put("自家製ポテサラ", "potato.jpg");
         DEMO_PHOTOS.put("ピリ辛豆板醤きゅうり", "kyuri.jpg");
+        DEMO_PHOTOS.put("さっぱりたこぽん", "takopon.jpg");
         DEMO_PHOTOS.put("本日の特製サラダ", "salad.jpg");
 
-        // ── 甘味・ドリンク ──
+        // ── 甘味 ──
         DEMO_PHOTOS.put("本日のおすすめアイス", "dessert.jpg");
+
+        // ── ビール・サワー ──
+        DEMO_PHOTOS.put("サッポロ赤星（中瓶）", "beer-akaboshi.jpg");
+        DEMO_PHOTOS.put("オールフリー（ノンアルコールビール）", "nonal-beer.jpg");
+        DEMO_PHOTOS.put("自家製レモンサワー", "lemon-sour.jpg");
+        DEMO_PHOTOS.put("ジャスミンハイボール", "jasmine-highball.jpg");
+
+        // ── ウィスキー ──
+        DEMO_PHOTOS.put("角ハイボール", "kaku-highball.jpg");
+
+        // ── 焼酎・スパイス ──
+        DEMO_PHOTOS.put("黒ウーロンハイ", "kuro-oolong.jpg");
+        DEMO_PHOTOS.put("お茶割り各種【ジャスミン割・緑茶割】", "green-tea.jpg");
+
+        // ── ソフトドリンク ──
+        DEMO_PHOTOS.put("コカ・コーラ", "cola.jpg");
+        DEMO_PHOTOS.put("ジンジャーエール", "ginger-ale.jpg");
+        DEMO_PHOTOS.put("黒烏龍茶", "kuro-oolong.jpg");
+        DEMO_PHOTOS.put("緑茶", "matcha.jpg");
+        DEMO_PHOTOS.put("ジャスミンティー", "green-tea.jpg");
         DEMO_PHOTOS.put("オレンジジュース", "orange-juice.jpg");
+
+        // ── 日本酒・ワイン ──
+        DEMO_PHOTOS.put("グラスワイン（赤・白）", "wine-red.jpg");
+        DEMO_PHOTOS.put("ボトルワイン", "wine-white.jpg");
     }
 
     /** 見学用の写真を置く場所。自前素材（{@code /images/menu/}）と分けている。 */
