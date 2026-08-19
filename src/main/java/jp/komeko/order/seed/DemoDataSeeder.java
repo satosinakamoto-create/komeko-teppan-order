@@ -377,11 +377,28 @@ public class DemoDataSeeder implements ApplicationRunner {
         DEMO_PHOTOS.put("ジャスミンハイボール", "jasmine-highball.jpg");
 
         // ── ウィスキー ──
+        //   角ハイボールだけは実物の商品写真がある。銘柄が一致するものは
+        //   共通画像で上書きしない。あとは銘柄ごとのボトル写真を持っていないので、
+        //   クラフトジンと同じ考えで「銘柄を写さない」一枚に揃える。
         DEMO_PHOTOS.put("角ハイボール", "kaku-highball.jpg");
+        for (String name : List.of(
+                "KIRIN 陸", "山崎", "白州", "響 Japanese Harmony", "知多",
+                "宮城峡", "余市", "ハイランドパーク 12Years", "BOWMORE 12Years",
+                "タリスカー 10Years", "Arran 10Years", "グレンモーレンジィ 12Years",
+                "ニッカフロンティア")) {
+            DEMO_PHOTOS.put(name, "gpt-whisky.jpg");
+        }
 
         // ── 焼酎・スパイス ──
+        //   お茶割り系は中身が写真から分かるので個別のまま。
+        //   銘柄の焼酎だけ共通の一枚にする。
         DEMO_PHOTOS.put("黒ウーロンハイ", "kuro-oolong.jpg");
         DEMO_PHOTOS.put("お茶割り各種【ジャスミン割・緑茶割】", "green-tea.jpg");
+        for (String name : List.of(
+                "カルダモン焼酎", "AKAYANE 山椒", "佐藤【黒・白・麦】",
+                "百年の孤独", "魔王")) {
+            DEMO_PHOTOS.put(name, "gpt-shochu.jpg");
+        }
 
         // ── ソフトドリンク ──
         DEMO_PHOTOS.put("コカ・コーラ", "cola.jpg");
