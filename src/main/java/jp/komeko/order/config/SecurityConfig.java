@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -225,7 +226,41 @@ public class SecurityConfig {
                     .logoutSuccessUrl("/login?logout")
                     .permitAll())
             .sessionManagement(session -> session
-                    .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
+                    .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+
+            // ── 見学入口で CSRF が切れたときは、行き止まりにしない ──
+            //
+            // /demo/staff は開いた瞬間に POST を送るページです。
+            // 戻るボタンやブラウザのページ復元で古い HTML が出てくると、
+            // 期限切れのトークンで送信され 403 の画面で終わってしまいます。
+            // ポートフォリオから来た人にとって、そこが行き止まりになります。
+            //
+            // トークンが切れただけなら、新しいページを取り直せば済む話です。
+            // ?retry=1 を付けて戻し、そちらでは自動送信せずボタンを出します
+            // （自動で送り続けると、失敗し続ける場合に往復が止まらなくなる）。
+            //
+            // ★ 対象を /login/guest の POST だけに絞っています。
+            //   ほかの 403 まで拾うと、権限が無いことを権限の問題として
+            //   伝えられなくなります。見学者が /admin/settings を保存しようとしたときは、
+            //   きちんと 403 のままであるべきです。
+            .exceptionHandling(ex -> ex.accessDeniedHandler((request, response, denied) -> {
+                // ★ getServletPath() ではなく getRequestURI() で見る。
+                //   MockMvc では getServletPath() が空文字になり、条件が常に false になる。
+                //   実際それでテストが 403 のまま落ちた。
+                //   本番だけ通ってテストで再現できない書き方は、避けたほうがいい。
+                String path = request.getRequestURI();
+                String context = request.getContextPath();
+                if (context != null && !context.isEmpty() && path.startsWith(context)) {
+                    path = path.substring(context.length());
+                }
+                boolean guestLoginPost = "POST".equalsIgnoreCase(request.getMethod())
+                        && "/login/guest".equals(path);
+                if (guestLoginEnabled && guestLoginPost) {
+                    response.sendRedirect(request.getContextPath() + "/demo/staff?retry=1");
+                    return;
+                }
+                response.sendError(HttpServletResponse.SC_FORBIDDEN);
+            }));
 
         if (devMode) {
             // H2 コンソールは自前のフォームを持っていて CSRF トークンを送れないので除外し、

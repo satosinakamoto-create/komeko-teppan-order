@@ -11,7 +11,11 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.Comparator;
 import java.util.List;
@@ -115,7 +119,22 @@ public class DemoEntryController {
      * <p>見た目は 1 クリック、中身は今までどおり、という置き方です。
      */
     @GetMapping("/demo/staff")
-    public String staffEntry() {
+    public String staffEntry(@RequestParam(name = "retry", required = false) String retry,
+                             Model model,
+                             HttpServletResponse response) {
+        // ★ この画面はキャッシュさせない。
+        //
+        //   中に CSRF トークンが埋まっているためです。
+        //   戻るボタンやブラウザのページ復元（bfcache）で古い HTML が出てくると、
+        //   期限切れのトークンで送信され 403 になります。
+        //   実際「開かない」と報告されたのがこの状態でした。
+        //   毎回サーバから取り直させれば、トークンは常に新しくなります。
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, must-revalidate");
+
+        // 一度失敗して戻ってきたときは、自動送信しない。
+        // 自動で送り続けると、失敗し続ける場合に画面が往復して止まらなくなります。
+        // 押せるボタンを出して、あとは人に委ねます。
+        model.addAttribute("autoSubmit", retry == null);
         return "demo-staff";
     }
 

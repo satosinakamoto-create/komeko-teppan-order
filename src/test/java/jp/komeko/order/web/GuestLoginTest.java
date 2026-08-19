@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -67,12 +68,29 @@ class GuestLoginTest {
         }
 
         @Test
-        @DisplayName("CSRF トークンが無いと拒否される（外部サイトから踏ませられない）")
+        @DisplayName("CSRF トークンが無いとログインさせない（外部サイトから踏ませられない）")
         void withoutCsrfIsRejected() throws Exception {
             // GET のリンクにすると、外部サイトに <img src=".../login/guest"> と
             // 書かれるだけで意図せずログイン状態にされる。POST + CSRF で塞いでいる。
-            mockMvc.perform(post("/login/guest"))
-                    .andExpect(status().isForbidden());
+            //
+            // ★ 見ているのは「ログインしないこと」であって、403 という数字ではない。
+            //   もとは 403 を直接見ていたが、見学入口（/demo/staff）のために
+            //   「トークンが切れたらやり直せる画面へ戻す」を足したので、
+            //   返るのは 302 になった。拒否している事実は変わっていない。
+            //   状態コードを固定してしまうと、こういう改善のたびに
+            //   「セキュリティのテストが落ちた」と誤解することになる。
+            MvcResult result = mockMvc.perform(post("/login/guest"))
+                    .andExpect(status().is3xxRedirection())
+                    .andReturn();
+
+            // ログイン画面へ戻されるだけで、認証は付いていない
+            org.assertj.core.api.Assertions.assertThat(
+                            result.getRequest().getSession(false))
+                    .as("トークン無しの POST でセッションに認証が入らないこと")
+                    .satisfiesAnyOf(
+                            session -> org.assertj.core.api.Assertions.assertThat(session).isNull(),
+                            session -> org.assertj.core.api.Assertions.assertThat(
+                                    session.getAttribute("SPRING_SECURITY_CONTEXT")).isNull());
         }
 
         @Test

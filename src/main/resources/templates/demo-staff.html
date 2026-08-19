@@ -48,8 +48,14 @@
           </button>
         </form>
 
-        <p class="tiny faint mt-6 mb-0">
+        <p class="tiny faint mt-6 mb-0" th:if="${autoSubmit}">
           自動で移動しない場合は、上のボタンを押してください。
+        </p>
+        <!--/* 一度失敗して戻ってきたとき。原因（古いページ）と対処を書く。
+               「もう一度お試しください」だけだと、同じことを繰り返す人が多い。 */-->
+        <p class="small mt-6 mb-0" th:unless="${autoSubmit}">
+          前の画面が古くなっていたため、いったん止めました。<br>
+          <strong>上のボタンを押すと進めます。</strong>
         </p>
 
       </div>
@@ -58,7 +64,7 @@
 </main>
 
 <!--/* 開いた瞬間に送信する。押す手間を無くすだけで、送る中身は上のフォームと同じ。 */-->
-<script th:inline="none">
+<script th:if="${autoSubmit}" th:inline="none">
   document.addEventListener('DOMContentLoaded', function () {
     var form = document.getElementById('staffEntryForm');
     if (form) { form.submit(); }

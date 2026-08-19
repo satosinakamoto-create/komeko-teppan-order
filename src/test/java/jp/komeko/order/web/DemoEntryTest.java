@@ -161,6 +161,49 @@ class DemoEntryTest {
         }
 
         @Test
+        @DisplayName("CSRF が切れても 403 で終わらせず、やり直せる画面に戻す")
+        void staleTokenGoesBackToTheEntry() throws Exception {
+            // /demo/staff は開いた瞬間に POST を送るページ。
+            // 戻るボタンやページ復元で古い HTML が出てくると、
+            // 期限切れのトークンで送信され 403 の画面で終わる。
+            // ポートフォリオから来た人にとって、そこが行き止まりになる。
+            mockMvc.perform(org.springframework.test.web.servlet.request
+                            .MockMvcRequestBuilders.post("/login/guest"))   // トークン無し＝切れた状態
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                            .redirectedUrl("/demo/staff?retry=1"));
+        }
+
+        @Test
+        @DisplayName("やり直しの画面では自動送信しない（往復が止まらなくなるため）")
+        void retryScreenDoesNotAutoSubmit() throws Exception {
+            String html = mockMvc.perform(get("/demo/staff").param("retry", "1"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(html)
+                    .as("ボタンは残す（人が押せば進める）")
+                    .contains("店舗側の画面へ進む");
+            assertThat(html)
+                    .as("自動送信のスクリプトは出さない")
+                    .doesNotContain("staffEntryForm');");
+        }
+
+        @Test
+        @DisplayName("見学者の保存操作は 403 のまま（救済の対象を広げない）")
+        void guestWriteStillForbidden() throws Exception {
+            // 上の救済は /login/guest の POST だけに絞っている。
+            // ほかの 403 まで拾うと、権限が無いことを権限の問題として伝えられなくなる。
+            mockMvc.perform(org.springframework.test.web.servlet.request
+                            .MockMvcRequestBuilders.post("/admin/settings")
+                            .with(org.springframework.security.test.web.servlet.request
+                                    .SecurityMockMvcRequestPostProcessors.csrf())
+                            .with(org.springframework.security.test.web.servlet.request
+                                    .SecurityMockMvcRequestPostProcessors.user("guest").roles("STAFF")))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
         @DisplayName("QR 画像がログインなしで取れる")
         void qrImageIsPublic() throws Exception {
             // ポートフォリオサイトに貼る画像。ここがログインを要求すると、
