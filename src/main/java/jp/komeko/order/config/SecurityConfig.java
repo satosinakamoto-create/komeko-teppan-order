@@ -120,6 +120,17 @@ public class SecurityConfig {
                             "/checkout", "/t/**", "/bill/**", "/o/**",
                             "/api/public/**").permitAll()
 
+                    // ── 公開デモの QR 用の、変わらない入口 ──
+                    //   /t/{トークン} は卓を作り直すたびに変わるので、
+                    //   ポートフォリオに貼った QR は翌朝には死ぬ。
+                    //   /demo は中で空いている卓へ橋渡しするだけの固定 URL。
+                    //   コントローラ自体が app.guest-login=true のときしか作られないので、
+                    //   実店舗ではここを許可していても 404 になる（DemoEntryController 参照）。
+                    //   /demo/qr.png はサイトに貼る QR 画像そのもの。
+                    //   "/demo" は完全一致なので、こちらを書かないと画像だけ
+                    //   ログインを要求されて表示できない。
+                    .requestMatchers("/demo", "/demo/qr.png").permitAll()
+
                     // ── ログイン画面 ──
                     //   /login/guest はポートフォリオのデモ用。
                     //   通ってもスタッフ権限しか付かない（/admin/** には入れない）。

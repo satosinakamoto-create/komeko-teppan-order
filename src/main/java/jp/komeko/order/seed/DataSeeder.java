@@ -359,12 +359,41 @@ public class DataSeeder implements ApplicationRunner {
                 """, created.size());
     }
 
+    /**
+     * 商品に写真を付ける。
+     *
+     * <p><b>なぜ {@code static/images/menu/} に置くのか</b><br>
+     * 管理画面からアップロードした画像は {@code app.upload-dir}（{@code ./data/uploads}）に
+     * 保存されます。実店舗ではそれで正しいのですが、公開デモは無料ホスティングで動いており、
+     * <b>再起動のたびにディスクごと作り直されます</b>。
+     * アップロード先に置いた写真は次の起動で消え、また文字のプレースホルダに戻ります。
+     *
+     * <p>そこで、最初から入れておく写真だけは <b>jar の中に焼き込む</b>（静的ファイルにする）
+     * ことにしました。消えようがありませんし、
+     * 内容ハッシュ付きの長期キャッシュ（{@code application.yml} の
+     * {@code spring.web.resources}）がそのまま効くので、2 回目以降は取りに行きません。
+     *
+     * <p>写真は公式サイト（{@code komekototeppan}）の撮影データから、
+     * 幅 800px・4:3・JPEG 品質 82 に落として使っています（1 枚 50〜90KB）。
+     * 画面側は一覧・詳細とも {@code object-fit: cover} なので、
+     * 4:3 で持っておけば正方形のサムネイルにも破綻なく収まります。
+     *
+     * <p><b>全品には付けていません。</b>
+     * 最初に目に入るカテゴリの主力だけで、印象はほぼ決まります。
+     * 残りは店舗が管理画面から順に追加していく前提です。
+     */
+    private static MenuItem photo(MenuItem item, String fileName) {
+        item.setImagePath("/images/menu/" + fileName);
+        return item;
+    }
+
     /** 広島風お好み焼き。全品「米粉そば ⇔ 米粉うどん」を無料で変更できる。 */
     private void seedOkonomiyaki() {
         Category c = category("広島風お好み焼き", 10);
         Menu m = new Menu(c, 12);
 
-        MenuItem nikutama = m.recommend("肉玉米粉そば", 1180, "定番。豚肉と卵、米粉そば入り。");
+        MenuItem nikutama = photo(m.recommend("肉玉米粉そば", 1180, "定番。豚肉と卵、米粉そば入り。"),
+                "okonomiyaki.jpg");
         MenuItem negi = m.add("ねぎたっぷり米粉そば", 1380, "青ねぎをたっぷりのせて。");
         MenuItem geso = m.add("肉玉大葉げそ米粉そば", 1480, "大葉とげその食感がアクセント。");
         MenuItem kaki = m.add("牡蠣と豚肉米粉そば", 1680, "季節の牡蠣を鉄板でふっくらと。");
@@ -391,10 +420,15 @@ public class DataSeeder implements ApplicationRunner {
         Menu m = new Menu(c, 10);
 
         MenuItem t4 = m.recommend("たこ焼 4個", 600, "2種類のお味をお選びいただけます。");
-        MenuItem t8 = m.recommend("たこ焼 8個", 1190, "4種類のお味をお選びいただけます。");
+        // 8 個の写真は「たこ焼 8 個＋薬味 4 皿」がそのまま写っているものを選んでいる。
+        // 説明文の「4種類のお味をお選びいただけます」を、文字ではなく絵で伝えられる。
+        MenuItem t8 = photo(m.recommend("たこ焼 8個", 1190, "4種類のお味をお選びいただけます。"),
+                "takoyaki-plate.jpg");
         MenuItem t12 = m.add("たこ焼 12個", 1790, "4種類のお味をお選びいただけます。");
         MenuItem t16 = m.add("たこ焼 16個", 2390, "4種類のお味をお選びいただけます。");
-        MenuItem t20 = m.add("たこ焼 20個", 2990, "4種類のお味をお選びいただけます。");
+        // 20 個は鉄板いっぱいに焼いている写真。量の多さが伝わる
+        MenuItem t20 = photo(m.add("たこ焼 20個", 2990, "4種類のお味をお選びいただけます。"),
+                "takoyaki-grill.jpg");
 
         addFlavors(t4, 2);
         for (MenuItem item : List.of(t8, t12, t16, t20)) {
@@ -426,18 +460,19 @@ public class DataSeeder implements ApplicationRunner {
         m.add("鉄板わかめ焼き（北海道産）", 770, null);
         m.add("鶏せせりとねぎの黒胡椒焼", 880, null);
         m.add("鉄板チョリソー五本", 880, null);
-        m.add("たこときのこの塩たれ焼", 880, null);
+        photo(m.add("たこときのこの塩たれ焼", 880, null), "tako-kinoko.jpg");
         m.add("国産砂肝の鉄板塩たれ焼", 880, null);
         m.add("国産豚たん塩たれ焼", 880, null);
         m.add("きのことチーズの鉄板オープンオムレツ", 1120, null);
-        m.add("黒毛和牛上ホルモン焼", 1230, null);
-        m.recommend("濃厚！国産豚ぺい焼", 1430, "当店自慢のとん平焼き。");
+        photo(m.add("黒毛和牛上ホルモン焼", 1230, null), "hormone.jpg");
+        photo(m.recommend("濃厚！国産豚ぺい焼", 1430, "当店自慢のとん平焼き。"), "tonpei.jpg");
         m.add("鉄板自家製ジャークチキン", 1890, null);
     }
 
     private void seedTeppanNoodles() {
         Menu m = new Menu(category("鉄板麺", 40), 10);
-        m.recommend("米粉麺焼きそば（ソース）", 1190, "グルテンフリーの米粉麺を使用。");
+        photo(m.recommend("米粉麺焼きそば（ソース）", 1190, "グルテンフリーの米粉麺を使用。"),
+                "yakisoba.jpg");
         m.add("米粉焼きうどん（出汁醤油）", 1190, null);
         m.add("国産上ホルモン焼きそば", 1790, null);
     }
