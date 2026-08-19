@@ -141,30 +141,34 @@ public class SecurityConfig {
                 }
 
                 if (guestLoginEnabled) {
-                    // ── 公開デモのときだけ、一部の管理画面を「見るだけ」開放する ──
+                    // ── 公開デモのときだけ、管理画面を「見るだけ」開放する ──
                     //
-                    // ゲスト（STAFF 権限）で入った方に、卓と QR コードが見えないと
-                    // 「どうやって注文が始まるのか」が分からず、システムの全体像が伝わりません。
-                    // 売上と注文履歴も、データが架空のデモでは見せる価値のほうが大きい。
+                    // ゲスト（STAFF 権限）に管理画面が一切見えないと、
+                    // 作ってあるものの大半が伝わりません。
+                    // かといって書き換えられると、見に来た次の人が壊れた画面を見ることになる。
+                    // そこで「見るのは全部許す・書き換えは一切許さない」で切ります。
                     //
-                    // ★ GET だけを開ける。POST は下の /admin/** ルールに落ちて ADMIN 限定のまま。
-                    //   見るのは許すが、書き換えは許さない、という切り分けです。
-                    //   （順番が大事。先に書いたルールが勝つので、この GET 許可は
-                    //     「/admin/** は ADMIN のみ」より前に置く必要がある）
+                    // ★ この切り分けが成立するのは、管理画面の作りが
+                    //   「表示はすべて @GetMapping・変更はすべて @PostMapping」に
+                    //   きれいに分かれているからです。
+                    //   GET で状態が変わる口が 1 つでもあると、この 1 行が嘘になります。
+                    //   AdminMenuItemController / AdminTableController / AdminSettingController /
+                    //   AdminStaffController / AdminCategoryController / AdminOptionController を
+                    //   実際に確認済み（2026-08-19）。新しい画面を足すときも同じ規律で書くこと。
                     //
-                    // 価格・店舗設定・スタッフ・バックアップは開けません。
-                    // 壊されるとデモが成立しなくなるか、他人のパスワードに触れてしまうためです。
-                    //
-                    // 卓の管理画面（/admin/tables）も開けていません。
-                    // あの画面は入力欄と保存ボタンで組み上がっていて、
-                    // 「見るだけ」にすると中身が空の行が並ぶだけになります。
-                    // 卓の名前・QR・URL は QR コードの画面にすべて載っているので、
-                    // 見せたい情報はそちらで足ります。
-                    auth.requestMatchers(HttpMethod.GET,
-                                    "/admin",
-                                    "/admin/qr", "/admin/qr/**",
-                                    "/admin/sales", "/admin/sales/**",
-                                    "/admin/orders", "/admin/orders/**")
+                    // ★ 順番が大事。先に書いたルールが勝つので、
+                    //   バックアップの除外 → GET 許可 → 「/admin/** は ADMIN のみ」の順に置く。
+
+                    // バックアップ画面だけは GET も開けない。
+                    // サーバ上の保存先パスや世代の一覧が出るうえ、
+                    // demo プロファイルではバックアップ自体を止めてある（application-demo.yml）ので、
+                    // 開けても「無効です」と出るだけで見せる中身がありません。
+                    auth.requestMatchers("/admin/backups", "/admin/backups/**")
+                            .hasRole("ADMIN");
+
+                    // それ以外の管理画面は GET だけ開ける。
+                    // POST は下の /admin/** ルールに落ちて ADMIN 限定のまま。
+                    auth.requestMatchers(HttpMethod.GET, "/admin", "/admin/**")
                             .hasAnyRole("STAFF", "ADMIN");
                 }
 

@@ -1779,3 +1779,50 @@ body.theme-snow { background-image: none; }
   padding: 0 16px;
   min-height: 0;
 }
+
+/* --------------------------------------------------------------------------
+   27. 見学モード（公開デモのゲスト）
+   --------------------------------------------------------------------------
+   ゲストが管理画面を開いたときに出る帯と、押せなくなったボタン。
+
+   色は --info（藍）にしている。--danger（紅）だと「何か失敗した」に見え、
+   --accent（狐色）だと本文の主役ボタンと張り合ってしまう。
+   ここで伝えたいのは失敗でも誘導でもなく「いまは見るだけの状態です」という
+   事実なので、いちばん静かな色を割り当てる。
+   -------------------------------------------------------------------------- */
+
+.viewer-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  align-items: baseline;
+  margin-bottom: var(--sp-4);
+  padding: 10px 14px;
+  border: 1px solid var(--info);
+  /* 左だけ太くして「注記」であることを形でも示す */
+  border-left-width: 4px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--info-soft);
+  color: var(--text);
+  font-size: .875rem;
+  line-height: 1.6;
+}
+
+.viewer-note strong { font-weight: 700; }
+
+/* 無効化されたボタン。
+   押せないことが見て分かることが目的なので、色を抜いて影も消す。
+   cursor: not-allowed は「押せない」を最も短く伝える手段。 */
+.staff-main button:disabled,
+.staff-main input[type="submit"]:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: grayscale(1);
+}
+
+.staff-main button:disabled:hover,
+.staff-main input[type="submit"]:disabled:hover {
+  /* hover で色が戻ると「押せそう」に見えてしまうので打ち消す */
+  background: inherit;
+}

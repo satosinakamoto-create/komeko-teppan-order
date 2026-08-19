@@ -83,35 +83,67 @@ class GuestLoginTest {
         }
 
         @ParameterizedTest(name = "{0} は見られる")
-        @ValueSource(strings = {"/kitchen", "/hall", "/admin", "/admin/qr", "/admin/sales", "/admin/orders"})
+        @ValueSource(strings = {"/kitchen", "/hall", "/admin",
+                                "/admin/items", "/admin/categories", "/admin/tables",
+                                "/admin/qr", "/admin/settings", "/admin/staff",
+                                "/admin/sales", "/admin/orders"})
         @WithMockUser(roles = "STAFF")
-        @DisplayName("見せると決めた画面は開ける")
+        @DisplayName("管理画面は見るだけなら全部開ける")
         void guestCanRead(String path) throws Exception {
-            // QR コードの画面がいちばん大事。卓名・QR・URL がここに全部載っていて、
-            // 「どうやって注文が始まるのか」がこの画面だけで伝わる。
+            // 「いじれないけど見える」に寄せた判断。
+            // 見せないと、作ってあるものの大半が伝わらない。
+            // 壊されない保証は下の guestCannotWrite が受け持つ。
             mockMvc.perform(get(path)).andExpect(status().isOk());
         }
 
         @ParameterizedTest(name = "{0} は見られない")
-        @ValueSource(strings = {"/admin/items", "/admin/categories", "/admin/tables",
-                                "/admin/settings", "/admin/staff", "/admin/backups"})
+        @ValueSource(strings = {"/admin/backups"})
         @WithMockUser(roles = "STAFF")
-        @DisplayName("値段・設定・スタッフ・バックアップは開けない")
+        @DisplayName("バックアップだけは開けない")
         void guestCannotReadSensitivePages(String path) throws Exception {
-            // 特に /admin/staff は他人のパスワードを変えられる画面。
-            // /admin/settings を触られると、税率や深夜料金が変わってデモが壊れる。
+            // サーバ上の保存先パスと世代の一覧が出る画面。
+            // demo ではバックアップ自体を止めてあるので、
+            // 開けても「無効です」と出るだけで見せる中身が無い。
             mockMvc.perform(get(path)).andExpect(status().isForbidden());
         }
 
         @ParameterizedTest(name = "{0} への書き込みは拒否される")
         @ValueSource(strings = {"/admin/tables/1/regenerate", "/admin/tables/1/delete",
-                                "/admin/orders/1/cancel", "/admin/settings"})
+                                "/admin/orders/1/cancel", "/admin/settings",
+                                "/admin/settings/toggle-accepting",
+                                "/admin/items", "/admin/items/1/delete", "/admin/items/1/soldout",
+                                "/admin/categories", "/admin/categories/1/delete",
+                                "/admin/staff", "/admin/staff/1/password", "/admin/staff/1/delete",
+                                "/admin/options/1/delete", "/admin/backups/run"})
         @WithMockUser(roles = "STAFF")
-        @DisplayName("見られる画面でも、書き換えはできない（GET だけ開けている）")
+        @DisplayName("見られる画面でも、書き換えは一切できない（GET だけ開けている）")
         void guestCannotWrite(String path) throws Exception {
-            // ここが崩れると、見学者が QR を作り直して
-            // 「席に貼ってある QR が読めない」状態にできてしまう。
+            // ★ 見せる範囲を広げたぶん、ここが唯一の防波堤になった。
+            //   GET を全部開けたので、「POST は通らない」が崩れると
+            //   見学者がメニューを消したり QR を作り直したりできてしまう。
+            //   画面には何も出ないまま壊れるので、目視では気づけない。
             mockMvc.perform(post(path).with(csrf())).andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("管理画面には見学モードの帯が出る")
+        void viewerNoteIsShownOnAdminPages() throws Exception {
+            mockMvc.perform(get("/admin/settings"))
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.containsString("見学モードです")));
+        }
+
+        @Test
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("厨房ボードには帯を出さない（押してもらう画面なので）")
+        void viewerNoteIsHiddenOnKitchen() throws Exception {
+            // 帯と一緒にボタンの無効化も効くので、ここに出すと
+            // 「状態を進めるとお客さまの画面が変わる」という見せ場が死ぬ。
+            mockMvc.perform(get("/kitchen"))
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.not(
+                                    org.hamcrest.Matchers.containsString("見学モードです"))));
         }
 
         @Test

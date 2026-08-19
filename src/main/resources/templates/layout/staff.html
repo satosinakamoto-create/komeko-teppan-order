@@ -142,9 +142,29 @@
       <th:block th:if="${guestLogin}" sec:authorize="!hasRole('ADMIN')">
 
         <p class="sb__label">見学できる画面</p>
+        <a class="sb__item" th:href="@{/admin/items}"
+           th:classappend="${#strings.startsWith(p, '/admin/items') or #strings.startsWith(p, '/admin/options') or #strings.startsWith(p, '/admin/choices')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_fork_knife}"/><span>商品</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/categories}"
+           th:classappend="${#strings.startsWith(p, '/admin/categories')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_squares_four}"/><span>カテゴリ</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/tables}"
+           th:classappend="${#strings.startsWith(p, '/admin/tables')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_armchair}"/><span>卓</span>
+        </a>
         <a class="sb__item" th:href="@{/admin/qr}"
            th:classappend="${#strings.startsWith(p, '/admin/qr')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_qr_code}"/><span>QRコード</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/settings}"
+           th:classappend="${#strings.startsWith(p, '/admin/settings')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_gear_six}"/><span>店舗設定</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/staff}"
+           th:classappend="${#strings.startsWith(p, '/admin/staff')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_users_three}"/><span>スタッフ</span>
         </a>
         <a class="sb__item" th:href="@{/admin/sales}"
            th:classappend="${#strings.startsWith(p, '/admin/sales')} ? 'is-active'">
@@ -154,6 +174,11 @@
            th:classappend="${#strings.startsWith(p, '/admin/orders')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_clock_counter_clockwise}"/><span>注文履歴</span>
         </a>
+
+        <!--/* バックアップ（/admin/backups）はここに出しません。
+               SecurityConfig で GET も閉じてあるので、
+               リンクを出すと押した先が 403 になります。
+               入口と許可は必ず一致させること。 */-->
 
       </th:block>
     </nav>
@@ -187,9 +212,60 @@
         各ページの <main> がこの div の中に差し込まれる。
         外側を <main> にすると main が二重になる（HTML として不正）ので div。 */-->
   <div class="staff-main">
+
+    <!--/* ============ 見学モードの帯 ============
+
+          公開デモのゲストが管理画面を開いたときだけ出す。
+
+          ★ なぜ帯と無効化の両方が要るのか
+            SecurityConfig は POST を弾くので、押されても書き換わりません。
+            つまり「安全」ではある。けれど押せてしまうと、押した人は
+            エラー画面に飛ばされて「壊れている」と受け取ります。
+            守ることと、伝えることは別の仕事です。
+
+          ★ 条件を「管理画面のときだけ」に絞っている理由
+            厨房ボードとホールのボタンは、ゲストにも押してもらう前提です。
+            注文の状態を進めると客側の画面がその場で変わる、というのが
+            このデモのいちばんの見せ場なので、そこを無効化しては本末転倒。
+            /kitchen と /hall の POST は STAFF に許可してあります。 */-->
+    <div th:if="${guestLogin and currentPath != null and #strings.startsWith(currentPath, '/admin')}"
+         sec:authorize="!hasRole('ADMIN')"
+         class="viewer-note" role="status">
+      <strong>見学モードです。</strong>
+      画面は本来の形で見られますが、保存・削除はできません。
+    </div>
+
     <div th:replace="${content}">ページ本文</div>
   </div>
 
 </div>
+
+<!--/* 見学モードのとき、本文の中の「送信」だけを押せなくする。
+
+      入力欄は触れるままにしてあります。何が設定できる画面なのかは
+      入力欄の中身を見て分かるものなので、そこまで殺すと画面が死にます。
+      止めたいのは「押したらエラーになる」という体験だけ。
+
+      サイドバーのログアウトは .staff-main の外にあるので巻き込みません。
+      ここを body 全体にすると、見学者がログアウトできなくなります。
+
+      ★ 条件に p ではなく currentPath を使う理由
+        p は上の div の th:with で定義した変数で、
+        その div を閉じたあとのここからは見えません（null になります）。
+        最初 p のまま書いていて、#strings.startsWith(null, …) で
+        全画面がテンプレート解析エラーになりました。
+        変数のスコープは、閉じタグの外まで持ち越せません。 */-->
+<script th:if="${guestLogin and currentPath != null and #strings.startsWith(currentPath, '/admin')}"
+        sec:authorize="!hasRole('ADMIN')">
+  document.addEventListener('DOMContentLoaded', function () {
+    var main = document.querySelector('.staff-main');
+    if (!main) return;
+    main.querySelectorAll('button[type="submit"], input[type="submit"], button:not([type])')
+        .forEach(function (el) {
+          el.disabled = true;
+          el.title = '見学モードでは変更できません';
+        });
+  });
+</script>
 </body>
 </html>
