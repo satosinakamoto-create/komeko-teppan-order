@@ -175,6 +175,22 @@ class DemoEntryTest {
         }
 
         @Test
+        @DisplayName("店舗側の入口はキャッシュされない")
+        void staffEntryIsNotCacheable() throws Exception {
+            // 中に CSRF トークンが埋まっている画面なので、保存されると困る。
+            //
+            // ★ このヘッダは Spring Security が既定で付けています。自分では書きません。
+            //   一度自分で no-store を付けたら、Spring Security が
+            //   Cache-Control / Pragma / Expires の 3 つをまとめて飛ばしてしまい、
+            //   足したつもりが既定より弱くなっていました（本番のヘッダを見て気づいた）。
+            //   誰が付けるかは変わりうるので、「付いていること」だけを固定します。
+            mockMvc.perform(get("/demo/staff"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                            .header().string("Cache-Control",
+                                    org.hamcrest.Matchers.containsString("no-store")));
+        }
+
+        @Test
         @DisplayName("やり直しの画面では自動送信しない（往復が止まらなくなるため）")
         void retryScreenDoesNotAutoSubmit() throws Exception {
             String html = mockMvc.perform(get("/demo/staff").param("retry", "1"))

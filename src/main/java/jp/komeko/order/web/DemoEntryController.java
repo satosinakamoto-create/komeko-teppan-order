@@ -11,8 +11,6 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.http.HttpHeaders;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -120,16 +118,23 @@ public class DemoEntryController {
      */
     @GetMapping("/demo/staff")
     public String staffEntry(@RequestParam(name = "retry", required = false) String retry,
-                             Model model,
-                             HttpServletResponse response) {
-        // ★ この画面はキャッシュさせない。
+                             Model model) {
+        // ★ キャッシュ禁止をここで書かないのは、既に付いているからです。
         //
-        //   中に CSRF トークンが埋まっているためです。
-        //   戻るボタンやブラウザのページ復元（bfcache）で古い HTML が出てくると、
-        //   期限切れのトークンで送信され 403 になります。
-        //   実際「開かない」と報告されたのがこの状態でした。
-        //   毎回サーバから取り直させれば、トークンは常に新しくなります。
-        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, must-revalidate");
+        //   一度 Cache-Control: no-store を自分で付けましたが、本番のヘッダを見たら
+        //   Spring Security が元から
+        //     Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+        //     Pragma: no-cache / Expires: 0
+        //   を全レスポンスに付けていました。しかも自分で 1 つでも書くと、
+        //   Spring Security は 3 つまとめて書き込みを飛ばします。
+        //   つまり足したつもりが、既定より弱くしていました。
+        //
+        //   ここから分かるのは、403 の原因はキャッシュではなかったということです。
+        //   この画面のトークンが古くなるのは、
+        //     ・ログインでセッション ID が変わったあと、戻るボタンで履歴から再表示された
+        //     ・無料枠でインスタンスが入れ替わり、送信先にそのセッションが無かった
+        //   のどちらかです。どちらも防ぎようがないので、
+        //   下の「失敗しても行き止まりにしない」ほうが本命の対処になります。
 
         // 一度失敗して戻ってきたときは、自動送信しない。
         // 自動で送り続けると、失敗し続ける場合に画面が往復して止まらなくなります。
