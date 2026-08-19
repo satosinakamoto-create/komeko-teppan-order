@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   店舗側の見学入口（ポートフォリオからの 1 クリック用）
+  ============================================================================
+   やっていることは「ゲストで参加する」を自動で押すだけです。
+
+   ★ なぜ GET でそのままログインさせないのか
+     手っ取り早いのは /demo/staff を開いた瞬間にログインさせることですが、
+     それをやると外部サイトに <img src="…/demo/staff"> と書かれるだけで
+     見た人が意図せずログイン状態になります。
+     ゲストログインを POST ＋ CSRF にしているのは、まさにそれを塞ぐためでした。
+     入口を増やすために、自分で塞いだ穴を開け直すのは筋が悪い。
+
+     この画面は「フォームを置いて、開いた瞬間に送信する」だけです。
+     送信の仕組み（POST ＋ CSRF）は今までと同じまま、
+     見た目だけ 1 クリックにしています。
+
+   ★ JavaScript が動かなくても行き止まりにしない
+     自動送信が効かない環境ではボタンが残るので、押せば入れます。
+     「白い画面で止まる」が最悪なので、必ず手動の道を残します。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title th:text="'店舗側の画面へ | ' + ${shop.shopName}">店舗側の画面へ</title>
+  <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="theme-snow">
+<main>
+  <div class="container" style="max-width:520px;padding-top:15vh">
+    <div class="card">
+      <div class="card__body center">
+
+        <h1 class="mb-0" style="font-size:1.25rem">店舗側の画面をご案内しています</h1>
+
+        <p class="small muted mt-4">
+          見学モードで、厨房ボード・ホール会計・売上などをご覧いただけます。<br>
+          <strong>表示のみで、保存や削除はできません。</strong>
+        </p>
+
+        <form th:action="@{/login/guest}" method="post" id="staffEntryForm" class="mt-6">
+          <button type="submit" class="btn btn--primary btn--lg btn--block">
+            店舗側の画面へ進む
+          </button>
+        </form>
+
+        <p class="tiny faint mt-6 mb-0">
+          自動で移動しない場合は、上のボタンを押してください。
+        </p>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<!--/* 開いた瞬間に送信する。押す手間を無くすだけで、送る中身は上のフォームと同じ。 */-->
+<script th:inline="none">
+  document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('staffEntryForm');
+    if (form) { form.submit(); }
+  });
+</script>
+</body>
+</html>

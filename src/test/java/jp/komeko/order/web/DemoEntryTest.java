@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -125,6 +126,38 @@ class DemoEntryTest {
 
             assertThat(result.getResponse().getRedirectedUrl())
                     .isEqualTo("/t/" + other.getAccessToken());
+        }
+
+        @Test
+        @DisplayName("店舗側の見学入口はログインなしで開ける")
+        void staffEntryIsPublic() throws Exception {
+            // ポートフォリオから 1 クリックで来る入口。
+            // ログインを要求すると、そこで止まってしまう。
+            mockMvc.perform(get("/demo/staff"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.containsString("店舗側の画面へ進む")));
+        }
+
+        @Test
+        @DisplayName("店舗側の入口は GET でログインさせない（POST のフォームを置くだけ）")
+        void staffEntryDoesNotLogInOnGet() throws Exception {
+            // ★ ここが本題。
+            //   GET で直接ログインさせると、外部サイトに <img src="…/demo/staff"> と
+            //   書かれるだけで、見た人が意図せずログイン状態になる。
+            //   ゲストログインを POST ＋ CSRF にしているのは、それを塞ぐため。
+            //   入口を増やすために、その塞ぎ穴を開け直していないことを固定する。
+            String html = mockMvc.perform(get("/demo/staff"))
+                    .andExpect(status().isOk())          // リダイレクトしない
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(html)
+                    .as("POST のフォームで /login/guest へ送ること")
+                    .contains("method=\"post\"")
+                    .contains("/login/guest");
+            assertThat(html)
+                    .as("CSRF トークンが埋まっていること")
+                    .contains("_csrf");
         }
 
         @Test

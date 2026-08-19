@@ -129,7 +129,10 @@ public class SecurityConfig {
                     //   /demo/qr.png はサイトに貼る QR 画像そのもの。
                     //   "/demo" は完全一致なので、こちらを書かないと画像だけ
                     //   ログインを要求されて表示できない。
-                    .requestMatchers("/demo", "/demo/qr.png").permitAll()
+                    //   /demo/staff は店舗側の見学入口。中身は
+                    //   「ゲストで参加する」を自動で押すだけのページなので、
+                    //   ログイン前でも開ける必要がある（DemoEntryController 参照）。
+                    .requestMatchers("/demo", "/demo/qr.png", "/demo/staff").permitAll()
 
                     // ── ログイン画面 ──
                     //   /login/guest はポートフォリオのデモ用。
