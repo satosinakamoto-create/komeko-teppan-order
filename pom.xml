@@ -33,7 +33,7 @@
   <properties>
     <!-- Java 21 (LTS) でビルドする -->
     <java.version>21</java.version>
-    <zxing.version>3.5.3</zxing.version>
+    <zxing.version>3.5.4</zxing.version>
   </properties>
 
   <dependencies>
