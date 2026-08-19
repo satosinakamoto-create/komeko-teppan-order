@@ -495,10 +495,10 @@ public class DataSeeder implements ApplicationRunner {
 
     private void seedSideDishes() {
         Menu m = new Menu(category("一品料理", 60), 5);
-        m.add("たこのねぎまみれ", 680, null);
-        m.add("冷やしトマト", 600, null);
+        photo(m.add("たこのねぎまみれ", 680, null), "tako-negi.jpg");
+        photo(m.add("冷やしトマト", 600, null), "hiyashi-tomato.jpg");
         m.add("蘭王ゆでねぎたま", 650, null);
-        m.recommend("自家製ポテサラ", 780, null);
+        photo(m.recommend("自家製ポテサラ", 780, null), "potesara.jpg");
         m.add("ピリ辛豆板醤きゅうり", 580, null);
         m.add("さっぱりたこぽん", 680, null);
         m.add("本日の特製サラダ", 1200, null);
