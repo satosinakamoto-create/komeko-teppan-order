@@ -330,11 +330,11 @@ public class DemoDataSeeder implements ApplicationRunner {
         DEMO_PHOTOS.put("たこ焼 20個", "takoyaki-20.jpg");
 
         // ── 鉄板おつまみ ──
-        DEMO_PHOTOS.put("殻付きホタテバター醤油（北海道産）", "harasu.jpg");
+        DEMO_PHOTOS.put("殻付きホタテバター醤油（北海道産）", "hotate.jpg");
         DEMO_PHOTOS.put("国産鶏皮にんにく醤油焼", "torikawa.jpg");
         DEMO_PHOTOS.put("鉄板わかめ焼き（北海道産）", "wakame.jpg");
         DEMO_PHOTOS.put("鶏せせりとねぎの黒胡椒焼", "torisaseri.jpg");
-        DEMO_PHOTOS.put("鉄板チョリソー五本", "gyoza.jpg");
+        DEMO_PHOTOS.put("鉄板チョリソー五本", "chorizo.jpg");
         DEMO_PHOTOS.put("国産豚たん塩たれ焼", "butatan.jpg");
         DEMO_PHOTOS.put("鉄板自家製ジャークチキン", "jerk-chicken.jpg");
 
