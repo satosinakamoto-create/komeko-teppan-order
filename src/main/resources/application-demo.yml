@@ -55,6 +55,48 @@ spring:
     restart:
       enabled: false
 
+# ============================================================================
+#  リバースプロキシ（TLS 終端）の裏で動かすための設定
+# ============================================================================
+#  Render は「入口で HTTPS を受け、アプリへは平文 HTTP で渡す」作りです。
+#  アプリから見ると通信は http なので、放っておくと次のことが起きます。
+#
+#   ・request.getScheme() が "http" のまま
+#   ・Spring Boot は Tomcat の useRelativeRedirects を false に固定するため、
+#     リダイレクトの Location が絶対 URL で組み立てられる
+#     → Location: http://＜公開URL＞/kitchen
+#   ・その平文 URL へ 1 往復してから Render が https へ戻す
+#   ・直前に発行された JSESSIONID が、その平文リクエストに乗る
+#   ・request.isSecure() が false なので Strict-Transport-Security も出ない
+#
+#  画面は動くので気付けません。実際、公開後に外から叩いて初めて分かりました。
+#
+#  ---------------------------------------------------------------------------
+#  dev / prod には書かない
+#  ---------------------------------------------------------------------------
+#  手元も実店舗も前段にプロキシが無く、X-Forwarded-* を送ってくる相手がいません。
+#  そこで信じる設定を入れると、ヘッダを騙るリクエストを信じることになります。
+#  「プロキシの裏にいる」ことが確実な demo だけに書くのが正しい置き場所です。
+# ============================================================================
+server:
+  # X-Forwarded-Proto / X-Forwarded-Host を解釈させる。
+  # framework は ForwardedHeaderFilter（Spring 側の実装）を使う指定。
+  forward-headers-strategy: framework
+
+  servlet:
+    session:
+      cookie:
+        # ★ 上の設定だけでは Secure は付かない。
+        # ForwardedHeaderFilter は「リクエストの包み紙」を差し替えるだけで、
+        # Cookie を発行する Tomcat 本体の isSecure() は false のままだからです。
+        # 公開デモは常に HTTPS 越しなので、ここは明示して付けます。
+        #
+        # なお、この設定のせいで demo プロファイルを手元の http で動かすと
+        # ログインできなくなります（Cookie がブラウザに保存されない）。
+        # 手元で確認するときは dev プロファイル（tools\run.ps1）を使ってください。
+        secure: true
+        same-site: lax
+
 app:
   # ★ 必ず環境変数で公開 URL を渡すこと。QR に焼き込まれる値。
   #
