@@ -119,4 +119,70 @@
     });
   }
 
+  /* ------------------------------------------------------------------
+     4. 送信中であることを、押した瞬間に見せる
+     ------------------------------------------------------------------
+     公開デモは 1 リクエストにおよそ 1 秒かかる（無料枠の CPU）。
+     手元では 60ms なので、開発中はまったく気づけない差です。
+
+     ブラウザは次のページが届くまで何も描き替えないので、
+     押しても画面が変わらない 1 秒は「待ち時間」ではなく
+     「壊れている」に見えます。実際そう言われたのが、
+     いちばん最初の「人数を決める」画面でした。
+
+     速くはできません（サーバ側の固定費なので）。
+     できるのは「受け付けた」と即座に伝えることです。
+
+     ★ 二重送信も同時に防ぎます。
+       反応が無いと人はもう一度押します。人数決定を 2 回送ると
+       伝票が開き直り、注文確定を 2 回送れば同じ品が 2 つ入る。
+       遅さは、それ自体が事故の原因になります。
+     ------------------------------------------------------------------ */
+  document.addEventListener('submit', function (event) {
+    var form = event.target;
+    if (!(form instanceof HTMLFormElement)) { return; }
+
+    /* 押されたボタン。無ければフォーム内の最初の送信ボタン */
+    var button = event.submitter
+      || form.querySelector('button[type=submit], input[type=submit]');
+
+    /* すでに送信中なら、2 回目以降は何もせずに止める */
+    if (form.dataset.sending === '1') {
+      event.preventDefault();
+      return;
+    }
+    form.dataset.sending = '1';
+
+    document.body.classList.add('is-sending');
+
+    if (button) {
+      /* 文字を差し替える前に、元の幅を固定しておく。
+         そうしないとボタンが縮んで、画面がガタッと動く */
+      var rect = button.getBoundingClientRect();
+      if (rect.width > 0) { button.style.minWidth = Math.ceil(rect.width) + 'px'; }
+      button.classList.add('is-sending');
+      if (button.dataset.sendingLabel) {
+        button.textContent = button.dataset.sendingLabel;
+      }
+    }
+
+    /* ★ disabled にはしない。
+       name/value を持つ送信ボタン（人数の 1名〜8名がそうです）を
+       disabled にすると、その値がサーバへ送られません。
+       「押した瞬間に無効化する」は、ここでは壊す実装になります。
+       見た目と二重送信の抑止は、上のクラスと dataset で足ります。 */
+  }, true);
+
+  /* 戻るボタンで戻ってきたとき、送信中の見た目が残らないようにする
+     （ブラウザは前の DOM をそのまま復元することがある） */
+  window.addEventListener('pageshow', function () {
+    document.body.classList.remove('is-sending');
+    document.querySelectorAll('form[data-sending="1"]').forEach(function (form) {
+      form.removeAttribute('data-sending');
+    });
+    document.querySelectorAll('.is-sending').forEach(function (el) {
+      el.classList.remove('is-sending');
+    });
+  });
+
 })();

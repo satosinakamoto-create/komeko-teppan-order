@@ -115,8 +115,12 @@
               <div class="cart-bar__total"
                    th:text="'¥' + ${#numbers.formatInteger(cart.totalAmount, 1, 'COMMA')}">¥2,540</div>
             </div>
+            <!--/* 押してから厨房に届くまでが、この画面でいちばん待たされる。
+                   反応が無いともう一度押されて、同じ品が二重に入る。
+                   customer.js が文字を差し替え、二重送信も止める。 */-->
             <button type="submit" class="btn btn--primary btn--lg spacer"
-                    th:disabled="${!accepting}">この内容で注文する</button>
+                    th:disabled="${!accepting}"
+                    data-sending-label="送信中">この内容で注文する</button>
           </div>
         </div>
       </form>

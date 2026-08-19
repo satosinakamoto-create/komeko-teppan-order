@@ -135,7 +135,8 @@
 
   </div>
 
-  <script th:src="@{/js/customer.js}" defer></script>
+  <!--/* customer.js はレイアウト（layout/customer.html）で読み込む。
+         ここにも書くと 2 回読み込まれ、数秒ごとの状態確認が二重に走る。 */-->
 </main>
 </body>
 </html>

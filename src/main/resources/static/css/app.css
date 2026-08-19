@@ -1826,3 +1826,65 @@ body.theme-snow { background-image: none; }
   /* hover で色が戻ると「押せそう」に見えてしまうので打ち消す */
   background: inherit;
 }
+
+/* --------------------------------------------------------------------------
+   28. 送信中の見た目
+   --------------------------------------------------------------------------
+   公開デモは 1 リクエストにおよそ 1 秒かかる。
+   押しても何も変わらない 1 秒は、待ち時間ではなく故障に見える。
+
+   速さは変えられないので、「受け付けた」ことを即座に返す。
+   ここで大事なのは派手さではなく、0.1 秒以内に何かが変わることそのもの。
+   -------------------------------------------------------------------------- */
+
+/* 押されたボタン。ぐるぐるを右に出す */
+.btn.is-sending,
+button.is-sending {
+  position: relative;
+  /* 回転する丸の分だけ右に余白。文字が寄って見えないように */
+  padding-right: 2.4em;
+  pointer-events: none;
+}
+
+.btn.is-sending::after,
+button.is-sending::after {
+  content: "";
+  position: absolute;
+  right: .9em;
+  top: 50%;
+  width: 1em;
+  height: 1em;
+  margin-top: -.5em;
+  border: 2px solid currentColor;
+  /* 1辺だけ透明にすると、回したときに「欠けた輪」に見える */
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: sending-spin .6s linear infinite;
+}
+
+@keyframes sending-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ページ全体。うっすら沈めて「いま操作を受け付けていない」を示す。
+   透明度を下げすぎると画面が消えたように見えるので浅くかける */
+body.is-sending {
+  cursor: progress;
+}
+
+body.is-sending .app-main,
+body.is-sending .staff-main {
+  opacity: .6;
+  /* 沈むまでを一瞬にしない。ここが速すぎると「点滅した」に見える */
+  transition: opacity .15s ease-out;
+  pointer-events: none;
+}
+
+/* 動きを減らす設定にしている人には、回転も沈みも出さない。
+   目が回る・気分が悪くなる、という実害がある設定なので必ず尊重する */
+@media (prefers-reduced-motion: reduce) {
+  .btn.is-sending::after,
+  button.is-sending::after { animation: none; }
+  body.is-sending .app-main,
+  body.is-sending .staff-main { transition: none; }
+}
