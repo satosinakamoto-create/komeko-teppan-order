@@ -140,6 +140,22 @@
 
         <p class="print-sheet__url mt-4" th:text="${tableUrls.get(t.id)}">http://localhost:8080/t/xxxx</p>
 
+        <!--/*
+          この卓のお客さま画面を、そのまま開くリンク。
+
+          カメラで QR を読めるのは、印刷して席に貼ってあるときの話です。
+          いま画面を見ている人（店長の下見でも、公開デモの見学者でも）は、
+          目の前の QR を自分の画面で読むことができません。
+          URL を書いてあっても、手で打ち直すのは現実的ではないので、
+          押せば開ける入口を置いておきます。
+
+          target="_blank" で別タブにするのは、スタッフ画面を閉じさせないため。
+          rel="noopener" は、開いた先から元のタブを操作されないようにする定型です。
+        */-->
+        <a class="btn btn--block mt-4"
+           th:href="${tableUrls.get(t.id)}"
+           target="_blank" rel="noopener">この卓のお客さま画面を開く</a>
+
         <div class="row row--wrap mt-4" style="justify-content:center">
           <!--/*
             download 属性を付けると、ブラウザは画面に表示せず保存に切り替えます。

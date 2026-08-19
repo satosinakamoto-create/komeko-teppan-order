@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import jp.komeko.order.domain.DiningTable;
+import jp.komeko.order.repository.DiningTableRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -43,6 +45,9 @@ class GuestLoginTest {
 
         @Autowired
         MockMvc mockMvc;
+
+        @Autowired
+        DiningTableRepository tableRepository;
 
         @Test
         @DisplayName("ログイン画面に「ゲストで参加する」が出る")
@@ -107,6 +112,35 @@ class GuestLoginTest {
             // ここが崩れると、見学者が QR を作り直して
             // 「席に貼ってある QR が読めない」状態にできてしまう。
             mockMvc.perform(post(path).with(csrf())).andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("サイドバーにダッシュボードの入口が出る")
+        void dashboardLinkIsShown() throws Exception {
+            // 画面は開けるのにサイドバーに出ていない、という状態を作りがち。
+            // 入口が無ければ「無い」のと同じで、全体像が伝わらない。
+            // アクセス許可（SecurityConfig）と入口（サイドバー）は対で確かめる。
+            mockMvc.perform(get("/kitchen"))
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.containsString("ダッシュボード")));
+        }
+
+        @Test
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("QR の画面から、お客さま画面をそのまま開ける")
+        void qrPageLinksToCustomerScreen() throws Exception {
+            // カメラで QR を読めるのは、印刷して席に貼ってあるときの話。
+            // 画面を見ている人は目の前の QR を自分で読めないので、
+            // 押せば開けるリンクが無いとお客さま側へ辿り着けない。
+            //
+            // リンクは卓ごとに出るので、卓が 1 つも無いと何も出ません
+            // （最初これを忘れて、空の画面を相手にテストが落ちました）。
+            tableRepository.save(new DiningTable("デモ卓", 4, 10));
+
+            mockMvc.perform(get("/admin/qr"))
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.containsString("この卓のお客さま画面を開く")));
         }
 
         @Test

@@ -45,10 +45,19 @@
       </span>
     </div>
 
-    <!--/* ダッシュボード（ADMIN のみ・大カテゴリの外） */-->
+    <!--/*
+      ダッシュボード（大カテゴリの外）。
+      店長は常に、ゲスト（公開デモの見学者）も見られます。
+
+      ★ ここを sec:authorize="hasRole('ADMIN')" だけにしていて、
+        ゲストにリンクが出ていませんでした。画面自体は開けるのに入口が無い、
+        という状態で「全体像が分からない」と言われる原因になります。
+        アクセス許可（SecurityConfig）と入口（このリンク）は必ず対で直すこと。
+    */-->
     <nav class="sb__nav" aria-label="店舗管理メニュー">
 
-      <a sec:authorize="hasRole('ADMIN')" class="sb__item" th:href="@{/admin}"
+      <a th:if="${guestLogin} or ${#authorization.expression('hasRole(''ADMIN'')')}"
+         class="sb__item" th:href="@{/admin}"
          th:classappend="${p == '/admin'} ? 'is-active'">
         <th:block th:replace="~{fragments/icons :: ic_chart_pie_slice}"/><span>ダッシュボード</span>
       </a>
