@@ -85,6 +85,28 @@ class MenuPhotoTest {
     }
 
     @Test
+    @DisplayName("見学用の写真は、実在する商品名と実在するファイルを指している")
+    void demoPhotoMappingIsValid() {
+        // DemoDataSeeder.photo() は名前が一致する商品を探して設定する。
+        // 一致しなければ何も起きない。例外も警告も出ず、写真が付かないだけ。
+        // 商品名を1文字直しただけで静かに壊れるので、ここで突き合わせる。
+        //
+        // なお DemoDataSeeder 自体は dev/demo プロファイル限定なので、
+        // このテストでは Bean は動かない。対応表だけを検査している。
+        DemoDataSeeder.DEMO_PHOTOS.forEach((name, file) -> {
+            assertThat(menuItemRepository.findAll())
+                    .as("対応表に書いた商品名 %s が実在しない。"
+                            + "名前を変えたなら対応表も直すこと", name)
+                    .anyMatch(i -> name.equals(i.getName()));
+
+            String path = DemoDataSeeder.DEMO_PHOTO_DIR + file;
+            assertThat(new ClassPathResource("static" + path).exists())
+                    .as("%s に割り当てた写真 %s が無い", name, path)
+                    .isTrue();
+        });
+    }
+
+    @Test
     @DisplayName("看板メニューには写真が付いている")
     void flagshipItemsHavePhotos() {
         // 名前を直接書いているのは、ここが「たまたま何品か付いている」ではなく

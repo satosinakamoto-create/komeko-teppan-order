@@ -22,7 +22,9 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -165,6 +167,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 
         openTheShop();
         setUpStock();
+        setUpDemoPhotos();
         int created = fillOtherTables();
 
         log.warn("""
@@ -234,6 +237,102 @@ public class DemoDataSeeder implements ApplicationRunner {
                     i.setStockRemaining(remaining);
                     menuItemRepository.save(i);
                 });
+    }
+
+    /**
+     * 見学用に、借りた写真を割り当てる。
+     *
+     * <hr>
+     *
+     * <h2>なぜ {@link DataSeeder} ではなくこちらに書くのか</h2>
+     *
+     * <p>ここで使う写真は<b>別の店（開発者の前職・親族の会社）の制作データ</b>を
+     * 許可を得て借りたものです。米粉と鉄板の料理ではありません。
+     *
+     * <p>{@link DataSeeder} に書くと、<b>実店舗がいつか DB を作り直したときに
+     * 他社の写真が本番のメニューに出ます。</b>
+     * 店舗の商品写真として他店の料理が並ぶのは、単なる見栄えの問題ではなく、
+     * 「頼んだものと違うものが来る」につながります。
+     *
+     * <p>このクラスは {@code @Profile({"dev","demo"})} なので、
+     * <b>本番プロファイルではクラスごと読み込まれません。</b>
+     * 借り物は借り物と分かる場所に置く、という切り分けです。
+     * ファイルの置き場所も {@code images/menu/demo/} と分けてあります
+     * （自前素材は {@code images/menu/} 直下）。
+     *
+     * <hr>
+     *
+     * <h2>料理名と写真が厳密には一致していません</h2>
+     *
+     * <p>借り元は<b>もんじゃ・鉄板焼きの店</b>で、品揃えが違います。
+     * 「それらしいものを当てる」方針で、系統（麺・肉・サラダ・海鮮）を合わせています。
+     * 名前の付け替えは後日おこなう前提です。
+     *
+     * <p><b>置いていない品もあります。</b>
+     * 元データは印刷用の CMYK で、一部は画像ライブラリが正しく読めず
+     * 色が破綻しました（反転しても直らないので、圧縮形式ごと未対応と判断）。
+     * 無理に載せず、写真の無い品はプレースホルダのままにしています。
+     * 画面は写真あり・なしが混在しても崩れない作りです。
+     */
+    /**
+     * 商品名 → 写真ファイル名の対応表。
+     *
+     * <p><b>定数として外に出している理由</b><br>
+     * {@link #photo} は名前が一致する商品を探して設定します。
+     * 一致しなければ<b>何も起きません</b>。例外も警告も出ず、
+     * ただ写真が付かないだけです。商品名を 1 文字直しただけで静かに壊れます。
+     *
+     * <p>ここに並べておけば、テストから同じ表を読んで
+     * 「この名前の商品は実在するか」「このファイルは実在するか」を
+     * 突き合わせられます。コードの中に埋めたままだと、それができません。
+     */
+    static final Map<String, String> DEMO_PHOTOS = new LinkedHashMap<>();
+
+    static {
+        // ── 広島風お好み焼き ──
+        DEMO_PHOTOS.put("肉玉大葉げそ米粉そば", "hiroshima.jpg");
+        DEMO_PHOTOS.put("牡蠣と豚肉米粉そば", "cheese-okonomi.jpg");
+        DEMO_PHOTOS.put("海鮮スペシャル", "okonomi-kaisen.jpg");
+
+        // ── 鉄板おつまみ ──
+        DEMO_PHOTOS.put("鉄板わかめ焼き（北海道産）", "wakame.jpg");
+        DEMO_PHOTOS.put("国産鶏皮にんにく醤油焼", "torikawa.jpg");
+        DEMO_PHOTOS.put("鉄板自家製ジャークチキン", "jerk-chicken.jpg");
+
+        // ── 鉄板麺 ──
+        DEMO_PHOTOS.put("米粉焼きうどん（出汁醤油）", "yakiudon.jpg");
+        DEMO_PHOTOS.put("国産上ホルモン焼きそば", "yakisoba-hormone.jpg");
+
+        // ── 数量限定鉄板焼き ──
+        DEMO_PHOTOS.put("国産豚ロースステーキ", "pork-loin.jpg");
+        DEMO_PHOTOS.put("国産牛サーロインステーキ", "beef-sirloin.jpg");
+        DEMO_PHOTOS.put("国産牛赤身ステーキ", "beef-akami.jpg");
+        DEMO_PHOTOS.put("鉄板たこ足塊ステーキ", "ika.jpg");
+
+        // ── 一品料理 ──
+        DEMO_PHOTOS.put("たこのねぎまみれ", "tako-negi.jpg");
+        DEMO_PHOTOS.put("さっぱりたこぽん", "takopon.jpg");
+        DEMO_PHOTOS.put("冷やしトマト", "tomato.jpg");
+        DEMO_PHOTOS.put("ピリ辛豆板醤きゅうり", "kyuri.jpg");
+        DEMO_PHOTOS.put("本日の特製サラダ", "salad.jpg");
+
+        // ── 甘味・ドリンク ──
+        DEMO_PHOTOS.put("本日のおすすめアイス", "dessert.jpg");
+        DEMO_PHOTOS.put("オレンジジュース", "orange-juice.jpg");
+    }
+
+    /** 見学用の写真を置く場所。自前素材（{@code /images/menu/}）と分けている。 */
+    static final String DEMO_PHOTO_DIR = "/images/menu/demo/";
+
+    private void setUpDemoPhotos() {
+        List<MenuItem> items = menuItemRepository.findAll();
+        DEMO_PHOTOS.forEach((name, file) -> items.stream()
+                .filter(i -> i.getName().equals(name))
+                .findFirst()
+                .ifPresent(i -> {
+                    i.setImagePath(DEMO_PHOTO_DIR + file);
+                    menuItemRepository.save(i);
+                }));
     }
 
     /**
