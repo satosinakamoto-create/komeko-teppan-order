@@ -342,15 +342,15 @@ public class DemoDataSeeder implements ApplicationRunner {
         DEMO_PHOTOS.put("たこ焼 20個", "gpt-takoyaki-20.jpg");
 
         // ── 鉄板おつまみ ──
-        DEMO_PHOTOS.put("殻付きホタテバター醤油（北海道産）", "hotate.jpg");
-        DEMO_PHOTOS.put("国産鶏皮にんにく醤油焼", "torikawa.jpg");
+        DEMO_PHOTOS.put("殻付きホタテバター醤油（北海道産）", "gpt-hotate.jpg");
+        DEMO_PHOTOS.put("国産鶏皮にんにく醤油焼", "gpt-torikawa.jpg");
         DEMO_PHOTOS.put("鉄板わかめ焼き（北海道産）", "wakame.jpg");
         DEMO_PHOTOS.put("鶏せせりとねぎの黒胡椒焼", "gpt-seseri.jpg");
         DEMO_PHOTOS.put("鉄板チョリソー五本", "chorizo.jpg");
         DEMO_PHOTOS.put("国産豚たん塩たれ焼", "gpt-butatan.jpg");
         DEMO_PHOTOS.put("国産砂肝の鉄板塩たれ焼", "gpt-sunagimo.jpg");
         DEMO_PHOTOS.put("きのことチーズの鉄板オープンオムレツ", "gpt-omelette.jpg");
-        DEMO_PHOTOS.put("鉄板自家製ジャークチキン", "jerk-chicken.jpg");
+        DEMO_PHOTOS.put("鉄板自家製ジャークチキン", "gpt-jerk-chicken.jpg");
 
         // ── 鉄板麺 ──
         DEMO_PHOTOS.put("米粉焼きうどん（出汁醤油）", "yakiudon.jpg");
