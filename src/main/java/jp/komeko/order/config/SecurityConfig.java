@@ -2,9 +2,11 @@ package jp.komeko.order.config;
 
 import jp.komeko.order.security.StaffUserDetailsService;
 import jp.komeko.order.security.StaffZoneIpFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -50,8 +52,16 @@ public class SecurityConfig {
 
     private final Environment environment;
 
-    public SecurityConfig(Environment environment) {
+    /**
+     * 公開デモかどうか（{@code APP_GUEST_LOGIN=true}）。
+     * true のときだけ、一部の管理画面を「見るだけ」開放する。
+     */
+    private final boolean guestLoginEnabled;
+
+    public SecurityConfig(Environment environment,
+                          @Value("${app.guest-login:false}") boolean guestLoginEnabled) {
         this.environment = environment;
+        this.guestLoginEnabled = guestLoginEnabled;
     }
 
     /**
@@ -130,8 +140,38 @@ public class SecurityConfig {
                     auth.requestMatchers(PathRequest.toH2Console()).permitAll();
                 }
 
+                if (guestLoginEnabled) {
+                    // ── 公開デモのときだけ、一部の管理画面を「見るだけ」開放する ──
+                    //
+                    // ゲスト（STAFF 権限）で入った方に、卓と QR コードが見えないと
+                    // 「どうやって注文が始まるのか」が分からず、システムの全体像が伝わりません。
+                    // 売上と注文履歴も、データが架空のデモでは見せる価値のほうが大きい。
+                    //
+                    // ★ GET だけを開ける。POST は下の /admin/** ルールに落ちて ADMIN 限定のまま。
+                    //   見るのは許すが、書き換えは許さない、という切り分けです。
+                    //   （順番が大事。先に書いたルールが勝つので、この GET 許可は
+                    //     「/admin/** は ADMIN のみ」より前に置く必要がある）
+                    //
+                    // 価格・店舗設定・スタッフ・バックアップは開けません。
+                    // 壊されるとデモが成立しなくなるか、他人のパスワードに触れてしまうためです。
+                    //
+                    // 卓の管理画面（/admin/tables）も開けていません。
+                    // あの画面は入力欄と保存ボタンで組み上がっていて、
+                    // 「見るだけ」にすると中身が空の行が並ぶだけになります。
+                    // 卓の名前・QR・URL は QR コードの画面にすべて載っているので、
+                    // 見せたい情報はそちらで足ります。
+                    auth.requestMatchers(HttpMethod.GET,
+                                    "/admin",
+                                    "/admin/qr", "/admin/qr/**",
+                                    "/admin/sales", "/admin/sales/**",
+                                    "/admin/orders", "/admin/orders/**")
+                            .hasAnyRole("STAFF", "ADMIN");
+                }
+
                 auth
                     // ── 管理画面は ADMIN のみ ──
+                    //   上のデモ用 GET 許可に当てはまらなかったものは、すべてここで止まる。
+                    //   つまり POST（追加・更新・削除）は必ず ADMIN が必要。
                     .requestMatchers("/admin/**").hasRole("ADMIN")
                     // ── 厨房・ホール（会計）はスタッフ以上 ──
                     .requestMatchers("/kitchen/**", "/hall/**",

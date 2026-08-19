@@ -158,7 +158,14 @@
             （リンクだとブラウザの先読みだけで実行されかねないため）。
             処理が終わると「卓」の画面へ戻り、そこに結果が表示されます。
           */-->
-          <form method="post" th:action="@{/admin/tables/{id}/regenerate(id=${t.id})}"
+          <!--/*
+            sec:authorize は公開デモのゲスト（STAFF）向けです。
+            この画面はゲストにも見せますが、再発行できるのは ADMIN だけ
+            （SecurityConfig が GET しか開けていないので、押せば 403 になります）。
+            押せないボタンを並べておくのは不親切なので、権限が無ければ出しません。
+          */-->
+          <form sec:authorize="hasRole('ADMIN')"
+                method="post" th:action="@{/admin/tables/{id}/regenerate(id=${t.id})}"
                 onsubmit="return confirm('この卓の QR コードを作り直します。\n\nいま席に貼ってある QR は読み取れなくなり、新しい QR を印刷して貼り替えるまで、この席からは注文できません。\n\n本当に再発行しますか？')">
             <button class="btn btn--danger btn--sm" type="submit">再発行</button>
           </form>

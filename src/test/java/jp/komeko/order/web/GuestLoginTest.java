@@ -3,7 +3,10 @@ package jp.komeko.order.web;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -72,6 +75,51 @@ class GuestLoginTest {
         void getIsNotAllowed() throws Exception {
             mockMvc.perform(get("/login/guest"))
                     .andExpect(status().is4xxClientError());
+        }
+
+        @ParameterizedTest(name = "{0} は見られる")
+        @ValueSource(strings = {"/kitchen", "/hall", "/admin", "/admin/qr", "/admin/sales", "/admin/orders"})
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("見せると決めた画面は開ける")
+        void guestCanRead(String path) throws Exception {
+            // QR コードの画面がいちばん大事。卓名・QR・URL がここに全部載っていて、
+            // 「どうやって注文が始まるのか」がこの画面だけで伝わる。
+            mockMvc.perform(get(path)).andExpect(status().isOk());
+        }
+
+        @ParameterizedTest(name = "{0} は見られない")
+        @ValueSource(strings = {"/admin/items", "/admin/categories", "/admin/tables",
+                                "/admin/settings", "/admin/staff", "/admin/backups"})
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("値段・設定・スタッフ・バックアップは開けない")
+        void guestCannotReadSensitivePages(String path) throws Exception {
+            // 特に /admin/staff は他人のパスワードを変えられる画面。
+            // /admin/settings を触られると、税率や深夜料金が変わってデモが壊れる。
+            mockMvc.perform(get(path)).andExpect(status().isForbidden());
+        }
+
+        @ParameterizedTest(name = "{0} への書き込みは拒否される")
+        @ValueSource(strings = {"/admin/tables/1/regenerate", "/admin/tables/1/delete",
+                                "/admin/orders/1/cancel", "/admin/settings"})
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("見られる画面でも、書き換えはできない（GET だけ開けている）")
+        void guestCannotWrite(String path) throws Exception {
+            // ここが崩れると、見学者が QR を作り直して
+            // 「席に貼ってある QR が読めない」状態にできてしまう。
+            mockMvc.perform(post(path).with(csrf())).andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("厨房ボードの操作はできる（これが無いと連携を体感できない）")
+        void guestCanOperateKitchen() throws Exception {
+            // あえて許している唯一の書き込み。
+            // 押してもらえないと「状態を進めるとお客さまの画面が変わる」が伝わらない。
+            // 存在しない注文なので結果は 3xx（画面へ戻る）で、403 にならないことを見る。
+            mockMvc.perform(post("/kitchen/orders/999999/status")
+                            .with(csrf())
+                            .param("status", "COOKING"))
+                    .andExpect(status().is3xxRedirection());
         }
     }
 

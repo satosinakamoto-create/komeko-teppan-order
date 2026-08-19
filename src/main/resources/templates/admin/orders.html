@@ -92,7 +92,12 @@
                 画面に出さないだけでなくサーバ側でも状態遷移を検査しているので、
                 URL を直接叩かれても不正な変更はできません。
               */-->
-              <form th:if="${!o.status.closed}"
+              <!--/* sec:authorize は公開デモのゲスト（STAFF）向け。
+                     この画面は見せるが、キャンセルできるのは ADMIN だけ。
+                     押せば 403 になるボタンを並べておくのは不親切なので出さない。
+                     デモでキャンセルを試したい人は、厨房ボードから操作できる。 */-->
+              <form sec:authorize="hasRole('ADMIN')"
+                    th:if="${!o.status.closed}"
                     th:action="@{/admin/orders/{id}/cancel(id=${o.id})}" method="post"
                     class="row row--wrap" style="gap:6px">
                 <input type="hidden" name="date" th:value="${dateIso}">

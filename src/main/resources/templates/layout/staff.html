@@ -116,6 +116,37 @@
         </a>
 
       </th:block>
+
+      <!--/*
+        ── 公開デモのときだけ、ゲスト（STAFF）にも見える項目 ──
+
+        卓と QR コードが見えないと「どうやって注文が始まるのか」が分からず、
+        システムの全体像が伝わりません。売上と注文履歴も、
+        データが架空のデモでは見せる価値のほうが大きい。
+
+        ★ 見えるだけで、書き換えはできません
+          （SecurityConfig で GET だけ開けている。POST は ADMIN 限定のまま）。
+
+        ADMIN は上のブロックですでに全部見えているので、ここは STAFF のときだけ。
+        両方に出すと、店長の画面で同じ項目が二重に並びます。
+      */-->
+      <th:block th:if="${guestLogin}" sec:authorize="!hasRole('ADMIN')">
+
+        <p class="sb__label">見学できる画面</p>
+        <a class="sb__item" th:href="@{/admin/qr}"
+           th:classappend="${#strings.startsWith(p, '/admin/qr')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_qr_code}"/><span>QRコード</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/sales}"
+           th:classappend="${#strings.startsWith(p, '/admin/sales')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_chart_line_up}"/><span>売上</span>
+        </a>
+        <a class="sb__item" th:href="@{/admin/orders}"
+           th:classappend="${#strings.startsWith(p, '/admin/orders')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_clock_counter_clockwise}"/><span>注文履歴</span>
+        </a>
+
+      </th:block>
     </nav>
 
     <!--/* ============ アカウント欄（左下固定・カテゴリの外） ============
