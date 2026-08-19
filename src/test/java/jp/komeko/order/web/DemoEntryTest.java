@@ -341,8 +341,11 @@ class DemoEntryTest {
                             org.hamcrest.Matchers.not(
                                     org.hamcrest.Matchers.containsString("席に貼ってある QR コード"))))
                     .andExpect(content().string(
+                            // 文言を変えても効くように「架空」だけで見る。
+                            // 前は「架空のデータ」で見ていたが、言い回しを直した瞬間に
+                            // 何も確かめないテストになるところだった。
                             org.hamcrest.Matchers.not(
-                                    org.hamcrest.Matchers.containsString("架空のデータ"))));
+                                    org.hamcrest.Matchers.containsString("架空"))));
         }
 
         @Test
