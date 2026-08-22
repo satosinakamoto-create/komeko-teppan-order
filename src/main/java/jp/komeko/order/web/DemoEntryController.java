@@ -80,7 +80,25 @@ public class DemoEntryController {
     }
 
     @GetMapping("/demo")
-    public String enter() {
+    public String enter(Model model) {
+        // ── 起動直後の空白時間を「準備中」ページで受ける ──────────────
+        //
+        // 無料枠のコールドスタートでは、HTTP の受付が始まってから
+        // DemoDataSeeder が卓を入れ終わるまでに数十秒の空白がある。
+        // 以前はこの間に来た人へ IllegalStateException を投げていたため、
+        // ポートフォリオの主導線が
+        //   409「案内できる卓がありません。DataSeeder が動いているか確認してください」
+        // という開発者向けの行き止まりになっていた（2026-08-22 に実測で再現）。
+        // 眠りから覚めるのを 2〜3 分待ってくれた人に最初に見せる画面がこれでは、
+        // その場で閉じられて終わる。
+        //
+        // いまは自動で再読み込みする案内ページを返す。数十秒後の再読み込みで
+        // 卓が入っていれば、そのまま何事もなく注文画面へ進む。
+        if (tableService.activeTables().isEmpty()) {
+            log.info("卓がまだ無いので、準備中ページを返しました（シーダーの完了待ち）");
+            return "demo-preparing";
+        }
+
         DiningTable table = pickTable();
         log.info("見学用の入口から入りました: 卓={}", table.getName());
         return "redirect:/t/" + table.getAccessToken();

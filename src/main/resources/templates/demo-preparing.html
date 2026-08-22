@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   公開デモの「準備中」ページ（/demo 起動直後の受け皿）
+  ============================================================================
+
+   無料枠のコールドスタートでは、HTTP の受付が始まってから
+   DemoDataSeeder がデモの卓とメニューを入れ終わるまでに数十秒の空白があります。
+   この間に /demo を開いた人へは、以前は 409 の開発者向けエラーが出ていました。
+   （「DataSeeder が動いているか確認してください」— 見学者に見せる文章ではない）
+
+   ここでは <meta http-equiv="refresh"> で 5 秒ごとに /demo を開き直します。
+   卓が入った瞬間の再読み込みで、何事もなく注文画面へ進みます。
+   JavaScript を使わないのは、この画面の仕事が「待って開き直す」だけだからです。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta http-equiv="refresh" content="5;url=/demo">
+  <title th:text="'デモを準備しています | ' + ${shop.shopName}">デモを準備しています</title>
+  <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="theme-snow">
+<main>
+  <div class="container" style="max-width:560px;padding-top:14vh">
+    <div class="card">
+      <div class="card__body">
+
+        <h1 class="mb-0" style="font-size:1.25rem">デモを準備しています</h1>
+
+        <p class="small mt-4 mb-0">
+          無料のサーバーで公開しているため、しばらく誰も見ていないと眠る仕組みになっています。<br>
+          いまちょうど目を覚まして、デモ用のメニューと卓を並べているところです。
+        </p>
+
+        <p class="small mt-4 mb-0">
+          <strong>この画面は 5 秒ごとに自動で更新されます。</strong>
+          準備ができ次第、そのまま注文画面が開きます。
+        </p>
+
+        <p class="small mt-4 mb-0" style="opacity:.7">
+          1〜2 分待っても切り替わらない場合は、お手数ですが
+          しばらく時間をおいてから開き直してください。
+        </p>
+
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

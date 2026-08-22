@@ -21,6 +21,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
  * ポートフォリオの QR 用の入口（{@code /demo}）のテスト。
@@ -83,6 +84,22 @@ class DemoEntryTest {
                     .andExpect(status().is3xxRedirection())
                     // 転送先は /t/{36文字のトークン}
                     .andExpect(redirectedUrlPattern("/t/*"));
+        }
+
+        @Test
+        @DisplayName("卓がまだ無いとき（起動直後）は、エラーではなく自動更新の準備中ページが出る")
+        void showsPreparingPageWhileSeederIsStillRunning() throws Exception {
+            // コールドスタートでは、HTTP の受付開始から DemoDataSeeder の完了までに
+            // 数十秒の空白がある。以前はこの間の /demo が
+            // 409「DataSeeder が動いているか確認してください」という
+            // 開発者向けの行き止まりだった（2026-08-22 に本番で再現）。
+            // ポートフォリオの主導線なので、待てば勝手に開く画面を返す。
+            mockMvc.perform(get("/demo"))
+                    .andExpect(status().isOk())
+                    .andExpect(view().name("demo-preparing"))
+                    .andExpect(content().string(org.hamcrest.Matchers.containsString("デモを準備しています")))
+                    // 5 秒ごとに /demo を開き直す（卓が入り次第そのまま注文画面へ）
+                    .andExpect(content().string(org.hamcrest.Matchers.containsString("refresh")));
         }
 
         @Test
