@@ -33,14 +33,42 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     /**
      * 厨房ボード用。指定した状態の注文を、受付が古い順に取得する。
      * 「先に来たお客さんから焼く」ため createdAt 昇順が業務的に正しい並び。
+     *
+     * <p><b>「その営業日の注文」に加えて「開いたままの伝票の注文」も含める理由</b><br>
+     * 注文の営業日は伝票の値をコピーする（深夜 0 時をまたいでも同じ伝票のまま
+     * にするため。{@code OrderService#placeOrder}）。すると「今夜だけ朝までやる」
+     * （alwaysOpen）営業で 5:00（営業日の切り替え）をまたいで開いている卓の
+     * 追加注文は、<b>前営業日の日付</b>を持つ。営業日だけで絞ると、この注文は
+     * 請求はされるのに厨房ボードのどのレーンにも出ない
+     * ＝厨房が存在を知り得ない、という事故になる（2026-08-22 のレビューで発覚）。
+     * 開いている伝票の注文はまだ「いまの営業」に属しているので、日付に関係なく出す。
      */
     @EntityGraph(attributePaths = {"lines", "session", "session.diningTable"})
-    List<Order> findByBusinessDateAndStatusInOrderByCreatedAtAsc(
-            LocalDate businessDate, Collection<OrderStatus> statuses);
+    @Query("""
+            select o from Order o
+            where o.status in :statuses
+              and (o.businessDate = :businessDate
+                   or o.session.status = jp.komeko.order.domain.SessionStatus.OPEN)
+            order by o.createdAt asc
+            """)
+    List<Order> findKitchenBoardOrders(
+            @Param("businessDate") LocalDate businessDate,
+            @Param("statuses") Collection<OrderStatus> statuses);
 
-    /** サイネージ用。番号だけ使うので明細は読まない（軽くする）。 */
-    List<Order> findByBusinessDateAndStatusOrderByOrderNumberAsc(
-            LocalDate businessDate, OrderStatus status);
+    /**
+     * サイネージ用。番号だけ使うので明細は読まない（軽くする）。
+     * 開いている伝票の注文も含める理由は {@link #findKitchenBoardOrders} と同じ。
+     */
+    @Query("""
+            select o from Order o
+            where o.status = :status
+              and (o.businessDate = :businessDate
+                   or o.session.status = jp.komeko.order.domain.SessionStatus.OPEN)
+            order by o.orderNumber asc
+            """)
+    List<Order> findSignageOrders(
+            @Param("businessDate") LocalDate businessDate,
+            @Param("status") OrderStatus status);
 
     /** 待ち組数のカウント。 */
     long countByBusinessDateAndStatusIn(LocalDate businessDate, Collection<OrderStatus> statuses);

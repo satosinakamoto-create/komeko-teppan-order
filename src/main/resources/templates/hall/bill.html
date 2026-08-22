@@ -267,10 +267,15 @@
 
             なお、2つの金額は TableSession が計算したものをそのまま受け取っているだけで、
             計算式を画面側で作り直してはいません（計算は必ず 1 箇所に集約する）。
+
+            「付けた場合」に bill.totalWithLateNight ではなく totalIfLateNightApplied を
+            使うのは、免除フラグが立った伝票では再計算が NONE に強制され、
+            lateNightAmount が常に 0 になるため。その値で「深夜料金 込み」と
+            読み上げると、実際に締まる金額のほうが高くなる（HallController#bill 参照）。
           */-->
           <button type="submit" class="btn btn--primary btn--lg btn--block"
                   th:data-table="${bill.diningTable.name}"
-                  th:data-total-with="${#numbers.formatInteger(bill.totalWithLateNight, 1, 'COMMA')}"
+                  th:data-total-with="${#numbers.formatInteger(totalIfLateNightApplied, 1, 'COMMA')}"
                   th:data-total-without="${#numbers.formatInteger(bill.totalWithoutLateNight, 1, 'COMMA')}"
                   onclick="return komekoConfirmClose(this);">
             お会計（伝票を締める）

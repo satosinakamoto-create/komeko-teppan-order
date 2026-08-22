@@ -223,6 +223,28 @@ public class HallController {
         // （人の判断を、計算結果で上書きしない）。
         model.addAttribute("lateNightDefault",
                 !bill.isLateNightWaived() && bill.isLateNightApplied());
+        // 確認ダイアログ用の「深夜料金を付けた場合のご請求額」。
+        //
+        // ふつうは recalculate 済みの getTotalWithLateNight() でよいが、
+        // 免除フラグが立った伝票は再計算が NONE に強制されるため
+        // lateNightAmount が常に 0 で、「付けた場合」がどこにも計算されていない。
+        // そのままだと、チェックを入れ直して締めるとき、ダイアログが
+        // 割増抜きの金額を「深夜料金 込み」と読み上げてしまい、
+        // 実際に締まった金額のほうが高くなる。
+        //
+        // ここで受け取っている伝票は detached（表示専用。上のコメント参照）なので、
+        // 免除を一時的に外して計算しても DB には書き戻らない。
+        int totalIfLateNightApplied = bill.getTotalWithLateNight();
+        if (bill.isOpen() && bill.isLateNightWaived()) {
+            ShopSetting current = shopSettingService.currentReadOnly();
+            bill.setLateNightWaived(false);
+            bill.recalculate(current::isLateNight);
+            totalIfLateNightApplied = bill.getTotalWithLateNight();
+            // 画面本体の表示は免除状態のままにしたいので、元に戻して計算し直す
+            bill.setLateNightWaived(true);
+            bill.recalculate(current::isLateNight);
+        }
+        model.addAttribute("totalIfLateNightApplied", totalIfLateNightApplied);
         // いまの人数が選択肢に無いと「変更したら人数が減った」という事故になるので、
         // 現在値より小さい範囲で切らないようにしておく
         model.addAttribute("guestOptions",

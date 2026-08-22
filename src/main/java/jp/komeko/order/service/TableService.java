@@ -6,6 +6,7 @@ import jp.komeko.order.repository.TableSessionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -166,6 +167,24 @@ public class TableService {
         return saved;
     }
 
+    /**
+     * 伝票の行ロックを取る（SELECT … FOR UPDATE）。
+     *
+     * <p>「お会計で締める」と「追加注文の確定」を直列化するためのもの。
+     * 両方がまずこのロックを取ることで、後から来たほうは先の操作の結果を
+     * 見てから動く（closeSession と OrderService#placeOrder が使う）。
+     *
+     * <p>{@code MANDATORY} にしているのは、ロックは<b>呼び出し元の
+     * トランザクションが終わるまで</b>握っていて初めて意味があるから。
+     * トランザクションの外から呼ばれたら、ロックがすぐ手放されて
+     * 直列化にならないので、設定ミスとして例外で落とす。
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void lockSession(Long sessionId) {
+        sessionRepository.findWithLockById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+    }
+
     /** 注文を受けるために、開いている伝票を必ず 1 つ返す。 */
     @Transactional
     public TableSession requireOpenSession(Long tableId) {
@@ -227,16 +246,39 @@ public class TableService {
      */
     @Transactional
     public TableSession closeSession(Long sessionId, boolean applyLateNight, String staffName, String note) {
+        // 追加注文（placeOrder）との同時実行を直列化する。
+        // 先にロックを取らないと、両方が自分のチェックを通過してから互いの結果を
+        // 知らずにコミットし、「締めた伝票に注文がぶら下がる」（＝お客さまには
+        // 承りましたと出たのに、誰にも請求されない）が起こり得る。
+        // placeOrder 側も同じロックを最初に取る（OrderService 参照）。
+        sessionRepository.findWithLockById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
         TableSession session = sessionRepository.findWithOrdersById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
         if (!session.isOpen()) {
             throw new IllegalStateException("この伝票はすでに会計済みです");
         }
         hydrate(session);
-        // 免除は伝票に記録する。ここで LateNightPolicy.NONE を渡すだけだと、
-        // あとで会計を取り消して開け直したときに再計算で免除が消えてしまう
-        session.setLateNightWaived(!applyLateNight);
         ShopSetting setting = shopSettingService.currentReadOnly();
+
+        // ── 「免除」は、外すものが実際にあったときだけ記録する ──────────
+        //
+        // 以前は setLateNightWaived(!applyLateNight) を無条件にやっていた。
+        // だがチェックボックスは深夜料金の対象が無い伝票では初期状態から
+        // 外れている（誰も「免除の判断」をしていない）。それも免除として
+        // 記録すると、昼帯に締めたほぼ全部の伝票に免除フラグが立ち、
+        // 誤会計→取り消し→深夜帯の追加注文、という流れで
+        // 本来かかるはずの割増が黙って消えていた（2026-08-22 のレビューで発覚）。
+        //
+        // そこで先に「ルールどおり計算したら割増が付くのか」を確かめ、
+        // 付くはずのものをスタッフが外したときだけ waived を立てる。
+        // （判定のあいだ waived を一旦 false にするのは、立ったままだと
+        //   recalculate が NONE に強制されて「付くはずか」を計算できないため）
+        session.setLateNightWaived(false);
+        session.recalculate(setting::isLateNight);
+        boolean wouldApply = session.isLateNightApplied();
+        session.setLateNightWaived(wouldApply && !applyLateNight);
+
         session.close(LocalDateTime.now(), setting::isLateNight, staffName, note);
         log.info("会計しました: 卓={} 人数={} 合計={}円",
                 session.getDiningTable().getName(), session.getGuestCount(), session.getTotalAmount());

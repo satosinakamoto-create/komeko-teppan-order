@@ -97,6 +97,13 @@ public class OrderService {
             throw new OrderRejectedException(setting.orderRejectReason(now));
         }
 
+        // お会計（closeSession）との同時実行を直列化する。
+        // ロック無しだと、こちらが isOrderable() を確認したあとに会計が締まっても
+        // そのままコミットでき、「締めた伝票に注文がぶら下がる」＝お客さまには
+        // 承りましたと出たのに誰にも請求されない事故になる。
+        // 先にロックを取れば、会計が先に締めた場合はここで CLOSED が見えて断れるし、
+        // こちらが先ならお会計側が待ってから、この注文込みで締める。
+        tableService.lockSession(sessionId);
         TableSession session = tableService.getSession(sessionId);
         if (!session.isOrderable()) {
             throw new OrderRejectedException(
@@ -195,7 +202,9 @@ public class OrderService {
     @Transactional(readOnly = true)
     public KitchenBoard kitchenBoard() {
         LocalDate businessDate = shopSettingService.currentBusinessDate();
-        List<Order> orders = orderRepository.findByBusinessDateAndStatusInOrderByCreatedAtAsc(
+        // 開いたままの伝票の注文は、営業日が前日でも出す（5:00 をまたいだ卓の追加注文が
+        // ボードから消える事故を防ぐ。詳細は OrderRepository#findKitchenBoardOrders）
+        List<Order> orders = orderRepository.findKitchenBoardOrders(
                 businessDate,
                 List.of(OrderStatus.RECEIVED, OrderStatus.COOKING, OrderStatus.READY));
         orders.forEach(this::hydrate);
@@ -220,7 +229,7 @@ public class OrderService {
 
     private List<Integer> numbersOf(OrderStatus status) {
         LocalDate businessDate = shopSettingService.currentBusinessDate();
-        return orderRepository.findByBusinessDateAndStatusOrderByOrderNumberAsc(businessDate, status)
+        return orderRepository.findSignageOrders(businessDate, status)
                 .stream()
                 .map(Order::getOrderNumber)
                 .toList();
@@ -300,6 +309,11 @@ public class OrderService {
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         boolean becomesCanceled = next == OrderStatus.CANCELED
                 && order.getStatus() != OrderStatus.CANCELED;
+        // 焼き上がり等の進行は会計後でも許す（厨房の実態）が、キャンセルは金額が動くので
+        // 会計済みの伝票では拒否する（理由は requireBillStillOpenForCancel）
+        if (becomesCanceled) {
+            requireBillStillOpenForCancel(order);
+        }
         order.changeStatus(next, staffName);
         hydrate(order);
         refreshSessionOf(order);
@@ -336,6 +350,15 @@ public class OrderService {
     public Order setLateNightExempt(Long orderId, boolean exempt, String staffName) {
         Order order = orderRepository.findWithLinesById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
+        // 会計済みの伝票では金額の根拠を動かさない。
+        // 画面はボタンを出していないが（bill.html）、古いタブや直接 POST からは
+        // 届くので、サーバ側でも塞ぐ。ここを通すと、あとで開け直したときの
+        // 再計算で確定済みの請求額が変わり、証跡が壊れる
+        TableSession billOfOrder = order.getSession();
+        if (billOfOrder != null && !billOfOrder.isOpen()) {
+            throw new IllegalStateException(
+                    "会計済みの伝票では変更できません。先に会計を取り消して伝票を開け直してください");
+        }
         if (order.isLateNightExempt() == exempt) {
             return order;   // 変化なし。伝票の再計算もログも要らない
         }
@@ -354,6 +377,7 @@ public class OrderService {
     public Order cancelByStaff(Long orderId, String reason, String staffName) {
         Order order = orderRepository.findWithLinesById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
+        requireBillStillOpenForCancel(order);
         boolean alreadyCanceled = order.getStatus() == OrderStatus.CANCELED;
         order.cancel(reason, staffName);
         hydrate(order);
@@ -378,6 +402,13 @@ public class OrderService {
         if (!order.isCustomerCancelable()) {
             throw new OrderRejectedException("すでに調理を開始しているためキャンセルできません。お手数ですが店頭スタッフへお声がけください");
         }
+        // 会計済みの伝票は金額が確定している。ここからの取り消しは通さない
+        // （スタッフ側と同じ理由。文言だけお客さま向けにしている）
+        TableSession billOfOrder = order.getSession();
+        if (billOfOrder != null && !billOfOrder.isOpen()) {
+            throw new OrderRejectedException(
+                    "お会計がお済みのため、この画面からは取り消せません。お手数ですが店頭スタッフへお声がけください");
+        }
         boolean alreadyCanceled = order.getStatus() == OrderStatus.CANCELED;
         order.cancel("お客様都合", "customer");
         hydrate(order);
@@ -394,6 +425,25 @@ public class OrderService {
     // ========================================================================
     //  内部ヘルパー
     // ========================================================================
+
+    /**
+     * キャンセルは「開いている伝票」の注文にしか許さない。
+     *
+     * <p>会計済みの伝票は請求額が確定した証跡で、保存されている
+     * 小計・ご請求額はもう再計算されない（{@code TableService#applyCurrentAmounts}
+     * が閉じた伝票を読み飛ばすため）。その状態で注文だけキャンセルにすると、
+     * 明細は「キャンセル済み」なのに合計は元のまま、という
+     * 誰にも説明できない伝票ができあがる（2026-08-22 のレビューで発覚）。
+     * 取り消したいときは、先に会計を取り消して伝票を開け直す。
+     * それなら再計算が走り、金額と明細が必ず一致する。
+     */
+    private void requireBillStillOpenForCancel(Order order) {
+        TableSession session = order.getSession();
+        if (session != null && !session.isOpen()) {
+            throw new IllegalStateException(
+                    "会計済みの伝票の注文は取り消せません。先に会計を取り消して伝票を開け直してください");
+        }
+    }
 
     /**
      * 明細のオプションまで読み込んでおく。
