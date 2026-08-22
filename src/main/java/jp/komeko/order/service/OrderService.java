@@ -302,12 +302,14 @@ public class OrderService {
                 && order.getStatus() != OrderStatus.CANCELED;
         order.changeStatus(next, staffName);
         hydrate(order);
+        refreshSessionOf(order);
         // キャンセル経路はどこを通っても在庫を戻す（cancelByStaff / cancelByCustomer /
         // この汎用メソッド）。「取り消したのに残数が戻らない」は現場で必ず混乱を生む。
+        //
+        // ★ 在庫の復元は必ず「伝票の再計算のあと」に置くこと（詳細は restoreStockOf の説明）。
         if (becomesCanceled) {
             restoreStockOf(order);
         }
-        refreshSessionOf(order);
 
         log.info("注文 #{} → {} ({})", order.getOrderNumber(), next.getStaffLabel(), staffName);
         eventPublisher.publishOrderChanged(
@@ -355,10 +357,10 @@ public class OrderService {
         boolean alreadyCanceled = order.getStatus() == OrderStatus.CANCELED;
         order.cancel(reason, staffName);
         hydrate(order);
+        refreshSessionOf(order);
         if (!alreadyCanceled) {
             restoreStockOf(order);
         }
-        refreshSessionOf(order);
 
         eventPublisher.publishOrderChanged(
                 OrderEvent.statusChanged(order.getId(), order.getOrderNumber(), OrderStatus.CANCELED.name()));
@@ -379,10 +381,10 @@ public class OrderService {
         boolean alreadyCanceled = order.getStatus() == OrderStatus.CANCELED;
         order.cancel("お客様都合", "customer");
         hydrate(order);
+        refreshSessionOf(order);
         if (!alreadyCanceled) {
             restoreStockOf(order);
         }
-        refreshSessionOf(order);
 
         eventPublisher.publishOrderChanged(
                 OrderEvent.statusChanged(order.getId(), order.getOrderNumber(), OrderStatus.CANCELED.name()));
@@ -415,6 +417,17 @@ public class OrderService {
      * 二重に戻すと、実際には無い在庫が画面に現れて売り越えの原因になる。
      * 在庫を管理していない商品や、すでに削除された商品は
      * {@code restoreStock} 側が素通りしてくれる。
+     *
+     * <p><b>★ 必ずトランザクション内の「最後の」処理として呼ぶこと。</b><br>
+     * {@code restoreStock} はバルク UPDATE で、
+     * {@code @Modifying(clearAutomatically = true)} が付いている。
+     * 実行した瞬間に<b>永続化コンテキストの全エンティティがデタッチされる</b>ので、
+     * このあとに {@code refreshSessionOf} のような遅延読み込みを挟むと
+     * {@code LazyInitializationException} で全体がロールバックする。
+     * 実際 2026-08-22 に、公開デモのキャンセルが全経路 HTTP 500 になっていた
+     * （サービス直呼びのテストは {@code @Transactional} が永続化コンテキストを
+     * 共有してしまうため検出できない。{@code KitchenCancelHttpTest} が
+     * 本番と同じリクエスト境界でこの順序を固定している）。
      */
     private void restoreStockOf(Order order) {
         for (OrderLine line : order.getLines()) {
