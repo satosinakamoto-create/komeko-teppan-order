@@ -7,6 +7,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
+import java.util.TimeZone;
+
 /**
  * アプリケーションの入口。
  *
@@ -33,6 +35,35 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 @SpringBootApplication
 @EnableConfigurationProperties({AppProperties.class, BackupProperties.class, SecurityAccessProperties.class})
 public class KomekoOrderApplication {
+
+    /*
+     * 業務時刻の基準を Asia/Tokyo に「コードで」固定する。
+     *
+     * このアプリは営業日の切り替え（5:00）・ラストオーダー・深夜料金を
+     * すべて日本時間の壁時計（LocalDateTime.now()）で判断している。
+     * JVM の既定タイムゾーンがずれると、例外は一切出ないまま
+     * 「昼の 13 時に深夜料金 10% が乗る」「売上の営業日が 1 日ずれる」
+     * という形でだけ現れる。
+     *
+     * Dockerfile では ENV TZ=Asia/Tokyo と -Duser.timezone を二重に
+     * 指定していたが、2026-08-22 に本番（Render）で実測したところ
+     * どちらも効いておらず、JST 13 時の伝票に深夜料金が乗っていた
+     * （UTC 23:00〜05:00 = JST 8:00〜14:00 なので、日本の日中に毎日出る）。
+     * ホスティング側の設定は画面から消えたり上書きされたりし得るので、
+     * 環境変数には頼らず、ここで固定する。
+     *
+     * static イニシャライザに置いているのは、main() 経由でも
+     * テスト（@SpringBootTest はこのクラスを読み込む）経由でも、
+     * Spring が動き出す前に必ず 1 回実行されるから。
+     */
+    static {
+        applyFixedTimeZone();
+    }
+
+    /** JVM の既定タイムゾーンを Asia/Tokyo にそろえる（理由は上のコメント）。 */
+    static void applyFixedTimeZone() {
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"));
+    }
 
     public static void main(String[] args) {
         SpringApplication.run(KomekoOrderApplication.class, args);
