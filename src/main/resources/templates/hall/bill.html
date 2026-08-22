@@ -127,6 +127,7 @@
       */-->
       <form th:if="${bill.open and bill.lateNightSurchargePercent > 0}"
             th:action="@{/hall/bills/{id}/orders/{orderId}/late-night(id=${bill.id},orderId=${order.id})}"
+            sec:authorize="!hasRole('GUEST')"
             method="post" class="mt-4">
         <input type="hidden" name="exempt" th:value="${!order.lateNightExempt}">
         <button type="submit" class="btn btn--ghost btn--sm"
@@ -193,10 +194,14 @@
 
     <!--/* --- 人数の変更 ---
            HTML のフォームは入れ子にできないので、操作ごとにフォームを分けます。 */-->
+    <!--/* 人数変更〜会計取消の各フォームには sec:authorize="!hasRole('GUEST')" を
+           付けてある。公開デモの見学者（ROLE_GUEST）には「表示のみ」と案内している
+           ためで、SecurityConfig 側でも同じ線で POST を弾いている（二重の守り）。 */-->
     <div class="card mt-6">
       <div class="card__head">人数の変更</div>
       <div class="card__body">
         <form th:action="@{/hall/bills/{id}/guests(id=${bill.id})}" method="post"
+              sec:authorize="!hasRole('GUEST')"
               class="row row--wrap">
           <label class="label mb-0" for="guestCount">人数</label>
           <select class="select" id="guestCount" name="guestCount" style="max-width:7rem">
@@ -222,7 +227,14 @@
     <div class="card mt-6">
       <div class="card__head">お会計（伝票を締める）</div>
 
-      <form th:action="@{/hall/bills/{id}/close(id=${bill.id})}" method="post">
+      <!--/* 見学者には操作の代わりに一言だけ出す。黙って消すと
+             「会計の画面は作っていないのか」と誤解されるため。 */-->
+      <div class="card__body" sec:authorize="hasRole('GUEST')">
+        <p class="help mb-0">見学モードのため、お会計・取り消しなどの操作はご覧いただくだけになります。</p>
+      </div>
+
+      <form th:action="@{/hall/bills/{id}/close(id=${bill.id})}" method="post"
+            sec:authorize="!hasRole('GUEST')">
         <div class="card__body">
 
           <div class="field">
@@ -329,7 +341,8 @@
       <!--/* 会計取消は売上に直結するので、確認ダイアログを挟んだうえで
              他のボタンとは色を変えて（.btn--danger）置いています。 */-->
       <div class="card__foot">
-        <form th:action="@{/hall/bills/{id}/reopen(id=${bill.id})}" method="post">
+        <form th:action="@{/hall/bills/{id}/reopen(id=${bill.id})}" method="post"
+              sec:authorize="!hasRole('GUEST')">
           <button type="submit" class="btn btn--danger"
                   th:data-table="${bill.diningTable.name}"
                   onclick="return confirm(this.dataset.table + ' のお会計を取り消して、伝票を開き直します。\n\nよろしいですか？');">

@@ -19,6 +19,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
@@ -201,6 +202,28 @@ public class SecurityConfig {
                     // 後から来る人に残るものは分けて考える必要があります。
                     auth.requestMatchers(HttpMethod.POST, "/kitchen/stock/**")
                             .hasRole("ADMIN");
+
+                    // ── ホール（会計）の書き込みと、注文キャンセルも見学者に許さない ──
+                    //
+                    // 以前は /hall の POST もゲストに開けていた（「押してもらってこそ」の
+                    // 判断で、layout/staff.html にもそう書いていた）。だが公開している
+                    // 説明は一貫して「表示のみで、保存や削除はできません。厨房ボードで
+                    // 注文の状態を進める操作だけお試しいただけます」であり、
+                    // 実際に押せる操作と食い違っていた（2026-08-22 のレビューで指摘）。
+                    //
+                    // それに、会計で伝票を締める・注文をキャンセルする、はどちらも
+                    // 「次に見に来た人の画面を壊す」側の操作でもある。見学用の卓の伝票を
+                    // 締められると、次の見学者の /demo が壊れた状態から始まる。
+                    // 文言を実装に合わせるのではなく、実装を公開している約束に合わせた。
+                    //
+                    // ゲストは STAFF に加えて ROLE_GUEST を持つ（GuestLoginController）。
+                    // その印がある人だけ、この 2 つを閉じる。実スタッフには影響しない。
+                    auth.requestMatchers(HttpMethod.POST, "/hall/**")
+                            .access(new WebExpressionAuthorizationManager(
+                                    "hasAnyRole('STAFF','ADMIN') and !hasRole('GUEST')"));
+                    auth.requestMatchers(HttpMethod.POST, "/kitchen/orders/*/cancel")
+                            .access(new WebExpressionAuthorizationManager(
+                                    "hasAnyRole('STAFF','ADMIN') and !hasRole('GUEST')"));
                 }
 
                 auth

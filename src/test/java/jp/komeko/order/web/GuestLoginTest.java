@@ -205,6 +205,46 @@ class GuestLoginTest {
                             .param("status", "COOKING"))
                     .andExpect(status().is3xxRedirection());
         }
+
+        // ── ここから下は 2026-08-22 の方針変更ぶん ──────────────────
+        //
+        // 公開している説明は一貫して「表示のみで、保存や削除はできません。
+        // 厨房ボードで注文の状態を進める操作だけお試しいただけます」。
+        // 以前は /hall の POST もゲストに開けていて、この約束と食い違っていた。
+        // ゲストは STAFF に加えて ROLE_GUEST を持ち（GuestLoginController）、
+        // その印でホール（会計）の書き込みと注文キャンセルだけを閉じる。
+
+        @ParameterizedTest(name = "{0} は見学者には拒否される")
+        @ValueSource(strings = {"/hall/bills/1/close", "/hall/bills/1/reopen",
+                                "/hall/bills/1/guests", "/hall/tables/1/open",
+                                "/hall/bills/1/orders/1/late-night",
+                                "/kitchen/orders/1/cancel"})
+        @WithMockUser(roles = {"STAFF", "GUEST"})
+        @DisplayName("見学者は、会計まわりの書き込みと注文キャンセルができない")
+        void guestCannotWriteHallOrCancelOrders(String path) throws Exception {
+            // 会計で伝票を締める・注文を消すは「次の見学者の画面を壊す」側の操作。
+            // 見学用の卓の伝票を締められると、次の人の /demo が壊れた状態から始まる
+            mockMvc.perform(post(path).with(csrf())).andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(roles = {"STAFF", "GUEST"})
+        @DisplayName("見学者でも、厨房ボードの状態を進める操作はできる（見せ場は残す）")
+        void guestCanStillAdvanceOrderStatus() throws Exception {
+            mockMvc.perform(post("/kitchen/orders/999999/status")
+                            .with(csrf())
+                            .param("status", "COOKING"))
+                    .andExpect(status().is3xxRedirection());
+        }
+
+        @Test
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("実スタッフ（GUEST の印なし）のホール操作は、これまでどおり通る")
+        void realStaffCanStillOperateHall() throws Exception {
+            // 存在しない伝票なので一覧へ戻される（3xx）。403 でないことだけを見る
+            mockMvc.perform(post("/hall/bills/999999/close").with(csrf()))
+                    .andExpect(status().is3xxRedirection());
+        }
     }
 
     @Nested

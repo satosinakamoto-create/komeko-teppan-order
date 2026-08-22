@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -19,6 +21,9 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * ポートフォリオ用の「ゲストとして見る」ログイン。
@@ -89,9 +94,17 @@ public class GuestLoginController {
 
         // パスワードの照合はしない。「ボタンを押した人＝ゲスト」と決めているため。
         // 通したい権限（STAFF）だけを持たせた認証情報をその場で組み立てる。
+        //
+        // ROLE_GUEST を「追加で」持たせるのは、見学者を実スタッフと区別するため。
+        // STAFF の画面はそのまま全部見られるが、SecurityConfig はこの印を見て
+        // ホール（会計）の書き込みと注文キャンセルだけを見学者に閉じている。
+        // 公開文言（「表示のみ・厨房ボードで状態を進める操作だけ」）と
+        // 実際に押せる操作を一致させるための切り分け（2026-08-22）。
         StaffUserDetails principal = new StaffUserDetails(guest);
+        List<GrantedAuthority> authorities = new ArrayList<>(principal.getAuthorities());
+        authorities.add(new SimpleGrantedAuthority("ROLE_GUEST"));
         Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
-                principal, null, principal.getAuthorities());
+                principal, null, authorities);
 
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);

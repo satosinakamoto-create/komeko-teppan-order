@@ -144,7 +144,10 @@
              2 名で 4 人掛けに座ったときにテーブルチャージを 2 名分多く
              頂いてしまうためです（あとから伝票画面で直せます）。 */-->
       <div class="card__foot">
-        <form th:action="@{/hall/tables/{id}/open(id=${table.id})}" method="post" class="row row--wrap">
+        <!--/* ご案内（伝票を開く）も書き込みなので、見学者（ROLE_GUEST）には出さない。
+               SecurityConfig 側でも /hall の POST はゲストに閉じてある */-->
+        <form th:action="@{/hall/tables/{id}/open(id=${table.id})}" method="post" class="row row--wrap"
+              sec:authorize="!hasRole('GUEST')">
           <label class="visually-hidden" th:for="'guests-' + ${table.id}">人数</label>
           <select class="select" name="guestCount"
                   th:id="'guests-' + ${table.id}" style="max-width:7rem">

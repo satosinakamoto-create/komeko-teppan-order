@@ -181,7 +181,12 @@
                  金額の計算し直しはサーバ側（TableSession）が一手に引き受けるので、
                  この画面では一切金額に触れません。
           */-->
-          <div class="ticket__actions mt-4" th:unless="${order.status.closed}">
+          <!--/* キャンセルは見学者（ROLE_GUEST）には出さない。
+                 「状態を進める」と違い、伝票から品が消える＝残る変更なので、
+                 公開デモの「表示のみ・状態を進める操作だけ」の約束の外にある。
+                 SecurityConfig 側でも POST を弾いている（二重の守り） */-->
+          <div class="ticket__actions mt-4" th:unless="${order.status.closed}"
+               sec:authorize="!hasRole('GUEST')">
             <form th:each="next : ${order.status.allowedNext()}"
                   th:if="${next.name() == 'CANCELED'}"
                   th:action="@{/kitchen/orders/{id}/cancel(id=${order.id})}" method="post">
