@@ -39,8 +39,14 @@ import java.util.List;
  * ゲストは {@link StaffRole#STAFF} なので、{@code /admin/**} には入れません
  * （{@code SecurityConfig} が ADMIN 限定にしています）。
  *
- * <p>「注文を進める」「キャンセルする」はできます。<b>これは意図的です。</b>
- * 押してもらえないと連携が体感できません。荒らされても定期的に作り直せば戻ります。
+ * <p>「注文を進める」はできます。<b>これは意図的です。</b>
+ * 押してもらえないと連携が体感できません。
+ * 一方「キャンセルする」はできません（2026-08-22 に閉じました）。
+ * 伝票から品が消える＝次に見に来た人の画面に残る変更だからです。
+ * 閉じ方は 2 か所あります。専用の {@code POST /kitchen/orders/*&#47;cancel} は
+ * {@code SecurityConfig} が ROLE_GUEST に対して拒否し、
+ * 状態変更の口（{@code .../status}）は {@code KitchenController} が
+ * そもそも CANCELED を受け付けません（誰が送っても同じ）。
  *
  * <p><b>安全装置</b><br>
  * {@code app.guest-login=true} のときだけ、このクラスが読み込まれます。
