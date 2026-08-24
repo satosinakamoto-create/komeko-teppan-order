@@ -1,6 +1,7 @@
 package jp.komeko.order.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -25,8 +26,44 @@ import java.util.List;
  * そこで<b>起動そのものを失敗させる</b>。設定を直すまでアプリは立ち上がらない。
  *
  * <p>Render のデモ環境は prod プロファイルを使わないので、この装置には触れない。
+ *
+ * <h2>なぜ {@code @Lazy(false)} が付いているのか（2026-08-25 追記）</h2>
+ *
+ * <p>この装置は「<b>起動時に必ず生成される Bean</b> のコンストラクタで例外を投げ、
+ * コンテキストの初期化ごと失敗させる」という一点で成り立っている。
+ * ところがこの Bean は<b>どこからも注入されていない</b>（検査するためだけに存在する）ので、
+ * 「使われるまで作らない」設定が入った瞬間に、永遠に作られない Bean になる。
+ * それが {@code spring.main.lazy-initialization=true}
+ * （環境変数なら {@code SPRING_MAIN_LAZY_INITIALIZATION=true}、
+ * {@code JAVA_OPTS} なら {@code -Dspring.main.lazy-initialization=true}）。
+ *
+ * <p>2026-08-25 に実機で確かめた結果:
+ * <ul>
+ *   <li>{@code SPRING_PROFILES_ACTIVE=prod,demo} だけ → 期待どおり起動中止</li>
+ *   <li>そこへ lazy-initialization を足す → <b>起動が通ってしまった。</b>
+ *       DemoDataSeeder が実店舗の DB に架空の伝票を書き、
+ *       店舗設定を「24 時間受付」に書き換え、ログイン画面に
+ *       「ゲストで参加する」が出た</li>
+ * </ul>
+ * ApplicationRunner は lazy でも必ず実行されるため、
+ * <b>止め役だけが消えて、書き込み役はそのまま動く</b>という最悪の組み合わせになる。
+ *
+ * <p>厄介なのは、lazy-initialization が「悪意なく足される設定」だということ。
+ * 起動時間を縮める定番の手として紹介されており、
+ * Render の無料枠のコールドスタート対策として真っ先に候補に挙がる。
+ * そして足しても警告もエラーも一切出ないまま、安全装置だけが黙って死ぬ。
+ *
+ * <p>{@code @Lazy(false)} は「この Bean は lazy かどうかを自分で決めてある」という明示。
+ * Spring Boot の {@code LazyInitializationBeanFactoryPostProcessor} は
+ * lazy 指定が明示済みの Bean 定義には手を出さないので、
+ * 全体設定が何であろうと、ここは今までどおり起動時に生成される。
+ *
+ * <p>この配線は {@code ProductionSafetyGuardTest} の「Bean としての配線」で固定してある。
+ * 「check() が正しいこと」と「check() が実際に呼ばれること」は別々に壊れるので、
+ * テストも別々に置いてある。
  */
 @Component
+@Lazy(false)
 public class ProductionSafetyGuard {
 
     public ProductionSafetyGuard(Environment environment,
