@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -40,6 +41,31 @@ public class OrderService {
     /** まだ厨房で作業が残っている状態の集合。 */
     private static final List<OrderStatus> ACTIVE_STATUSES =
             List.of(OrderStatus.RECEIVED, OrderStatus.COOKING);
+
+    /**
+     * 営業日が変わったあとも、未提供の注文を厨房ボードに残しておく時間。
+     *
+     * <p><b>なぜ時間で線を引くのか</b><br>
+     * 注文の営業日は伝票の値をコピーするので、5:00（営業日の切り替え）をまたいだ卓の
+     * 注文は前営業日の日付を持ったまま残る。会計と調理は独立していて、4:50 に締めた卓に
+     * 焼き待ちの注文が残ることもある。営業日や伝票の状態で絞ると、この注文が
+     * ボードから消える＝厨房が焼くべき品を知り得なくなる
+     * （詳細は {@code OrderRepository#findKitchenBoardOrders}）。
+     * かといって「未提供なら永久に出す」にすると、数日前の焼き忘れや、
+     * 締め忘れた伝票の注文がボードに積もり、<b>今夜の仕事が埋もれる</b>。
+     * これはこれで別の事故なので、どこかで必ず切る必要がある。
+     *
+     * <p><b>なぜ 6 時間なのか</b><br>
+     * 切り替えをまたいで厨房に残る仕事は、長く見積もっても数時間で片が付く
+     * （4:50 の注文が 10:50 になっても未提供なら、それはもう焼かれていない）。
+     * 一方で<b>次の営業（通常 17:00 開店）が始まるまでには必ず消えていてほしい</b>。
+     * 切り替えが既定の 5:00 なら 6 時間後は 11:00 で、開店までに十分な余裕がある。
+     * 12 時間まで延ばすと 17:00 に間に合わなくなるので、その手前に置いた。
+     *
+     * <p>いまの営業日の注文はこの窓に関係なく必ず出す（今夜の仕事を隠さないため）。
+     * 営業日は 24 時間ぶんなので、こちらも無限には溜まらない。
+     */
+    private static final Duration CARRY_OVER_WINDOW = Duration.ofHours(6);
 
     private final OrderRepository orderRepository;
     private final OrderNumberService orderNumberService;
@@ -202,10 +228,12 @@ public class OrderService {
     @Transactional(readOnly = true)
     public KitchenBoard kitchenBoard() {
         LocalDate businessDate = shopSettingService.currentBusinessDate();
-        // 開いたままの伝票の注文は、営業日が前日でも出す（5:00 をまたいだ卓の追加注文が
-        // ボードから消える事故を防ぐ。詳細は OrderRepository#findKitchenBoardOrders）
+        // 未提供の注文は、営業日が前日でも伝票が会計済みでも出す（5:00 をまたいだ卓の
+        // 注文がボードから消える事故を防ぐ。詳細は OrderRepository#findKitchenBoardOrders）。
+        // ただし CARRY_OVER_WINDOW より古い焼き忘れは、今夜の仕事を埋めるので出さない
         List<Order> orders = orderRepository.findKitchenBoardOrders(
                 businessDate,
+                carryOverSince(),
                 List.of(OrderStatus.RECEIVED, OrderStatus.COOKING, OrderStatus.READY));
         orders.forEach(this::hydrate);
 
@@ -213,26 +241,6 @@ public class OrderService {
                 orders.stream().filter(o -> o.getStatus() == OrderStatus.RECEIVED).toList(),
                 orders.stream().filter(o -> o.getStatus() == OrderStatus.COOKING).toList(),
                 orders.stream().filter(o -> o.getStatus() == OrderStatus.READY).toList());
-    }
-
-    /** サイネージ用：調理中の番号一覧。 */
-    @Transactional(readOnly = true)
-    public List<Integer> cookingNumbers() {
-        return numbersOf(OrderStatus.COOKING);
-    }
-
-    /** サイネージ用：お渡しできる番号一覧。 */
-    @Transactional(readOnly = true)
-    public List<Integer> readyNumbers() {
-        return numbersOf(OrderStatus.READY);
-    }
-
-    private List<Integer> numbersOf(OrderStatus status) {
-        LocalDate businessDate = shopSettingService.currentBusinessDate();
-        return orderRepository.findSignageOrders(businessDate, status)
-                .stream()
-                .map(Order::getOrderNumber)
-                .toList();
     }
 
     /** 当日の全注文（管理画面の一覧）。 */
@@ -254,6 +262,13 @@ public class OrderService {
      * </pre>
      * 厳密な予測ではなく「体感に近い目安」を出すのが目的です。
      * 実際の待ち時間より少し長めに出すほうが、お客さんの満足度は上がります。
+     *
+     * <p><b>数える母集合は厨房ボードとそろえること。</b>
+     * 以前はここだけ「注文自身の営業日と厳密一致」で数えていたため、
+     * 5:00 をまたぐと、またぎ卓の注文と新しい営業日の注文が互いを
+     * 「前にいる組」として数えませんでした。実際に鉄板を占領しているのは
+     * ボードに出ている注文のほうなので、お客さまの「あと ◯ 組」だけが
+     * 実態より少なく出る（＝待たされる）ことになります。
      */
     @Transactional(readOnly = true)
     public WaitEstimate estimateWait(Order order) {
@@ -267,10 +282,14 @@ public class OrderService {
         ShopSetting setting = shopSettingService.currentReadOnly();
         int capacity = Math.max(1, setting.getGriddleCapacity());
 
+        // 注文の営業日ではなく「いまの営業日＋持ち越しの窓」で数える（＝ボードと同じ母集合）。
+        // 状態が RECEIVED/COOKING だけなのは意図的で、READY はもう鉄板を空けているため
+        LocalDate businessDate = setting.businessDateOf(LocalDateTime.now());
+        LocalDateTime since = carryOverSince();
         long ahead = orderRepository.countAheadOf(
-                order.getBusinessDate(), ACTIVE_STATUSES, order.getCreatedAt());
+                businessDate, since, ACTIVE_STATUSES, order.getCreatedAt());
         Long aheadMinutesRaw = orderRepository.sumCookMinutesAheadOf(
-                order.getBusinessDate(), ACTIVE_STATUSES, order.getCreatedAt());
+                businessDate, since, ACTIVE_STATUSES, order.getCreatedAt());
         long aheadMinutes = aheadMinutesRaw == null ? 0L : aheadMinutesRaw;
 
         long queueMinutes = ceilDiv(aheadMinutes, capacity);
@@ -282,6 +301,14 @@ public class OrderService {
         int minutes = (int) Math.max(0, Math.min(estimate, 120));
 
         return new WaitEstimate(ahead, minutes);
+    }
+
+    /**
+     * 営業日が違う未提供注文を拾う下限時刻（{@link #CARRY_OVER_WINDOW} 参照）。
+     * 厨房ボードと待ち時間の目安が同じ母集合を見るよう、必ずここを通す。
+     */
+    private static LocalDateTime carryOverSince() {
+        return LocalDateTime.now().minus(CARRY_OVER_WINDOW);
     }
 
     private static long ceilDiv(long value, long divisor) {

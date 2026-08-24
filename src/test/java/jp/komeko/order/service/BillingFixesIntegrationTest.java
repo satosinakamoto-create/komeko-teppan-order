@@ -14,6 +14,10 @@ import jp.komeko.order.repository.DiningTableRepository;
 import jp.komeko.order.repository.MenuItemRepository;
 import jp.komeko.order.repository.OrderRepository;
 import jp.komeko.order.repository.TableSessionRepository;
+import jp.komeko.order.service.dto.KitchenBoard;
+import jp.komeko.order.service.dto.WaitEstimate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,9 +29,12 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -84,6 +91,8 @@ class BillingFixesIntegrationTest {
     private DailyCounterRepository dailyCounterRepository;
     @Autowired
     private PlatformTransactionManager transactionManager;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private DiningTable table;
     private TableSession bill;
@@ -165,6 +174,58 @@ class BillingFixesIntegrationTest {
 
     private TableSession reloadBill() {
         return tableService.getSession(bill.getId());
+    }
+
+    /** 指定した伝票への注文（{@link #order} は setUp で開いた卓に入れる）。 */
+    private Order orderOn(TableSession target, MenuItem item, int quantity) {
+        Cart cart = new Cart();
+        cartService.addToCart(cart, item.getId(), List.of(), quantity);
+        return orderService.placeOrder(cart, target.getId(), null);
+    }
+
+    /**
+     * 「前の営業日に開いた、まだ残っている卓」を作る。
+     *
+     * <p>{@code tableService.openSession} は必ず「いまの営業日」で開くので、
+     * 5:00（営業日の切り替え）をまたいだ卓は直接 save して作るしかない。
+     * 伝票の営業日は開いた時点で確定し、以後の注文はその値をコピーする。
+     */
+    private TableSession openBillOn(String tableName, LocalDate businessDate, int sortOrder) {
+        DiningTable crossoverTable = tableService.createTable(tableName, 4, sortOrder);
+        ShopSetting setting = shopSettingService.current();
+        return new TransactionTemplate(transactionManager).execute(status ->
+                sessionRepository.save(new TableSession(crossoverTable, businessDate, 2, setting)));
+    }
+
+    /**
+     * 注文の受付時刻を過去にずらす。
+     *
+     * <p>{@code createdAt} は会計と提供時間の証跡なので、業務コードから書き換える
+     * 手段をわざと用意していない（{@code Order#setCreatedAtForTest} は domain
+     * パッケージの中からしか見えない）。ここは別パッケージなので、
+     * JPQL のバルク UPDATE で DB の値だけを動かす。
+     */
+    private void backdate(Order target, Duration age) {
+        LocalDateTime moved = LocalDateTime.now().minus(age);
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                entityManager.createQuery("update Order o set o.createdAt = :moved where o.id = :id")
+                        .setParameter("moved", moved)
+                        .setParameter("id", target.getId())
+                        .executeUpdate());
+    }
+
+    /** 厨房ボードの「受付」レーンに出ている注文の ID。 */
+    private List<Long> receivedIdsOnBoard() {
+        return orderService.kitchenBoard().received().stream().map(Order::getId).toList();
+    }
+
+    /** 厨房ボードの 3 レーンすべてに出ている注文の ID。 */
+    private List<Long> allIdsOnBoard() {
+        KitchenBoard board = orderService.kitchenBoard();
+        return Stream.of(board.received(), board.cooking(), board.ready())
+                .flatMap(List::stream)
+                .map(Order::getId)
+                .toList();
     }
 
     @Nested
@@ -307,6 +368,79 @@ class BillingFixesIntegrationTest {
                     .map(Order::getOrderNumber)
                     .toList();
             assertThat(receivedNumbers).contains(placed.getOrderNumber());
+        }
+
+        @Test
+        @DisplayName("会計を締めた卓の未提供注文も、切替後のボードに残る")
+        void unservedOrdersStayOnTheBoardEvenAfterTheBillIsClosed() {
+            // 4:50 に会計を済ませ、焼き待ちの品を残したまま 5:00 をまたいだ卓。
+            // closeSession に未提供注文のガードは無い（会計と調理は独立＝厨房の実態）
+            LocalDate previousBusinessDay = LocalDate.now().minusDays(1);
+            TableSession crossoverBill = openBillOn("朝まで卓（会計済み）", previousBusinessDay, 21);
+            Order placed = orderOn(crossoverBill, okonomiyaki, 1);
+            tableService.closeSession(crossoverBill.getId(), false, "店長", null);
+            backdate(placed, Duration.ofHours(2));   // 切替から 2 時間後に厨房が見ている
+
+            assertThat(placed.getStatus()).isEqualTo(OrderStatus.RECEIVED);
+            assertThat(receivedIdsOnBoard())
+                    .as("修正前は「前営業日 かつ CLOSED」でどちらの条件にも当たらず、"
+                            + "全レーンから消えていた。請求は済んでいるので金は消えないが、"
+                            + "厨房が焼くべき品の存在を知り得なくなる")
+                    .contains(placed.getId());
+        }
+
+        @Test
+        @DisplayName("提供済みの注文は、切替をまたいでもボードに出てこない")
+        void servedOrdersDoNotComeBackAfterTheCutover() {
+            LocalDate previousBusinessDay = LocalDate.now().minusDays(1);
+            TableSession crossoverBill = openBillOn("朝まで卓（提供済み）", previousBusinessDay, 22);
+            Order placed = orderOn(crossoverBill, okonomiyaki, 1);
+
+            orderService.changeStatus(placed.getId(), OrderStatus.READY, "焼き場");
+            orderService.changeStatus(placed.getId(), OrderStatus.COMPLETED, "ホール");
+            tableService.closeSession(crossoverBill.getId(), false, "店長", null);
+
+            assertThat(allIdsOnBoard())
+                    .as("持ち越しを拾う条件を広げたせいで、お渡し済みの品まで復活しては困る")
+                    .doesNotContain(placed.getId());
+        }
+
+        @Test
+        @DisplayName("持ち越しの窓より古い焼き忘れは、伝票が開いたままでもボードに出ない")
+        void staleUnservedOrdersFallOffTheBoard() {
+            TableSession forgottenBill = openBillOn("締め忘れ卓", LocalDate.now().minusDays(3), 23);
+            Order forgotten = orderOn(forgottenBill, okonomiyaki, 1);
+            backdate(forgotten, Duration.ofHours(30));   // 持ち越しの窓（6 時間）より前
+
+            assertThat(allIdsOnBoard())
+                    .as("「伝票が OPEN なら日付を問わず出す」だと、締め忘れた卓の注文が"
+                            + "いつまでも居座り、今夜の仕事が埋もれる（これも別の事故）")
+                    .doesNotContain(forgotten.getId());
+        }
+
+        @Test
+        @DisplayName("待ち時間の目安は、厨房ボードと同じ母集合を数える")
+        void waitEstimateCountsTheSameOrdersAsTheBoard() {
+            // 切替前に入り、まだ焼かれていない注文（会計は済んでいる）
+            LocalDate previousBusinessDay = LocalDate.now().minusDays(1);
+            TableSession crossoverBill = openBillOn("朝まで卓（またぎ）", previousBusinessDay, 24);
+            Order crossover = orderOn(crossoverBill, okonomiyaki, 1);
+            tableService.closeSession(crossoverBill.getId(), false, "店長", null);
+            backdate(crossover, Duration.ofMinutes(30));
+
+            // 切替後、新しい営業日に入った注文
+            Order afterCutover = order(okonomiyaki, 1);
+
+            assertThat(receivedIdsOnBoard())
+                    .as("ボードでは、またぎ卓の注文が前に並んでいる")
+                    .containsExactly(crossover.getId(), afterCutover.getId());
+
+            WaitEstimate estimate = orderService.estimateWait(orderService.getById(afterCutover.getId()));
+            assertThat(estimate.waitingOrders())
+                    .as("修正前はここが 0 だった（営業日の厳密一致で数えていたため）。"
+                            + "実際に鉄板を占領しているのはボードに出ている注文なので、"
+                            + "お客さま画面の「あと ◯ 組」だけが実態より少なく出ていた")
+                    .isEqualTo(1);
         }
     }
 }
