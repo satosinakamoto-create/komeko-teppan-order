@@ -194,14 +194,16 @@
 
     <!--/* --- 人数の変更 ---
            HTML のフォームは入れ子にできないので、操作ごとにフォームを分けます。 */-->
-    <!--/* 人数変更〜会計取消の各フォームには sec:authorize="!hasRole('GUEST')" を
-           付けてある。公開デモの見学者（ROLE_GUEST）には「表示のみ」と案内している
-           ためで、SecurityConfig 側でも同じ線で POST を弾いている（二重の守り）。 */-->
-    <div class="card mt-6">
+    <!--/* 人数変更〜会計取消の各操作は sec:authorize="!hasRole('GUEST')" で隠す。
+           公開デモの見学者（ROLE_GUEST）には「表示のみ」と案内している
+           ためで、SecurityConfig 側でも同じ線で POST を弾いている（二重の守り）。
+           フォームだけ消すと見出しや説明文が抜け殻として残るので、
+           sec:authorize は枠（カードや card__foot）の側に付ける。
+           見学者への断り書きは、下の「お会計」カードに一言だけ出している。 */-->
+    <div class="card mt-6" sec:authorize="!hasRole('GUEST')">
       <div class="card__head">人数の変更</div>
       <div class="card__body">
         <form th:action="@{/hall/bills/{id}/guests(id=${bill.id})}" method="post"
-              sec:authorize="!hasRole('GUEST')"
               class="row row--wrap">
           <label class="label mb-0" for="guestCount">人数</label>
           <select class="select" id="guestCount" name="guestCount" style="max-width:7rem">
@@ -340,9 +342,10 @@
 
       <!--/* 会計取消は売上に直結するので、確認ダイアログを挟んだうえで
              他のボタンとは色を変えて（.btn--danger）置いています。 */-->
-      <div class="card__foot">
-        <form th:action="@{/hall/bills/{id}/reopen(id=${bill.id})}" method="post"
-              sec:authorize="!hasRole('GUEST')">
+      <!--/* フォームだけ消すと下の説明文が「存在しないボタンの説明」として孤立するので、
+             枠（card__foot）ごと見学者から隠す */-->
+      <div class="card__foot" sec:authorize="!hasRole('GUEST')">
+        <form th:action="@{/hall/bills/{id}/reopen(id=${bill.id})}" method="post">
           <button type="submit" class="btn btn--danger"
                   th:data-table="${bill.diningTable.name}"
                   onclick="return confirm(this.dataset.table + ' のお会計を取り消して、伝票を開き直します。\n\nよろしいですか？');">
@@ -350,6 +353,13 @@
           </button>
         </form>
         <p class="help mb-0">誤って会計したときに使います。取り消すと追加注文ができる状態に戻ります。</p>
+      </div>
+
+      <!--/* 見学者には操作の代わりに一言だけ出す。会計済みの伝票は「お会計」カードの
+             断り書きが出ない（bill.open のときだけ）ので、ここで黙って消すと
+             会計取消の画面は作っていないのかと誤解されるため。 */-->
+      <div class="card__foot" sec:authorize="hasRole('GUEST')">
+        <p class="help mb-0">見学モードのため、会計の取り消しなどの操作はご覧いただくだけになります。</p>
       </div>
     </div>
 
