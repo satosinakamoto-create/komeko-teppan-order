@@ -36,6 +36,33 @@ public interface TableSessionRepository extends JpaRepository<TableSession, Long
     Optional<TableSession> findFirstByDiningTableIdAndStatusOrderByOpenedAtDesc(
             Long diningTableId, SessionStatus status);
 
+    /**
+     * その卓で「いま開いている伝票」の <b>ID だけ</b>を取る。
+     *
+     * <p><b>なぜエンティティではなく ID なのか</b><br>
+     * 伝票を書き換える処理は「行ロックを取ってから読む」順序でなければ意味がありません。
+     * ところがロックの前にエンティティを読んでしまうと、その<b>古い写し</b>が
+     * 永続化コンテキストに居座り、あとからロックを取って読み直しても
+     * Hibernate は同じインスタンス（＝古い状態）を返してしまいます。
+     * そうなるとロックを取った意味がなく、{@code isOpen()} のチェックが
+     * 会計済みの伝票を素通りさせます。
+     *
+     * <p>スカラー値（ID）だけを取る問い合わせなら、エンティティは 1 件も
+     * 永続化コンテキストに載りません。だから「ID を引く → ロックを取る → 読む」
+     * の順序を崩さずに書けます。
+     *
+     * <p>{@code List} で受けて先頭を使うのは、万一 1 卓に開いた伝票が 2 つ
+     * できていても落ちないようにするため（{@link #findFirstByDiningTableIdAndStatusOrderByOpenedAtDesc}
+     * と同じ考え方）。
+     */
+    @Query("""
+            select s.id from TableSession s
+            where s.diningTable.id = :tableId
+              and s.status = jp.komeko.order.domain.SessionStatus.OPEN
+            order by s.openedAt desc, s.id desc
+            """)
+    List<Long> findOpenSessionIds(@Param("tableId") Long tableId);
+
     @EntityGraph(attributePaths = {"diningTable", "orders"})
     Optional<TableSession> findWithOrdersById(Long id);
 
@@ -48,6 +75,15 @@ public interface TableSessionRepository extends JpaRepository<TableSession, Long
      * 出たのに誰にも請求されない）ことがあります。
      * 会計と注文確定の双方がまずこのロックを取ることで、2 つの操作を
      * 直列化しています。後から来たほうは、先の操作の結果を見てから動きます。
+     *
+     * <p><b>伝票やその注文を書き換える経路は、例外なく「読む前に」これを呼ぶこと。</b><br>
+     * このアプリのエンティティには {@code @Version} が無く {@code @DynamicUpdate} も
+     * 付けていないので、更新は毎回<b>全カラムを {@code where id = ?} だけで</b>
+     * 上書きします。ロックを取らずに読んだ古い写しであとからコミットすると、
+     * 自分が触ってもいない {@code closed_at} / {@code closed_by} まで巻き戻り、
+     * <b>会計が例外も出さずに消えます</b>（回帰テスト: {@code ConcurrentBillLockTest}）。
+     * 「読んでからロック」では手遅れです。先に読んだ古いインスタンスが
+     * 永続化コンテキストに残り、ロック後の読み直しでもそれが返るためです。
      *
      * <p>fetch 指定を付けていないのは、ロック用の SELECT を単純に保つためです。
      * 関連は続けて {@link #findWithOrdersById(Long)} で読めば、

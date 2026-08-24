@@ -132,6 +132,21 @@ public class TableService {
     }
 
     /**
+     * 人数の申告が<b>どこから来たか</b>。
+     *
+     * <p>同じ「人数を N 名にする」でも、スタッフの操作とお客さまの操作では
+     * 信用してよい範囲が違います。区別しないと、あとから QR を読んだ 1 人の
+     * 古い画面から送られた「1名」が、ホールが 6 名でご案内した伝票を
+     * 黙って上書きしてしまいます（テーブルチャージ ¥2,700 → ¥450）。
+     */
+    public enum GuestCountSource {
+        /** ホール画面から。人が卓を見て入力しているので、増減どちらも信用する。 */
+        STAFF,
+        /** お客さまの端末から（{@code /t/{token}/start}）。減らす方向は反映しない。 */
+        CUSTOMER
+    }
+
+    /**
      * 伝票を開く（ご案内）。すでに開いていればそれを返す。
      *
      * <p>ほぼ同時に 2 人が QR を読むと、理論上は伝票が 2 つできる可能性があります。
@@ -139,17 +154,46 @@ public class TableService {
      * これは DB 製品ごとに書き方が違い移植性が下がるため採用していません。
      * 実店舗の規模ではまず起きず、起きてもホール画面から統合できるため、
      * ここでは「見つけたら使う、無ければ作る」で十分と判断しています。
+     *
+     * <p>引数 2 つのこの形は<b>スタッフ操作</b>として扱います
+     * （ホール画面の「ご案内」・デモデータ投入）。お客さまの端末から呼ぶときは
+     * {@link #openSession(Long, int, GuestCountSource)} に {@link GuestCountSource#CUSTOMER}
+     * を渡してください。
      */
     @Transactional
     public TableSession openSession(Long tableId, int guestCount) {
-        Optional<TableSession> existing = sessionRepository
-                .findFirstByDiningTableIdAndStatusOrderByOpenedAtDesc(tableId, SessionStatus.OPEN);
-        if (existing.isPresent()) {
-            TableSession session = existing.get();
-            if (guestCount > 0 && guestCount != session.getGuestCount()) {
-                session.setGuestCount(guestCount);
+        return openSession(tableId, guestCount, GuestCountSource.STAFF);
+    }
+
+    /**
+     * 伝票を開く（ご案内）。人数の申告元を指定する版。
+     *
+     * <p><b>既存の伝票が見つかったときは、読む前に行ロックを取ります。</b>
+     * ここは「開いているか確かめて、人数を書いて、金額を計算し直す」＝
+     * 読む→確かめる→書く、の典型です。ロック無しだと、確かめたあとに
+     * お会計が締まってもそのままコミットでき、全カラム UPDATE によって
+     * 会計（{@code closedAt} / {@code closedBy} / 確定した合計）が巻き戻ります。
+     */
+    @Transactional
+    public TableSession openSession(Long tableId, int guestCount, GuestCountSource source) {
+        // 先に ID だけを引くのが要点。ここでエンティティを読むと、その古い写しが
+        // 永続化コンテキストに残り、ロック後に読み直しても同じものが返ってくる
+        // （＝ロックを取った意味が無くなる）。詳しくは Repository 側の説明を参照。
+        List<Long> openIds = sessionRepository.findOpenSessionIds(tableId);
+        if (!openIds.isEmpty()) {
+            Long openId = openIds.get(0);
+            // ここは closeSession と違って、見つからなくても例外にしない。
+            // 「ご案内」は伝票が無ければ作るのが仕事なので、消えていたら作りに行けばよい。
+            sessionRepository.findWithLockById(openId);
+            Optional<TableSession> locked = sessionRepository.findWithOrdersById(openId);
+            // ロックを待っている間にお会計が締まっていることがある。
+            // その場合はこの伝票には触らず、新しい来店として開き直す
+            // （締めた伝票を開け直すのはスタッフの判断＝reopenSession の仕事）。
+            if (locked.isPresent() && locked.get().isOpen()) {
+                TableSession session = locked.get();
+                applyRequestedGuestCount(session, guestCount, source);
+                return refresh(session);
             }
-            return refresh(session);
         }
 
         DiningTable table = getById(tableId);
@@ -165,6 +209,49 @@ public class TableService {
         TableSession saved = sessionRepository.save(session);
         log.info("伝票を開きました: 卓={} 人数={}", table.getName(), saved.getGuestCount());
         return saved;
+    }
+
+    /**
+     * 「すでに開いている伝票」に、申告された人数を反映してよいかを決める。
+     *
+     * <p><b>お客さま側からの操作では、人数を減らす方向を反映しません。</b>
+     *
+     * <p>理由は実害の大きさが方向によって全く違うからです。
+     * {@code /t/**} は認証なし（{@code SecurityConfig} で permitAll）で、
+     * QR さえ見えれば誰でも POST できます。そこで人数を減らせると、
+     * <ul>
+     *   <li>6 名でご案内した卓（チャージ ¥450 × 6 ＝ ¥2,700）が、
+     *       遅れて QR を読んだ 1 人の古い画面から届く「1名」で ¥450 になる</li>
+     *   <li>会計を締めるまで誰も気づけない（ログも通知も出ないため）</li>
+     * </ul>
+     * という取りっぱぐれが、悪意が無くても普通に起こります。
+     *
+     * <p><b>正当なケース（本当に人数が変わった）の扱い</b>
+     * <ul>
+     *   <li><b>増えた</b>…… お連れさまが後から合流した、というごく普通の流れです。
+     *       そのまま反映します。チャージが増える方向なので取りっぱぐれず、
+     *       もし間違っていてもお客さまが伝票を見て気づけますし、
+     *       スタッフがホール画面から下げられます。</li>
+     *   <li><b>減った</b>…… 人数の申告が多すぎた・先に帰った、という場合です。
+     *       これは<b>スタッフが卓を見て判断すること</b>にします。
+     *       お客さまの端末からは反映せず、代わりに
+     *       「人数の変更はスタッフへ」とご案内を出します（呼び出し側の責務）。
+     *       ホール画面からの変更は今までどおり増減とも効きます。</li>
+     * </ul>
+     */
+    private void applyRequestedGuestCount(TableSession session, int guestCount, GuestCountSource source) {
+        if (guestCount <= 0 || guestCount == session.getGuestCount()) {
+            return;   // 申告なし、または変化なし
+        }
+        if (source == GuestCountSource.CUSTOMER && guestCount < session.getGuestCount()) {
+            // 黙って捨てない。取りっぱぐれの兆候はログに残し、あとから追えるようにする
+            log.warn("お客さま側から {} 名の申告がありましたが、すでに {} 名で開いている伝票のため据え置きました: 卓={}",
+                    guestCount, session.getGuestCount(), session.getDiningTable().getName());
+            return;
+        }
+        log.info("人数を {} 名 → {} 名 に変更しました（申告元={}）: 卓={}",
+                session.getGuestCount(), guestCount, source, session.getDiningTable().getName());
+        session.setGuestCount(guestCount);
     }
 
     /**
@@ -221,9 +308,18 @@ public class TableService {
         return sessionRepository.findByBusinessDateOrderByOpenedAtDesc(businessDate);
     }
 
-    /** 人数を変更する（テーブルチャージが変わるので伝票を再計算する）。 */
+    /**
+     * 人数を変更する（テーブルチャージが変わるので伝票を再計算する）。
+     *
+     * <p>お会計との同時実行を直列化するため、<b>伝票を読む前に</b>行ロックを取ります。
+     * ここを「読んでからチェック」で書くと、チェックを通ったあとにお会計が締まっても
+     * 気づけず、全カラム UPDATE で {@code closedAt} / {@code closedBy} / 確定した合計まで
+     * 巻き戻ります（＝お会計が例外も出さずに消える）。
+     */
     @Transactional
     public TableSession changeGuestCount(Long sessionId, int guestCount) {
+        sessionRepository.findWithLockById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
         TableSession session = sessionRepository.findWithOrdersById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
         if (!session.isOpen()) {
@@ -285,9 +381,17 @@ public class TableService {
         return session;
     }
 
-    /** 誤って会計した伝票を開け直す。 */
+    /**
+     * 誤って会計した伝票を開け直す。
+     *
+     * <p>ここも「読む → 開いているか確かめる → 書く」なので、読む前に行ロックを取ります。
+     * 取らないと、二人が同時に取り消した／取り消しとお会計が交差した場合に、
+     * 古い写しで上書きされて状態が行ったり来たりします。
+     */
     @Transactional
     public TableSession reopenSession(Long sessionId, String staffName) {
+        sessionRepository.findWithLockById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
         TableSession session = sessionRepository.findWithOrdersById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
         if (session.isOpen()) {

@@ -31,6 +31,28 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findWithLinesById(Long id);
 
     /**
+     * この注文がぶら下がっている伝票の <b>ID だけ</b>を引く。
+     *
+     * <p>注文の状態を書き換える処理は、まず伝票の行ロックを取って
+     * 他の操作と直列化します（{@code TableSessionRepository#findWithLockById}）。
+     * ところがロックを取るには伝票 ID が要り、その ID は注文が持っています。
+     * ここで注文を<b>エンティティとして</b>読んでしまうと、
+     * ロックを取る前の古い写しが永続化コンテキストに残り、
+     * ロック後に読み直しても同じ（古い）インスタンスが返ってきます。
+     * その結果「すでにキャンセル済みか」の判定が古い状態で行われ、
+     * 在庫の二重復元やキャンセルの取り消しが起こります。
+     *
+     * <p>スカラー値だけを取る問い合わせならエンティティは載らないので、
+     * 「伝票 ID を引く → ロックを取る → 注文を読む」の順序を保てます。
+     */
+    @Query("select o.session.id from Order o where o.id = :id")
+    Optional<Long> findSessionIdById(@Param("id") Long id);
+
+    /** お客さん専用 URL のトークンから、伝票の ID だけを引く（用途は {@link #findSessionIdById} と同じ）。 */
+    @Query("select o.session.id from Order o where o.publicToken = :publicToken")
+    Optional<Long> findSessionIdByPublicToken(@Param("publicToken") String publicToken);
+
+    /**
      * 厨房ボード用。指定した状態の注文を、受付が古い順に取得する。
      * 「先に来たお客さんから焼く」ため createdAt 昇順が業務的に正しい並び。
      *

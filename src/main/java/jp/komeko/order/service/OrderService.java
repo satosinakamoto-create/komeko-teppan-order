@@ -305,6 +305,7 @@ public class OrderService {
      */
     @Transactional
     public Order changeStatus(Long orderId, OrderStatus next, String staffName) {
+        lockBillOf(orderRepository.findSessionIdById(orderId));
         Order order = orderRepository.findWithLinesById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         boolean becomesCanceled = next == OrderStatus.CANCELED
@@ -348,6 +349,7 @@ public class OrderService {
      */
     @Transactional
     public Order setLateNightExempt(Long orderId, boolean exempt, String staffName) {
+        lockBillOf(orderRepository.findSessionIdById(orderId));
         Order order = orderRepository.findWithLinesById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         // 会計済みの伝票では金額の根拠を動かさない。
@@ -375,6 +377,7 @@ public class OrderService {
     /** 店側からのキャンセル（材料切れなど）。 */
     @Transactional
     public Order cancelByStaff(Long orderId, String reason, String staffName) {
+        lockBillOf(orderRepository.findSessionIdById(orderId));
         Order order = orderRepository.findWithLinesById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         requireBillStillOpenForCancel(order);
@@ -397,6 +400,7 @@ public class OrderService {
      */
     @Transactional
     public Order cancelByCustomer(String token) {
+        lockBillOf(orderRepository.findSessionIdByPublicToken(token));
         Order order = orderRepository.findByPublicToken(token)
                 .orElseThrow(() -> new OrderNotFoundException(token));
         if (!order.isCustomerCancelable()) {
@@ -425,6 +429,35 @@ public class OrderService {
     // ========================================================================
     //  内部ヘルパー
     // ========================================================================
+
+    /**
+     * 注文を<b>読む前に</b>、その注文がぶら下がっている伝票の行ロックを取る。
+     *
+     * <p><b>なぜ注文ではなく「伝票」をロックするのか</b><br>
+     * 注文の状態が変わると、必ず伝票の金額も変わります（{@link #refreshSessionOf}）。
+     * つまり注文への操作は、実質「伝票を書き換える操作」です。
+     * お会計・人数変更・追加注文も同じ伝票行を取り合うので、
+     * <b>伝票の行を待ち合わせ場所にすると、その卓に関する操作がすべて 1 列に並びます</b>。
+     * 注文ごとにロックしてもお会計とは直列化されず、意味がありません。
+     *
+     * <p><b>なぜ「読む前」なのか</b><br>
+     * 先に注文を読むと、その古い写しが永続化コンテキストに残ります。
+     * そのあとロックを取って読み直しても Hibernate は同じインスタンスを返すため、
+     * 「もうキャンセル済みか」の判定が古い状態のまま行われ、
+     * 在庫が二重に戻ったり、キャンセルが COOKING に書き戻されたりします。
+     * だから伝票 ID だけを先に引き（{@code OrderRepository#findSessionIdById}）、
+     * ロックを取ってから注文を読みます。
+     *
+     * <p><b>ロックの順番は「伝票 → menu_item」で固定すること。</b><br>
+     * 在庫の増減（{@code MenuItemRepository}）は伝票より<b>あと</b>に来ます。
+     * どこか 1 箇所でも逆順にすると、2 つの処理が互いの相手を待つ
+     * デッドロック（AB-BA）になります。
+     *
+     * @param sessionId 伝票 ID。注文が見つからないときは空（このあと読む側が例外にする）
+     */
+    private void lockBillOf(Optional<Long> sessionId) {
+        sessionId.ifPresent(tableService::lockSession);
+    }
 
     /**
      * キャンセルは「開いている伝票」の注文にしか許さない。
