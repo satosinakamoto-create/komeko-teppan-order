@@ -157,6 +157,51 @@ class TableServiceIntegrationTest {
         }
 
         @Test
+        @DisplayName("お客さま側からの申告では、開いている伝票の人数が減らない")
+        void customerCannotLowerGuestCountOfAnOpenBill() {
+            // ★取りっぱぐれを防ぐテスト★
+            // /t/{token}/start は認証なしなので、遅れて QR を読んだ 1 人の古い画面から
+            // 「1名」が届く。6 名でご案内した卓がここで 1 名に化けると、
+            // テーブルチャージが ¥2,700 → ¥450 に減り、会計まで誰も気づけない。
+            TableSession bill = tableService.openSession(table.getId(), 6);
+            assertThat(bill.getTableChargeAmount()).isEqualTo(2700);   // 450 × 6名
+
+            TableSession afterCustomerPost = tableService.openSession(
+                    table.getId(), 1, TableService.GuestCountSource.CUSTOMER);
+
+            assertThat(afterCustomerPost.getId()).isEqualTo(bill.getId());
+            assertThat(afterCustomerPost.getGuestCount()).isEqualTo(6);
+            assertThat(afterCustomerPost.getTableChargeAmount()).isEqualTo(2700);
+        }
+
+        @Test
+        @DisplayName("お客さま側からでも、人数が増える方向は反映される")
+        void customerCanRaiseGuestCount() {
+            // お連れさまが後から合流して読み直す、というごく普通の流れ。
+            // 増える方向は取りっぱぐれにならず、間違っていてもお客さまが伝票で気づける。
+            tableService.openSession(table.getId(), 2);
+
+            TableSession joined = tableService.openSession(
+                    table.getId(), 4, TableService.GuestCountSource.CUSTOMER);
+
+            assertThat(joined.getGuestCount()).isEqualTo(4);
+            assertThat(joined.getTableChargeAmount()).isEqualTo(1800);   // 450 × 4名
+        }
+
+        @Test
+        @DisplayName("スタッフ側（ホール画面）からは、これまでどおり人数を減らせる")
+        void staffCanStillLowerGuestCount() {
+            // 人数を下げる判断は「卓を見ているスタッフ」に限定する、というのが上の 2 件の趣旨。
+            // その受け皿がここ。塞ぎすぎて直せなくなっては本末転倒になる。
+            tableService.openSession(table.getId(), 6);
+
+            TableSession corrected = tableService.openSession(table.getId(), 2);
+
+            assertThat(corrected.getGuestCount()).isEqualTo(2);
+            assertThat(corrected.getTableChargeAmount()).isEqualTo(900);   // 450 × 2名
+        }
+
+        @Test
         @DisplayName("開いた直後でも、テーブルチャージぶんの請求額が入っている")
         void chargeIsCalculatedOnOpen() {
             TableSession bill = tableService.openSession(table.getId(), 2);

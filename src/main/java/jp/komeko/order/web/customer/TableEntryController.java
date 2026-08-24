@@ -86,6 +86,14 @@ public class TableEntryController {
      * <p>人数を聞くのはテーブルチャージの計算に必要だからです。
      * お客さんの申告なので、実際と違っていればスタッフがホール画面から直せます。
      *
+     * <p><b>すでに開いている伝票の人数を、ここから減らすことはできません。</b><br>
+     * この URL は認証なし（{@code SecurityConfig} で permitAll）で、
+     * 遅れて QR を読んだ人の<b>古い画面</b>からも届きます。
+     * 6 名でご案内した卓（チャージ ¥450 × 6）に「1名」が届いて上書きされると、
+     * 会計を締めるまで誰も気づけないまま ¥2,250 を取りこぼします。
+     * 判断そのものは {@code TableService#openSession} 側にあり、
+     * ここは「反映されなかったことをお客さまに伝える」だけを受け持ちます。
+     *
      * <p><b>{@code int} ではなく {@code String} で受けている理由（実際に起きた不具合）</b><br>
      * 以前は {@code @RequestParam int guestCount} でした。
      * ところが「9名以上のとき」の欄を<b>空のまま「決定」を押す</b>と、
@@ -116,7 +124,18 @@ public class TableEntryController {
             return "redirect:/t/" + accessToken;
         }
 
-        tableService.openSession(table.getId(), Math.max(1, Math.min(parsed, 20)));
+        int requested = Math.max(1, Math.min(parsed, 20));
+        TableSession bill = tableService.openSession(
+                table.getId(), requested, TableService.GuestCountSource.CUSTOMER);
+
+        // 申告と実際の人数が食い違っていたら、黙って捨てずにご案内を出す。
+        // 「押したのに変わらない」を無言でやると、お客さまは何度も送信するか、
+        // 人数が直ったものと思い込んだまま会計で驚くことになる。
+        if (bill.getGuestCount() != requested) {
+            redirectAttributes.addFlashAttribute("flashInfo",
+                    "この席はすでに %d 名さまでご案内済みです。人数の変更はスタッフにお申し付けください"
+                            .formatted(bill.getGuestCount()));
+        }
         return "redirect:/";
     }
 
