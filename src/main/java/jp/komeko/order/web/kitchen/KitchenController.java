@@ -170,6 +170,19 @@ public class KitchenController {
      * URL を直接叩かれて存在しない名前が来ると {@link IllegalArgumentException} が飛ぶので、
      * ここで受け止めます。
      *
+     * <p><b>この口ではキャンセルを行いません（CANCELED は受け付けない）</b><br>
+     * キャンセルには専用の {@link #cancel} があり、画面（board.html）も
+     * この口へ CANCELED を送りません。つまり<b>正規の利用者は実スタッフを含め誰も
+     * ここに CANCELED を送らない</b>ので、弾いても現場の操作は 1 つも変わりません。
+     * にもかかわらず受け付けたままにしていると、
+     * 「同じ操作に URL が 2 本ある」状態になり、片方だけに掛けた制限
+     * （公開デモで見学者にキャンセルを許さない、など）が
+     * もう片方から素通りしてしまいます。実際その抜け道がありました（2026-08-24）。
+     *
+     * <p>これは<b>認可の話ではなく入力の妥当性の話</b>として書いています。
+     * 「誰なら許すか」で書くと、ロールが増えるたびに条件を足して回ることになりますが、
+     * 「この口はその操作をしない」で閉じておけば、あとから誰が来ても崩れません。
+     *
      * <p><b>なぜ例外をここで catch するのか</b><br>
      * 状態遷移の違反（例：すでに提供済みの注文をもう一度進めようとした）は
      * {@link IllegalStateException} になります。これを素通しすると
@@ -189,6 +202,16 @@ public class KitchenController {
                                RedirectAttributes redirectAttributes) {
         try {
             OrderStatus next = OrderStatus.valueOf(status);
+            // キャンセルは専用の /cancel が受け持つ。この口では扱わない（上の説明を参照）。
+            //
+            // わざと例外にして、すぐ下の catch へ落としています。
+            // 「存在しない状態名が来た」も「この口では受け付けない状態名が来た」も、
+            // 利用者から見れば同じ「その状態には変更できません」でしかありません。
+            // 応答の形をここで作り分けると、同じ意味の画面表示が 2 通りに増えてしまいます。
+            if (next == OrderStatus.CANCELED) {
+                throw new IllegalArgumentException(
+                        "キャンセルはこの操作では行えません: " + status);
+            }
             Order order = orderService.changeStatus(id, next, staffNameOf(user));
             // 操作した本人が「どの卓を進めたか」をすぐ確かめられるよう、卓名を先頭に出す。
             // 番号だけだと、卓が 10 も 20 もある店では結局伝票を探し直すことになります。
@@ -197,8 +220,9 @@ public class KitchenController {
                             .formatted(order.getTableName(), order.getOrderNumber(), boardLabelOf(next)));
 
         } catch (IllegalArgumentException e) {
-            // valueOf の失敗（存在しない状態名）。通常の操作では起こらない。
-            log.warn("不明な状態が指定されました: {}", status);
+            // valueOf の失敗（存在しない状態名）と、この口では受け付けない CANCELED。
+            // どちらも画面にボタンが無いので、通常の操作では起こらない。
+            log.warn("この画面では扱えない状態が指定されました: {}", status);
             redirectAttributes.addFlashAttribute("flashErrors",
                     List.of("その状態には変更できません（%s）".formatted(status)));
 
