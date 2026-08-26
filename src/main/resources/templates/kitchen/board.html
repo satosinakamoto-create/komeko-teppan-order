@@ -78,9 +78,14 @@
                15 分以上たった注文には is-late が付き、枠が赤くなります。
                経過時間はサーバが描いた値をそのまま出します。
                ブラウザ側で 1 分ずつ足していくとサーバとズレる一方なので行いません。
+
+               赤枠にするかの判定は elapsedDisplay（KitchenController.ElapsedDisplay）に
+               任せています。閾値の比較をここに書かないのは、
+               「数字を出すか」（下の .ticket__time）と条件が食い違わないようにするためです。
+               片方だけ直して「数字は無いのに枠は赤い」を作らないための置き方です。
         */-->
         <article class="ticket" th:each="order : ${lane.orders()}"
-                 th:classappend="${order.elapsedMinutes >= lateMinutes} ? 'is-late'">
+                 th:classappend="${elapsedDisplay.late(order)} ? 'is-late'">
 
           <!--/* ===== チケットの頭 =====
                  いちばん大きく出すのは卓名（＝運び先）です。
@@ -111,7 +116,28 @@
                   th:if="${sameTableCount[order.tableName] != null and sameTableCount[order.tableName] > 1}"
                   th:text="'同卓 ' + ${sameTableCount[order.tableName]} + ' 件'">同卓 2 件</span>
 
-            <span class="ticket__time" th:text="${order.elapsedMinutes} + ' 分'">3 分</span>
+            <!--/* 経過時間。
+
+                   公開デモでは、起動時に置かれた背景の注文が
+                   夕方には「378 分」になり、ボード全面が赤枠になります。
+                   数字が実態と合っていないので、そこまで古いものは
+                   数字も赤枠も出さず「デモ用」とだけ書きます。
+                   見学者がその場で入れた注文は経過時間が正しいので、
+                   これまでどおり分数が出て、15 分たてば赤くなります。
+
+                   実店舗（app.guest-login=false）では条件が常に成立し、
+                   これまでと 1 ピクセルも変わりません。判断は elapsedDisplay 側にあります。 */-->
+            <!--/* 出さないと決めたときは、span ごと出しません。
+                   最初は「デモ用」というラベルを入れていましたが、やめました。
+                   ここは経過時間という「計測値」の枠なので、同じ枠に出自のラベルを
+                   混ぜると意味の型が揃いません。しかも公開デモでは 7 枚中 4 枚に出て、
+                   ボードでいちばん多い語が「デモ用」になります。
+                   全部デモなのに一部だけそう名乗るので、数字が出ている側が
+                   「本物」だと読めてしまうのも具合が悪い。
+                   説明は画面の下に 1 回だけ置いて、チケットは静かにしておきます。 */-->
+            <span class="ticket__time"
+                  th:if="${elapsedDisplay.shows(order)}"
+                  th:text="${order.elapsedMinutes} + ' 分'">3 分</span>
           </div>
 
           <!--/* 明細。オプションは「（チーズ増量 / 大盛り）」の形で 1 行にまとめて出す */-->
@@ -148,8 +174,33 @@
                   th:if="${next.name() != 'CANCELED'}"
                   th:action="@{/kitchen/orders/{id}/status(id=${order.id})}" method="post">
               <input type="hidden" name="status" th:value="${next.name()}">
+              <!--/* ===== ボタンの強さ =====
+                     見た目は「遷移先が何か」ではなく
+                     **そのレーンでの標準の次の一手か**で決めます（OrderStatus#isPrimaryNext）。
+
+                     以前は遷移先の名前だけで決めていて、受付レーンだけ話が逆になっていました。
+                     受付には「焼きはじめ（→調理中）」と「焼き上がり（→お渡し可）」が並びます。
+                     後者はドリンクだけの注文で焼く工程を飛ばすための操作なのに、
+                     READY 行きというだけで緑の目立つボタンになり、
+                     本来の一手である「焼きはじめ」が白いゴーストで一番弱くなっていました。
+                     忙しい厨房で一番目立つボタンが飛ばし技、というのは事故のもとです。
+
+                     文言のほうは前から「いまいるレーンで意味が変わる」を見ていました
+                     （下の COOKING の分岐）。同じ原則を見た目にも適用した、というのがこの式です。
+
+                     ・標準の一手     … btn--primary（スタッフ側テーマでは黒の塗り）
+                     ・提供済みにする … さらに btn--lg。伝票を閉じる最後の確定操作なので、
+                                        押し間違えないよう指のサイズで区別する
+                     ・それ以外       … 無印の .btn（枠線だけ）。飛ばす・戻すは例外操作
+
+                     btn--ok（緑）はこの画面では使いません。緑は「完了・良い結果」の色で、
+                     押すべき一手の目印ではないためです。レーンごとに主ボタンの色が
+                     変わると「塗ってあるのが次の一手」という一番速い読み方も崩れます。
+                     CLAUDE.md「アクセント色は押せるもの・熱いものだけに使う」にも沿います。 */-->
               <button type="submit" class="btn"
-                      th:classappend="${next.name() == 'COMPLETED'} ? 'btn--primary btn--lg' : (${next.name() == 'READY'} ? 'btn--ok' : '')">
+                      th:classappend="${order.status.isPrimaryNext(next)}
+                                        ? (${next.name() == 'COMPLETED'} ? 'btn--primary btn--lg' : 'btn--primary')
+                                        : ''">
                 <!--/* ボタンの文言はイートインの動きに合わせています。
                        OrderStatus の staffLabel（「お渡し可」「受渡済」）は
                        テイクアウト時代の言葉のままで、他の画面も使っているため変更できません。
@@ -209,6 +260,14 @@
 
   <p class="tiny faint center mt-6">
     注文が入ると自動で画面が更新されます。すぐ確認したいときは端末の再読み込みを押してください。
+  </p>
+
+  <!--/* 経過時間が出ていない理由を、ここで 1 回だけ説明します。
+         チケット 1 枚ずつに書くと、ボードで最も多い文字が言い訳になってしまいます。
+         実店舗（app.demo-data=false）ではこの行は出ません。 */-->
+  <p class="tiny faint center" th:if="${elapsedDisplay.demoMode()}">
+    見学用の画面です。あらかじめ置いてある注文は、時間が経つと経過時間が実態と合わなくなるため表示していません。
+    ご自身で入れた注文には経過時間が出ます。
   </p>
 
   <!--/* SSE を受け取って画面を読み直すスクリプト。defer なので HTML を描き終えてから動きます */-->

@@ -111,6 +111,70 @@ class OrderStatusTest {
     }
 
     @Nested
+    @DisplayName("標準の次の一手（primaryNext）")
+    class PrimaryNext {
+
+        /**
+         * このテストが守っているもの＝<b>厨房ボードのボタンの強弱</b>。
+         *
+         * <p>受付レーンには「焼きはじめ（→調理中）」と「焼き上がり（→お渡し可）」が並びます。
+         * 後者はドリンクだけの注文で焼く工程を飛ばすための操作です。
+         * ここが入れ替わると、忙しい厨房で一番目立つボタンが飛ばし技になり、
+         * 「押したら焼かずにお渡し可になっていた」が起きます。
+         */
+        @Test
+        @DisplayName("受付の標準の次は「調理中」。お渡し可は飛ばし技なので標準ではない")
+        void fromReceived() {
+            assertThat(OrderStatus.RECEIVED.primaryNext()).contains(OrderStatus.COOKING);
+            assertThat(OrderStatus.RECEIVED.isPrimaryNext(OrderStatus.COOKING)).isTrue();
+            assertThat(OrderStatus.RECEIVED.isPrimaryNext(OrderStatus.READY)).isFalse();
+        }
+
+        @Test
+        @DisplayName("調理中の標準の次は「お渡し可」")
+        void fromCooking() {
+            assertThat(OrderStatus.COOKING.primaryNext()).contains(OrderStatus.READY);
+            assertThat(OrderStatus.COOKING.isPrimaryNext(OrderStatus.READY)).isTrue();
+        }
+
+        @Test
+        @DisplayName("お渡し可の標準の次は「受渡済」。調理中へ戻すのは一段戻す操作なので標準ではない")
+        void fromReady() {
+            // 同じ COOKING でも、受付から見れば前へ進める操作、
+            // お渡し可から見れば焼き直しのために戻す操作。
+            // 「遷移先の名前」だけを見ていると、この違いが消える。
+            assertThat(OrderStatus.READY.primaryNext()).contains(OrderStatus.COMPLETED);
+            assertThat(OrderStatus.READY.isPrimaryNext(OrderStatus.COMPLETED)).isTrue();
+            assertThat(OrderStatus.READY.isPrimaryNext(OrderStatus.COOKING)).isFalse();
+        }
+
+        @ParameterizedTest(name = "{0} からは標準の次の一手が無い")
+        @EnumSource(value = OrderStatus.class, names = {"COMPLETED", "CANCELED"})
+        void terminalStatesHaveNoPrimaryNext(OrderStatus status) {
+            assertThat(status.primaryNext()).isEmpty();
+            // 空のときに isPrimaryNext が例外を投げたり true を返したりしないこと。
+            // 閉じた伝票のチケットにボタンは出ないが、判定側が壊れないのは別途保証する。
+            assertThat(status.isPrimaryNext(OrderStatus.COOKING)).isFalse();
+        }
+
+        @ParameterizedTest(name = "{0} の標準の次の一手はキャンセルではない")
+        @EnumSource(OrderStatus.class)
+        void cancelIsNeverThePrimaryNext(OrderStatus status) {
+            // キャンセルはどの状態からでも選べる「横道」で、進むべき道ではない。
+            // ボードでも一段下げた場所に別枠で置いている。
+            assertThat(status.isPrimaryNext(OrderStatus.CANCELED)).isFalse();
+        }
+
+        @ParameterizedTest(name = "{0} の標準の次の一手は、遷移してよい先の一つである")
+        @EnumSource(OrderStatus.class)
+        void primaryNextIsAlwaysAllowed(OrderStatus status) {
+            // 「画面に出したボタンをサーバが弾く」を構造的に起こさないための保険。
+            status.primaryNext().ifPresent(next ->
+                    assertThat(status.canTransitionTo(next)).isTrue());
+        }
+    }
+
+    @Nested
     @DisplayName("状態の性質を判定するメソッド")
     class StateFlags {
 

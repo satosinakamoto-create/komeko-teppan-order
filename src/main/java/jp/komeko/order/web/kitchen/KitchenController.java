@@ -12,6 +12,7 @@ import jp.komeko.order.service.ShopSettingService;
 import jp.komeko.order.service.dto.KitchenBoard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -73,6 +74,47 @@ public class KitchenController {
     private static final long LATE_MINUTES = 15;
 
     /**
+     * <b>公開デモでだけ</b>「この経過時間はもう実態を表していない」とみなす分数。
+     *
+     * <p><b>なぜこれが要るのか</b><br>
+     * 公開デモの背景に並んでいる注文は {@code DemoDataSeeder} が
+     * <b>アプリの起動時に一括で</b>作ります（{@code Order.createdAt} はその時刻）。
+     * ところが公開デモのインスタンスは cron に 10 分おきに叩かれて
+     * 日中ずっと生き続けるため、夕方に開くと同じ 6 件が
+     * 「378 分経過」になり、<b>ボード全面が赤枠</b>になります。
+     * 見せたいのは「いま回っている厨房」なのに、
+     * 「6 時間放置された注文が並ぶ厨房」が出てしまい、意図と正反対です。
+     *
+     * <p><b>なぜ {@link #LATE_MINUTES} と同じ値なのか＝デモでは赤枠を出さない</b><br>
+     * 最初は 90 分（遅延閾値の 6 倍）にしていました。見学者が自分で入れた注文が
+     * 15 分で赤くなる様子まで機能として見せたかったからです。
+     * <b>これは間違いでした。</b>背景の 6 件は同時に作られて同時に歳を取るので、
+     * 起動 +15 分〜+90 分のあいだ<b>全 6 枚が一斉に赤くなります</b>。
+     * 毎朝 8:00 に起こされるため、午前に開いた人は結局
+     * 「放置された注文が並ぶ厨房」を見ることになり、直したはずの問題がそのまま残っていました。
+     * さらに、その赤は 90 分ちょうどで予告なく消えます。
+     * <b>警告が勝手に消える画面は、警告そのものの信頼を落とします。</b>
+     *
+     * <p>そこで割り切りました。<b>公開デモでは遅延アラートを出しません。</b>
+     * 背景の注文は必ず時間が経つので、デモにおける赤枠は「遅れている」ではなく
+     * 「デモのデータが古い」の意味にしかなりません。
+     * 意味の違うものを同じ赤で出すくらいなら、出さないほうが正確です。
+     * 値を {@link #LATE_MINUTES} に揃えると、赤くなる条件に達した瞬間に
+     * 数字のほうが消えるので、<b>赤枠は構造的に発生しません</b>。
+     *
+     * <p><b>なぜ閾値という間接的な判定なのか</b><br>
+     * 本来は「シーダーが置いた注文か」を直接持てば正確です。しかし本番は
+     * {@code ddl-auto: validate} で Flyway も未導入のため、
+     * 目印の列を足す＝スキーマ変更はできません（CLAUDE.md）。
+     * 列を足さずに区別できる材料は経過時間しか無いので、閾値で線を引いています。
+     *
+     * <p>結果として「見学者が 15 分前に入れた注文」も数字が消えますが、
+     * デモで見せたいのは注文が厨房に届く連携そのもので、経過時間ではありません。
+     * <b>実店舗（{@code app.demo-data=false}）の遅延アラートは一切変わりません。</b>
+     */
+    private static final long DEMO_STALE_MINUTES = LATE_MINUTES;
+
+    /**
      * 店側からキャンセルしたときに既定で記録する理由。
      *
      * <p>チケット 1 枚 1 枚に理由の入力欄を置くとボードが狭くなり、
@@ -84,6 +126,30 @@ public class KitchenController {
     private final OrderService orderService;
     private final MenuService menuService;
     private final ShopSettingService shopSettingService;
+
+    /**
+     * デモ用の背景データが入っているか（環境変数 {@code APP_DEMO_DATA=true}）。
+     *
+     * <p><b>なぜ {@code app.guest-login} ではないのか</b><br>
+     * 最初は {@code app.guest-login} で切っていました。公開デモではこの 2 つが
+     * 同時に true になるので、動いてはいました。<b>ですが原因はそちらではありません。</b>
+     * 経過時間を狂わせているのは {@link jp.komeko.order.seed.DemoDataSeeder} が
+     * 背景の注文を置くことで、そのスイッチは {@code app.demo-data} です。
+     * {@code app.guest-login} はログイン画面とゲスト権限の話で、別の関心事です。
+     *
+     * <p>実際に食い違う組み合わせがあります。{@code tools\run.ps1 -Demo} は
+     * dev プロファイルで {@code APP_DEMO_DATA=true} <b>だけ</b>を立てるので、
+     * guest-login で切っていると<b>手元では背景注文が出るのに抑制が効かず</b>、
+     * 直したはずの全面赤枠がそのまま再現していました。
+     *
+     * <p>判断の材料は、原因を持っているスイッチから取ります。
+     * 相関しているだけの値で代用すると、相関が崩れた瞬間に静かに壊れます。
+     *
+     * <p>なお値はモデル属性ではなく設定値から直接注入します。
+     * 画面に配られた値を読み直す形にすると、テンプレートに載せ忘れた瞬間に
+     * 「実店舗扱い」へ静かに倒れるためです。
+     */
+    private final boolean demoMode;
 
     /**
      * コンストラクタインジェクション。
@@ -101,10 +167,12 @@ public class KitchenController {
      */
     public KitchenController(OrderService orderService,
                              MenuService menuService,
-                             ShopSettingService shopSettingService) {
+                             ShopSettingService shopSettingService,
+                             @Value("${app.demo-data:false}") boolean demoMode) {
         this.orderService = orderService;
         this.menuService = menuService;
         this.shopSettingService = shopSettingService;
+        this.demoMode = demoMode;
     }
 
     // ========================================================================
@@ -155,7 +223,10 @@ public class KitchenController {
                 new BoardLane("受付", "lane--received", board.received()),
                 new BoardLane("調理中", "lane--cooking", board.cooking()),
                 new BoardLane("提供待ち", "lane--ready", board.ready())));
-        model.addAttribute("lateMinutes", LATE_MINUTES);
+        // 経過時間を「出すか／赤くするか」の判断役。しきい値の比較を画面に書かず、
+        // ここで組み立てた小さな判断役に聞く形にしている（ElapsedDisplay の説明を参照）。
+        model.addAttribute("elapsedDisplay",
+                new ElapsedDisplay(demoMode, LATE_MINUTES, DEMO_STALE_MINUTES));
         // 卓名 → その卓のチケット枚数。テンプレートでは ${sameTableCount[order.tableName]} で引く
         model.addAttribute("sameTableCount", countByTableName(board));
         // レイアウト（layout/staff.html）のナビで、いまいる場所に色を付けるための目印
@@ -564,6 +635,59 @@ public class KitchenController {
         /** 1 件もないか（「注文はありません」を出す判定に使う）。 */
         public boolean isEmpty() {
             return orders.isEmpty();
+        }
+    }
+
+    /**
+     * チケットの「経過時間」の見せ方を決める、小さな判断役。
+     *
+     * <p><b>実店舗（{@code demoMode == false}）では一切ふるまいが変わりません。</b>
+     * {@code shows} は常に true を返し、{@code late} は
+     * これまでどおり {@code 経過 >= lateMinutes} だけで決まります。
+     * 遅延アラートは<b>本番の機能</b>で、料理が止まっていることに気づくための
+     * 最後の砦なので、デモの都合で鈍らせてはいけません。
+     *
+     * <p><b>公開デモ（{@code demoMode == true}）でだけ</b>、
+     * {@code staleMinutes} を超えた注文の数字と赤枠を引っ込めます。
+     * 理由は {@link KitchenController#DEMO_STALE_MINUTES} に書いてあります。
+     *
+     * <p><b>なぜテンプレートの条件式ではなくここに置くのか</b><br>
+     * 「数字を出すか」と「赤枠にするか」は<b>連動していないと矛盾</b>します。
+     * 数字を隠したのに枠だけ赤い、という組み合わせが一度でも出ると、
+     * 見た人は理由の分からない赤を見ることになります。
+     * 2 つの条件を画面の別々の場所に書くと、その連動は簡単に崩れます。
+     * ここにまとめておけば {@code late} が {@code shows} を内側で呼ぶ形で、
+     * <b>構造として</b>矛盾しないようにできます。素の JUnit でも固定できます。
+     *
+     * @param demoMode     公開デモか（{@code app.guest-login}）
+     * @param lateMinutes  遅延として赤くする閾値（実店舗の機能）
+     * @param staleMinutes デモで「もう実態と合わない」とみなす閾値
+     */
+    public record ElapsedDisplay(boolean demoMode, long lateMinutes, long staleMinutes) {
+
+        /** 経過時間の数字を出してよいか。 */
+        public boolean shows(Order order) {
+            return shows(order.getElapsedMinutes());
+        }
+
+        /** 遅延（{@code is-late}／赤枠）として見せるか。 */
+        public boolean late(Order order) {
+            return late(order.getElapsedMinutes());
+        }
+
+        /** 分数だけを受け取る版。テストから時計に左右されずに呼べるように分けてある。 */
+        public boolean shows(long elapsedMinutes) {
+            return !demoMode || elapsedMinutes < staleMinutes;
+        }
+
+        /**
+         * 分数だけを受け取る版。
+         *
+         * <p>{@code shows} を先に確かめているのが要点です。
+         * 数字を出さないと決めた注文は、赤枠にもしません。
+         */
+        public boolean late(long elapsedMinutes) {
+            return shows(elapsedMinutes) && elapsedMinutes >= lateMinutes;
         }
     }
 }
