@@ -1,5 +1,6 @@
 package jp.komeko.order.web.kitchen;
 
+import jp.komeko.order.domain.Category;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
@@ -275,10 +276,31 @@ public class KitchenController {
     // ========================================================================
 
     /**
+     * 品切れ管理パネルの「カテゴリ 1 つぶん」。
+     *
+     * <p><b>なぜ Map ではなく record にしたか</b><br>
+     * 以前は {@code Map<カテゴリ名, 商品リスト>} を画面に渡していました。
+     * ところが 2026-08-26 にカテゴリへ飛ぶアンカーリンク（チップ）を足すにあたり、
+     * <b>カテゴリの id</b> が必要になりました。キーが名前しか持たない Map では
+     * id を運べません。「1 つの塊が持つ情報が 2 つ以上になったら record」が目安です。
+     *
+     * <p>record は「値を運ぶだけの入れ物」を 1 行で書ける Java 16 以降の書き方です。
+     * getter は自動で作られ、名前は {@code getId()} ではなく {@code id()} になります。
+     * そのため Thymeleaf 側も {@code ${g.id()}} と括弧付きで呼びます
+     * （普通のクラスの {@code getXxx()} だけが {@code ${obj.xxx}} と省略できます）。
+     *
+     * @param id    カテゴリの id。アンカーの id（{@code #cat-3}）に使う
+     * @param name  カテゴリ名。見出しとチップの文字に使う
+     * @param items そのカテゴリの掲載中の商品（並び順は商品の sortOrder のまま）
+     */
+    public record StockCategory(Long id, String name, List<MenuItem> items) {
+    }
+
+    /**
      * 品切れ管理パネル。
      *
      * <p>カテゴリごとに見出しを付けて並べたいので、
-     * {@code カテゴリ名 → 商品リスト} の形に組み替えてから画面に渡します。
+     * カテゴリ単位の塊（{@link StockCategory}）に組み替えてから画面に渡します。
      *
      * <p>{@link LinkedHashMap} を使うのは<b>入れた順番が保たれる</b>ためです。
      * 普通の {@code HashMap} は順不同なので、並び順に意味がある画面では使えません。
@@ -289,17 +311,25 @@ public class KitchenController {
     public String stock(Model model) {
         List<MenuItem> items = menuService.itemsForSoldOutPanel();
 
-        Map<String, List<MenuItem>> byCategory = new LinkedHashMap<>();
+        // カテゴリ id で束ねる。名前で束ねると、同じ名前のカテゴリを 2 つ作られたときに
+        // 別物どうしが 1 つの見出しに混ざってしまう（id なら絶対にぶつからない）。
+        Map<Long, List<MenuItem>> itemsByCategoryId = new LinkedHashMap<>();
+        Map<Long, String> categoryNames = new HashMap<>();
         for (MenuItem item : items) {
             // category は EntityGraph で一緒に読み込み済みなので、ここで触っても
             // LazyInitializationException にはならない（open-in-view: false のため要注意な箇所）
-            String categoryName = item.getCategory().getName();
-            byCategory.computeIfAbsent(categoryName, key -> new ArrayList<>()).add(item);
+            Category category = item.getCategory();
+            itemsByCategoryId.computeIfAbsent(category.getId(), key -> new ArrayList<>()).add(item);
+            categoryNames.putIfAbsent(category.getId(), category.getName());
         }
+
+        List<StockCategory> categoryGroups = new ArrayList<>();
+        itemsByCategoryId.forEach((categoryId, list) ->
+                categoryGroups.add(new StockCategory(categoryId, categoryNames.get(categoryId), list)));
 
         long soldOutCount = items.stream().filter(MenuItem::isSoldOut).count();
 
-        model.addAttribute("itemsByCategory", byCategory);
+        model.addAttribute("categoryGroups", categoryGroups);
         model.addAttribute("itemCount", items.size());
         model.addAttribute("soldOutCount", soldOutCount);
         model.addAttribute("activeNav", "stock");
@@ -324,10 +354,12 @@ public class KitchenController {
                     "「%s」の残数を %d に設定しました".formatted(name, stockCount));
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/kitchen/stock";
         } catch (MenuService.MenuItemNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/kitchen/stock";
         }
-        return "redirect:/kitchen/stock";
+        return redirectToCategoryOf(itemId);
     }
 
     /** 残数管理をやめる（数を数えない品に戻す）。 */
@@ -339,8 +371,9 @@ public class KitchenController {
                     "「%s」の残数管理を解除しました（無制限に戻ります）".formatted(name));
         } catch (MenuService.MenuItemNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/kitchen/stock";
         }
-        return "redirect:/kitchen/stock";
+        return redirectToCategoryOf(itemId);
     }
 
     /**
@@ -348,6 +381,11 @@ public class KitchenController {
      *
      * <p>戻り先は品切れパネルです。厨房ボードに飛ばすと、
      * 続けて何品も操作したいときに毎回パネルを開き直すことになるためです。
+     *
+     * <p><b>成功したときは、操作した品のカテゴリまで戻します</b>（{@link #redirectToCategoryOf}）。
+     * この画面は 14 カテゴリ 94 行あるので、素の {@code /kitchen/stock} に戻すと
+     * 毎回いちばん上に着地し、「続けて何品も」ができません。
+     * カテゴリのチップで飛んだ意味も、1 操作で消えてしまいます。
      */
     @PostMapping("/stock/{itemId}/toggle")
     public String toggleSoldOut(@PathVariable Long itemId, RedirectAttributes redirectAttributes) {
@@ -366,8 +404,33 @@ public class KitchenController {
             }
         } catch (MenuService.MenuItemNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/kitchen/stock";
         }
-        return "redirect:/kitchen/stock";
+        return redirectToCategoryOf(itemId);
+    }
+
+    /**
+     * 品切れパネルの、その商品が属するカテゴリまで戻す。
+     *
+     * <p><b>成功時だけ使います。</b>失敗したときは素の {@code /kitchen/stock} に戻して、
+     * 画面上端のエラーを必ず読ませます。うまくいかなかったのに操作した場所へ戻すと、
+     * なぜ変わらないのかが分からないまま同じ操作を繰り返すことになります。
+     *
+     * <p>成功時に上端の成功メッセージが読まれなくなりますが、
+     * <b>操作した行そのものが「品切れ」の表示に変わる</b>ので、
+     * 結果は押した場所で見えます。離れた場所の通知より、そちらのほうが速く伝わります。
+     *
+     * <p>カテゴリが引けなかったときは素の URL に落とします。
+     * 戻り先を決めるためだけの読み直しで例外を投げて、
+     * 成功した操作を失敗に見せてしまわないようにするためです。
+     */
+    private String redirectToCategoryOf(Long itemId) {
+        try {
+            Long categoryId = menuService.itemWithOptions(itemId).getCategory().getId();
+            return "redirect:/kitchen/stock#cat-" + categoryId;
+        } catch (RuntimeException e) {
+            return "redirect:/kitchen/stock";
+        }
     }
 
     // ========================================================================

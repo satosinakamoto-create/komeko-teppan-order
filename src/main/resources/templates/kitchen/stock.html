@@ -14,8 +14,20 @@
    焼けないと分かった時点で、ボード側からキャンセルしてください。
 
    ・カテゴリごとに見出しでまとめる（探す時間を減らす）
+   ・画面のいちばん上にカテゴリのチップを並べ、1 タップで見出しへ飛べるようにする
    ・状態は色つきのチップで一目で分かるようにする
    ・ボタンの文言は「いま押すとどうなるか」を書く（品切れにする／販売再開）
+
+   ── なぜ「チップ＋アンカーリンク」なのか（2026-08-26） ──
+   掲載中の商品は 94 品あり、14 カテゴリぶんの表が縦に並びます。
+   ここへ来る厨房の人は「豚ロースが切れた」と目的が決まった状態で来るので、
+   必要なのは選択肢を見せるナビゲーションではなく、狙った場所へ一息で届く照準です。
+   14 カテゴリなら 1 タップで到達できるため、まずはチップで十分と判断しました。
+
+   お客さま側のメニューで使っている「スワイプで隣のカテゴリへ」は採りません。
+   あれは<b>目的が決まっていない探索</b>（何を頼もうかな）に効くパターンで、
+   目的が決まっている厨房の作業とは状況が違います。
+   同じ理由で、検索欄も今回は入れていません（打つより押すほうが速い品数です）。
 
    商品マスタそのものの編集（価格・説明・画像）は管理画面の担当なので、
    ここには置きません。厨房で必要な操作だけに絞っています。
@@ -51,20 +63,70 @@
          th:if と th:replace を同じタグに書くと th:replace が先に評価され、
          th:if が無視されてしまいます。条件は必ず外側のタグに書きます。
   */-->
-  <div th:if="${itemsByCategory.isEmpty()}">
+  <div th:if="${categoryGroups.isEmpty()}">
     <div th:replace="~{fragments/common :: empty('—', '掲載中の商品がありません')}"></div>
   </div>
 
-  <!--/* ===== カテゴリごとの一覧 =====
-         itemsByCategory は「カテゴリ名 → 商品リスト」の Map です。
-         th:each で Map を回すと、1 周ごとに「キーと値の組」が取り出せるので、
-         見出しには ${group.key}、中身には ${group.value} を使います。
-  */-->
-  <th:block th:each="group : ${itemsByCategory}">
+  <!--/* ===== カテゴリのチップ（見出しへのショートカット） =====
 
-    <div class="section-title">
-      <h2 class="section-title__text" th:text="${group.key}">米粉ガレット</h2>
-      <span class="section-title__count" th:text="${group.value.size()} + ' 品'">4 品</span>
+         ★ 1. なぜ横スクロールではなく「折り返し」なのか
+           お客さま側の .tabs は overflow-x:auto ＋ scrollbar-width:none で作ってあり、
+           タブ 5 個（合計 488px）が 390px の画面からはみ出したまま、
+           スクロールバーも消えているため 5 個目「ドリンク」の存在に気づけません。
+           隠れているものは、無いのと同じです。
+           14 個ならもっとひどくなるので、ここは必ず flex-wrap で折り返します
+           （.stock-nav。app.css の 29 章）。全部が同時に見えることを最優先します。
+
+         ★ 2. なぜ id にカテゴリ名ではなく「カテゴリの id」を使うのか
+           - 日本語を id にすると URL に %E7%B1%B3… という長い列が出て読めません。
+           - 「何番目か」の連番だと、カテゴリを 1 つ増やしただけで
+             #cat-3 の指す先が別のカテゴリにずれます。
+             ブックマークや、厨房どうしで送り合った URL が静かに嘘になります。
+           カテゴリの id はデータが消えない限り変わらないので、これを使います。
+
+         ★ 3. なぜチップ自体を sticky（画面に貼り付け）にしないのか
+           2026-08-26 の実測で、チップ列の高さは
+             1024px → 4 段 216px ／ 768px → 4 段 216px ／ 390px → 10 段 552px
+           でした。390px でこれを常時貼り付けると、844px の画面の 3 分の 2 が
+           「もう用の済んだナビ」で埋まります。飛んだあとに見たいのは表であって
+           チップではないので、貼り付けません。
+           （sticky にする場合は、貼り付いた高さぶんだけ
+             scroll-margin-top も増やさないと見出しが裏に潜ります。
+             その高さは折り返し段数しだいで変わるので、決め打ちできません。
+             「貼り付けない」はこの厄介ごとを丸ごと避ける選択でもあります）
+           代わりに各カテゴリの見出しへ「▲ カテゴリ一覧」を置き、
+           1 タップでこのチップ列まで戻れるようにしてあります
+           （＝上へ戻る手段は用意する、という条件を満たす形）。
+  */-->
+  <nav class="stock-nav" id="stock-nav" aria-label="カテゴリへ移動"
+       th:if="${!categoryGroups.isEmpty()}">
+    <a class="stock-chip" th:each="g : ${categoryGroups}"
+       th:href="'#cat-' + ${g.id()}">
+      <span class="stock-chip__name" th:text="${g.name()}">米粉ガレット</span>
+      <span class="stock-chip__count" th:text="${g.items().size()}">4</span>
+    </a>
+  </nav>
+
+  <!--/* ===== カテゴリごとの一覧 =====
+         categoryGroups は StockCategory（record）のリストです。
+         record のアクセサは getXxx() ではないので、
+         Thymeleaf でも ${g.id()} のように括弧付きで呼びます。
+
+         見出しの div に id を振り、上のチップの href（#cat-3）と対にします。
+         見出しがヘッダーやチップの下に潜らないよう、
+         app.css で .section-title[id] に scroll-margin-top を入れています。
+  */-->
+  <th:block th:each="g : ${categoryGroups}">
+
+    <!--/* 見出しに「▲ カテゴリ一覧」へ戻るリンクを置いていた時期がありますが、外しました。
+           14 個ぶん置くと、48px のタップ領域が見出しの行高そのものを押し上げ、
+           実測で 1024px なら +280px、390px なら +647px ページが伸びます。
+           削るはずだったスクロールを、出口のほうが増やしていました。
+           チップは <a href="#cat-N"> なので履歴に積まれ、ブラウザの戻るで
+           元の位置に復元されます。同じ機能を 14 個ぶんの高さで作り直す必要はありません。 */-->
+    <div class="section-title" th:id="'cat-' + ${g.id()}">
+      <h2 class="section-title__text" th:text="${g.name()}">米粉ガレット</h2>
+      <span class="section-title__count" th:text="${g.items().size()} + ' 品'">4 品</span>
     </div>
 
     <div class="card">
@@ -81,7 +143,7 @@
           </tr>
           </thead>
           <tbody>
-          <tr th:each="item : ${group.value}">
+          <tr th:each="item : ${g.items()}">
 
             <td>
               <span class="bold" th:classappend="${!item.orderable} ? 'muted'"

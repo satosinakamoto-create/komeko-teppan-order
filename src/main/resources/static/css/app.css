@@ -1932,3 +1932,103 @@ body.is-sending .staff-main {
   body.is-sending .app-main,
   body.is-sending .staff-main { transition: none; }
 }
+
+/* --------------------------------------------------------------------------
+   29. 品切れ・残数パネルのカテゴリチップ（2026-08-26）
+   --------------------------------------------------------------------------
+   /kitchen/stock は 14 カテゴリ・94 品の表が縦に並ぶ画面。
+   「材料が切れた 1 品を止める」という目的の決まった作業なので、
+   目的地（カテゴリの見出し）へ 1 タップで飛べる照準を上に置く。
+
+   ★ お客さま側の .tabs をそのまま流用してはいけない
+     .tabs は overflow-x: auto ＋ scrollbar-width: none。
+     390px の画面でタブがはみ出したうえにスクロールバーも消えるため、
+     右端のタブは「存在しないもの」になってしまっている（既知の不具合）。
+     チップが 14 個あるここで同じ作りにすると、被害はさらに大きい。
+     だから .stock-nav は横スクロールを一切持たず、flex-wrap で折り返す。
+     縦は伸びるが、縦は指で送れる。横に隠れたものは指で送れない。
+
+   ★ 折り返しの代償（2026-08-26 に実測した値。次に触る人へ）
+       1024px（厨房のタブレット）… 4 段 / 高さ 216px
+        768px                      … 4 段 / 高さ 216px
+        390px（スマホ）            … 10 段 / 高さ 552px
+     390px ではサイドバーが 64px の帯になり、チップの入る幅が 271px しか
+     残らないため段数が跳ね上がる。それでも 14 個すべてが 1 画面
+     （844px のうち上から 249〜801px）に収まっており、隠れるチップは無い。
+     この画面の主戦場は 1024px のタブレットなので、この代償は許容する。
+     ここを縮めたくなったら、段数ではなく「品数のバッジを消す」から検討すること
+     （どのカテゴリが大きいかは、探す前の判断材料として効いている）。
+   -------------------------------------------------------------------------- */
+.stock-nav {
+  display: flex;
+  /* ここが肝。絶対に overflow-x: auto にしない */
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0 var(--sp-2);
+  /* 「▲ カテゴリ一覧」で戻ってきたとき、1 段目のチップが
+     画面の上端で切れないように余白を取る（下の .section-title[id] と同じ理由） */
+  scroll-margin-top: 24px;
+}
+
+.stock-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* CLAUDE.md の約束「タップ領域は 48px 以上」。
+     濡れた手・急いでいる手でも押せる高さを、文字サイズと無関係に確保する */
+  min-height: var(--tap);
+  padding: 0 14px;
+  /* 親（.staff-main）の幅を超えない保険。
+     カテゴリ名が極端に長くても、横スクロールを発生させない */
+  max-width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .875rem;
+  font-weight: 600;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stock-chip:hover,
+.stock-chip:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* 名前は 1 行。長すぎる名前だけ「…」で詰める（チップ自体は折り返さない）。
+   min-width: 0 が無いと flex の子は縮まないので、省略記号が効かない */
+.stock-chip__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* カテゴリの品数。押す判断の材料ではないので、いちばん弱い色にする */
+.stock-chip__count {
+  flex: none;
+  font-size: .75rem;
+  font-weight: 400;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 飛んだ先で見出しが隠れないようにする ──
+   アンカーで飛ぶと、対象の「上端」が画面の上端にぴったり合う。
+   .section-title は margin-top を持っているが、margin は無視されるため、
+   そのままだと見出しが天井に貼り付いて窮屈に見える
+   （将来この画面に貼り付くヘッダーを足したときは、その高さぶん増やすこと）。
+   scroll-margin-top は「この要素へ飛ぶときは、この余白を空けてね」という指定。 */
+.section-title[id] {
+  scroll-margin-top: 24px;
+}
+
+/* かつて .section-title--anchored（折り返し許可）と .stock-backtop（▲ カテゴリ一覧）を
+   ここに置いていましたが、両方とも外しました。
+   48px のタップ領域を持つリンクを 14 個ぶん見出しに足すと、
+   align-items: baseline の .section-title は行高そのものが 28px → 48px に押し上げられ、
+   実測で 1024px なら +280px、390px なら +647px（ページ全体の約 6%）伸びます。
+   94 行のスクロールを減らすための変更が、出口のほうでそれ以上増やしていました。
+   チップは <a href="#cat-N"> なので履歴に積まれ、ブラウザの戻るで位置が復元されます。 */
