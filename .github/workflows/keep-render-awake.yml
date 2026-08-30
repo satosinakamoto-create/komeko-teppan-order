@@ -1,0 +1,77 @@
+# ============================================================================
+#  Render を眠らせないための ping（2026-08-30 に cron-job.org から移行）
+# ----------------------------------------------------------------------------
+#  Render の無料枠は 15 分の無通信でスリープし、次の起動に約 163 秒かかる。
+#  採用担当は待たないので、公開時間帯だけ外から定期的に叩いて起こしておく。
+#
+#  ■ なぜ cron-job.org をやめたか
+#
+#  Render は cron-job.org（送信元 128.140.8.200 / Hetzner・ドイツ）からの要求では
+#  休眠中のサービスを起こさず、即座に 503 を返す。理由はヘッダに書かれている:
+#
+#      x-render-routing: hibernate-wake-error
+#
+#  x-render-origin-server が付かない ＝ オリジンに届いておらず、アプリは起動を
+#  試みてすらいない。だから Render のアプリログにも何も残らなかった。
+#  結果、毎朝 8:00 から失敗が続き、26 回目（12:10）で cron-job.org が
+#  ジョブを自動無効化する、というのを 3 回（8/21・8/27・8/28）繰り返した。
+#
+#  GitHub Actions の runner（Azure・20.161.78.74）からは起こせることを実測で確認済み。
+#  2026-08-29: 保留されたのち 167.6 秒で 200 OK、x-render-origin-server: Render 付き。
+#  経緯の全文は docs\デプロイ.md を見ること。
+#
+#  ■ ここを直すときの注意
+#
+#  - タイムアウトは 240 秒。起動実測が 168 秒なので、30 秒では絶対に足りない。
+#    cron-job.org の上限が 30 秒だったことも、乗り換えた理由のひとつ。
+#  - cron は UTC 指定。JST 8:00〜17:50 は UTC の 23 時台と 0〜8 時台にあたる。
+#  - GitHub の schedule は 5〜15 分ずれる。稀に 15 分の隙間ができて眠るが、
+#    次の回が 168 秒かけて起こすので自動で戻る。落ちたままにはならない。
+#  - **リポジトリを 60 日触らないと schedule は自動停止する。**
+#  - 失敗すると GitHub がリポジトリ所有者にメールを送る。これが検知役を兼ねる
+#    （cron-job.org の失敗通知は設定が正しくても 1 通も届かず、機能していなかった）。
+# ============================================================================
+name: keep-render-awake
+
+on:
+  schedule:
+    # JST 8:00〜17:50 の 10 分おき（UTC 23:00〜23:50 と 00:00〜08:50）
+    - cron: "*/10 23,0-8 * * *"
+  workflow_dispatch: # 手で確かめたいとき用
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: komeko を起こす
+        run: |
+          curl -sS --fail -o /dev/null --max-time 240 \
+            -w "komeko   http=%{http_code}  time=%{time_total}s\n" \
+            https://komeko-teppan-order.onrender.com/ping
+
+      - name: 透明麻雀を起こす
+        # komeko が落ちても麻雀は叩く。片方の失敗で、もう片方を巻き添えにしない。
+        if: always()
+        run: |
+          curl -sS --fail -o /dev/null --max-time 240 \
+            -w "mahjong  http=%{http_code}  time=%{time_total}s\n" \
+            https://toumei-mahjong.onrender.com/ping
+
+      - name: 失敗したときだけ、原因が分かるヘッダを残す
+        # 2026-08 の 3 回の停止が毎回「原因不明」で終わったのは、
+        # 応答ヘッダを一度も記録していなかったから。同じ轍を踏まないために置く。
+        if: failure()
+        run: |
+          echo "===== runner の送信元 ====="
+          curl -sS --max-time 20 https://ipinfo.io/json || true
+          echo
+          for u in https://komeko-teppan-order.onrender.com/ping \
+                   https://toumei-mahjong.onrender.com/ping; do
+            echo "===== $u ====="
+            curl -sS -D - -o /dev/null --max-time 60 "$u" || true
+            echo
+          done
+          echo "----------------------------------------------------------------"
+          echo "x-render-routing: hibernate-wake-error → Render が起床を拒否している。"
+          echo "  この runner の送信元まで弾かれるようになった可能性。docs\\デプロイ.md 参照。"
+          echo "x-render-origin-server: Render がある    → オリジンには届いている（別の問題）。"
