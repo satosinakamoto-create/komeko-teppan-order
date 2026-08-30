@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<!--/*
+   食材・在庫の一覧。
+
+   この画面が答えるのは 1 つだけ ——「いま何がどれだけあるか」。
+   残量と、少なくなっているものが一目で分かること。それ以上は望まない。
+
+   ★ 並び順は食材マスタの設定どおりで、少ない順に並べ替えない。
+     いつも同じ場所に同じ食材があるほうが、毎日見る人には速い。
+     注意が要るものはバッジで目立たせ、件数を上に出す。
+
+   ★「あと◯営業日」の列はまだ無い。
+     それを出すには注文からどれだけ減ったかを知る必要があり、
+     レシピの登録（Step 3）が要る。無い列を空欄で置いておくと
+     「壊れている」と見えるので、そもそも出さない。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('食材・在庫', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">食材・在庫</h1>
+    <span class="section-title__count" th:text="${today} + ' 時点'">今日</span>
+    <a class="btn btn--primary btn--sm" th:href="@{/inventory/ingredients/new}">食材を追加</a>
+  </div>
+
+  <!--/* ── 注意が要るもの ── */-->
+  <div th:if="${attentionCount > 0}" class="alert alert--warn">
+    <p class="mb-0">
+      <strong th:text="${attentionCount} + ' 件'">3 件</strong>
+      の食材が少なくなっているか、マイナスになっています。下の表で赤くなっている行です。
+    </p>
+  </div>
+
+  <!--/* ── 在庫の表 ── */-->
+  <div th:if="${levels.isEmpty()}" class="empty-state">
+    <div class="empty-state__mark">
+      <th:block th:replace="~{fragments/icons :: ic_package}"/>
+    </div>
+    <p class="lead">まだ食材が登録されていません</p>
+    <p class="help">
+      「食材を追加」から、よく使うものを 5 つ 10 つだけ登録してみてください。<br>
+      全部そろえなくても、登録したぶんから在庫が動きはじめます。
+    </p>
+    <a class="btn btn--primary" th:href="@{/inventory/ingredients/new}">最初の食材を追加する</a>
+  </div>
+
+  <div th:unless="${levels.isEmpty()}" class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>食材</th>
+        <th class="right">残量</th>
+        <th class="right">単価</th>
+        <th>内訳</th>
+        <th>最後の棚卸し</th>
+        <th></th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="l : ${levels}">
+        <td>
+          <a th:href="@{/inventory/ingredients/{id}(id=${l.ingredient().id})}"
+             th:text="${l.ingredient().name}">キャベツ</a>
+          <span th:if="${l.isNegative()}" class="badge badge--soldout">マイナス</span>
+          <span th:if="${!l.isNegative() and l.isBelowThreshold()}" class="badge badge--soldout">少ない</span>
+        </td>
+
+        <td class="right num bold"
+            th:text="${l.ingredient().format(l.quantity())}">1,200 g</td>
+
+        <td class="right num">
+          <span th:if="${l.unitCostIncludingTax() != null}"
+                th:text="${#numbers.formatDecimal(l.unitCostIncludingTax(), 1, 'COMMA', 2, 'POINT')} + ' 円/' + ${l.ingredient().unit.symbol}">
+            0.12 円/g
+          </span>
+          <span th:if="${l.unitCostIncludingTax() == null}" class="faint">―</span>
+          <span th:if="${l.costIsOverridden()}" class="tiny faint">（手動）</span>
+        </td>
+
+        <!--/* なぜこの数字になったかを出す。在庫が合わないとき、
+               人が知りたいのは合計ではなくどこがずれたか。 */-->
+        <td class="tiny faint">
+          <span th:if="${l.hasNoBaseline()}">棚卸しなし（0 から）</span>
+          <span th:unless="${l.hasNoBaseline()}"
+                th:text="'実測 ' + ${l.baselineQty()}">実測 1000</span>
+          <span th:if="${l.received().signum() != 0}" th:text="' ＋入庫 ' + ${l.received()}"> ＋入庫 400</span>
+          <span th:if="${l.consumed().signum() != 0}" th:text="' −消費 ' + ${l.consumed()}"> −消費 200</span>
+          <span th:if="${l.adjusted().signum() != 0}" th:text="' ' + ${l.adjusted()} + '（増減）'"> -100（増減）</span>
+        </td>
+
+        <td class="num tiny">
+          <span th:if="${l.baselineOn() != null}" th:text="${l.baselineOn()}">2026-08-20</span>
+          <span th:if="${l.baselineOn() == null}" class="faint">―</span>
+        </td>
+
+        <td class="right">
+          <a class="btn btn--sm btn--ghost"
+             th:href="@{/inventory/ingredients/{id}(id=${l.ingredient().id})}">記録する</a>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p th:if="${!levels.isEmpty()}" class="help">
+    在庫の数字はどこにも保存していません。<strong>棚卸し＋仕入れ−消費＋増減</strong>を毎回計算しています。
+    だからあとから仕入れを直しても、その後の残量は自動でつじつまが合います。<br>
+    マイナスはそのまま出します。0 で止めると「正しく動いている」ように見えてしまい、
+    棚卸しが必要なことに気づけなくなるからです。
+  </p>
+
+  <!--/* ===== 棚卸し・廃棄の記録 ===== */-->
+  <div th:if="${!levels.isEmpty()}" class="section-title">
+    <h2 class="section-title__text">棚卸し・廃棄を記録する</h2>
+  </div>
+
+  <div th:if="${!levels.isEmpty()}" class="grid grid--2">
+
+    <form th:action="@{/inventory/ingredients/stocktake}" method="post"
+          th:object="${stocktakeForm}" class="card">
+      <div class="card__head">棚卸し（数え直す）</div>
+      <div class="card__body">
+        <div class="field">
+          <label class="label" for="stIngredient">食材</label>
+          <select class="select" id="stIngredient" th:field="*{ingredientId}">
+            <option value="">選んでください</option>
+            <option th:each="l : ${levels}" th:value="${l.ingredient().id}"
+                    th:text="${l.ingredient().name} + '（' + ${l.ingredient().unit.symbol} + '）'">キャベツ</option>
+          </select>
+        </div>
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="label" for="stQty">数えた量</label>
+            <input class="input" type="number" step="0.001" id="stQty" th:field="*{quantity}">
+          </div>
+          <div class="field">
+            <label class="label" for="stDate">数えた日</label>
+            <input class="input" type="date" id="stDate" th:field="*{takenOn}">
+          </div>
+        </div>
+        <p class="help">
+          <strong>営業が終わって、その日の仕入れを棚に入れ終えてから</strong>数えてください。
+          同じ日の仕入れは、数えた量にもう含まれているものとして計算します。
+        </p>
+        <button type="submit" class="btn btn--primary">棚卸しを記録する</button>
+      </div>
+    </form>
+
+    <form th:action="@{/inventory/ingredients/adjust}" method="post"
+          th:object="${stocktakeForm}" class="card">
+      <div class="card__head">廃棄・まかない（減らす）</div>
+      <div class="card__body">
+        <div class="field">
+          <label class="label" for="adIngredient">食材</label>
+          <select class="select" id="adIngredient" th:field="*{ingredientId}">
+            <option value="">選んでください</option>
+            <option th:each="l : ${levels}" th:value="${l.ingredient().id}"
+                    th:text="${l.ingredient().name} + '（' + ${l.ingredient().unit.symbol} + '）'">キャベツ</option>
+          </select>
+        </div>
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="label" for="adQty">減らす量</label>
+            <input class="input" type="number" step="0.001" min="0" id="adQty" th:field="*{quantity}">
+            <p class="help">正の数で入力してください</p>
+          </div>
+          <div class="field">
+            <label class="label" for="adReason">理由</label>
+            <select class="select" id="adReason" th:field="*{reason}">
+              <option th:each="r : ${reasons}" th:value="${r}" th:text="${r.label}">廃棄</option>
+            </select>
+          </div>
+        </div>
+        <p class="help">
+          捨てた分を棚卸しでつじつま合わせせず、理由つきで残します。
+          あとから「先月いくら捨てたか」が出せるようになります。
+        </p>
+        <button type="submit" class="btn">この内容で記録する</button>
+      </div>
+    </form>
+  </div>
+
+  <!--/* ===== 教えれば在庫が正しくなる宿題 ===== */-->
+  <div th:if="${!unlearned.isEmpty() or !linesNeedingQuantity.isEmpty()}" class="section-title">
+    <h2 class="section-title__text">量を教えてください</h2>
+    <span class="section-title__count" th:text="${unlearned.size()} + ' 件'">2 件</span>
+  </div>
+
+  <div th:if="${!unlearned.isEmpty()}" class="card">
+    <div class="card__body">
+      <p class="help">
+        レシートには「エリンギ 120円」としか書かれておらず、<strong>グラム数はどこにも印字されていません</strong>。
+        袋を見れば分かることなので、<strong>1 回だけ</strong>教えてください。
+        次からは自動で在庫に入ります。<br>
+        どうしても分からない食材は、食材の単位を「パック」にして 1 と入れてください。
+        精度は落ちますが、ずっとこの欄に居座って無視されるようになるよりましです。
+      </p>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+          <tr>
+            <th>レシートの品名</th>
+            <th>食材</th>
+            <th>1個あたりの量</th>
+            <th></th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="a : ${unlearned}">
+            <td th:text="${a.sampleText != null ? a.sampleText : a.aliasText}">エリンギ</td>
+            <td th:text="${a.ingredient.name}">エリンギ</td>
+            <td>
+              <form th:action="@{/inventory/ingredients/aliases/{id}/learn(id=${a.id})}" method="post"
+                    class="row">
+                <input class="input input--narrow" type="number" step="0.001" min="0"
+                       name="qtyPerUnit" placeholder="100" required>
+                <span class="tiny" th:text="${a.ingredient.unit.symbol}">g</span>
+                <button type="submit" class="btn btn--sm btn--primary">覚える</button>
+              </form>
+            </td>
+            <td class="right">
+              <form th:action="@{/inventory/ingredients/aliases/{id}/forget(id=${a.id})}" method="post">
+                <button type="submit" class="btn btn--sm btn--ghost">紐付けを消す</button>
+              </form>
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div th:if="${!linesNeedingQuantity.isEmpty()}" class="alert alert--info">
+    <p class="mb-0">
+      <strong th:text="${linesNeedingQuantity.size()} + ' 行'">4 行</strong>
+      の仕入れが、量が分からないため在庫に入っていません。
+      上で量を教えると、<strong>次に同じものを仕入れたときから</strong>自動で在庫に入ります
+      （すでに保存した記録はさかのぼって書き換えません）。
+    </p>
+  </div>
+
+</main>
+</body>
+</html>

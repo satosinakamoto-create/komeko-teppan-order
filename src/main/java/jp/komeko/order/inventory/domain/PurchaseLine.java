@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jp.komeko.order.domain.TaxCalculator;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /**
  * レシートの明細 1 行。
@@ -69,6 +70,31 @@ public class PurchaseLine {
     @Column(nullable = false, length = 20)
     private PurchaseCategory category = PurchaseCategory.FOOD;
 
+    /**
+     * どの食材を仕入れた行か。null なら在庫には入らない（経費としてだけ記録される）。
+     *
+     * <p>洗剤も光熱費も仕入れの記録としては必要ですが、在庫に積む対象ではありません。
+     * また食材であっても、<b>まだ食材マスタに登録していない段階では null のまま保存できます</b>。
+     * お金の記録は紐付けの有無と関係なく完全なので、
+     * 「紐付けないと保存できない」にすると忙しい日に手が止まります。
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ingredient_id")
+    private Ingredient ingredient;
+
+    /**
+     * 在庫に積む量（食材の単位で）。{@link #ingredient} があるときだけ意味を持つ。
+     *
+     * <p>レシートの「エリンギ 120円」に個数は書かれていても<b>グラム数は書かれていません</b>。
+     * ここに入るのは {@link ItemAlias} で 1 回だけ教わった換算（1 パック = 100g）を
+     * レシート上の個数に掛けた値です。
+     *
+     * <p>まだ教わっていなければ null。その行は在庫に積まれず、画面で黄色く表示されます。
+     * <b>金額の記録としては完全なまま</b>で、あとから紐付ければ在庫にも入ります。
+     */
+    @Column(name = "stock_qty", precision = 12, scale = 3)
+    private BigDecimal stockQty;
+
     protected PurchaseLine() {
         // JPA 用
     }
@@ -108,6 +134,44 @@ public class PurchaseLine {
     /** 軽減税率（標準税率より低い率）が適用されている行か。表示の「※」印に使う。 */
     public boolean isReducedRate() {
         return taxRatePercent < 10;
+    }
+
+    /** 在庫に積まれる行か。食材が紐付いていて、換算量まで分かっているとき。 */
+    public boolean feedsStock() {
+        return ingredient != null && stockQty != null && stockQty.signum() != 0;
+    }
+
+    /**
+     * 食材には紐付いているのに、量が分からず在庫に積めていない行か。
+     *
+     * <p>画面で黄色く出して「1 回だけ教えてください」と促すための判定です。
+     * 紐付いていない行（洗剤など）は黄色にしません。<b>直すべきものだけを光らせる</b>。
+     */
+    public boolean needsQuantityLearning() {
+        return ingredient != null && (stockQty == null || stockQty.signum() == 0);
+    }
+
+    /**
+     * この行から求まる食材 1 単位あたりの単価（円・税込）。在庫に積まれない行では null。
+     *
+     * <p>「エリンギ 1 パック 120 円」で 1 パック = 100g なら 1.2 円/g。
+     * 小数以下を切り捨てると 1 円/g になり、原価が 2 割近くずれます。
+     * <b>単価は金額ではなく割合なので、int ではなく BigDecimal で持ちます</b>
+     * （金額を int で持つ規約は、円という単位を持つ値についてのものです）。
+     */
+    public BigDecimal unitCostIncludingTax() {
+        if (!feedsStock()) {
+            return null;
+        }
+        return BigDecimal.valueOf(amount).divide(stockQty, 4, RoundingMode.HALF_UP);
+    }
+
+    /** 同上の税抜。経営の数字として使う（税率が動いても連続する）。 */
+    public BigDecimal unitCostNet() {
+        if (!feedsStock()) {
+            return null;
+        }
+        return BigDecimal.valueOf(netAmount()).divide(stockQty, 4, RoundingMode.HALF_UP);
     }
 
     // ── ここから下は getter / setter（Lombok は使わない規約） ──
@@ -151,5 +215,21 @@ public class PurchaseLine {
 
     public PurchaseCategory getCategory() {
         return category;
+    }
+
+    public Ingredient getIngredient() {
+        return ingredient;
+    }
+
+    public void setIngredient(Ingredient ingredient) {
+        this.ingredient = ingredient;
+    }
+
+    public BigDecimal getStockQty() {
+        return stockQty;
+    }
+
+    public void setStockQty(BigDecimal stockQty) {
+        this.stockQty = stockQty;
     }
 }

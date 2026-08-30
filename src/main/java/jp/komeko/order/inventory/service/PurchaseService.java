@@ -3,6 +3,7 @@ package jp.komeko.order.inventory.service;
 import jp.komeko.order.domain.OrderStatus;
 import jp.komeko.order.inventory.config.InventoryProperties;
 import jp.komeko.order.inventory.domain.*;
+import jp.komeko.order.inventory.repository.IngredientRepository;
 import jp.komeko.order.inventory.repository.PurchaseRepository;
 import jp.komeko.order.inventory.repository.SalesLookupRepository;
 import org.slf4j.Logger;
@@ -12,6 +13,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -51,17 +54,23 @@ public class PurchaseService {
     private final PurchaseRepository purchases;
     private final SalesLookupRepository sales;
     private final TaxRuleService taxRules;
+    private final IngredientRepository ingredients;
+    private final IngredientService aliasLearning;
     private final InventoryProperties properties;
     private final Clock clock;
 
     public PurchaseService(PurchaseRepository purchases,
                            SalesLookupRepository sales,
                            TaxRuleService taxRules,
+                           IngredientRepository ingredients,
+                           IngredientService aliasLearning,
                            InventoryProperties properties,
                            Clock clock) {
         this.purchases = purchases;
         this.sales = sales;
         this.taxRules = taxRules;
+        this.ingredients = ingredients;
+        this.aliasLearning = aliasLearning;
         this.properties = properties;
         this.clock = clock;
     }
@@ -108,15 +117,64 @@ public class PurchaseService {
 
         int lineNo = 1;
         for (PurchaseDraft.LineDraft line : draft.lines()) {
-            purchase.addLine(new PurchaseLine(
+            PurchaseLine saved = new PurchaseLine(
                     lineNo++, line.itemText(), line.quantity(),
-                    line.amount(), line.taxRatePercent(), line.taxAmount(), line.category()));
+                    line.amount(), line.taxRatePercent(), line.taxAmount(), line.category());
+            applyStockLink(saved, line);
+            purchase.addLine(saved);
         }
 
-        Purchase saved = purchases.save(purchase);
+        Purchase result = purchases.save(purchase);
         log.info("仕入れを登録しました: id={} 店={} 合計={}円 明細={}行",
-                saved.getId(), saved.getStoreName(), saved.getTotalAmount(), saved.getLines().size());
-        return saved;
+                result.getId(), result.getStoreName(), result.getTotalAmount(), result.getLines().size());
+        return result;
+    }
+
+    /**
+     * 明細を食材に紐付け、次回のために品名を覚える。
+     *
+     * <p><b>覚えるのは保存が決まってからです。</b>確認画面を開いただけ、
+     * 途中でやめた、という段階で覚えてしまうと、
+     * 人が「やっぱり違う」と思って閉じた紐付けが残ってしまいます。
+     *
+     * <p>量が分からないまま（{@code stockQty} が null）でも覚えます。
+     * 「この品名はこの食材」までは正しい情報で、
+     * 量だけあとから教えれば済むからです。全部そろうまで捨てるのは惜しい。
+     */
+    private void applyStockLink(PurchaseLine line, PurchaseDraft.LineDraft draft) {
+        if (draft.ingredientId() == null) {
+            return;
+        }
+        Ingredient ingredient = ingredients.findById(draft.ingredientId()).orElse(null);
+        if (ingredient == null) {
+            log.warn("紐付けようとした食材が見つかりません: id={}", draft.ingredientId());
+            return;
+        }
+        line.setIngredient(ingredient);
+        line.setStockQty(draft.stockQty());
+
+        if (draft.learnAlias()) {
+            BigDecimal perUnit = perUnitQuantity(draft);
+            aliasLearning.learn(draft.itemText(), ingredient.getId(), perUnit);
+        }
+    }
+
+    /**
+     * 「レシート 1 個あたり何単位ぶんか」に直す。
+     *
+     * <p>覚えるのは<b>個数で割った値</b>です。「エリンギ 2 パックで 200g」を
+     * そのまま覚えると、次に 1 パック買ったときも 200g として積んでしまいます。
+     * 記憶は 1 個あたりに正規化しておかないと再利用できません。
+     */
+    private BigDecimal perUnitQuantity(PurchaseDraft.LineDraft draft) {
+        if (draft.stockQty() == null) {
+            return null;
+        }
+        BigDecimal count = draft.quantity();
+        if (count == null || count.signum() == 0) {
+            return draft.stockQty();
+        }
+        return draft.stockQty().divide(count, 3, RoundingMode.HALF_UP);
     }
 
     /**

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<!--/*
+   1 つの食材の詳細。
+
+   ここでいちばん大事なのは「内訳」と「履歴」。
+   在庫が合わないとき、人が知りたいのは合計ではなく
+   ——どこでずれたのか、誰がいつ何を記録したのか——だから。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('食材の詳細', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text" th:text="${ingredient.name}">キャベツ</h1>
+    <span class="section-title__count" th:if="${!ingredient.active}">使用停止中</span>
+    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/ingredients}">← 食材・在庫へ</a>
+  </div>
+
+  <!--/* ── いまの残量と、その内訳 ── */-->
+  <div th:if="${level != null}" class="grid grid--3">
+    <div class="stat">
+      <div class="stat__label">いまの残量</div>
+      <div class="stat__value" th:text="${ingredient.format(level.quantity())}">1,200 g</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">単価（税込）</div>
+      <div class="stat__value">
+        <span th:if="${level.unitCostIncludingTax() != null}"
+              th:text="${#numbers.formatDecimal(level.unitCostIncludingTax(), 1, 'COMMA', 2, 'POINT')}">0.12</span>
+        <span th:if="${level.unitCostIncludingTax() == null}">―</span>
+        <span class="stat__unit" th:text="'円/' + ${ingredient.unit.symbol}">円/g</span>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">単価（税抜）</div>
+      <div class="stat__value">
+        <span th:if="${level.unitCostNet() != null}"
+              th:text="${#numbers.formatDecimal(level.unitCostNet(), 1, 'COMMA', 2, 'POINT')}">0.11</span>
+        <span th:if="${level.unitCostNet() == null}">―</span>
+        <span class="stat__unit" th:text="'円/' + ${ingredient.unit.symbol}">円/g</span>
+      </div>
+    </div>
+  </div>
+
+  <div th:if="${level != null and level.isNegative()}" class="alert alert--warn">
+    <p class="mb-0">
+      残量がマイナスになっています。記録より多く使われているか、仕入れの入力が漏れています。
+      <strong>棚卸しで実際の量を入れ直してください。</strong>
+      そこを新しい起点として計算しなおします。
+    </p>
+  </div>
+
+  <div th:if="${level != null and level.hasNoBaseline()}" class="alert alert--info">
+    <p class="mb-0">
+      まだ一度も棚卸しをしていないので、<strong>0 を起点に仕入れだけを足しています</strong>。
+      一度数えて入れると、そこから先の数字が現実に合うようになります。
+    </p>
+  </div>
+
+  <!--/* ── どう計算したか ── */-->
+  <div th:if="${level != null}" class="card">
+    <div class="card__head">この数字の内訳</div>
+    <div class="card__body">
+      <table class="total-table">
+        <tr>
+          <th>棚卸しの実測
+            <span th:if="${level.baselineOn() != null}" class="tiny faint"
+                  th:text="'（' + ${level.baselineOn()} + '）'">（2026-08-20）</span>
+            <span th:if="${level.baselineOn() == null}" class="tiny faint">（記録なし）</span>
+          </th>
+          <td class="right num" th:text="${level.baselineQty()}">1000</td>
+        </tr>
+        <tr>
+          <th>＋ その後の入庫</th>
+          <td class="right num" th:text="${level.received()}">400</td>
+        </tr>
+        <tr>
+          <th>− その後の消費（注文×レシピ）</th>
+          <td class="right num" th:text="${level.consumed()}">200</td>
+        </tr>
+        <tr>
+          <th>＋ その後の増減（廃棄・まかない）</th>
+          <td class="right num" th:text="${level.adjusted()}">-100</td>
+        </tr>
+        <tr>
+          <th class="bold">いまの残量</th>
+          <td class="right num bold" th:text="${ingredient.format(level.quantity())}">1,100 g</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!--/* ── この食材の記録を足す ── */-->
+  <div class="grid grid--2">
+    <form th:action="@{/inventory/ingredients/stocktake}" method="post"
+          th:object="${stocktakeForm}" class="card">
+      <div class="card__head">棚卸し（数え直す）</div>
+      <div class="card__body">
+        <input type="hidden" th:field="*{ingredientId}">
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="label" for="dQty">数えた量</label>
+            <input class="input" type="number" step="0.001" id="dQty" th:field="*{quantity}">
+            <p class="help" th:text="'単位は ' + ${ingredient.unit.symbol}">単位は g</p>
+          </div>
+          <div class="field">
+            <label class="label" for="dDate">数えた日</label>
+            <input class="input" type="date" id="dDate" th:field="*{takenOn}">
+          </div>
+        </div>
+        <button type="submit" class="btn btn--primary">棚卸しを記録する</button>
+      </div>
+    </form>
+
+    <form th:action="@{/inventory/ingredients/adjust}" method="post"
+          th:object="${stocktakeForm}" class="card">
+      <div class="card__head">廃棄・まかない（減らす）</div>
+      <div class="card__body">
+        <input type="hidden" th:field="*{ingredientId}">
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="label" for="dAdjQty">減らす量</label>
+            <input class="input" type="number" step="0.001" min="0" id="dAdjQty" th:field="*{quantity}">
+            <p class="help">正の数で入力してください</p>
+          </div>
+          <div class="field">
+            <label class="label" for="dReason">理由</label>
+            <select class="select" id="dReason" th:field="*{reason}">
+              <option th:each="r : ${reasons}" th:value="${r}" th:text="${r.label}">廃棄</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn">この内容で記録する</button>
+      </div>
+    </form>
+  </div>
+
+  <!--/* ── 履歴 ── */-->
+  <div class="section-title">
+    <h2 class="section-title__text">記録の履歴</h2>
+    <span class="section-title__count" th:text="${history.size()} + ' 件'">5 件</span>
+  </div>
+
+  <p th:if="${history.isEmpty()}" class="help">まだ記録がありません。</p>
+
+  <div th:unless="${history.isEmpty()}" class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>日付</th>
+        <th>種類</th>
+        <th class="right">数量</th>
+        <th>理由</th>
+        <th>メモ</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="h : ${history}">
+        <td class="num" th:text="${h.takenOn}">2026-08-20</td>
+        <td th:text="${h.type.label}">棚卸し</td>
+        <td class="right num" th:text="${h.quantity}">1200</td>
+        <td th:text="${h.reason.label}">棚卸し</td>
+        <td class="tiny faint" th:text="${h.memo}"></td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p th:unless="${history.isEmpty()}" class="help">
+    この履歴は書き換えられません。間違えたときは<strong>打ち消す記録を足して</strong>直します。
+    「あの日は 1200g と数えた」は、あとから見て正しくなかったとしても事実だからです。
+  </p>
+
+  <!--/* ── 食材そのものの設定 ── */-->
+  <div class="section-title">
+    <h2 class="section-title__text">食材の設定</h2>
+  </div>
+
+  <form th:action="@{/inventory/ingredients/{id}(id=${ingredient.id})}" method="post"
+        th:object="${ingredientForm}" class="card">
+    <div class="card__body">
+
+      <div th:if="${#fields.hasErrors('*')}" class="alert alert--error">
+        <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
+      </div>
+
+      <div class="grid grid--2">
+        <div class="field">
+          <label class="label" for="eName">食材名</label>
+          <input class="input" type="text" id="eName" th:field="*{name}">
+        </div>
+        <div class="field">
+          <label class="label" for="eUnit">単位</label>
+          <select class="select" id="eUnit" th:field="*{unit}">
+            <option th:each="u : ${units}" th:value="${u}"
+                    th:text="${u.label} + '（' + ${u.symbol} + '）'">グラム（g）</option>
+          </select>
+          <p class="help">
+            <strong>単位を変えても、過去の数量は換算されません。</strong>
+            g で 1200 と記録したものを「パック」に変えると 1200 パックになります。
+            変えたら棚卸しをやり直してください
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid--3">
+        <div class="field">
+          <label class="label" for="eLow">警告残量</label>
+          <input class="input" type="number" step="0.001" min="0" id="eLow" th:field="*{lowThresholdQty}">
+        </div>
+        <div class="field">
+          <label class="label" for="eCost">単価を固定する</label>
+          <input class="input" type="number" step="0.0001" min="0" id="eCost" th:field="*{costOverride}">
+          <p class="help">空欄なら最新の仕入価格を使います</p>
+        </div>
+        <div class="field">
+          <label class="label" for="eSort">並び順</label>
+          <input class="input" type="number" id="eSort" th:field="*{sortOrder}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="eMemo">メモ</label>
+        <input class="input" type="text" id="eMemo" th:field="*{memo}">
+      </div>
+
+      <div class="field">
+        <label class="label">
+          <input type="checkbox" th:field="*{active}"> 使っている食材として一覧に出す
+        </label>
+      </div>
+
+      <button type="submit" class="btn btn--primary">この内容で保存する</button>
+    </div>
+  </form>
+
+  <form th:if="${ingredient.active}"
+        th:action="@{/inventory/ingredients/{id}/deactivate(id=${ingredient.id})}" method="post"
+        class="mt-4">
+    <button type="submit" class="btn btn--sm btn--ghost">この食材を使用停止にする</button>
+    <p class="help">
+      記録は消えません。過去の仕入れ・棚卸し・原価はそのまま残り、一覧に出なくなるだけです。
+    </p>
+  </form>
+
+</main>
+</body>
+</html>

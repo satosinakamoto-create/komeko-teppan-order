@@ -27,6 +27,32 @@ public class PurchaseLineForm {
 
     private PurchaseCategory category = PurchaseCategory.FOOD;
 
+    /**
+     * どの食材か。空欄なら在庫には入らない（経費としてだけ記録される）。
+     *
+     * <p>覚えている品名なら、確認画面を開いた時点ですでに選ばれています。
+     */
+    private Long ingredientId;
+
+    /**
+     * 在庫に積む量（食材の単位で）。空欄なら金額だけ記録し、在庫には積まない。
+     *
+     * <p>覚えていれば「1 パック = 100g」に個数を掛けた値が入ります。
+     * <b>空欄でも保存できます。</b>お金の記録としては完全なので、
+     * ここを必須にすると忙しい日にレシート入力の手が止まります。
+     */
+    @NumberFormat(pattern = "#.###")
+    private BigDecimal stockQty;
+
+    /**
+     * この行の紐付けを覚えるか。
+     *
+     * <p>初期値は true です。人が食材を選び直したなら、それが正しい紐付けだからで、
+     * わざわざ「覚えますか」と聞き直す意味がありません。
+     * 覚えたくない例外（その日限りの特売品など）のときだけ外してもらいます。
+     */
+    private boolean learnAlias = true;
+
     public PurchaseLineForm() {
         // フォームバインド用
     }
@@ -96,5 +122,39 @@ public class PurchaseLineForm {
 
     public void setCategory(PurchaseCategory category) {
         this.category = category;
+    }
+
+    public Long getIngredientId() {
+        return ingredientId;
+    }
+
+    public void setIngredientId(Long ingredientId) {
+        this.ingredientId = ingredientId;
+    }
+
+    public BigDecimal getStockQty() {
+        return stockQty;
+    }
+
+    public void setStockQty(BigDecimal stockQty) {
+        this.stockQty = stockQty;
+    }
+
+    public boolean isLearnAlias() {
+        return learnAlias;
+    }
+
+    public void setLearnAlias(boolean learnAlias) {
+        this.learnAlias = learnAlias;
+    }
+
+    /**
+     * 食材は選ばれているのに量が空欄か。画面で黄色く出す判定。
+     *
+     * <p>食材を選んでいない行（洗剤など）は黄色にしません。
+     * <b>直すべきものだけを光らせる</b>のが、警告が無視されないための条件です。
+     */
+    public boolean isMissingStockQty() {
+        return ingredientId != null && (stockQty == null || stockQty.signum() == 0);
     }
 }

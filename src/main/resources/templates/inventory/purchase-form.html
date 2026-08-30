@@ -156,10 +156,16 @@
             <th style="min-width:8rem">金額（税込）</th>
             <th style="min-width:6rem">税率%</th>
             <th style="min-width:9rem">費目</th>
+            <th style="min-width:10rem">食材</th>
+            <th style="min-width:7rem">在庫に入れる量</th>
           </tr>
           </thead>
           <tbody>
-          <tr th:each="line, iter : *{lines}">
+          <!--/* 食材を選んだのに量が空欄の行を黄色くする。
+                 食材を選んでいない行（洗剤など）は光らせない。
+                 直すべきものだけを光らせないと、警告は無視されるようになる。 */-->
+          <tr th:each="line, iter : *{lines}"
+              th:style="${line.missingStockQty} ? 'background:rgba(245,158,11,.12)' : ''">
             <td>
               <input class="input" type="text"
                      th:field="*{lines[__${iter.index}__].itemText}" placeholder="（空欄なら保存されません）">
@@ -183,6 +189,24 @@
                 <option th:each="c : ${categories}" th:value="${c}" th:text="${c.getLabel()}">食材</option>
               </select>
             </td>
+
+            <!--/* 在庫への橋。空欄でよい。
+                   ここを必須にすると、忙しい日にレシート入力の手が止まる。
+                   お金の記録は紐付けの有無と関係なく完全なので、
+                   あとから食材マスタで紐付ければ在庫にも入る。 */-->
+            <td>
+              <select class="select" th:field="*{lines[__${iter.index}__].ingredientId}">
+                <option value="">（在庫に入れない）</option>
+                <option th:each="i : ${ingredients}" th:value="${i.id}" th:text="${i.name}">キャベツ</option>
+              </select>
+            </td>
+            <td>
+              <input class="input" type="number" step="0.001" min="0"
+                     th:field="*{lines[__${iter.index}__].stockQty}" placeholder="100">
+              <label class="tiny faint">
+                <input type="checkbox" th:field="*{lines[__${iter.index}__].learnAlias}"> 次から自動
+              </label>
+            </td>
           </tr>
           </tbody>
         </table>
@@ -190,6 +214,11 @@
       <div class="card__foot">
         <p class="tiny faint mb-0">
           空欄の行は保存されません。行が足りないときは、いったん保存してから詳細画面で足してください。
+        </p>
+        <p class="tiny faint mb-0">
+          <strong>黄色い行</strong>は、食材は選ばれているのに量が分からない行です。空欄のままでも保存できます
+          （金額の記録としては完全です）。量を入れると在庫にも積まれ、
+          「次から自動」にチェックが入っていれば<strong>次回以降は自動で入ります</strong>。
         </p>
         <p class="tiny mb-0" th:if="*{lineTotalMismatch()} != 0">
           <strong th:text="'レシートの合計と明細の合計が ¥'

@@ -94,8 +94,12 @@
              設定で切っている間はリンクも出さない（${inventoryEnabled} は
              InventoryModelAttributes が全画面に渡している）。 */-->
       <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/purchases}"
-         th:classappend="${#strings.startsWith(p, '/inventory')} ? 'is-active'">
+         th:classappend="${#strings.startsWith(p, '/inventory/purchases')} ? 'is-active'">
         <th:block th:replace="~{fragments/icons :: ic_receipt}"/><span>仕入れ・経費</span>
+      </a>
+      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/ingredients}"
+         th:classappend="${#strings.startsWith(p, '/inventory/ingredients')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_package}"/><span>食材・在庫</span>
       </a>
 
       <!--/* ── ここから下は店長（ADMIN）のみ ── */-->

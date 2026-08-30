@@ -42,16 +42,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("マイグレーション SQL（本番のテーブルを作る）")
 class MigrationSchemaTest {
 
-    private static final String MIGRATION = "db/migration/V2__inventory_step1.sql";
+    /**
+     * 流す順番。<b>本番と同じ順で、同じものを流す</b>ことに意味があります。
+     *
+     * <p>V3 は V2 が作った {@code purchase_line} に列を足すので、
+     * 単体で流しても通りません。順番ごと確かめないと意味がありません。
+     */
+    private static final String[] MIGRATIONS = {
+            "db/migration/V2__inventory_step1.sql",
+            "db/migration/V3__inventory_step2.sql",
+    };
 
     /** テストごとに別名の DB を使う（前のテストの結果に影響されないため）。 */
     private Connection freshDatabase(String name) throws SQLException, IOException {
         Connection connection = DriverManager.getConnection(
                 "jdbc:h2:mem:" + name + ";DB_CLOSE_DELAY=-1", "sa", "");
-        String sql = new String(new ClassPathResource(MIGRATION).getInputStream()
-                .readAllBytes(), StandardCharsets.UTF_8);
         try (Statement statement = connection.createStatement()) {
-            statement.execute(sql);
+            for (String migration : MIGRATIONS) {
+                String sql = new String(new ClassPathResource(migration).getInputStream()
+                        .readAllBytes(), StandardCharsets.UTF_8);
+                statement.execute(sql);
+            }
         }
         return connection;
     }
@@ -69,7 +80,7 @@ class MigrationSchemaTest {
     }
 
     @Nested
-    @DisplayName("4 つのテーブルが作られる")
+    @DisplayName("テーブルが作られる")
     class TablesCreated {
 
         @Test
@@ -80,6 +91,9 @@ class MigrationSchemaTest {
                 assertThat(columnsOf(connection, "purchase_line")).isNotEmpty();
                 assertThat(columnsOf(connection, "tax_rate_period")).isNotEmpty();
                 assertThat(columnsOf(connection, "deduction_rate_period")).isNotEmpty();
+                assertThat(columnsOf(connection, "ingredient")).isNotEmpty();
+                assertThat(columnsOf(connection, "item_alias")).isNotEmpty();
+                assertThat(columnsOf(connection, "stocktake")).isNotEmpty();
             }
         }
     }
@@ -110,12 +124,30 @@ class MigrationSchemaTest {
         }
 
         @Test
-        @DisplayName("purchase_line : 税率とカテゴリを行ごとに持つ")
+        @DisplayName("purchase_line : 税率とカテゴリを行ごとに持ち、在庫への橋がある")
         void purchase_line_columns() throws Exception {
             try (Connection connection = freshDatabase("mig_line")) {
                 assertThat(columnsOf(connection, "purchase_line")).contains(
                         "ID", "PURCHASE_ID", "LINE_NO", "ITEM_TEXT", "QUANTITY",
-                        "AMOUNT", "TAX_RATE_PERCENT", "TAX_AMOUNT", "CATEGORY");
+                        "AMOUNT", "TAX_RATE_PERCENT", "TAX_AMOUNT", "CATEGORY",
+                        // V3 で足した在庫への橋。どちらも NULL 可
+                        "INGREDIENT_ID", "STOCK_QTY");
+            }
+        }
+
+        @Test
+        @DisplayName("在庫の層（V3）: 食材・入り数の記憶・棚卸しがそろっている")
+        void step2_columns() throws Exception {
+            try (Connection connection = freshDatabase("mig_step2")) {
+                assertThat(columnsOf(connection, "ingredient")).contains(
+                        "ID", "NAME", "UNIT", "LOW_THRESHOLD_QTY", "COST_OVERRIDE",
+                        "ACTIVE", "SORT_ORDER", "MEMO");
+                assertThat(columnsOf(connection, "item_alias")).contains(
+                        "ID", "ALIAS_TEXT", "SAMPLE_TEXT", "INGREDIENT_ID",
+                        "QTY_PER_UNIT", "UPDATED_AT");
+                assertThat(columnsOf(connection, "stocktake")).contains(
+                        "ID", "INGREDIENT_ID", "TAKEN_ON", "RECORDED_AT",
+                        "TYPE", "QUANTITY", "REASON", "MEMO", "CREATED_BY");
             }
         }
 

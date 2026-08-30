@@ -52,6 +52,9 @@ public record PurchaseDraft(
      * @param taxRatePercent 行の税率（%）
      * @param taxAmount      行の消費税額。レシートに印字がなければ null
      * @param category       費目
+     * @param ingredientId   紐付ける食材。null なら在庫に入らない（経費としてだけ記録）
+     * @param stockQty       在庫に積む量。null なら金額だけ記録する
+     * @param learnAlias     この紐付けを次回のために覚えるか
      */
     public record LineDraft(
             String itemText,
@@ -59,7 +62,10 @@ public record PurchaseDraft(
             int amount,
             int taxRatePercent,
             Integer taxAmount,
-            PurchaseCategory category
+            PurchaseCategory category,
+            Long ingredientId,
+            BigDecimal stockQty,
+            boolean learnAlias
     ) {
     }
 }

@@ -42,6 +42,8 @@ class PurchaseServiceRulesTest {
                 mock(PurchaseRepository.class),
                 mock(SalesLookupRepository.class),
                 mock(TaxRuleService.class),
+                mock(jp.komeko.order.inventory.repository.IngredientRepository.class),
+                mock(IngredientService.class),
                 properties,
                 fixed);
     }

@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 仕入れ・経費の画面（{@code /inventory/purchases}）。
@@ -64,17 +65,20 @@ public class InventoryPurchaseController {
 
     private final PurchaseService purchaseService;
     private final TaxRuleService taxRuleService;
+    private final IngredientService ingredientService;
     private final ReceiptReader receiptReader;
     private final ImageStorageService imageStorage;
     private final InventoryProperties properties;
 
     public InventoryPurchaseController(PurchaseService purchaseService,
                                        TaxRuleService taxRuleService,
+                                       IngredientService ingredientService,
                                        ReceiptReader receiptReader,
                                        ImageStorageService imageStorage,
                                        InventoryProperties properties) {
         this.purchaseService = purchaseService;
         this.taxRuleService = taxRuleService;
+        this.ingredientService = ingredientService;
         this.receiptReader = receiptReader;
         this.imageStorage = imageStorage;
         this.properties = properties;
@@ -87,6 +91,7 @@ public class InventoryPurchaseController {
         model.addAttribute("paymentMethods", PaymentMethod.values());
         model.addAttribute("evidenceTypes", EvidenceType.values());
         model.addAttribute("ocrAvailable", receiptReader.isAvailable());
+        model.addAttribute("ingredients", ingredientService.activeIngredients());
     }
 
     // ========================================================================
@@ -210,6 +215,11 @@ public class InventoryPurchaseController {
                     : "AI 読み取りは設定されていません（API キー未設定）。手で入力してください。");
         }
         suggestEvidence(form);
+        int learned = applyRememberedAliases(form);
+        if (learned > 0) {
+            notices.add(learned + " 行は前に教えていただいた内容から、食材と量を自動で入れました。"
+                    + "違っていたら直してください。");
+        }
 
         model.addAttribute("purchaseForm", form);
         model.addAttribute("stage", "confirm");
@@ -256,7 +266,8 @@ public class InventoryPurchaseController {
         for (PurchaseLineForm line : filled) {
             lines.add(new PurchaseDraft.LineDraft(
                     line.getItemText(), line.getQuantity(), line.getAmount(),
-                    line.getTaxRatePercent(), line.getTaxAmount(), line.getCategory()));
+                    line.getTaxRatePercent(), line.getTaxAmount(), line.getCategory(),
+                    line.getIngredientId(), line.getStockQty(), line.isLearnAlias()));
         }
 
         PurchaseDraft draft = new PurchaseDraft(
@@ -276,6 +287,22 @@ public class InventoryPurchaseController {
         } else {
             messages.add("紙と見比べる確認がまだです。詳細画面から確認すると原本を破棄できます");
         }
+        int stocked = 0;
+        int pending = 0;
+        for (PurchaseLine line : saved.getLines()) {
+            if (line.feedsStock()) {
+                stocked++;
+            } else if (line.needsQuantityLearning()) {
+                pending++;
+            }
+        }
+        if (stocked > 0) {
+            messages.add(stocked + " 行を在庫に足しました");
+        }
+        if (pending > 0) {
+            messages.add(pending + " 行は量が分からないので在庫に入れていません（食材マスタから教えられます）");
+        }
+
         redirect.addFlashAttribute("flashSuccess", String.join(" / ", messages));
         return "redirect:/inventory/purchases";
     }
@@ -310,6 +337,45 @@ public class InventoryPurchaseController {
     // ========================================================================
     //  補助
     // ========================================================================
+
+    /**
+     * 覚えている品名の行に、食材と量をあらかじめ入れておく。
+     *
+     * <p><b>ここが「1 回教えたら次から自動」の見えている部分です。</b>
+     * 2 回目からは確認画面を開いた瞬間にもう埋まっていて、
+     * 人は違うところだけ直せば済みます。
+     *
+     * <p>入れるのはあくまで<b>たたき台</b>で、保存前に必ず人が見ます。
+     * 商品が入れ替わって内容量が変わることもあるので、
+     * 自動で入った値も直せる状態にしておきます。
+     *
+     * @return 自動で埋めた行数
+     */
+    private int applyRememberedAliases(PurchaseForm form) {
+        List<String> itemTexts = new ArrayList<>();
+        for (PurchaseLineForm line : form.getLines()) {
+            if (line.getItemText() != null && !line.getItemText().isBlank()) {
+                itemTexts.add(line.getItemText());
+            }
+        }
+        if (itemTexts.isEmpty()) {
+            return 0;
+        }
+
+        Map<String, ItemAlias> remembered = ingredientService.recallAll(itemTexts);
+        int filled = 0;
+        for (PurchaseLineForm line : form.getLines()) {
+            String key = AliasText.normalize(line.getItemText());
+            ItemAlias alias = key != null ? remembered.get(key) : null;
+            if (alias == null) {
+                continue;
+            }
+            line.setIngredientId(alias.getIngredient().getId());
+            line.setStockQty(alias.toStockQty(line.getQuantity()));
+            filled++;
+        }
+        return filled;
+    }
 
     /** 証憑区分のたたき台を入れる（人が確認画面で直せる）。 */
     private void suggestEvidence(PurchaseForm form) {
