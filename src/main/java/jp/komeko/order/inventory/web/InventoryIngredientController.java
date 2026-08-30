@@ -197,17 +197,18 @@ public class InventoryIngredientController {
     @PostMapping("/stocktake")
     public String stocktake(@Valid @ModelAttribute("stocktakeForm") StocktakeForm form,
                             BindingResult bindingResult,
+                            @RequestParam(required = false) String origin,
                             @AuthenticationPrincipal StaffUserDetails user,
                             RedirectAttributes redirect) {
         if (bindingResult.hasErrors()) {
             redirect.addFlashAttribute("flashErrors", errorMessages(bindingResult));
-            return "redirect:/inventory/ingredients";
+            return backTo(origin, form);
         }
         stockService.recordStocktake(form.getIngredientId(), form.getTakenOn(),
                 form.getQuantity(), form.getMemo(), user != null ? user.getId() : null);
         redirect.addFlashAttribute("flashSuccess",
                 "棚卸しを記録しました。ここからの入出庫で在庫を計算します");
-        return "redirect:/inventory/ingredients";
+        return backTo(origin, form);
     }
 
     /**
@@ -219,17 +220,33 @@ public class InventoryIngredientController {
     @PostMapping("/adjust")
     public String adjust(@Valid @ModelAttribute("stocktakeForm") StocktakeForm form,
                          BindingResult bindingResult,
+                         @RequestParam(required = false) String origin,
                          @AuthenticationPrincipal StaffUserDetails user,
                          RedirectAttributes redirect) {
         if (bindingResult.hasErrors()) {
             redirect.addFlashAttribute("flashErrors", errorMessages(bindingResult));
-            return "redirect:/inventory/ingredients";
+            return backTo(origin, form);
         }
         BigDecimal delta = form.getQuantity().abs().negate();
         stockService.recordAdjustment(form.getIngredientId(), form.getTakenOn(), delta,
                 form.getReason(), form.getMemo(), user != null ? user.getId() : null);
         redirect.addFlashAttribute("flashSuccess",
                 form.getReason().getLabel() + "として記録しました");
+        return backTo(origin, form);
+    }
+
+    /**
+     * 記録したあと、来た画面へ返す。
+     *
+     * <p>詳細画面から記録したのに一覧へ飛ばされると、見ていた食材を見失います
+     * （2026-08-31 のUI監査の指摘）。行き先は自分で組み立てた 2 つの URL だけで、
+     * 画面から渡された文字列をそのままリダイレクト先にはしません
+     * （外部サイトへ飛ばされる穴になるため）。
+     */
+    private String backTo(String origin, StocktakeForm form) {
+        if ("detail".equals(origin) && form.getIngredientId() != null) {
+            return "redirect:/inventory/ingredients/" + form.getIngredientId();
+        }
         return "redirect:/inventory/ingredients";
     }
 
@@ -248,6 +265,15 @@ public class InventoryIngredientController {
     public String learnAlias(@PathVariable Long id,
                              @RequestParam BigDecimal qtyPerUnit,
                              RedirectAttributes redirect) {
+        // ★ 0 以下を覚えさせない。
+        //   0 を入れると「学習済みなのに在庫に積めない」という宙ぶらりんの状態になり、
+        //   未学習の一覧（qty_per_unit IS NULL）からも消えるので、直す入口が無くなる。
+        //   画面側の min=0.001 はブラウザ次第で外せるため、ここでも必ず弾く。
+        if (qtyPerUnit == null || qtyPerUnit.signum() <= 0) {
+            redirect.addFlashAttribute("flashErrors",
+                    List.of("1個あたりの量は 0 より大きい値で入力してください"));
+            return "redirect:/inventory/ingredients";
+        }
         ItemAlias alias = ingredientService.relearnQuantity(id, qtyPerUnit);
         if (alias == null) {
             redirect.addFlashAttribute("flashErrors", List.of("その紐付けは見つかりませんでした"));

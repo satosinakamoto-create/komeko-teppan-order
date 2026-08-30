@@ -274,7 +274,8 @@
             sec:authorize="!hasRole('GUEST')" で隠してあります。 */-->
     <div th:if="${guestLogin and currentPath != null
                   and (#strings.startsWith(currentPath, '/admin')
-                       or #strings.startsWith(currentPath, '/kitchen/stock'))}"
+                       or #strings.startsWith(currentPath, '/kitchen/stock')
+                       or #strings.startsWith(currentPath, '/inventory'))}"
          sec:authorize="!hasRole('ADMIN')"
          class="viewer-note" role="status">
       <strong>見学モードです。</strong>
@@ -301,9 +302,16 @@
         最初 p のまま書いていて、#strings.startsWith(null, …) で
         全画面がテンプレート解析エラーになりました。
         変数のスコープは、閉じタグの外まで持ち越せません。 */-->
+<!--/* ★ 在庫モジュール（/inventory）も対象に含めること。
+      2026-08-31 のUI監査で、ここに /inventory が無いせいで
+      ゲストに帯も出ず送信ボタンも生きたままになり、押すと 403 の
+      エラーページに飛ばされる（＝上のコメントで警戒しているとおりの事故）
+      ことが見つかった。スタッフゾーンに接頭辞を増やしたら、
+      StaffZoneIpFilter と同じく、ここにも足す。 */-->
 <script th:if="${guestLogin and currentPath != null
                  and (#strings.startsWith(currentPath, '/admin')
-                      or #strings.startsWith(currentPath, '/kitchen/stock'))}"
+                      or #strings.startsWith(currentPath, '/kitchen/stock')
+                      or #strings.startsWith(currentPath, '/inventory'))}"
         sec:authorize="!hasRole('ADMIN')">
   document.addEventListener('DOMContentLoaded', function () {
     var main = document.querySelector('.staff-main');

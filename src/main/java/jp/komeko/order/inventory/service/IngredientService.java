@@ -188,6 +188,12 @@ public class IngredientService {
         if (normalized == null) {
             return null;
         }
+        // 0 以下は「まだ教わっていない」として覚える。
+        // 0 のまま学習済みにすると、在庫には積めないのに未学習の一覧からは消える、
+        // という直す入口の無い状態になる（2026-08-31 のUI監査の指摘）。
+        if (qtyPerUnit != null && qtyPerUnit.signum() <= 0) {
+            qtyPerUnit = null;
+        }
         Ingredient ingredient = ingredients.findById(ingredientId).orElseThrow();
 
         ItemAlias alias = aliases.findByAliasText(normalized).orElse(null);

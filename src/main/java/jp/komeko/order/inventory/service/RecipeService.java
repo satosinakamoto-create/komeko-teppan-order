@@ -176,12 +176,23 @@ public class RecipeService {
                 item.getName(), ingredient.getName(), qtyPerItem, ingredient.getUnit().getSymbol());
     }
 
-    /** 分量を直す。 */
+    /**
+     * 分量を直す。
+     *
+     * <p><b>メモは、渡されなかったら残します。</b>
+     * 画面の「直す」ボタンは分量だけを送ってきます。そこで null を
+     * そのまま代入すると、分量を直すたびに書いてあったメモが黙って消えます
+     * （2026-08-31 のUI監査で見つかった。「千切り」「生地に混ぜる」が
+     * 分量の微調整のたびに失われていた）。
+     * 消したいのではなく送っていないだけなので、null は「変更なし」と読みます。
+     */
     @Transactional
     public void updateLine(Long lineId, BigDecimal qtyPerItem, String memo) {
         recipes.findById(lineId).ifPresent(line -> {
             line.setQtyPerItem(qtyPerItem);
-            line.setMemo(memo);
+            if (memo != null) {
+                line.setMemo(memo);
+            }
         });
     }
 

@@ -196,11 +196,21 @@
                     th:text="${l.ingredient().name} + '（' + ${l.ingredient().unit.symbol} + '）'">キャベツ</option>
           </select>
         </div>
-        <div class="grid grid--2">
+        <!--/* ★ 日付欄を忘れないこと。
+               2026-08-31 のUI監査で、このフォームに takenOn の入力欄が無く、
+               サーバ側の「日付を入力してください」に必ず弾かれて
+               廃棄の記録がブラウザから一度も成功しない状態が見つかった。
+               テストは .param("takenOn", ...) を自分で付けていたので素通りした。
+               フォームを写して作るときは、Form クラスの必須項目と突き合わせること。 */-->
+        <div class="grid grid--3">
           <div class="field">
             <label class="label" for="adQty">減らす量</label>
             <input class="input" type="number" step="0.001" min="0" id="adQty" th:field="*{quantity}">
             <p class="help">正の数で入力してください</p>
+          </div>
+          <div class="field">
+            <label class="label" for="adDate">日付</label>
+            <input class="input" type="date" id="adDate" th:field="*{takenOn}">
           </div>
           <div class="field">
             <label class="label" for="adReason">理由</label>
@@ -251,7 +261,11 @@
             <td>
               <form th:action="@{/inventory/ingredients/aliases/{id}/learn(id=${a.id})}" method="post"
                     class="row">
-                <input class="input input--narrow" type="number" step="0.001" min="0"
+                <!--/* min は 0 ではなく 0.001。
+                       0 を覚えさせると「学習済みなのに在庫に積めない」という
+                       宙ぶらりんの状態になり、この宿題一覧からも消えて直せなくなる。
+                       サーバ側でも弾いている（Controller 参照）。 */-->
+                <input class="input input--narrow" type="number" step="0.001" min="0.001"
                        name="qtyPerUnit" placeholder="100" required>
                 <span class="tiny" th:text="${a.ingredient.unit.symbol}">g</span>
                 <button type="submit" class="btn btn--sm btn--primary">覚える</button>
@@ -270,11 +284,19 @@
   </div>
 
   <div th:if="${!linesNeedingQuantity.isEmpty()}" class="alert alert--info">
-    <p class="mb-0">
+    <!--/* 「上で教えて」と言えるのは、上の表が実際に出ているときだけ。
+           表が空なのに「上で」と書くと、読んだ人は探して迷子になる。 */-->
+    <p class="mb-0" th:if="${!unlearned.isEmpty()}">
       <strong th:text="${linesNeedingQuantity.size()} + ' 行'">4 行</strong>
       の仕入れが、量が分からないため在庫に入っていません。
       上で量を教えると、<strong>次に同じものを仕入れたときから</strong>自動で在庫に入ります
       （すでに保存した記録はさかのぼって書き換えません）。
+    </p>
+    <p class="mb-0" th:if="${unlearned.isEmpty()}">
+      <strong th:text="${linesNeedingQuantity.size()} + ' 行'">4 行</strong>
+      の仕入れが、量が分からないため在庫に入っていません。
+      次に同じものを仕入れるとき、<strong>レシートの確認画面で量を入れる</strong>と
+      在庫にも入るようになります（すでに保存した記録はさかのぼって書き換えません）。
     </p>
   </div>
 

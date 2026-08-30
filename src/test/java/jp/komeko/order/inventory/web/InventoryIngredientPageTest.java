@@ -2,7 +2,9 @@ package jp.komeko.order.inventory.web;
 
 import jp.komeko.order.inventory.domain.Ingredient;
 import jp.komeko.order.inventory.domain.IngredientUnit;
+import jp.komeko.order.inventory.domain.ItemAlias;
 import jp.komeko.order.inventory.repository.IngredientRepository;
+import jp.komeko.order.inventory.service.IngredientService;
 import jp.komeko.order.inventory.service.StockService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,9 @@ class InventoryIngredientPageTest {
 
     @Autowired
     private StockService stockService;
+
+    @Autowired
+    private IngredientService ingredientService;
 
     @Test
     @DisplayName("ログインしていなければ入れない")
@@ -161,5 +166,78 @@ class InventoryIngredientPageTest {
 
         assertThat(stockService.levelOf(ingredient.getId()).quantity())
                 .isEqualByComparingTo("700");
+    }
+
+    /**
+     * ★ フォームが送る項目と、サーバが要求する項目のずれを検出する。
+     *
+     * <p>上のテストは {@code .param("takenOn", ...)} を<b>自分で</b>付けているため、
+     * 画面に日付欄が無くても通ってしまいます。実際それで、廃棄の記録が
+     * ブラウザから一度も成功しない状態を見逃しました（2026-08-31 のUI監査）。
+     * だからここでは<b>画面の HTML に必須項目の入力欄があること</b>を直接確かめます。
+     */
+    @Test
+    @WithMockUser(roles = "STAFF")
+    @DisplayName("廃棄フォームに、サーバが必須とする日付の入力欄がある")
+    void adjust_form_contains_the_required_date_field() throws Exception {
+        Ingredient ingredient = ingredients.save(
+                new Ingredient("画面テスト用にら-" + System.nanoTime(), IngredientUnit.GRAM));
+        stockService.recordStocktake(ingredient.getId(), LocalDate.now().minusDays(1),
+                new BigDecimal("100"), null, null);
+
+        // 一覧の廃棄フォーム
+        mockMvc.perform(get("/inventory/ingredients"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"adDate\"")));
+
+        // 詳細の廃棄フォーム（同じ事故が2箇所で起きた）
+        mockMvc.perform(get("/inventory/ingredients/" + ingredient.getId()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"dAdjDate\"")));
+    }
+
+    @Test
+    @WithMockUser(roles = "STAFF")
+    @DisplayName("詳細画面から記録すると、一覧ではなく詳細に戻る")
+    void recording_from_detail_returns_to_detail() throws Exception {
+        Ingredient ingredient = ingredients.save(
+                new Ingredient("画面テスト用ごぼう-" + System.nanoTime(), IngredientUnit.GRAM));
+
+        // 詳細画面のフォームは origin=detail を隠し項目で送る
+        mockMvc.perform(post("/inventory/ingredients/stocktake").with(csrf())
+                        .param("ingredientId", String.valueOf(ingredient.getId()))
+                        .param("takenOn", LocalDate.now().toString())
+                        .param("quantity", "500")
+                        .param("origin", "detail"))
+                .andExpect(redirectedUrl("/inventory/ingredients/" + ingredient.getId()));
+
+        // 一覧のフォーム（origin なし）は従来どおり一覧へ
+        mockMvc.perform(post("/inventory/ingredients/stocktake").with(csrf())
+                        .param("ingredientId", String.valueOf(ingredient.getId()))
+                        .param("takenOn", LocalDate.now().toString())
+                        .param("quantity", "500"))
+                .andExpect(redirectedUrl("/inventory/ingredients"));
+    }
+
+    @Test
+    @WithMockUser(roles = "STAFF")
+    @DisplayName("入り数に 0 は覚えられない（宙ぶらりんの学習済みを作らない）")
+    void rejects_learning_zero_quantity() throws Exception {
+        // 0 を覚えると「学習済みなのに在庫に積めない」状態になり、
+        // 未学習の一覧からも消えるので直す入口が無くなる。
+        Ingredient ingredient = ingredients.save(
+                new Ingredient("画面テスト用みつば-" + System.nanoTime(), IngredientUnit.GRAM));
+        ItemAlias alias = ingredientService.learn("ﾐﾂﾊﾞ", ingredient.getId(), null);
+
+        mockMvc.perform(post("/inventory/ingredients/aliases/" + alias.getId() + "/learn")
+                        .with(csrf())
+                        .param("qtyPerUnit", "0"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attributeExists("flashErrors"));
+
+        // 未学習のまま＝宿題一覧に残り続ける
+        assertThat(ingredientService.unlearnedAliases())
+                .extracting(ItemAlias::getId)
+                .contains(alias.getId());
     }
 }
