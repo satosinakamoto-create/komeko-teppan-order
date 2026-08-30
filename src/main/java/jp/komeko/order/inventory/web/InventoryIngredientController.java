@@ -7,6 +7,7 @@ import jp.komeko.order.inventory.domain.ItemAlias;
 import jp.komeko.order.inventory.domain.StocktakeReason;
 import jp.komeko.order.inventory.service.IngredientService;
 import jp.komeko.order.inventory.service.PurchaseService;
+import jp.komeko.order.inventory.service.RecipeService;
 import jp.komeko.order.inventory.service.StockLevel;
 import jp.komeko.order.inventory.service.StockService;
 import jp.komeko.order.inventory.web.form.IngredientForm;
@@ -45,13 +46,16 @@ public class InventoryIngredientController {
     private final IngredientService ingredientService;
     private final StockService stockService;
     private final PurchaseService purchaseService;
+    private final RecipeService recipeService;
 
     public InventoryIngredientController(IngredientService ingredientService,
                                          StockService stockService,
-                                         PurchaseService purchaseService) {
+                                         PurchaseService purchaseService,
+                                         RecipeService recipeService) {
         this.ingredientService = ingredientService;
         this.stockService = stockService;
         this.purchaseService = purchaseService;
+        this.recipeService = recipeService;
     }
 
     @ModelAttribute
@@ -85,6 +89,9 @@ public class InventoryIngredientController {
         model.addAttribute("levels", levels);
         model.addAttribute("attentionCount", attention);
         model.addAttribute("today", purchaseService.today());
+
+        // レシピ未登録は「あと◯営業日」を静かに甘くする。件数を必ず出す。
+        model.addAttribute("missingRecipeCount", recipeService.menuItemsWithoutRecipe().size());
 
         // 「教えれば在庫が正しくなる」宿題。埋もれさせないよう常に出す。
         model.addAttribute("unlearned", ingredientService.unlearnedAliases());

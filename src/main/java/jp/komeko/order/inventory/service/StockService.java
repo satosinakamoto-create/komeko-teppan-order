@@ -3,6 +3,7 @@ package jp.komeko.order.inventory.service;
 import jp.komeko.order.inventory.domain.*;
 import jp.komeko.order.inventory.repository.IngredientRepository;
 import jp.komeko.order.inventory.repository.PurchaseLineRepository;
+import jp.komeko.order.inventory.repository.RecipeLineRepository;
 import jp.komeko.order.inventory.repository.StocktakeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +29,7 @@ import java.util.Map;
  * <pre>
  * 現在庫 = 直近の棚卸しの実測量        ※棚卸しが 1 度も無ければ 0 から
  *        + その後の入庫                （仕入れ明細の換算量）
+ *        − その後の消費                （注文 × レシピ）
  *        + その後の増減                （廃棄・まかない。ふつうは負）
  * </pre>
  *
@@ -52,20 +55,35 @@ public class StockService {
 
     private static final Logger log = LoggerFactory.getLogger(StockService.class);
 
+    /**
+     * 予測に使う実績の期間（日）。
+     *
+     * <p>4 週間ぶん。短すぎると 1 回の宴会で予測が跳ね、
+     * 長すぎると季節メニューの入れ替わりに追従しません。
+     * 営業日は実績から数えるので、定休日はここに含めても自動的に除かれます。
+     */
+    private static final int FORECAST_WINDOW_DAYS = 28;
+
     private final IngredientRepository ingredients;
     private final StocktakeRepository stocktakes;
     private final PurchaseLineRepository purchaseLines;
+    private final RecipeLineRepository recipes;
+    private final ConsumptionService consumption;
     private final TaxRuleService taxRules;
     private final Clock clock;
 
     public StockService(IngredientRepository ingredients,
                         StocktakeRepository stocktakes,
                         PurchaseLineRepository purchaseLines,
+                        RecipeLineRepository recipes,
+                        ConsumptionService consumption,
                         TaxRuleService taxRules,
                         Clock clock) {
         this.ingredients = ingredients;
         this.stocktakes = stocktakes;
         this.purchaseLines = purchaseLines;
+        this.recipes = recipes;
+        this.consumption = consumption;
         this.taxRules = taxRules;
         this.clock = clock;
     }
@@ -101,6 +119,11 @@ public class StockService {
         Map<Long, BigDecimal> adjustments = adjustmentsAfterBaseline(events, baselines);
         StockInflow inflow = inflowAfterBaseline(asOf, baselines);
 
+        List<RecipeLine> recipeLines = recipes.findAllWithRelations();
+        Map<Long, BigDecimal> consumed = consumedPerIngredient(asOf, targets, baselines, recipeLines);
+        Map<Long, BigDecimal> dailyAverage = consumption.dailyAverageOver(
+                asOf.minusDays(FORECAST_WINDOW_DAYS - 1L), asOf, recipeLines);
+
         List<StockLevel> result = new ArrayList<>(targets.size());
         for (Ingredient ingredient : targets) {
             Long id = ingredient.getId();
@@ -109,14 +132,12 @@ public class StockService {
             BigDecimal base = baseline != null ? baseline.quantity() : BigDecimal.ZERO;
             BigDecimal received = inflow.received().getOrDefault(id, BigDecimal.ZERO);
             BigDecimal adjusted = adjustments.getOrDefault(id, BigDecimal.ZERO);
+            BigDecimal used = consumed.getOrDefault(id, BigDecimal.ZERO);
 
-            // 消費（注文 × レシピ）は在庫の層では 0。レシピの層（Step 3）で埋まる。
-            // 0 でも計算は成り立つ。使った分は棚卸しの実測値が吸収するため。
-            BigDecimal consumed = BigDecimal.ZERO;
-
-            BigDecimal quantity = base.add(received).subtract(consumed).add(adjusted);
+            BigDecimal quantity = base.add(received).subtract(used).add(adjusted);
 
             UnitCost cost = unitCostOf(ingredient, inflow.latestLine().get(id));
+            BigDecimal perDay = dailyAverage.get(id);
 
             result.add(new StockLevel(
                     ingredient,
@@ -124,13 +145,86 @@ public class StockService {
                     baseline != null ? baseline.takenOn() : null,
                     base,
                     received,
-                    consumed,
+                    used,
                     adjusted,
                     cost.includingTax(),
                     cost.net(),
                     cost.overridden(),
-                    null,             // あと何営業日もつか。レシピの層（Step 3）で埋まる
-                    null));
+                    daysLeft(quantity, perDay),
+                    perDay));
+        }
+        return result;
+    }
+
+    /**
+     * あと何営業日もつか。
+     *
+     * <p><b>切り捨てます。</b>1.9 日ぶんあるなら「あと 1 日」。
+     * 足りない側に丸めるほうが、切らしたときの損より安全だからです。
+     *
+     * <p>消費の実績がない食材（レシピ未登録、または直近 4 週間で売れていない）は
+     * null を返します。<b>「あと 999 日」のような嘘をつくくらいなら、
+     * 何も言わないほうがましです。</b>
+     */
+    private Integer daysLeft(BigDecimal quantity, BigDecimal perDay) {
+        if (perDay == null || perDay.signum() <= 0) {
+            return null;
+        }
+        if (quantity.signum() <= 0) {
+            return 0;
+        }
+        return quantity.divide(perDay, 0, RoundingMode.FLOOR).intValue();
+    }
+
+    /**
+     * 食材ごとの消費量。棚卸しの日より後の注文だけを数える。
+     *
+     * <p><b>棚卸しの日ごとに食材をまとめて、日付のパターンの数だけ問い合わせます。</b>
+     * 食材ごとに起点の日が違うので 1 本の SQL にはできませんが、
+     * 実際には棚卸しは全食材まとめて同じ日に行うので、
+     * 日付のパターンはたいてい 1 つか 2 つです。
+     * 食材の数だけ往復するのとは桁が違います。
+     */
+    private Map<Long, BigDecimal> consumedPerIngredient(LocalDate asOf,
+                                                        List<Ingredient> targets,
+                                                        Map<Long, Baseline> baselines,
+                                                        List<RecipeLine> recipeLines) {
+        if (recipeLines.isEmpty()) {
+            return Map.of();
+        }
+
+        // 起点の日ごとに食材をまとめる。棚卸しが無い食材は null のグループ（＝全期間）。
+        Map<LocalDate, List<Long>> byBaselineDate = new LinkedHashMap<>();
+        List<Long> withoutBaseline = new ArrayList<>();
+        for (Ingredient ingredient : targets) {
+            Baseline baseline = baselines.get(ingredient.getId());
+            if (baseline == null) {
+                withoutBaseline.add(ingredient.getId());
+            } else {
+                byBaselineDate.computeIfAbsent(baseline.takenOn(), k -> new ArrayList<>())
+                        .add(ingredient.getId());
+            }
+        }
+
+        Map<Long, BigDecimal> result = new HashMap<>();
+        for (Map.Entry<LocalDate, List<Long>> group : byBaselineDate.entrySet()) {
+            Map<Long, BigDecimal> consumedInWindow =
+                    consumption.consumedBetween(group.getKey(), asOf, recipeLines);
+            for (Long ingredientId : group.getValue()) {
+                BigDecimal value = consumedInWindow.get(ingredientId);
+                if (value != null) {
+                    result.put(ingredientId, value);
+                }
+            }
+        }
+        if (!withoutBaseline.isEmpty()) {
+            Map<Long, BigDecimal> allTime = consumption.consumedBetween(null, asOf, recipeLines);
+            for (Long ingredientId : withoutBaseline) {
+                BigDecimal value = allTime.get(ingredientId);
+                if (value != null) {
+                    result.put(ingredientId, value);
+                }
+            }
         }
         return result;
     }

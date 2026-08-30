@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<!--/*
+   1商品のレシピ編集。
+
+   原価と原価率をこの画面のいちばん上に出す。
+   材料を1つ足すたびに原価が動くのが見えるほうが、
+   保存してから一覧に戻って確かめるより、はるかに使いやすい。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('レシピの編集', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text" th:text="${menuItem.name}">米粉のお好み焼き</h1>
+    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/recipes}">← 原価表へ</a>
+  </div>
+
+  <!--/* ── 原価がその場で見える ── */-->
+  <div th:if="${cost != null}" class="grid grid--4">
+    <div class="stat">
+      <div class="stat__label">売価（税込）</div>
+      <div class="stat__value"
+           th:text="'¥' + ${#numbers.formatInteger(cost.priceIncludingTax(), 1, 'COMMA')}">¥980</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">理論原価（税込）</div>
+      <div class="stat__value">
+        <span th:if="${cost.costIncludingTax() != null}"
+              th:text="'¥' + ${#numbers.formatDecimal(cost.costIncludingTax(), 1, 'COMMA', 0, 'POINT')}">¥294</span>
+        <span th:if="${cost.costIncludingTax() == null}">―</span>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">原価率（税込）</div>
+      <div class="stat__value">
+        <span th:if="${cost.costRateIncludingTax() != null}"
+              th:text="${cost.costRateIncludingTax()} + '%'">30.0%</span>
+        <span th:if="${cost.costRateIncludingTax() == null}">―</span>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">原価率（税抜）</div>
+      <div class="stat__value">
+        <span th:if="${cost.costRateNet() != null}"
+              th:text="${cost.costRateNet()} + '%'">30.5%</span>
+        <span th:if="${cost.costRateNet() == null}">―</span>
+      </div>
+    </div>
+  </div>
+
+  <div th:if="${cost != null and cost.isIncomplete()}" class="alert alert--warn">
+    <p class="mb-0">
+      <strong th:text="${cost.unknownCostCount()} + ' 種類'">1 種類</strong>
+      の食材が、まだ一度も仕入れていないため単価が分かりません。
+      その分の原価が抜けているので、<strong>上の原価率は実際より低く出ています</strong>。
+      レシートを 1 枚登録するか、食材の設定で単価を手で入れれば正しくなります。
+    </p>
+  </div>
+
+  <!--/* ── 材料 ── */-->
+  <div class="section-title">
+    <h2 class="section-title__text">材料</h2>
+    <span class="section-title__count" th:if="${cost != null}"
+          th:text="${cost.lines().size()} + ' 種類'">4 種類</span>
+  </div>
+
+  <p th:if="${cost == null or cost.isEmpty()}" class="help">
+    まだ材料が登録されていません。下から 1 つずつ足してください。<br>
+    登録すると、この商品が売れるたびに材料が在庫から引かれ、
+    <strong>「あと◯営業日で切れる」</strong>が食材・在庫の画面に出るようになります。
+  </p>
+
+  <div th:if="${cost != null and !cost.isEmpty()}" class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>食材</th>
+        <th class="right">1品あたり</th>
+        <th class="right">単価</th>
+        <th class="right">この材料の原価</th>
+        <th>メモ</th>
+        <th></th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="lc : ${cost.lines()}" th:with="line=${lc.line()}">
+        <td>
+          <a th:href="@{/inventory/ingredients/{id}(id=${line.ingredient.id})}"
+             th:text="${line.ingredient.name}">キャベツ</a>
+        </td>
+        <td class="right">
+          <form th:action="@{/inventory/recipes/{m}/lines/{l}(m=${menuItem.id},l=${line.id})}"
+                method="post" class="row">
+            <input class="input input--narrow" type="number" step="0.001" min="0.001"
+                   name="qtyPerItem" th:value="${line.qtyPerItem}" required>
+            <span class="tiny" th:text="${line.ingredient.unit.symbol}">g</span>
+            <button type="submit" class="btn btn--sm">直す</button>
+          </form>
+        </td>
+        <td class="right num tiny">
+          <span th:if="${lc.unitCost() != null}"
+                th:text="${#numbers.formatDecimal(lc.unitCost(), 1, 'COMMA', 2, 'POINT')}
+                         + ' 円/' + ${line.ingredient.unit.symbol}">0.12 円/g</span>
+          <span th:if="${lc.unitCost() == null}" class="faint">仕入れ未登録</span>
+        </td>
+        <td class="right num">
+          <span th:if="${!lc.isUnknown()}"
+                th:text="'¥' + ${#numbers.formatDecimal(lc.costIncludingTax(), 1, 'COMMA', 1, 'POINT')}">¥18.0</span>
+          <span th:if="${lc.isUnknown()}" class="faint">―</span>
+        </td>
+        <td class="tiny faint" th:text="${line.memo}"></td>
+        <td class="right">
+          <form th:action="@{/inventory/recipes/{m}/lines/{l}/delete(m=${menuItem.id},l=${line.id})}"
+                method="post">
+            <button type="submit" class="btn btn--sm btn--ghost">外す</button>
+          </form>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!--/* ── 材料を足す ── */-->
+  <form th:action="@{/inventory/recipes/{id}/lines(id=${menuItem.id})}" method="post"
+        th:object="${recipeLineForm}" class="card">
+    <div class="card__head">材料を足す</div>
+    <div class="card__body">
+
+      <div th:if="${#fields.hasErrors('*')}" class="alert alert--error">
+        <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
+      </div>
+
+      <div th:if="${ingredients.isEmpty()}" class="alert alert--info">
+        <p class="mb-0">
+          食材がまだ登録されていません。
+          <a th:href="@{/inventory/ingredients/new}">先に食材を追加してください →</a>
+        </p>
+      </div>
+
+      <div th:unless="${ingredients.isEmpty()}">
+        <div class="grid grid--3">
+          <div class="field">
+            <label class="label" for="ingredientId">食材</label>
+            <select class="select" id="ingredientId" th:field="*{ingredientId}">
+              <option value="">選んでください</option>
+              <option th:each="i : ${ingredients}" th:value="${i.id}"
+                      th:text="${i.name} + '（' + ${i.unit.symbol} + '）'">キャベツ（g）</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="qtyPerItem">1品あたりの量</label>
+            <input class="input" type="number" step="0.001" min="0.001"
+                   id="qtyPerItem" th:field="*{qtyPerItem}" placeholder="150">
+            <p class="help">この商品 1 つを作るのに使う量</p>
+          </div>
+          <div class="field">
+            <label class="label" for="memo">メモ（任意）</label>
+            <input class="input" type="text" id="memo" th:field="*{memo}"
+                   placeholder="千切り / 生地に混ぜる など">
+          </div>
+        </div>
+        <button type="submit" class="btn btn--primary">この材料を足す</button>
+      </div>
+    </div>
+  </form>
+
+  <p class="help">
+    分量は<strong>おおよそで構いません。</strong>正確でなくても、登録してあれば
+    「使うほど減る」という動きは正しく出ます。ずれた分は棚卸しのたびに実測で直ります。<br>
+    完璧を待つと永遠に始まらないので、まず主な材料だけ入れて動かしてみるのがおすすめです。
+  </p>
+
+</main>
+</body>
+</html>

@@ -101,6 +101,10 @@
          th:classappend="${#strings.startsWith(p, '/inventory/ingredients')} ? 'is-active'">
         <th:block th:replace="~{fragments/icons :: ic_package}"/><span>食材・在庫</span>
       </a>
+      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/recipes}"
+         th:classappend="${#strings.startsWith(p, '/inventory/recipes')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_notebook}"/><span>レシピ・原価表</span>
+      </a>
 
       <!--/* ── ここから下は店長（ADMIN）のみ ── */-->
       <th:block sec:authorize="hasRole('ADMIN')">
