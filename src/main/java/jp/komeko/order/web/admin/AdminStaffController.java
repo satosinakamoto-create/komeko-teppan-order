@@ -205,7 +205,6 @@ public class AdminStaffController {
 
     /** 一覧画面を描くのに必要なものをまとめてモデルへ。 */
     private void prepare(Model model, StaffUserDetails me) {
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("staffList", staffUserService.findAll());
         model.addAttribute("roles", StaffRole.values());
         model.addAttribute("adminCount", staffUserService.countEnabledAdmins());

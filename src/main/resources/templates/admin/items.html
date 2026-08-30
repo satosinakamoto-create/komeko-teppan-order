@@ -18,7 +18,6 @@
 <body>
 <main>
 
-  <div th:replace="~{fragments/admin-nav :: nav('items')}"></div>
   <div th:replace="~{fragments/common :: flash}"></div>
 
   <div class="section-title">
@@ -91,10 +90,21 @@
               <a class="btn" th:href="@{/admin/items/{id}/edit(id=${item.id})}">編集</a>
               <a class="btn" th:href="@{/admin/items/{id}/options(id=${item.id})}">オプション</a>
 
-              <form method="post" th:action="@{/admin/items/{id}/soldout(id=${item.id})}">
-                <button class="btn" type="submit"
-                        th:text="${item.soldOut} ? '販売を再開' : '品切れにする'">品切れにする</button>
-              </form>
+              <!--/* 品切れの切り替えボタンは 2026-08-27 にこの一覧から外しました。
+
+                     同じ soldOut を切り替える口が 3 つありました。
+                       この一覧のボタン ／ 編集フォームのチェック ／ 品切れ・残数の画面
+                     3 つのうち、この一覧のボタンだけは他の 2 つの部分集合で、
+                     ここにしかできないことがありませんでした。
+
+                     しかも時価の品（価格 0 円で売り切れ登録してある牛ステーキや日本酒）で
+                     危険でした。MenuItem#isOrderable は価格を見ていないので、
+                     ここで「販売を再開」を押すと ¥0 のまま注文できる状態になります。
+                     編集フォームなら価格の入力欄が同じ画面にあるので、その事故が起きにくい。
+
+                     役割はこう分けました。
+                       編集フォーム   … 売るかどうかを「決める」。価格と一緒に決める場所
+                       品切れ・残数   … 今日は出せないと「伝える」。営業中に片手で押す場所 */-->
 
               <form method="post" th:action="@{/admin/items/{id}/delete(id=${item.id})}"
                     onsubmit="return confirm('この商品を削除します。よろしいですか？（過去の伝票は残ります）')">

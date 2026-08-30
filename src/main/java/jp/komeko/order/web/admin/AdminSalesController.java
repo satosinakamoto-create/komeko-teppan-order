@@ -110,7 +110,6 @@ public class AdminSalesController {
         // open-in-view: false でも画面で困りません（今回は金額しか使いませんが）。
         List<TableSession> sessions = tableService.sessionsOf(target);
 
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("summary", summary);
         // モデル名に "session" は使えない（Thymeleaf では HttpSession を指す予約語とぶつかる）ので
         // 伝票の集計は billSummary という名前で渡す。

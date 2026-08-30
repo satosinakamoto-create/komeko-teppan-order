@@ -160,7 +160,6 @@ public class HallController {
         model.addAttribute("defaultGuestCount", DEFAULT_GUEST_COUNT);
         model.addAttribute("closedBills", closedBillsOfToday());
         // レイアウト（layout/staff.html）のナビで、いまいる場所に色を付けるための目印
-        model.addAttribute("activeNav", "hall");
         return "hall/board";
     }
 
@@ -249,7 +248,6 @@ public class HallController {
         // 現在値より小さい範囲で切らないようにしておく
         model.addAttribute("guestOptions",
                 guestOptions(Math.max(MAX_GUEST_CHOICE, bill.getGuestCount())));
-        model.addAttribute("activeNav", "hall");
         return "hall/bill";
     }
 

@@ -256,7 +256,6 @@ public class AdminTableController {
     private void prepareList(Model model) {
         List<DiningTable> tables = tableService.allTables();
 
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("tables", tables);
         // 席数の合計。「店全体で何席あるか」がひと目で分かると、卓の作り忘れに気付きやすい。
         model.addAttribute("totalSeats", tables.stream().mapToInt(DiningTable::getCapacity).sum());

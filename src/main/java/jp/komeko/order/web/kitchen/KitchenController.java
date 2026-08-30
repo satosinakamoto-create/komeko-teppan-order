@@ -230,7 +230,6 @@ public class KitchenController {
         // 卓名 → その卓のチケット枚数。テンプレートでは ${sameTableCount[order.tableName]} で引く
         model.addAttribute("sameTableCount", countByTableName(board));
         // レイアウト（layout/staff.html）のナビで、いまいる場所に色を付けるための目印
-        model.addAttribute("activeNav", "kitchen");
         return "kitchen/board";
     }
 
@@ -403,43 +402,44 @@ public class KitchenController {
         model.addAttribute("categoryGroups", categoryGroups);
         model.addAttribute("itemCount", items.size());
         model.addAttribute("soldOutCount", soldOutCount);
-        model.addAttribute("activeNav", "stock");
         return "kitchen/stock";
     }
 
     /**
-     * 残数（本日の数）を設定する。
+     * 残数（本日の数）を設定する。<b>欄を空にして送ると、数を数えない品に戻します。</b>
      *
      * <p>数量限定の品に「今日は 8 皿」と入れておくと、
      * 注文のたびに自動で減り、0 になった瞬間から各卓のメニューで売り切れ表示になります。
      * 減らす処理は条件付き UPDATE（{@code MenuService#tryConsumeStock}）なので、
      * 2 卓が同時に最後の 1 皿を頼んでも売り越えません。
+     *
+     * <p><b>「解除」の口をこちらへ寄せました（2026-08-27）。</b><br>
+     * もとは {@code POST /stock/{itemId}/stock/clear} という別のボタンがありましたが、
+     * 中身は同じ {@code setStock(id, null)} でした。行あたり 56px を使い、
+     * そのぶん右端の「操作」列（この画面の主役）を表示領域の外へ押し出していました。
+     *
+     * <p>空欄はもともとここへ届いていました。{@code <input type="number">} を空のまま送ると
+     * {@code stockCount=} という空文字が飛び、Spring が {@code Integer} へ変換する際に
+     * {@code null} になるためです。ところが下の書式に {@code %d} を使っていたので、
+     * 「残数を null に設定しました」と出ていました。
+     * 届いてはいたが、正しく答えていなかった、という状態です。
      */
     @PostMapping("/stock/{itemId}/stock")
     public String setStock(@PathVariable Long itemId,
-                           @RequestParam Integer stockCount,
+                           @RequestParam(required = false) Integer stockCount,
                            RedirectAttributes redirectAttributes) {
         try {
             String name = menuService.setStock(itemId, stockCount);
-            redirectAttributes.addFlashAttribute("flashSuccess",
-                    "「%s」の残数を %d に設定しました".formatted(name, stockCount));
+            if (stockCount == null) {
+                redirectAttributes.addFlashAttribute("flashInfo",
+                        "「%s」の残数管理を解除しました（無制限に戻ります）".formatted(name));
+            } else {
+                redirectAttributes.addFlashAttribute("flashSuccess",
+                        "「%s」の残数を %d に設定しました".formatted(name, stockCount));
+            }
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/kitchen/stock";
-        } catch (MenuService.MenuItemNotFoundException e) {
-            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
-            return "redirect:/kitchen/stock";
-        }
-        return redirectToCategoryOf(itemId);
-    }
-
-    /** 残数管理をやめる（数を数えない品に戻す）。 */
-    @PostMapping("/stock/{itemId}/stock/clear")
-    public String clearStock(@PathVariable Long itemId, RedirectAttributes redirectAttributes) {
-        try {
-            String name = menuService.setStock(itemId, null);
-            redirectAttributes.addFlashAttribute("flashInfo",
-                    "「%s」の残数管理を解除しました（無制限に戻ります）".formatted(name));
         } catch (MenuService.MenuItemNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/kitchen/stock";

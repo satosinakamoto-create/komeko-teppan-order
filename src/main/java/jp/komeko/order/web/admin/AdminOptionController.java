@@ -246,7 +246,6 @@ public class AdminOptionController {
     private void prepareOptions(Long itemId, Model model) {
         MenuItem item = menuService.itemWithOptions(itemId);
 
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("item", item);
         if (!model.containsAttribute("groupForm")) {
             model.addAttribute("groupForm", new OptionGroupForm());

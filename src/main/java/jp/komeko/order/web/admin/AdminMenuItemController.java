@@ -109,7 +109,6 @@ public class AdminMenuItemController {
             optionCounts.put(item.getId(), item.getOptionGroups().size());
         }
 
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("categories", categories);
         model.addAttribute("itemsByCategory", itemsByCategory);
         model.addAttribute("optionCounts", optionCounts);
@@ -280,19 +279,20 @@ public class AdminMenuItemController {
         return "redirect:/admin/items";
     }
 
-    /**
-     * 品切れの ON / OFF を切り替える。
-     *
-     * <p>この処理は厨房画面からも使うので、すでに {@link MenuService#toggleSoldOut(Long)} が
-     * 用意されています。同じルールを 2 か所に書かないよう、既存のものをそのまま呼びます。
-     */
-    @PostMapping("/{id}/soldout")
-    public String toggleSoldOut(@PathVariable("id") Long id, RedirectAttributes redirectAttributes) {
-        boolean soldOut = menuService.toggleSoldOut(id);
-        redirectAttributes.addFlashAttribute("flashSuccess",
-                soldOut ? "品切れにしました" : "品切れを解除しました");
-        return "redirect:/admin/items";
-    }
+    // 品切れを切り替える POST /{id}/soldout は 2026-08-27 に削除しました。
+    //
+    // 同じ soldOut を切り替える口が 3 つありました。
+    //   商品一覧のボタン ／ 編集フォームのチェック ／ 品切れ・残数（KitchenController）
+    // このメソッドが受けていた一覧のボタンだけは、他の 2 つでできることの
+    // 部分集合で、ここにしかできないことがありませんでした。
+    //
+    // 価格 0 円（時価）の品では危険でもありました。
+    // MenuItem#isOrderable は価格を見ないので、価格を入れないまま販売再開すると
+    // ¥0 で注文できてしまいます。編集フォームなら価格の入力欄が同じ画面にあり、
+    // 品切れ・残数は営業中に「今日は出せない」を伝えるための画面です。
+    //
+    // 切り替えのルール自体（MenuService#toggleSoldOut）は KitchenController が
+    // 使い続けているので、そちらは消していません。
 
     // ========================================================================
     //  内部ヘルパー
@@ -300,7 +300,6 @@ public class AdminMenuItemController {
 
     /** フォーム画面で使う選択肢（カテゴリ・アレルゲン）と見出しをモデルへ詰める。 */
     private void prepareForm(Model model, MenuItemForm form) {
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("pageTitle", form.isNew() ? "商品を追加" : "商品を編集");
         model.addAttribute("categories", categoryRepository.findAllByOrderBySortOrderAscIdAsc());
 

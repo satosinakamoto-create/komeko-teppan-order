@@ -24,7 +24,6 @@
 <body>
 <main>
 
-  <div th:replace="~{fragments/admin-nav :: nav('home')}"></div>
   <div th:replace="~{fragments/common :: flash}"></div>
 
   <div class="section-title">
@@ -111,22 +110,19 @@
 
   </div>
 
-  <!--/* ====== クイックリンク ======
-         忙しい時間帯に一番よく開く画面を、指で押しやすい大きさで並べる。
-         .btn は最小の高さが 48px（--tap）に揃えてあります。
-  */-->
-  <div class="section-title">
-    <h2 class="section-title__text">よく使う画面</h2>
-  </div>
+  <!--/* ====== クイックリンク「よく使う画面」は 2026-08-27 に削除しました ======
 
-  <div class="row row--wrap">
-    <a class="btn btn--primary" th:href="@{/hall}">ホール・会計を開く</a>
-    <a class="btn" th:href="@{/kitchen}">厨房ボードを開く</a>
-    <a class="btn" th:href="@{/admin/tables}">卓を編集する</a>
-    <a class="btn" th:href="@{/admin/qr}">卓のQRコードを印刷する</a>
-    <a class="btn" th:href="@{/admin/sales}">売上を見る</a>
-    <a class="btn" th:href="@{/admin/items}">商品を編集する</a>
-  </div>
+         ホール・会計 / 厨房ボード / 卓 / QRコード / 売上 / 商品 の 6 本を並べていましたが、
+         6 本とも左のサイドバーにある項目で、しかも同じ画面に同時に映っていました。
+
+         置いた理由は「忙しい時間帯に、指で押しやすい大きさで並べる」でした。
+         つまりサイドバーが押しにくいことの埋め合わせで、重複は目的ではなく症状でした。
+         実測するとサイドバーの項目は 38px しかなく、
+         CLAUDE.md の「タップ領域は 48px 以上」を満たしていませんでした。
+
+         app.css で .sb__item に min-height:var(--tap) を入れて高さを直したので、
+         埋め合わせのほうは要らなくなりました。
+         同じ行き先への入口を 2 つ持たない、という判断です。 */-->
 
   <p class="tiny faint mt-6 mb-0">
     ※ 集計は「営業日」単位です。深夜営業ぶんは店舗設定の切り替え時刻に従って前日に含まれます。<br>

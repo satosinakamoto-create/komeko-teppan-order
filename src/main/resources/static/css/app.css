@@ -1164,6 +1164,11 @@ hr {
   top: 0;
 }
 .table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* この列だけ折り返しを許す。
+   .table は既定で nowrap（狭い端末で表が崩れないようにするため）だが、
+   長い商品名が 1 列を独占すると、右端の操作列が表示領域の外へ出てしまう。
+   「押す列」を守るために、名前のほうを折り返させる。 */
+.table td.wrap { white-space: normal; }
 .table tbody tr:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 
 /* --------------------------------------------------------------------------
@@ -1371,31 +1376,83 @@ body.theme-snow { background-image: none; }
 /* --------------------------------------------------------------------------
    サイドバーシェル（layout/staff.html 専用）
    -------------------------------------------------------------------------- */
+/* サイドバーは 2 つの姿を持つ。
+
+     232px 文字つき … 店長が机で使う。13 項目あるので、探すには名前が要る
+      64px 帯       … 現場が立って使う。3 項目しか出ないので、名前より面積が要る
+
+   ★ どちらになるかは「画面の幅」ではなく「画面の役割」で決める（2026-08-27 変更）
+
+   もとは @media (max-width: 960px) だけで切り替えていた。
+   ところが厨房・ホールで使うタブレットは 1024px ある。961px 以上なので
+   判定に掛からず、現場には帯が一度も出ていなかった。
+   下の @media に「現場は濡れた手で押すので文字より面積を優先する」と
+   書いてあるのに、その現場にだけ届いていなかった。
+
+   幅で分けようとしたのが間違いだった。1024px は「広い画面」だが
+   「立って使う画面」でもある。幅と役割は別の軸で、重ねて 1 本にはできない。
+   いまは layout/staff.html が /kitchen と /hall のときに .staff-shell--floor を付け、
+   ここで帯にする。幅が本当に狭いとき（スマホ・縦向きタブレット）は
+   これまでどおり @media でも帯にする。条件は 2 つ、姿は 1 つ。
+
+   ★ 姿の違いは下の変数の差し替えだけで表す。
+     部品ごとに display:none を並べると、条件が増えるたびに同じ行が増える。
+     .theme-snow と同じやり方。 */
 .staff-shell {
   display: flex;
   min-height: 100dvh;
+
+  --sb-w: 232px;                    /* サイドバーの幅 */
+  --sb-pad: 16px 12px;              /* サイドバーの内側の余白 */
+  --sb-text: block;                 /* 文字（ブランド名・グループ見出し・項目名・アカウント名） */
+  --sb-item-pad: 0 10px;            /* 項目の左右の余白。高さは --tap で確保する */
+  --sb-item-justify: flex-start;
+  --sb-brand-justify: flex-start;
+  --sb-brand-pad: 8px;
+  --sb-account-dir: row;
+  --sb-account-pad: 10px 8px 4px;
+  --sb-account-gap: 10px;
+}
+
+/* 営業中に立って使う画面（厨房ボード・ホール・会計・品切れ・残数） */
+.staff-shell--floor {
+  --sb-w: 64px;
+  --sb-pad: 12px 8px;
+  --sb-text: none;
+  --sb-item-pad: 0;
+  --sb-item-justify: center;
+  --sb-brand-justify: center;
+  --sb-brand-pad: 4px;
+  --sb-account-dir: column;
+  --sb-account-pad: 8px 0 0;
+  --sb-account-gap: 6px;
 }
 
 .sb {
-  flex: 0 0 232px;
-  width: 232px;
+  flex: 0 0 var(--sb-w);
+  width: var(--sb-w);
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 16px 12px;
+  padding: var(--sb-pad);
   border-right: 1px solid var(--border);
   background: #ffffff;
   position: sticky;
   top: 0;
   height: 100dvh;
-  overflow-y: auto;
+  /* サイドバー全体ではなく、下の .sb__nav だけをスクロールさせる。
+     全体をスクロールにしていたため、項目が多い店長の画面では
+     いちばん下のログアウトが画面の外に出ていた（1024×768 で実測 830px）。
+     アカウント欄は常に見えていないと、閉じ込められたように感じる。 */
+  overflow: hidden;
 }
 
 .sb__brand {
   display: flex;
   align-items: center;
+  justify-content: var(--sb-brand-justify);
   gap: 10px;
-  padding: 8px;
+  padding: var(--sb-brand-pad);
   margin-bottom: 8px;
 }
 .sb__brand-mark {
@@ -1409,13 +1466,23 @@ body.theme-snow { background-image: none; }
   font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
   font-size: 15px;
 }
-.sb__brand-text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
-.sb__brand-name { font-weight: 700; font-size: 14px; white-space: nowrap; }
-.sb__brand-sub  { font-size: 11px; color: var(--text-faint); }
+.sb__brand-text { display: var(--sb-text); line-height: 1.3; min-width: 0; }
+.sb__brand-name { display: block; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.sb__brand-sub  { display: block; font-size: 11px; color: var(--text-faint); }
 
-.sb__nav { display: flex; flex-direction: column; gap: 2px; }
+/* スクロールするのはここだけ。min-height:0 が無いと flex の子は縮まず、
+   はみ出したぶんがそのまま外へ出る（アカウント欄が押し出される） */
+.sb__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
 
 .sb__label {
+  display: var(--sb-text);
   margin: 14px 0 2px;
   padding: 0 12px;
   font-size: 13px;
@@ -1426,14 +1493,23 @@ body.theme-snow { background-image: none; }
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: var(--sb-item-justify);
   gap: 10px;
-  padding: 9px 10px;
+  /* CLAUDE.md の「タップ領域は 48px 以上」。
+     もとは padding 9px 上下で実測 38px しかなく、規約を満たしていなかった。
+     押しにくいぶんを補うために、ダッシュボードへ同じ行き先のボタンを
+     6 つ並べていた（＝重複はこの高さ不足の症状だった）。
+     高さを直したので、そちらは消してある。 */
+  min-height: var(--tap);
+  padding: var(--sb-item-pad);
   border-radius: 12px;
   font-size: 14px;
   color: var(--text);
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
+
+.sb__item span { display: var(--sb-text); }
 .sb__item:hover { background: rgba(28, 28, 28, .04); color: var(--text); }
 .sb__item.is-active { background: rgba(28, 28, 28, .05); font-weight: 700; }
 /* アクティブ項目の左に付く短い黒バー（SnowUI の目印） */
@@ -1451,12 +1527,15 @@ body.theme-snow { background-image: none; }
 .sb__item .ic { opacity: .85; }
 
 /* アカウント欄（左下固定） */
+/* .sb__nav が伸びるので margin-top:auto は要らない。
+   flex-shrink:0 で、項目が増えてもここだけは縮まないようにする */
 .sb__account {
-  margin-top: auto;
+  flex: none;
   display: flex;
+  flex-direction: var(--sb-account-dir);
   align-items: center;
-  gap: 10px;
-  padding: 10px 8px 4px;
+  gap: var(--sb-account-gap);
+  padding: var(--sb-account-pad);
   border-top: 1px solid var(--border);
 }
 .sb__avatar {
@@ -1468,9 +1547,9 @@ body.theme-snow { background-image: none; }
   font-size: 13px;
   font-weight: 700;
 }
-.sb__account-text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; flex: 1; }
-.sb__account-name { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sb__account-role { font-size: 11px; color: var(--text-faint); }
+.sb__account-text { display: var(--sb-text); line-height: 1.3; min-width: 0; flex: 1; }
+.sb__account-name { display: block; font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb__account-role { display: block; font-size: 11px; color: var(--text-faint); }
 .sb__logout-form { flex: none; }
 .sb__logout {
   display: grid; place-items: center;
@@ -1490,16 +1569,25 @@ body.theme-snow { background-image: none; }
 }
 
 /* --------------------------------------------------------------------------
-   タブレット（厨房・ホール）: サイドバーをアイコンだけの細い帯に畳む。
-   現場は画面が狭く、濡れた手で押すので、文字より面積を優先する。
+   画面そのものが狭いとき（スマホ・縦向きタブレット）も帯に畳む。
+
+   厨房・ホールを畳むのは「幅」ではなく「役割」の担当になったので、
+   そちらは .staff-shell--floor が受け持つ（上のコメント参照）。
+   ここは純粋に幅だけの受け持ちで、入れる値は --floor と同じもの。
    -------------------------------------------------------------------------- */
 @media (max-width: 960px) {
-  .sb { flex-basis: 64px; width: 64px; padding: 12px 8px; }
-  .sb__brand { justify-content: center; padding: 4px; }
-  .sb__brand-text, .sb__label, .sb__item span,
-  .sb__account-text { display: none; }
-  .sb__item { justify-content: center; padding: 11px 0; }
-  .sb__account { flex-direction: column; gap: 6px; padding: 8px 0 0; }
+  .staff-shell {
+    --sb-w: 64px;
+    --sb-pad: 12px 8px;
+    --sb-text: none;
+    --sb-item-pad: 0;
+    --sb-item-justify: center;
+    --sb-brand-justify: center;
+    --sb-brand-pad: 4px;
+    --sb-account-dir: column;
+    --sb-account-pad: 8px 0 0;
+    --sb-account-gap: 6px;
+  }
   .staff-main { padding: 16px 16px 40px; }
 }
 

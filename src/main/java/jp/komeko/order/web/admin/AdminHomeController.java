@@ -73,7 +73,6 @@ public class AdminHomeController {
         // 厨房で作業中の 3 レーン（受付／調理中／お渡し可）
         KitchenBoard board = orderService.kitchenBoard();
 
-        model.addAttribute("activeNav", "admin");   // ヘッダーの「管理」を強調するためのキー
         model.addAttribute("todayLabel", today.format(DATE_LABEL));
         model.addAttribute("sales", sales);
         model.addAttribute("board", board);
