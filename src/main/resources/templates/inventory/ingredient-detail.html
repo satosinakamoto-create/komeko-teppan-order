@@ -71,19 +71,19 @@
                   th:text="'（' + ${level.baselineOn()} + '）'">（2026-08-20）</span>
             <span th:if="${level.baselineOn() == null}" class="tiny faint">（記録なし）</span>
           </th>
-          <td class="right num" th:text="${level.baselineQty()}">1000</td>
+          <td class="right num" th:text="${ingredient.format(level.baselineQty(), false)}">1000</td>
         </tr>
         <tr>
           <th>＋ その後の入庫</th>
-          <td class="right num" th:text="${level.received()}">400</td>
+          <td class="right num" th:text="${ingredient.format(level.received(), false)}">400</td>
         </tr>
         <tr>
           <th>− その後の消費（注文×レシピ）</th>
-          <td class="right num" th:text="${level.consumed()}">200</td>
+          <td class="right num" th:text="${ingredient.format(level.consumed(), false)}">200</td>
         </tr>
         <tr>
           <th>＋ その後の増減（廃棄・まかない）</th>
-          <td class="right num" th:text="${level.adjusted()}">-100</td>
+          <td class="right num" th:text="${ingredient.format(level.adjusted(), false)}">-100</td>
         </tr>
         <tr>
           <th class="bold">いまの残量</th>

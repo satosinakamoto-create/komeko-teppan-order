@@ -42,6 +42,20 @@ public record StockLevel(
 ) {
 
     /**
+     * これを超える予測は、具体的な日数を出さない。
+     *
+     * <p>30 営業日といえば 1 か月半ほど先です。それより遠い予測は、
+     * 途中でメニューが変わり、季節が変わり、仕入れが何度も入るので、
+     * <b>当たらないうえに判断にも使えません</b>。
+     *
+     * <p>実際、サンプルデータで「あと 1173 営業日」と表示されました。
+     * 計算としては正しいのですが、こういう数字が並ぶと
+     * <b>横に出ている「あと 3 営業日」まで信用されなくなります</b>。
+     * 出す数字を絞るほうが、画面全体の信頼が上がります。
+     */
+    private static final int FORECAST_HORIZON_DAYS = 30;
+
+    /**
      * マイナス在庫か。
      *
      * <p><b>マイナスは隠しません。</b>0 で止めて表示すると
@@ -50,6 +64,16 @@ public record StockLevel(
      */
     public boolean isNegative() {
         return quantity.signum() < 0;
+    }
+
+    /** 当分もつ（具体的な日数を出す意味がない）か。 */
+    public boolean isPlentiful() {
+        return daysLeft != null && daysLeft > FORECAST_HORIZON_DAYS;
+    }
+
+    /** 「当分もつ」と言うときの目安日数。画面の文言に使う。 */
+    public int forecastHorizon() {
+        return FORECAST_HORIZON_DAYS;
     }
 
     /** 食材に設定した警告残量を下回っているか。 */

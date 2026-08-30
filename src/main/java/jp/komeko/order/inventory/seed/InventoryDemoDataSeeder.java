@@ -133,17 +133,18 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
         }
 
         Map<String, Ingredient> pantry = createIngredients();
-        createPurchases(pantry);
+        int receipts = createPurchases(pantry);
         createStocktakes(pantry);
-        int recipeLines = createRecipes(pantry);
-        int soldDays = createPastSales();
+        List<MenuItem> withRecipe = new ArrayList<>();
+        int recipeLines = createRecipes(pantry, withRecipe);
+        int soldDays = createPastSales(withRecipe);
 
         log.warn("""
 
                 ============================================================
                  打ち合わせ用のサンプルデータを入れました。
                    ・食材 {} 品目、レシピ {} 行
-                   ・仕入れレシート 7 枚（8%と10%の混在、インボイスなしを含む）
+                   ・仕入れレシート {} 枚（8%と10%の混在、インボイスなしを含む）
                    ・棚卸し（{}日前）と廃棄の記録
                    ・過去 {} 営業日ぶんの売上
 
@@ -153,7 +154,7 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
                    /inventory/recipes     前職のエクセルの原価表そのもの
                    /inventory/tax-rates   税制改正を画面から登録する
                 ============================================================
-                """, pantry.size(), recipeLines, STOCKTAKE_DAYS_AGO, soldDays);
+                """, pantry.size(), recipeLines, receipts, STOCKTAKE_DAYS_AGO, soldDays);
     }
 
     // ========================================================================
@@ -200,7 +201,7 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
      * 本番とまったく同じ道を通ります。<b>デモ用の抜け道は作りません。</b>
      * 見せている画面がそのまま本物であることが、いちばんの説得材料だからです。
      */
-    private void createPurchases(Map<String, Ingredient> pantry) {
+    private int createPurchases(Map<String, Ingredient> pantry) {
         LocalDate today = LocalDate.now();
 
         // ── 1. 業務スーパー: 食材（8%）と消耗品（10%）が 1 枚に混ざる ──
@@ -223,7 +224,7 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
 
         // ── 3. 米粉の仕入れ（まとめ買い） ──
         record(today.minusDays(9), "米粉専門 こめや", "T3010401088669", PaymentMethod.BANK_TRANSFER, List.of(
-                line("米粉 5kg", "2", 4320, 8, pantry.get("米粉"), "10000"),
+                line("米粉 5kg", "1", 2160, 8, pantry.get("米粉"), "5000"),
                 line("米粉そば 30食", "1", 5400, 8, pantry.get("米粉そば"), "30")));
 
         // ── 4. 鮮魚（たこ） ──
@@ -254,7 +255,58 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
         record(today.minusDays(1), "たなか青果店", null, PaymentMethod.CASH, List.of(
                 line("大葉", "1", 138, 8, null, null),
                 line("エリンギ", "2", 240, 8, pantry.get("エリンギ"), "200")));
+
+        createUntrackedFoodPurchases(today);
+        return receiptCount;
     }
+
+    /**
+     * 食材マスタに登録していない材料の仕入れ。
+     *
+     * <p><b>これを入れないと実際原価率が 5% になります。</b>
+     * 原価率は「食材の仕入額 ÷ 売上」なので、分子には<b>店で買う材料が全部</b>要ります。
+     * ところが在庫として追いかけている食材は 12 品目だけで、
+     * メニューは 94 品あります。追いかけている分だけ計上すると、
+     * 飲食店としてありえない数字が出ます（実際は 28〜35% が相場）。
+     *
+     * <p>実店舗でもまったく同じことが起きます。
+     * 最初から全部の食材を登録できる店はありません。
+     * <b>紐付けていない行も経費としては正しく計上される</b>という設計が、
+     * ここで効いています。在庫は追えなくても、帳簿は最初から正しい。
+     *
+     * <p>だからこの行には食材を紐付けていません（{@code ingredient = null}）。
+     * 在庫には積まれず、原価率と月次の経費にだけ入ります。
+     */
+    private void createUntrackedFoodPurchases(LocalDate today) {
+        record(today.minusDays(10), "築地魚河岸 まるさ", "T4010001034876", PaymentMethod.CREDIT_CARD, List.of(
+                lineOf("殻付きホタテ 30枚", "1", 12960, 8, PurchaseCategory.FOOD),
+                lineOf("国産鶏皮 2kg", "1", 2160, 8, PurchaseCategory.FOOD),
+                lineOf("鶏せせり 2kg", "1", 4320, 8, PurchaseCategory.FOOD),
+                lineOf("国産砂肝 2kg", "1", 2700, 8, PurchaseCategory.FOOD),
+                lineOf("国産豚たん 2kg", "1", 5400, 8, PurchaseCategory.FOOD),
+                lineOf("黒毛和牛上ホルモン 3kg", "1", 10800, 8, PurchaseCategory.FOOD)));
+
+        record(today.minusDays(6), "たなか青果店", null, PaymentMethod.CASH, List.of(
+                lineOf("大根 10本", "1", 1580, 8, PurchaseCategory.FOOD),
+                lineOf("きゅうり 20本", "1", 1400, 8, PurchaseCategory.FOOD),
+                lineOf("トマト 3kg", "1", 2160, 8, PurchaseCategory.FOOD),
+                lineOf("わかめ 1kg", "1", 1890, 8, PurchaseCategory.FOOD),
+                lineOf("きのこ各種", "1", 3240, 8, PurchaseCategory.FOOD),
+                lineOf("じゃがいも 10kg", "1", 2380, 8, PurchaseCategory.FOOD),
+                lineOf("牡蠣 2kg", "1", 5400, 8, PurchaseCategory.FOOD)));
+
+        record(today.minusDays(3), "業務スーパー 学芸大学店", "T7000012050002", PaymentMethod.CASH, List.of(
+                lineOf("たこ焼き用たこ 3kg", "1", 8640, 8, PurchaseCategory.FOOD),
+                lineOf("ミックスチーズ 2kg", "1", 2380, 8, PurchaseCategory.FOOD),
+                lineOf("チョリソー 100本", "1", 4320, 8, PurchaseCategory.FOOD),
+                lineOf("うどん玉 50食", "1", 2700, 8, PurchaseCategory.FOOD),
+                lineOf("鶏もも 5kg", "1", 5400, 8, PurchaseCategory.FOOD),
+                lineOf("豚ロース 4kg", "1", 8640, 8, PurchaseCategory.FOOD),
+                lineOf("ラップ・アルミホイル", "1", 1580, 10, PurchaseCategory.SUPPLIES)));
+    }
+
+    /** 書き出したレシートの枚数。起動ログに出すだけのもの。 */
+    private int receiptCount;
 
     private void record(LocalDate on, String store, String regNumber,
                         PaymentMethod payment, List<PurchaseDraft.LineDraft> lines) {
@@ -266,6 +318,7 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
                 on, on, store, total, payment, regNumber,
                 null,     // 証憑区分はサービスに推定させる（本番と同じ道を通す）
                 null, null, null, true, lines), null);
+        receiptCount++;
     }
 
     /** 食材に紐づく明細。 */
@@ -302,15 +355,15 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
         LocalDate takenOn = LocalDate.now().minusDays(STOCKTAKE_DAYS_AGO);
 
         for (Object[] row : new Object[][]{
-                {"キャベツ", "4200"},
-                {"米粉", "6800"},
-                {"豚バラスライス", "1400"},
-                {"卵", "38"},
-                {"米粉そば", "22"},
+                {"キャベツ", "8500"},
+                {"米粉", "3000"},
+                {"豚バラスライス", "3400"},
+                {"卵", "90"},
+                {"米粉そば", "20"},
                 {"天かす", "700"},
-                {"青ねぎ", "600"},
-                {"エリンギ", "150"},
-                {"たこ", "900"},
+                {"青ねぎ", "2400"},
+                {"エリンギ", "900"},
+                {"たこ", "1500"},
                 {"お好みソース", "1600"},
                 {"マヨネーズ", "800"},
                 {"かつお節", "380"},
@@ -342,27 +395,28 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
      * 設計の要点は、<b>実際に未登録が残っている状態</b>でしか説明できません。
      * 全品そろったデータを見せると、いちばん伝えたい注意書きが伝わりません。
      */
-    private int createRecipes(Map<String, Ingredient> pantry) {
+    private int createRecipes(Map<String, Ingredient> pantry, List<MenuItem> registered) {
         int created = 0;
-        created += recipeFor("肉玉米粉そば", pantry, new String[][]{
+        created += recipeFor("肉玉米粉そば", pantry, registered, new String[][]{
                 {"キャベツ", "180"}, {"米粉", "90"}, {"豚バラスライス", "60"},
                 {"卵", "1"}, {"米粉そば", "1"}, {"天かす", "15"},
                 {"お好みソース", "25"}, {"マヨネーズ", "12"}, {"かつお節", "3"}});
-        created += recipeFor("ねぎたっぷり米粉そば", pantry, new String[][]{
+        created += recipeFor("ねぎたっぷり米粉そば", pantry, registered, new String[][]{
                 {"キャベツ", "150"}, {"米粉", "90"}, {"青ねぎ", "80"},
                 {"卵", "1"}, {"米粉そば", "1"}, {"天かす", "15"},
                 {"お好みソース", "25"}, {"かつお節", "3"}});
-        created += recipeFor("濃厚！国産豚ぺい焼", pantry, new String[][]{
+        created += recipeFor("濃厚！国産豚ぺい焼", pantry, registered, new String[][]{
                 {"卵", "2"}, {"豚バラスライス", "80"}, {"青ねぎ", "20"},
                 {"お好みソース", "20"}, {"マヨネーズ", "15"}});
-        created += recipeFor("たこときのこの塩たれ焼", pantry, new String[][]{
+        created += recipeFor("たこときのこの塩たれ焼", pantry, registered, new String[][]{
                 {"たこ", "90"}, {"エリンギ", "70"}, {"青ねぎ", "15"}});
-        created += recipeFor("たこのねぎまみれ", pantry, new String[][]{
+        created += recipeFor("たこのねぎまみれ", pantry, registered, new String[][]{
                 {"たこ", "80"}, {"青ねぎ", "60"}});
         return created;
     }
 
-    private int recipeFor(String menuItemName, Map<String, Ingredient> pantry, String[][] rows) {
+    private int recipeFor(String menuItemName, Map<String, Ingredient> pantry,
+                          List<MenuItem> registered, String[][] rows) {
         MenuItem item = findMenuItem(menuItemName);
         if (item == null) {
             // メニューの名前が変わっていても、ここで止まらない。
@@ -377,6 +431,9 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
                 recipeService.addLine(item.getId(), ingredient.getId(), new BigDecimal(row[1]), null);
                 created++;
             }
+        }
+        if (created > 0) {
+            registered.add(item);
         }
         return created;
     }
@@ -405,7 +462,7 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
      * <p>営業日はとびとびにします（水木定休のつもり）。
      * 連続した日付を作ると「営業日を実績から数えている」ことが伝わりません。
      */
-    private int createPastSales() {
+    private int createPastSales(List<MenuItem> withRecipe) {
         List<MenuItem> sellable = new ArrayList<>();
         for (MenuItem item : menuItems.findAll()) {
             if (item.isVisible()) {
@@ -440,7 +497,15 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
                 Order order = new Order(businessDate, orderNumber++, setting.getTaxRatePercent());
                 order.setSession(session);
                 for (int i = 0; i < 3; i++) {
-                    MenuItem item = sellable.get((back * 7 + g * 3 + i) % sellable.size());
+                    // ★ 3 品のうち 2 品はレシピを登録した看板メニューから出す。
+                    //
+                    //   全 89 品から均等に選ぶと、レシピのある 5 品はめったに売れず、
+                    //   食材がほとんど減りません。実際それで「あと 1173 営業日」という
+                    //   数字が出ました。看板メニューが実際よく出る、という
+                    //   店の姿に寄せたほうが、画面の数字も現実的になります。
+                    MenuItem item = (i == 0 && !withRecipe.isEmpty())
+                            ? withRecipe.get((back * 3 + g) % withRecipe.size())
+                            : sellable.get((back * 7 + g * 3 + i) % sellable.size());
                     int quantity = 1 + ((back + g + i) % 2);
                     order.addLine(new OrderLine(item.getId(), item.getName(),
                             item.getPrice(), quantity, item.getCookMinutes()));

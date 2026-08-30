@@ -86,10 +86,24 @@ public class Ingredient {
 
     /** 単位付きの表示（「1200 g」）。数量の表示を 1 箇所にまとめるため。 */
     public String format(BigDecimal quantity) {
+        return format(quantity, true);
+    }
+
+    /**
+     * 数量を人が読む形にする。
+     *
+     * <p>DB からは {@code 4200.000} のように小数位が付いて返ります。
+     * そのまま画面に出すと、内訳のような数字が並ぶところで
+     * <b>意味のない 0 が視線を奪います</b>。落として出します。
+     *
+     * @param withUnit 単位を付けるか。同じ単位が 1 行に何度も出るところでは false
+     */
+    public String format(BigDecimal quantity, boolean withUnit) {
         if (quantity == null) {
             return "―";
         }
-        return quantity.stripTrailingZeros().toPlainString() + " " + unit.getSymbol();
+        String number = quantity.stripTrailingZeros().toPlainString();
+        return withUnit ? number + " " + unit.getSymbol() : number;
     }
 
     // ── getter / setter（Lombok は使わない規約） ──

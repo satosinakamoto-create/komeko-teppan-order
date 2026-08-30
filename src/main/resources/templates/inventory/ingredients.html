@@ -76,9 +76,15 @@
         <!--/* 「あと◯営業日」。
                消費の実績が無い食材（レシピ未登録、または直近4週間で売れていない）は
                何も出さない。「あと999日」のような嘘をつくくらいなら黙るほうがいい。
-               日数は切り捨て。足りない側に丸めるほうが、切らしたときの損より安全。 */-->
+               日数は切り捨て。足りない側に丸めるほうが、切らしたときの損より安全。
+
+               ★ 30営業日より先は具体的な日数を出さない。
+                 「あと1173営業日」のような数字が並ぶと、
+                 横にある「あと3営業日」まで信用されなくなる。 */-->
         <td class="right num">
-          <span th:if="${l.daysLeft() != null}"
+          <span th:if="${l.isPlentiful()}" class="faint tiny"
+                th:text="${l.forecastHorizon()} + '営業日以上'">30営業日以上</span>
+          <span th:if="${l.daysLeft() != null and !l.isPlentiful()}"
                 th:classappend="${l.daysLeft() <= 3} ? 'bold' : ''"
                 th:text="${l.daysLeft()} + ' 営業日'">5 営業日</span>
           <span th:if="${l.daysLeft() == null}" class="faint tiny">レシピ未登録</span>
@@ -95,13 +101,16 @@
 
         <!--/* なぜこの数字になったかを出す。在庫が合わないとき、
                人が知りたいのは合計ではなくどこがずれたか。 */-->
-        <td class="tiny faint">
+        <td class="tiny faint" th:with="i=${l.ingredient()}">
           <span th:if="${l.hasNoBaseline()}">棚卸しなし（0 から）</span>
           <span th:unless="${l.hasNoBaseline()}"
-                th:text="'実測 ' + ${l.baselineQty()}">実測 1000</span>
-          <span th:if="${l.received().signum() != 0}" th:text="' ＋入庫 ' + ${l.received()}"> ＋入庫 400</span>
-          <span th:if="${l.consumed().signum() != 0}" th:text="' −消費 ' + ${l.consumed()}"> −消費 200</span>
-          <span th:if="${l.adjusted().signum() != 0}" th:text="' ' + ${l.adjusted()} + '（増減）'"> -100（増減）</span>
+                th:text="'実測 ' + ${i.format(l.baselineQty(), false)}">実測 1000</span>
+          <span th:if="${l.received().signum() != 0}"
+                th:text="' ＋入庫 ' + ${i.format(l.received(), false)}"> ＋入庫 400</span>
+          <span th:if="${l.consumed().signum() != 0}"
+                th:text="' −消費 ' + ${i.format(l.consumed(), false)}"> −消費 200</span>
+          <span th:if="${l.adjusted().signum() != 0}"
+                th:text="' ' + ${i.format(l.adjusted(), false)} + '（増減）'"> -100（増減）</span>
         </td>
 
         <td class="num tiny">
