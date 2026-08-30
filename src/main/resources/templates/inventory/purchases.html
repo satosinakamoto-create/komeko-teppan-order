@@ -10,6 +10,7 @@
                        画面の便利機能ではなく、法律上そこに無いと困る機能です。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
       th:replace="~{layout/staff :: layout('仕入れ・経費', ~{::main})}">
 <body>
 <main>
@@ -18,6 +19,8 @@
 
   <div class="section-title">
     <h1 class="section-title__text">仕入れ・経費</h1>
+    <a class="btn btn--sm btn--ghost" sec:authorize="hasRole('ADMIN')"
+       th:href="@{/inventory/tax-rates}">税率マスタ</a>
     <a class="btn btn--primary btn--sm" th:href="@{/inventory/purchases/new}">レシートを登録</a>
   </div>
 
@@ -25,8 +28,14 @@
          データ駆動の弱点は「制度が変わったことに人が気づかない」こと。
          その見落としをシステム側から知らせる保険です。
   */-->
+  <!--/* 警告からそのまま直しに行けるようにする。
+         税率マスタは数年に1回しか使わないので、サイドバーには置かない。
+         「気づいた瞬間に辿れる」ほうが、常に見えているより役に立つ。 */-->
   <div th:if="${!masterWarnings.isEmpty()}" class="alert alert--warn">
     <p class="mb-0" th:each="w : ${masterWarnings}" th:text="${w}">警告</p>
+    <p class="mb-0" sec:authorize="hasRole('ADMIN')">
+      <a th:href="@{/inventory/tax-rates}">税率・控除率マスタを開いて直す →</a>
+    </p>
   </div>
 
   <!--/* ===== ① 月次のまとめ ===== */-->

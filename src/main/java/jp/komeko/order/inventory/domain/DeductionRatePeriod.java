@@ -96,6 +96,18 @@ public class DeductionRatePeriod {
         return validTo;
     }
 
+    /**
+     * 適用終了日を入れる。
+     *
+     * <p>新しい率の行を足すとき、それまで「終わりが決まっていなかった」行に
+     * 前日を入れて閉じるために使います。<b>行を消すのではなく閉じる</b>のは、
+     * 過去の仕入れがその行を根拠に計算されているからです。
+     * 消してしまうと、去年の帳簿を計算し直したときに答えが変わります。
+     */
+    public void setValidTo(LocalDate validTo) {
+        this.validTo = validTo;
+    }
+
     public String getNote() {
         return note;
     }

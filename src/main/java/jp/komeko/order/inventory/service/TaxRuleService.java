@@ -6,6 +6,8 @@ import jp.komeko.order.inventory.domain.EvidenceType;
 import jp.komeko.order.inventory.domain.TaxRatePeriod;
 import jp.komeko.order.inventory.repository.DeductionRatePeriodRepository;
 import jp.komeko.order.inventory.repository.TaxRatePeriodRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,8 @@ import java.util.List;
  */
 @Service
 public class TaxRuleService {
+
+    private static final Logger log = LoggerFactory.getLogger(TaxRuleService.class);
 
     /** マスタに行が見つからないときに使う税率（%）。標準税率。 */
     private static final int FALLBACK_TAX_RATE = 10;
@@ -125,6 +129,63 @@ public class TaxRuleService {
             return null;
         }
         return deductionRatePercent > 0 ? deductionRatePercent + "%控除対象" : "控除対象外";
+    }
+
+    // ========================================================================
+    //  マスタに行を足す（改正が決まったときの作業）
+    // ========================================================================
+
+    /**
+     * 税率の改定を登録する。
+     *
+     * <p><b>行は決して消しません。</b>それまで「終わりが決まっていなかった」行に
+     * 前日を終了日として入れて閉じ、新しい行を足します。
+     * 消してしまうと、その行を根拠に計算されていた過去の仕入れの答えが変わり、
+     * 去年の帳簿を計算し直したときに数字が合わなくなります。
+     *
+     * <p>施行日は未来で構いません。むしろ<b>先に登録しておくのが本来の使い方</b>で、
+     * そうすれば切り替わりの日に誰も何もしなくて済みます。
+     *
+     * @param rateClass   区分（{@link TaxRatePeriod#CLASS_REDUCED_FOOD} など）
+     * @param ratePercent 新しい税率（%）
+     * @param validFrom   施行日。この日から新しい率になる
+     * @param note        何の改正かのメモ
+     */
+    @Transactional
+    public void addTaxRate(String rateClass, int ratePercent, LocalDate validFrom, String note) {
+        for (TaxRatePeriod existing : taxRates.findActive(rateClass, validFrom)) {
+            if (existing.getValidTo() == null || !existing.getValidTo().isBefore(validFrom)) {
+                existing.setValidTo(validFrom.minusDays(1));
+            }
+        }
+        taxRates.save(new TaxRatePeriod(rateClass, ratePercent, validFrom, null, note));
+        log.info("税率マスタに行を足しました: {} {}% ({}から)", rateClass, ratePercent, validFrom);
+    }
+
+    /**
+     * 経過措置の控除率の改定を登録する。考え方は {@link #addTaxRate} と同じ。
+     */
+    @Transactional
+    public void addDeductionRate(int ratePercent, LocalDate validFrom, String note) {
+        for (DeductionRatePeriod existing : deductionRates.findActive(validFrom)) {
+            if (existing.getValidTo() == null || !existing.getValidTo().isBefore(validFrom)) {
+                existing.setValidTo(validFrom.minusDays(1));
+            }
+        }
+        deductionRates.save(new DeductionRatePeriod(ratePercent, validFrom, null, note));
+        log.info("控除率マスタに行を足しました: {}% ({}から)", ratePercent, validFrom);
+    }
+
+    /** 税率マスタの全行（施行日順）。 */
+    @Transactional(readOnly = true)
+    public List<TaxRatePeriod> allTaxRates() {
+        return taxRates.findAllByOrderByRateClassAscValidFromAsc();
+    }
+
+    /** 控除率マスタの全行（施行日順）。 */
+    @Transactional(readOnly = true)
+    public List<DeductionRatePeriod> allDeductionRates() {
+        return deductionRates.findAllByOrderByValidFromAsc();
     }
 
     // ========================================================================
