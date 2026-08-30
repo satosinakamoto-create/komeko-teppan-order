@@ -143,8 +143,21 @@ abstract class KitchenBoardElapsedRenderSupport {
      * 本番の口を増やさずに済ませています。
      */
     protected void backdate(int minutes) {
+        // ★ ちょうど N 分前ではなく、30 秒よけいに戻す。
+        //
+        //   経過時間は Duration#toMinutes（切り捨て）で出しています。
+        //   ちょうど N 分前に置くと、記録した時刻と描画する時刻がまさに分の境目にあり、
+        //   わずかな時計のぶれで N-1 分と描かれることがあります。
+        //   実際 2026-08-31 に、スイート全体を流したときだけ
+        //   「378 分」を期待して「377 分」になり落ちました
+        //   （その test だけ流すと通るので、原因が分かるまで時間を食います）。
+        //
+        //   30 秒ずらせば、境目から十分に離れるので floor の結果が動きません。
+        //   テストが見たいのは「6 時間前の注文が赤枠で分数付きで出るか」であって、
+        //   秒単位の精度ではないので、これで意図は損ないません。
         jdbcTemplate.update("UPDATE orders SET created_at = ? WHERE id = ?",
-                Timestamp.valueOf(LocalDateTime.now().minusMinutes(minutes)), placed.getId());
+                Timestamp.valueOf(LocalDateTime.now().minusMinutes(minutes).minusSeconds(30)),
+                placed.getId());
     }
 
     /** 描き出されたチケット 1 枚から読み取った、経過時間まわりの見た目。 */
