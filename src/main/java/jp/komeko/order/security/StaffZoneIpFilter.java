@@ -44,7 +44,7 @@ public class StaffZoneIpFilter extends OncePerRequestFilter {
      * お客さま用の URL（/ /items /cart /bill /t など）は対象外。
      */
     private static final String[] STAFF_PREFIXES = {
-            "/kitchen", "/hall", "/admin", "/api/stream", "/api/kitchen", "/h2-console"
+            "/kitchen", "/hall", "/admin", "/inventory", "/api/stream", "/api/kitchen", "/h2-console"
     };
 
     private final boolean enabled;

@@ -81,6 +81,21 @@
       <version>${zxing.version}</version>
     </dependency>
 
+    <!-- ▼ Flyway : スキーマ変更の管理（マイグレーション）
+         本番は ddl-auto: validate なので、テーブルは自動では作られない。
+         「どの SQL をどの順で流したか」を DB 自身に記録させ、
+         同じ変更が二度流れないようにするのがマイグレーションツールの役割。
+         dev では従来どおり Hibernate の ddl-auto: update に任せる（application-dev.yml で無効化）。 -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <!-- PostgreSQL 用の方言。Flyway 10 以降は DB ごとに別 jar が要る -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+    </dependency>
+
     <!-- ▼ H2 : ファイル 1 つで動く組み込み DB。開発・小規模運用はこれで十分 -->
     <dependency>
       <groupId>com.h2database</groupId>

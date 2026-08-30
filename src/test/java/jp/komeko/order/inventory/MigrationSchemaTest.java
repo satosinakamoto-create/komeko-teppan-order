@@ -1,0 +1,181 @@
+package jp.komeko.order.inventory;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * マイグレーション SQL（{@code V2__inventory_step1.sql}）のテスト。
+ *
+ * <p><b>なぜこれが要るのか</b><br>
+ * 本番は {@code ddl-auto: validate} です。つまり
+ * <b>SQL の列名を 1 文字打ち間違えただけで、本番アプリが起動しなくなります</b>。
+ * しかも開発環境は {@code ddl-auto: update} で Hibernate がテーブルを作るため、
+ * 手元では最後まで気づけません。
+ *
+ * <p>そこで、まっさらな H2 に SQL を実際に流し、
+ * エンティティが要求する列がすべて出来ているかを確かめます。
+ * 打ち間違い・書き忘れという「いちばん起きやすい失敗」をここで潰します。
+ *
+ * <p><b>このテストで分からないこと</b><br>
+ * PostgreSQL 実機での型の細かな一致までは見ていません。
+ * 初回の本番デプロイ前に、ステージングで一度流して確認してください
+ * （{@code application-prod.yml} にも同じ注意を書いてあります）。
+ *
+ * <p>Spring を起動しないのは、確かめたいのが SQL そのものだからです。
+ * JDBC で直に H2 を開けば、数十ミリ秒で終わります。
+ */
+@DisplayName("マイグレーション SQL（本番のテーブルを作る）")
+class MigrationSchemaTest {
+
+    private static final String MIGRATION = "db/migration/V2__inventory_step1.sql";
+
+    /** テストごとに別名の DB を使う（前のテストの結果に影響されないため）。 */
+    private Connection freshDatabase(String name) throws SQLException, IOException {
+        Connection connection = DriverManager.getConnection(
+                "jdbc:h2:mem:" + name + ";DB_CLOSE_DELAY=-1", "sa", "");
+        String sql = new String(new ClassPathResource(MIGRATION).getInputStream()
+                .readAllBytes(), StandardCharsets.UTF_8);
+        try (Statement statement = connection.createStatement()) {
+            statement.execute(sql);
+        }
+        return connection;
+    }
+
+    /** そのテーブルの列名を集める（H2 は識別子を大文字で保持する）。 */
+    private Set<String> columnsOf(Connection connection, String table) throws SQLException {
+        Set<String> columns = new HashSet<>();
+        DatabaseMetaData metaData = connection.getMetaData();
+        try (ResultSet rs = metaData.getColumns(null, null, table.toUpperCase(), null)) {
+            while (rs.next()) {
+                columns.add(rs.getString("COLUMN_NAME").toUpperCase());
+            }
+        }
+        return columns;
+    }
+
+    @Nested
+    @DisplayName("4 つのテーブルが作られる")
+    class TablesCreated {
+
+        @Test
+        @DisplayName("SQL が最後まで流れる（構文エラーがない）")
+        void migration_runs() throws Exception {
+            try (Connection connection = freshDatabase("mig_runs")) {
+                assertThat(columnsOf(connection, "purchase")).isNotEmpty();
+                assertThat(columnsOf(connection, "purchase_line")).isNotEmpty();
+                assertThat(columnsOf(connection, "tax_rate_period")).isNotEmpty();
+                assertThat(columnsOf(connection, "deduction_rate_period")).isNotEmpty();
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("エンティティが要求する列がそろっている")
+    class ColumnsMatchEntities {
+
+        @Test
+        @DisplayName("purchase : 電子帳簿保存法の列を含めて全部ある")
+        void purchase_columns() throws Exception {
+            try (Connection connection = freshDatabase("mig_purchase")) {
+                assertThat(columnsOf(connection, "purchase")).contains(
+                        "ID",
+                        // 検索 3 項目（法律上の必須）
+                        "PURCHASED_ON", "STORE_NAME", "TOTAL_AMOUNT",
+                        // 入力期限・原本の扱い
+                        "RECEIVED_ON", "STORED_AT", "EQUIVALENCE_CHECKED_AT",
+                        "PAPER_RETENTION_REQUIRED",
+                        // インボイス
+                        "REG_NUMBER_RAW", "REG_NUMBER", "REG_VERIFY_STATUS",
+                        "EVIDENCE_TYPE", "DEDUCTION_RATE_PERCENT",
+                        // そのほか
+                        "PAYMENT_METHOD", "IMAGE_PATH", "OCR_JSON", "MEMO", "CREATED_BY",
+                        // 論理削除（物理削除はしない）
+                        "DELETED", "DELETED_AT", "DELETE_REASON");
+            }
+        }
+
+        @Test
+        @DisplayName("purchase_line : 税率とカテゴリを行ごとに持つ")
+        void purchase_line_columns() throws Exception {
+            try (Connection connection = freshDatabase("mig_line")) {
+                assertThat(columnsOf(connection, "purchase_line")).contains(
+                        "ID", "PURCHASE_ID", "LINE_NO", "ITEM_TEXT", "QUANTITY",
+                        "AMOUNT", "TAX_RATE_PERCENT", "TAX_AMOUNT", "CATEGORY");
+            }
+        }
+
+        @Test
+        @DisplayName("税率・控除率マスタ : 施行日で引ける形になっている")
+        void rate_master_columns() throws Exception {
+            try (Connection connection = freshDatabase("mig_rates")) {
+                assertThat(columnsOf(connection, "tax_rate_period")).contains(
+                        "ID", "RATE_CLASS", "RATE_PERCENT", "VALID_FROM", "VALID_TO", "NOTE");
+                assertThat(columnsOf(connection, "deduction_rate_period")).contains(
+                        "ID", "RATE_PERCENT", "VALID_FROM", "VALID_TO", "NOTE");
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("入れたデータが読み書きできる")
+    class Usable {
+
+        @Test
+        @DisplayName("採番が効き、明細を親に紐づけられる")
+        void insert_and_read() throws Exception {
+            try (Connection connection = freshDatabase("mig_insert");
+                 Statement statement = connection.createStatement()) {
+
+                statement.execute("""
+                        INSERT INTO purchase
+                          (purchased_on, store_name, total_amount, received_on, stored_at,
+                           paper_retention_required, reg_verify_status, evidence_type,
+                           deduction_rate_percent, payment_method, deleted)
+                        VALUES
+                          (DATE '2026-08-30', 'テスト商店', 766, DATE '2026-08-30',
+                           TIMESTAMP '2026-08-30 21:00:00', FALSE, 'CHECK_DIGIT_OK',
+                           'SIMPLIFIED_INVOICE', 100, 'CASH', FALSE)
+                        """);
+
+                long purchaseId;
+                try (ResultSet rs = statement.executeQuery("SELECT id FROM purchase")) {
+                    assertThat(rs.next()).isTrue();
+                    purchaseId = rs.getLong(1);
+                }
+                assertThat(purchaseId).isPositive();   // 採番が動いている
+
+                statement.execute("""
+                        INSERT INTO purchase_line
+                          (purchase_id, line_no, item_text, quantity, amount,
+                           tax_rate_percent, category)
+                        VALUES
+                          (%d, 1, 'キャベツ', 1.5, 216, 8, 'FOOD')
+                        """.formatted(purchaseId));
+
+                try (ResultSet rs = statement.executeQuery(
+                        "SELECT item_text, quantity, tax_rate_percent FROM purchase_line")) {
+                    assertThat(rs.next()).isTrue();
+                    assertThat(rs.getString(1)).isEqualTo("キャベツ");
+                    // 小数の個数（0.5 パック等）が丸められていないこと
+                    assertThat(rs.getBigDecimal(2).doubleValue()).isEqualTo(1.5);
+                    assertThat(rs.getInt(3)).isEqualTo(8);
+                }
+            }
+        }
+    }
+}

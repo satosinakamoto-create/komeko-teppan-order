@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<!--/*
+   仕入れ・経費の一覧。
+
+   この画面には性格の違うものが同居しています。見出しで分けています。
+
+     ① 月次のまとめ … いくら仕入れて、原価率はいくつか。店主が見る数字。
+     ② 要確認       … 税理士が目を通すべきもの（登録番号NG・紙の保管が要る・未確認）。
+     ③ 検索         … 電子帳簿保存法が求める「取引年月日・金額・取引先」での絞り込み。
+                       画面の便利機能ではなく、法律上そこに無いと困る機能です。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('仕入れ・経費', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">仕入れ・経費</h1>
+    <a class="btn btn--primary btn--sm" th:href="@{/inventory/purchases/new}">レシートを登録</a>
+  </div>
+
+  <!--/* ===== 税率マスタの終端警告 =====
+         データ駆動の弱点は「制度が変わったことに人が気づかない」こと。
+         その見落としをシステム側から知らせる保険です。
+  */-->
+  <div th:if="${!masterWarnings.isEmpty()}" class="alert alert--warn">
+    <p class="mb-0" th:each="w : ${masterWarnings}" th:text="${w}">警告</p>
+  </div>
+
+  <!--/* ===== ① 月次のまとめ ===== */-->
+  <form th:action="@{/inventory/purchases}" method="get" class="row row--wrap">
+    <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${prevMonth})}">← 前月</a>
+    <input class="input input--narrow" type="month" name="month" th:value="${month}">
+    <button type="submit" class="btn btn--sm">この月を表示</button>
+    <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${nextMonth})}">翌月 →</a>
+  </form>
+
+  <div class="grid grid--3">
+
+    <div class="stat">
+      <p class="stat__label">仕入れ・経費（税込）</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span
+          th:text="${#numbers.formatInteger(summary.totalIncludingTax(), 1, 'COMMA')}">0</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'税抜 ¥' + ${#numbers.formatInteger(summary.totalNet(), 1, 'COMMA')}
+                  + ' / ' + ${summary.purchaseCount()} + '件'">税抜 ¥0 / 0件</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">食材だけ（原価率の分子）</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span
+          th:text="${#numbers.formatInteger(summary.foodCostIncludingTax(), 1, 'COMMA')}">0</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'税抜 ¥' + ${#numbers.formatInteger(summary.foodCostNet(), 1, 'COMMA')}">税抜 ¥0</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">売上（受渡済の注文）</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span
+          th:text="${#numbers.formatInteger(summary.salesIncludingTax(), 1, 'COMMA')}">0</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'税抜 ¥' + ${#numbers.formatInteger(summary.salesNet(), 1, 'COMMA')}">税抜 ¥0</p>
+    </div>
+
+    <!--/* 原価率は税込と税抜で意味が違うので、並べて出します。
+           税込＝財布から出た実感。税抜＝税率が動いても連続する経営の数字。 */-->
+    <div class="stat">
+      <p class="stat__label">実際原価率（税抜）</p>
+      <p class="stat__value" th:if="${summary.costRatioNet() != null}">
+        <span th:text="${#numbers.formatDecimal(summary.costRatioNet(), 1, 1)}">0.0</span><span
+          class="stat__unit">%</span>
+      </p>
+      <p class="stat__value faint" th:unless="${summary.costRatioNet() != null}">—</p>
+      <p class="tiny faint mb-0">経営の数字。目標管理や他店との比較はこちら</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">実際原価率（税込）</p>
+      <p class="stat__value" th:if="${summary.costRatioIncludingTax() != null}">
+        <span th:text="${#numbers.formatDecimal(summary.costRatioIncludingTax(), 1, 1)}">0.0</span><span
+          class="stat__unit">%</span>
+      </p>
+      <p class="stat__value faint" th:unless="${summary.costRatioIncludingTax() != null}">—</p>
+      <p class="tiny faint mb-0">レシートと突き合わせるときはこちら</p>
+    </div>
+
+    <div class="stat">
+      <p class="stat__label">要確認</p>
+      <p class="stat__value">
+        <span th:text="${attention.size()}">0</span><span class="stat__unit">件</span>
+      </p>
+      <p class="tiny faint mb-0">登録番号・紙の保管・同等確認</p>
+    </div>
+
+  </div>
+
+  <p class="help">
+    原価率は<strong>食材だけ</strong>を売上で割ったものです（酒・消耗品・光熱費は含みません）。
+    食材は軽減税率 8%、売上は 10% と税率が違うため、税込どうしで割ると実態より低く出ます。
+    比較や目標管理には税抜の数字を使ってください。
+  </p>
+
+  <!--/* ===== 費目別の内訳 ===== */-->
+  <div th:if="${!summary.categories().isEmpty()}" class="card">
+    <div class="card__head">費目別の内訳</div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+        <tr>
+          <th>費目</th>
+          <th class="right">税込</th>
+          <th class="right">税抜</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="row : ${summary.categories()}">
+          <td th:text="${row.category().getLabel()}">食材</td>
+          <td class="right num" th:text="'¥' + ${#numbers.formatInteger(row.amountIncludeTax(), 1, 'COMMA')}">¥0</td>
+          <td class="right num" th:text="'¥' + ${#numbers.formatInteger(row.amountNet(), 1, 'COMMA')}">¥0</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!--/* ===== ② 要確認（税理士に渡す例外リスト） ===== */-->
+  <div th:if="${!attention.isEmpty()}" class="card">
+    <div class="card__head">要確認（税理士に見てもらう分）</div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+        <tr>
+          <th>取引日</th>
+          <th>店</th>
+          <th class="right">合計</th>
+          <th>理由</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="p : ${attention}">
+          <td th:text="${p.purchasedOn}">2026-08-30</td>
+          <td>
+            <a th:href="@{/inventory/purchases/{id}(id=${p.id})}" th:text="${p.storeName}">店名</a>
+          </td>
+          <td class="right num" th:text="'¥' + ${#numbers.formatInteger(p.totalAmount, 1, 'COMMA')}">¥0</td>
+          <td class="tiny">
+            <span th:if="${p.regVerifyStatus.needsAttention()}" class="badge"
+                  th:text="'登録番号: ' + ${p.regVerifyStatus.getLabel()}">登録番号</span>
+            <span th:if="${p.paperRetentionRequired}" class="badge">紙の原本を保管</span>
+            <span th:if="${p.equivalenceCheckedAt == null}" class="badge">同等確認まだ</span>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!--/* ===== ③ 検索（電子帳簿保存法の検索要件） ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">検索</h2>
+    <span class="section-title__count">取引日・金額・取引先</span>
+  </div>
+
+  <form th:action="@{/inventory/purchases}" method="get" class="card">
+    <div class="card__body">
+      <div class="grid grid--3">
+        <div class="field">
+          <label class="label" for="from">取引日（から）</label>
+          <input class="input" type="date" id="from" name="from" th:value="${from}">
+        </div>
+        <div class="field">
+          <label class="label" for="to">取引日（まで）</label>
+          <input class="input" type="date" id="to" name="to" th:value="${to}">
+        </div>
+        <div class="field">
+          <label class="label" for="store">取引先（部分一致）</label>
+          <input class="input" type="text" id="store" name="store" th:value="${store}" placeholder="業務スーパー">
+        </div>
+        <div class="field">
+          <label class="label" for="minAmount">金額（以上）</label>
+          <input class="input" type="number" id="minAmount" name="minAmount" th:value="${minAmount}" min="0">
+        </div>
+        <div class="field">
+          <label class="label" for="maxAmount">金額（以下）</label>
+          <input class="input" type="number" id="maxAmount" name="maxAmount" th:value="${maxAmount}" min="0">
+        </div>
+        <div class="field">
+          <label class="label" for="includeDeleted">取り消した分</label>
+          <select class="select" id="includeDeleted" name="includeDeleted">
+            <option value="false" th:selected="${!includeDeleted}">含めない</option>
+            <option value="true" th:selected="${includeDeleted}">含める</option>
+          </select>
+        </div>
+      </div>
+      <input type="hidden" name="month" th:value="${month}">
+      <button type="submit" class="btn btn--primary btn--sm">この条件で探す</button>
+      <a class="btn btn--sm btn--ghost" th:href="@{/inventory/purchases}">条件をクリア</a>
+    </div>
+  </form>
+
+  <p class="help">
+    削除した記録も残していて、検索で呼び出せます。電子帳簿保存法が
+    「訂正・削除の履歴を残し、削除済みも検索できること」を求めているためです。
+  </p>
+
+  <!--/* ===== 結果 ===== */-->
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>取引日</th>
+        <th>取引先</th>
+        <th class="right">合計（税込）</th>
+        <th>支払</th>
+        <th>証憑</th>
+        <th>状態</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="p : ${results.content}" th:classappend="${p.deleted} ? 'faint'">
+        <td th:text="${p.purchasedOn}">2026-08-30</td>
+        <td>
+          <a th:href="@{/inventory/purchases/{id}(id=${p.id})}" th:text="${p.storeName}">店名</a>
+        </td>
+        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(p.totalAmount, 1, 'COMMA')}">¥0</td>
+        <td class="tiny" th:text="${p.paymentMethod.getLabel()}">現金</td>
+        <td class="tiny">
+          <span th:text="${p.evidenceType.getLabel()}">適格簡易請求書</span>
+          <span th:if="${p.deductionRatePercent < 100}" class="badge"
+                th:text="${p.deductionRatePercent} + '%控除'">70%控除</span>
+        </td>
+        <td class="tiny">
+          <span th:if="${p.deleted}" class="badge badge--soldout">取り消し済み</span>
+          <span th:if="${!p.deleted and p.canDiscardPaper()}" class="badge badge--gf">紙は破棄可</span>
+          <span th:if="${!p.deleted and p.paperRetentionRequired}" class="badge">紙を保管</span>
+          <span th:if="${!p.deleted and !p.paperRetentionRequired and p.equivalenceCheckedAt == null}"
+                class="badge">確認まだ</span>
+        </td>
+      </tr>
+      <tr th:if="${results.isEmpty()}">
+        <td colspan="6" class="faint">記録がありません。「レシートを登録」から始めてください。</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!--/* ページング。条件を保ったまま移動する */-->
+  <div class="row row--wrap" th:if="${results.totalPages > 1}">
+    <a class="btn btn--sm" th:if="${results.hasPrevious()}"
+       th:href="@{/inventory/purchases(page=${results.number - 1}, from=${from}, to=${to},
+                  minAmount=${minAmount}, maxAmount=${maxAmount}, store=${store},
+                  includeDeleted=${includeDeleted}, month=${month})}">← 前のページ</a>
+    <span class="tiny faint"
+          th:text="${results.number + 1} + ' / ' + ${results.totalPages} + ' ページ'">1 / 1 ページ</span>
+    <a class="btn btn--sm" th:if="${results.hasNext()}"
+       th:href="@{/inventory/purchases(page=${results.number + 1}, from=${from}, to=${to},
+                  minAmount=${minAmount}, maxAmount=${maxAmount}, store=${store},
+                  includeDeleted=${includeDeleted}, month=${month})}">次のページ →</a>
+  </div>
+
+</main>
+</body>
+</html>

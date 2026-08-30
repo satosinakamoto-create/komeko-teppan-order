@@ -6,7 +6,7 @@
    2026-08-18 に横タブ方式から作り替えた。
    トンマナは SnowUI（Figma Community の Dashboard UI Kit）を参考にしている：
    白基調・黒の透過階調・角丸大きめ・Phosphor duotone アイコン。
-   スタイルの実体は app.css の「.theme-staff」ブロック。
+   スタイルの実体は app.css の「.theme-snow」ブロック（下の body のクラスと同じ名前）。
 
    ── ナビの分類（大カテゴリ＝権限の境界に一致させている） ──
      営業中につかう   … STAFF でも見える（厨房・ホール・品切れ）
@@ -32,7 +32,19 @@
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body class="theme-snow">
-<div class="staff-shell" th:with="p=${currentPath} ?: ''">
+<!--/* staff-shell--floor … サイドバーをアイコンだけの帯に畳む合図（app.css の「サイドバーシェル」）。
+
+       対象は営業中に立って使う画面（厨房ボード・ホール・会計・品切れ・残数）。
+       もとは画面幅 960px 以下という条件で畳んでいましたが、
+       厨房・ホールのタブレットは 1024px あるため一度も畳まれていませんでした。
+       幅ではなく「どの画面か」で判断します。
+
+       currentPath は null になり得ます。#strings.startsWith(null, …) は例外になるので、
+       この形（先に null を確かめる）で書いてください。下の見学モードの判定と同じ書き方です。 */-->
+<div class="staff-shell" th:with="p=${currentPath} ?: ''"
+     th:classappend="${currentPath != null
+                       and (#strings.startsWith(currentPath, '/kitchen')
+                            or #strings.startsWith(currentPath, '/hall'))} ? 'staff-shell--floor'">
 
   <!--/* ============ サイドバー ============ */-->
   <aside class="sb">
@@ -75,6 +87,15 @@
       <a class="sb__item" th:href="@{/kitchen/stock}"
          th:classappend="${#strings.startsWith(p, '/kitchen/stock')} ? 'is-active'">
         <th:block th:replace="~{fragments/icons :: ic_package}"/><span>品切れ・残数</span>
+      </a>
+
+      <!--/* ── 仕入れ・経費（在庫モジュール） ──
+             app.inventory.enabled=false のときはコントローラが存在せず 404 になるので、
+             設定で切っている間はリンクも出さない（${inventoryEnabled} は
+             InventoryModelAttributes が全画面に渡している）。 */-->
+      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/purchases}"
+         th:classappend="${#strings.startsWith(p, '/inventory')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_receipt}"/><span>仕入れ・経費</span>
       </a>
 
       <!--/* ── ここから下は店長（ADMIN）のみ ── */-->

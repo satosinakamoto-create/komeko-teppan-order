@@ -17,6 +17,30 @@ spring:
     username: ${DB_USER}
     password: ${DB_PASSWORD}
 
+  # ==========================================================================
+  #  Flyway : 本番のスキーマ変更はここで管理する
+  # ==========================================================================
+  #  ddl-auto: validate なので、テーブルは Hibernate では作られません。
+  #  「どの SQL をどの順で流したか」を DB 自身（flyway_schema_history）に
+  #  記録させ、同じ変更が二度流れないようにします。
+  #
+  #  baseline-on-migrate: true / baseline-version: 1
+  #    このアプリは Flyway 導入より前から動いていて、既存の 13 テーブルは
+  #    Hibernate が作りました。その状態を「バージョン 1 まで適用済み」と
+  #    見なす指定です。これが無いと Flyway は
+  #    「空でない DB に初回マイグレーションはできない」と言って起動を止めます。
+  #    実際に流れる最初の SQL は V2__inventory_step1.sql です。
+  #
+  #  ⚠ 初回デプロイの前に、ステージングで一度流して
+  #    「Flyway がテーブルを作り、Hibernate の validate が通る」ことを
+  #    必ず確認してください。SQL は H2 と PostgreSQL の両対応で書いてありますが、
+  #    PostgreSQL 実機での検証はまだです。
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    baseline-description: "komeko-order の既存スキーマ（Flyway 導入前）"
+
   jpa:
     hibernate:
       ddl-auto: validate

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<!--/*
+   レシートの登録。1 つのテンプレートで 2 つの段階を出し分けます。
+
+     stage='start'   … 写真を選ぶ / 手入力を選ぶ
+     stage='confirm' … AI が読んだ結果を人が直して保存する
+
+   ★ AI の結果は必ずここを通します。読んだまま保存する導線は作りません。
+     読み取りはあくまで下書き作りで、記録の責任は人が持つ、という切り分けです。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('レシートを登録', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">レシートを登録</h1>
+    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/purchases}">← 一覧へ戻る</a>
+  </div>
+
+  <!--/* ==========================================================
+         段階 1 : 写真を選ぶか、手入力にするか
+     ========================================================== */-->
+  <div th:if="${stage == 'start'}">
+
+    <div class="card">
+      <div class="card__head">レシートを撮る</div>
+      <div class="card__body">
+        <form th:action="@{/inventory/purchases/read}" method="post" enctype="multipart/form-data">
+          <div class="field">
+            <label class="label" for="image">レシートの写真</label>
+            <!--/* capture="environment" を付けると、スマホでは外側カメラが直接開きます。
+                   PC では普通のファイル選択になるので、両方で同じ画面が使えます。 */-->
+            <input class="input" type="file" id="image" name="image"
+                   accept="image/jpeg,image/png,image/webp" capture="environment" required>
+            <p class="help">
+              しまう前に、明るいところで真上から撮ってください。
+              紙のレシートを破棄する場合は、文字がはっきり読める大きさで撮る必要があります。
+            </p>
+          </div>
+          <button type="submit" class="btn btn--primary btn--lg btn--block"
+                  th:disabled="${!ocrAvailable}">
+            写真を読み取る
+          </button>
+        </form>
+
+        <p class="help" th:unless="${ocrAvailable}">
+          AI 読み取りは設定されていません（API キーが未設定です）。
+          下の「手で入力する」からは今すぐ記録できます。
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__head">手で入力する</div>
+      <div class="card__body">
+        <p class="help">
+          写真を撮らない場合や、読み取りがうまくいかない場合はこちら。
+          レシート画像なしでも記録は残せます（ただし紙の原本は保管してください）。
+        </p>
+        <form th:action="@{/inventory/purchases/manual}" method="post">
+          <button type="submit" class="btn btn--block">手で入力する</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!--/* ==========================================================
+         段階 2 : 確認して保存
+     ========================================================== */-->
+  <form th:if="${stage == 'confirm'}" th:action="@{/inventory/purchases}" method="post"
+        th:object="${purchaseForm}">
+
+    <!--/* 読み取り時に出た注意（画質が粗い、読めなかった等） */-->
+    <div th:if="${notices != null and !notices.isEmpty()}" class="alert alert--warn">
+      <p class="mb-0" th:each="n : ${notices}" th:text="${n}">注意</p>
+    </div>
+
+    <div th:if="${#fields.hasErrors('*') or #fields.hasGlobalErrors()}" class="alert alert--error">
+      <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
+    </div>
+
+    <!--/* 画像は読み取りの時点で保存済み。パスだけ持ち回る */-->
+    <input type="hidden" th:field="*{imagePath}">
+    <input type="hidden" th:field="*{ocrJson}">
+
+    <div class="card">
+      <div class="card__head">レシートの内容</div>
+      <div class="card__body">
+
+        <div th:if="*{imagePath} != null" class="mb-0">
+          <img th:src="*{imagePath}" alt="読み取ったレシート"
+               style="max-width:100%; max-height:22rem; border-radius:8px;">
+          <p class="help">読み取った画像です。数字が画面と合っているか見比べてください。</p>
+        </div>
+
+        <div class="grid grid--3">
+          <div class="field">
+            <label class="label" for="purchasedOn">取引日</label>
+            <input class="input" type="date" id="purchasedOn" th:field="*{purchasedOn}">
+          </div>
+          <div class="field">
+            <label class="label" for="receivedOn">受領日</label>
+            <input class="input" type="date" id="receivedOn" th:field="*{receivedOn}">
+            <p class="help">空なら取引日と同じ。入力期限を数える起点になります</p>
+          </div>
+          <div class="field">
+            <label class="label" for="storeName">取引先（店名）</label>
+            <input class="input" type="text" id="storeName" th:field="*{storeName}" placeholder="業務スーパー○○店">
+          </div>
+          <div class="field">
+            <label class="label" for="totalAmount">合計（税込・円）</label>
+            <input class="input" type="number" id="totalAmount" th:field="*{totalAmount}" min="0">
+            <p class="help">レシートに印字された合計をそのまま入れてください</p>
+          </div>
+          <div class="field">
+            <label class="label" for="paymentMethod">支払い方法</label>
+            <select class="select" id="paymentMethod" th:field="*{paymentMethod}">
+              <option th:each="m : ${paymentMethods}" th:value="${m}" th:text="${m.getLabel()}">現金</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="registrationNumber">登録番号（T + 13桁）</label>
+            <input class="input" type="text" id="registrationNumber" th:field="*{registrationNumber}"
+                   placeholder="T1234567890123">
+            <p class="help">印字がなければ空のままで構いません</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="evidenceType">証憑の区分</label>
+          <select class="select" id="evidenceType" th:field="*{evidenceType}">
+            <option th:each="e : ${evidenceTypes}" th:value="${e}" th:text="${e.getLabel()}">適格簡易請求書</option>
+          </select>
+          <p class="help">
+            登録番号の有無と金額から候補を入れてあります。違っていれば直してください。
+            ここで消費税を何％引けるかが決まります。
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <!--/* ===== 明細 ===== */-->
+    <div class="card">
+      <div class="card__head">明細</div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+          <tr>
+            <th style="min-width:12rem">品名</th>
+            <th style="min-width:6rem">数量</th>
+            <th style="min-width:8rem">金額（税込）</th>
+            <th style="min-width:6rem">税率%</th>
+            <th style="min-width:9rem">費目</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="line, iter : *{lines}">
+            <td>
+              <input class="input" type="text"
+                     th:field="*{lines[__${iter.index}__].itemText}" placeholder="（空欄なら保存されません）">
+            </td>
+            <td>
+              <input class="input" type="text" inputmode="decimal"
+                     th:field="*{lines[__${iter.index}__].quantity}">
+            </td>
+            <td>
+              <input class="input" type="number" min="0"
+                     th:field="*{lines[__${iter.index}__].amount}">
+            </td>
+            <td>
+              <!--/* 税率を select の固定リストにしないこと。
+                     8/10 を選択肢に焼き込むと、税率が増えた日に画面が嘘をつきます。 */-->
+              <input class="input" type="number" min="0" max="100"
+                     th:field="*{lines[__${iter.index}__].taxRatePercent}">
+            </td>
+            <td>
+              <select class="select" th:field="*{lines[__${iter.index}__].category}">
+                <option th:each="c : ${categories}" th:value="${c}" th:text="${c.getLabel()}">食材</option>
+              </select>
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card__foot">
+        <p class="tiny faint mb-0">
+          空欄の行は保存されません。行が足りないときは、いったん保存してから詳細画面で足してください。
+        </p>
+        <p class="tiny mb-0" th:if="*{lineTotalMismatch()} != 0">
+          <strong th:text="'レシートの合計と明細の合計が ¥'
+                  + ${#numbers.formatInteger(T(java.lang.Math).abs(purchaseForm.lineTotalMismatch()), 1, 'COMMA')}
+                  + ' ずれています。'">ずれ</strong>
+          値引き行や読み取れなかった行があるかもしれません。そのままでも保存できます。
+        </p>
+      </div>
+    </div>
+
+    <!--/* ===== 保存 ===== */-->
+    <div class="card">
+      <div class="card__body">
+        <div class="field">
+          <label class="label" for="memo">メモ</label>
+          <input class="input" type="text" id="memo" th:field="*{memo}" placeholder="（任意）">
+        </div>
+
+        <!--/* 電子帳簿保存法では、画像と紙が同じであることを人が確かめてから
+               原本を捨てる決まりです。ここが「捨ててよい」の分かれ目になります。 */-->
+        <div class="field">
+          <label class="label">
+            <input type="checkbox" th:field="*{equivalenceChecked}">
+            画像と紙のレシートを見比べて、同じ内容だと確認しました
+          </label>
+          <p class="help">
+            チェックすると、この紙のレシートは破棄して構いません。
+            あとから詳細画面で確認することもできます。
+          </p>
+        </div>
+
+        <button type="submit" class="btn btn--primary btn--lg btn--block">この内容で保存する</button>
+      </div>
+    </div>
+
+  </form>
+
+</main>
+</body>
+</html>

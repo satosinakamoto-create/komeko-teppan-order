@@ -224,6 +224,16 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/kitchen/orders/*/cancel")
                             .access(new WebExpressionAuthorizationManager(
                                     "hasAnyRole('STAFF','ADMIN') and !hasRole('GUEST')"));
+
+                    // ── 仕入れ・在庫の書き込みも見学者に許さない ──
+                    //
+                    // 見学者に見せたいのは「レシートを撮ると帳簿になる」という流れなので、
+                    // 画面（GET）は開けたままにします。
+                    // 一方、登録・取り消しは<b>次に見に来た人に残る</b>操作です。
+                    // でたらめな仕入れを積まれると、原価率の数字が壊れたまま次の人に見えます。
+                    auth.requestMatchers(HttpMethod.POST, "/inventory/**")
+                            .access(new WebExpressionAuthorizationManager(
+                                    "hasAnyRole('STAFF','ADMIN') and !hasRole('GUEST')"));
                 }
 
                 auth
@@ -235,6 +245,11 @@ public class SecurityConfig {
                     .requestMatchers("/kitchen/**", "/hall/**",
                             "/api/kitchen/**", "/api/stream/**")
                         .hasAnyRole("STAFF", "ADMIN")
+                    // ── 仕入れ・在庫もスタッフ以上 ──
+                    //   買い出しに行くのは店長とは限らないので、STAFF でも登録できるようにする。
+                    //   app.inventory.enabled=false のときはコントローラ自体が存在しないため、
+                    //   ここを許可していても 404 になる（InventoryPurchaseController 参照）。
+                    .requestMatchers("/inventory/**").hasAnyRole("STAFF", "ADMIN")
                     // ── 上記以外はすべて要ログイン ──
                     .anyRequest().authenticated();
             })
