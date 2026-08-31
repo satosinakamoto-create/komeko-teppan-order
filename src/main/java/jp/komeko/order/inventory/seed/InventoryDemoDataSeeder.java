@@ -515,6 +515,11 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
                 order.changeStatus(OrderStatus.READY, "デモ");
                 order.changeStatus(OrderStatus.COMPLETED, "デモ");
                 orders.save(order);
+                // ★ 伝票側のコレクションにも足すこと。
+                //   伝票の合計（close → recalculate）は自分の orders を読む。
+                //   setSession だけだと逆側が空のままで、閉じた伝票が 0 円になる。
+                //   売上はその伝票合計から数えるので、ここを忘れると売上が消える。
+                session.getOrders().add(order);
             }
 
             // 会計まで済ませて閉じる。開いたままだと、既存のデモデータ投入が

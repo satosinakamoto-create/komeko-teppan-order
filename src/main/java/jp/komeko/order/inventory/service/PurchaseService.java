@@ -1,6 +1,6 @@
 package jp.komeko.order.inventory.service;
 
-import jp.komeko.order.domain.OrderStatus;
+import jp.komeko.order.domain.SessionStatus;
 import jp.komeko.order.inventory.config.InventoryProperties;
 import jp.komeko.order.inventory.domain.*;
 import jp.komeko.order.inventory.repository.IngredientRepository;
@@ -324,10 +324,14 @@ public class PurchaseService {
             }
         }
 
-        // ── 売上（既存の注文データから読むだけ） ──
+        // ── 売上（既存の会計データから読むだけ） ──
+        //
+        // 数えるのは閉じた伝票。チャージ・深夜料金込みの、会計で確定した金額。
+        // 売上画面と同じ数字で割らないと、税理士に見せる原価率が
+        // 画面ごとに食い違う（2026-08-31 に注文合計から切り替えた）。
         long salesGross = 0;
         long salesTax = 0;
-        SalesLookupRepository.SalesTotal total = sales.sumSales(from, to, OrderStatus.COMPLETED);
+        SalesLookupRepository.SalesTotal total = sales.sumSales(from, to, SessionStatus.CLOSED);
         if (total != null) {
             salesGross = total.getGrossAmount() != null ? total.getGrossAmount() : 0;
             salesTax = total.getTaxAmount() != null ? total.getTaxAmount() : 0;

@@ -102,6 +102,46 @@ public class InventoryTestFixture {
 
         advanceTo(order, target);
         orders.save(order);
+        // 伝票合計（recalculate）は伝票側の orders を読むので、双方向を必ず張る
+        session.getOrders().add(order);
+    }
+
+    /**
+     * 売って、会計まで済ませる（伝票を閉じる）。
+     *
+     * <p>売上の集計は<b>閉じた伝票</b>を数えるので、
+     * 「売上に載ること」を確かめるテストにはこちらを使います。
+     * {@link #placeOrder} は伝票を開いたままにするので売上には載りません。
+     *
+     * @param tableChargePerGuest この伝票のテーブルチャージ（1 人あたり・円）。
+     *                            チャージが売上に入ることを確かめられるよう外から渡す
+     * @return 閉じた伝票（合計にはチャージが含まれている）
+     */
+    @Transactional
+    public TableSession sellAndClose(MenuItem item, LocalDate businessDate, int quantity,
+                                     int guestCount, int tableChargePerGuest) {
+        // 伝票は「来店時点の設定のコピー」を持つ設計なので、
+        // 保存はしない使い捨ての設定オブジェクトを渡せば、店の設定を汚さずに済む。
+        ShopSetting setting = new ShopSetting();
+        setting.setTaxRatePercent(shopSettings.currentReadOnly().getTaxRatePercent());
+        setting.setTableChargePerGuest(tableChargePerGuest);
+
+        DiningTable table = tables.findAll().stream().findFirst()
+                .orElseGet(() -> tables.save(new DiningTable("テスト卓", 4, 0)));
+        TableSession session = sessions.save(
+                new TableSession(table, businessDate, guestCount, setting));
+
+        Order order = new Order(businessDate, ORDER_NUMBER.incrementAndGet(),
+                setting.getTaxRatePercent());
+        order.setSession(session);
+        order.addLine(new OrderLine(item.getId(), item.getName(), item.getPrice(), quantity, 5));
+        order.recalculate();
+        advanceTo(order, OrderStatus.COMPLETED);
+        orders.save(order);
+        session.getOrders().add(order);
+
+        session.close(businessDate.atTime(22, 0), LateNightPolicy.NONE, "テスト", null);
+        return sessions.save(session);
     }
 
     /** 目的の状態まで、許されている道筋をたどる。 */
