@@ -80,7 +80,14 @@
     </div>
 
     <!--/* 原価率は税込と税抜で意味が違うので、並べて出します。
-           税込＝財布から出た実感。税抜＝税率が動いても連続する経営の数字。 */-->
+           税込＝財布から出た実感。税抜＝税率が動いても連続する経営の数字。
+
+           ★ 原価率は店長（ADMIN）と公開デモの見学者（GUEST）にだけ見せる。
+             設計 6 章の初期案「原価率の表示のみ ADMIN 限定」どおり。
+             アルバイトに店の儲けの構造まで見せるかは店主の判断ごと
+             （打ち合わせ⑥）なので、決まるまでは見せない側に倒す。
+             GUEST に見せるのは、公開デモの見どころがまさにここだから。 */-->
+    <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
     <div class="stat">
       <p class="stat__label">実際原価率（税抜）</p>
       <p class="stat__value" th:if="${summary.costRatioNet() != null}">
@@ -100,6 +107,7 @@
       <p class="stat__value faint" th:unless="${summary.costRatioIncludingTax() != null}">—</p>
       <p class="tiny faint mb-0">レシートと突き合わせるときはこちら</p>
     </div>
+    </th:block>
 
     <div class="stat">
       <p class="stat__label">要確認</p>
@@ -111,7 +119,7 @@
 
   </div>
 
-  <p class="help">
+  <p class="help" sec:authorize="hasAnyRole('ADMIN','GUEST')">
     原価率は<strong>食材だけ</strong>を売上で割ったものです（酒・消耗品・光熱費は含みません）。
     食材は軽減税率 8%、売上は 10% と税率が違うため、税込どうしで割ると実態より低く出ます。
     比較や目標管理には税抜の数字を使ってください。
@@ -176,6 +184,12 @@
   <div class="section-title">
     <h2 class="section-title__text">検索</h2>
     <span class="section-title__count">取引日・金額・取引先</span>
+    <!--/* いまの検索条件のまま CSV に落とす（税務調査・税理士への受け渡し用）。
+           UTF-8 + BOM なので日本語 Excel でそのまま開ける。 */-->
+    <a class="btn btn--sm btn--ghost"
+       th:href="@{/inventory/purchases/export.csv(from=${from},to=${to},minAmount=${minAmount},maxAmount=${maxAmount},store=${store},includeDeleted=${includeDeleted})}">
+      CSVダウンロード
+    </a>
   </div>
 
   <form th:action="@{/inventory/purchases}" method="get" class="card">

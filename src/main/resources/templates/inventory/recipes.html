@@ -15,6 +15,7 @@
      一覧から消すと、登録し忘れていることに気づけない。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
       th:replace="~{layout/staff :: layout('レシピ・原価表', ~{::main})}">
 <body>
 <main>
@@ -51,10 +52,14 @@
       <tr>
         <th>商品</th>
         <th class="right">売価<br><span class="tiny faint">税込</span></th>
+        <!--/* 原価と原価率は店長（ADMIN）と公開デモの見学者（GUEST）にだけ。
+               設計 6 章の初期案どおり。スタッフには分量の登録だけしてもらう。 */-->
+        <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
         <th class="right">原価<br><span class="tiny faint">税込</span></th>
         <th class="right">原価率<br><span class="tiny faint">税込</span></th>
         <th class="right">原価<br><span class="tiny faint">税抜</span></th>
         <th class="right">原価率<br><span class="tiny faint">税抜</span></th>
+        </th:block>
         <th>材料</th>
         <th></th>
       </tr>
@@ -70,6 +75,7 @@
         <td class="right num"
             th:text="'¥' + ${#numbers.formatInteger(c.priceIncludingTax(), 1, 'COMMA')}">¥980</td>
 
+        <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
         <td class="right num">
           <span th:if="${c.costIncludingTax() != null}"
                 th:text="'¥' + ${#numbers.formatDecimal(c.costIncludingTax(), 1, 'COMMA', 0, 'POINT')}">¥294</span>
@@ -93,6 +99,7 @@
                 th:text="${c.costRateNet()} + '%'">30.5%</span>
           <span th:if="${c.costRateNet() == null}" class="faint">―</span>
         </td>
+        </th:block>
 
         <td class="tiny">
           <span th:if="${c.isEmpty()}" class="faint">未登録</span>
@@ -113,7 +120,7 @@
     </table>
   </div>
 
-  <p th:unless="${costs.isEmpty()}" class="help">
+  <p th:unless="${costs.isEmpty()}" class="help" sec:authorize="hasAnyRole('ADMIN','GUEST')">
     原価は<strong>最新の仕入価格から自動で計算</strong>しています。
     昨日エリンギが値上がりしていれば、今日の原価率にもう反映されています。<br>
     「単価不明」は、まだ一度も仕入れていない食材が混ざっている商品です。

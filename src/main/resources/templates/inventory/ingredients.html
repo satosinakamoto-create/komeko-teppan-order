@@ -9,10 +9,8 @@
      いつも同じ場所に同じ食材があるほうが、毎日見る人には速い。
      注意が要るものはバッジで目立たせ、件数を上に出す。
 
-   ★「あと◯営業日」の列はまだ無い。
-     それを出すには注文からどれだけ減ったかを知る必要があり、
-     レシピの登録（Step 3）が要る。無い列を空欄で置いておくと
-     「壊れている」と見えるので、そもそも出さない。
+   ★「あと◯営業日」はレシピ（Step 3）から出る。
+     レシピ未登録の食材は嘘の日数を出さず「レシピ未登録」と表示する。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('食材・在庫', ~{::main})}">
@@ -169,7 +167,7 @@
         <div class="grid grid--2">
           <div class="field">
             <label class="label" for="stQty">数えた量</label>
-            <input class="input" type="number" step="0.001" id="stQty" th:field="*{quantity}">
+            <input class="input" type="number" step="0.001" min="0" id="stQty" th:field="*{quantity}">
           </div>
           <div class="field">
             <label class="label" for="stDate">数えた日</label>
@@ -221,7 +219,10 @@
         </div>
         <p class="help">
           捨てた分を棚卸しでつじつま合わせせず、理由つきで残します。
-          あとから「先月いくら捨てたか」が出せるようになります。
+          あとから「先月いくら捨てたか」が出せるようになります。<br>
+          <strong>棚卸しをした日の廃棄をあとから入れないでください</strong>
+          （数えた量に織り込み済みなので、二重に引かれます）。
+          棚卸しより前の廃棄も入力不要です。
         </p>
         <button type="submit" class="btn">この内容で記録する</button>
       </div>

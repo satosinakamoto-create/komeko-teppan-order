@@ -1,5 +1,6 @@
 package jp.komeko.order.inventory.web.form;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jp.komeko.order.inventory.domain.StocktakeReason;
@@ -30,6 +31,7 @@ public class StocktakeForm {
     private LocalDate takenOn;
 
     @NotNull(message = "数量を入力してください")
+    @DecimalMin(value = "0", message = "数量は0以上で入力してください")
     @NumberFormat(pattern = "#.###")
     private BigDecimal quantity;
 

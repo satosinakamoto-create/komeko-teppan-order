@@ -150,7 +150,16 @@
       <form th:if="${purchase.equivalenceCheckedAt == null}"
             th:action="@{/inventory/purchases/{id}/checked(id=${purchase.id})}" method="post">
         <button type="submit" class="btn btn--ok">紙と見比べて確認した</button>
-        <p class="help">確認すると、この紙のレシートは破棄して構いません。</p>
+        <!--/* ★「破棄して構いません」は入力期限内のときだけ。
+               期限を過ぎた分は、確認しても紙原本の保管が必要（電帳法）。
+               以前ここが無条件だったため、同じ画面の上の警告と矛盾していた。 */-->
+        <p class="help" th:unless="${purchase.paperRetentionRequired}">
+          確認すると、この紙のレシートは破棄して構いません。
+        </p>
+        <p class="help" th:if="${purchase.paperRetentionRequired}">
+          確認の記録は残りますが、入力期限を過ぎているため
+          <strong>紙の原本はこのまま保管してください</strong>（破棄できません）。
+        </p>
       </form>
 
       <form th:action="@{/inventory/purchases/{id}/delete(id=${purchase.id})}" method="post">

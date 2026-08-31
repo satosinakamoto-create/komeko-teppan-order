@@ -100,6 +100,15 @@ public class InventoryRecipeController {
                              @RequestParam BigDecimal qtyPerItem,
                              @RequestParam(required = false) String memo,
                              RedirectAttributes redirect) {
+        // ★ 0 以下はサーバでも弾く。画面の min=0.001 はブラウザ次第で外せる。
+        //   負の分量が通ると「売れるほど在庫が増える」ことになり、
+        //   0 だと消費されない材料としてレシピに居座る。
+        //   新規追加側（RecipeLineForm の @DecimalMin）と基準を揃える。
+        if (qtyPerItem == null || qtyPerItem.signum() <= 0) {
+            redirect.addFlashAttribute("flashErrors",
+                    java.util.List.of("1品あたりの量は0より大きい値で入力してください"));
+            return "redirect:/inventory/recipes/" + menuItemId;
+        }
         recipeService.updateLine(lineId, qtyPerItem, memo);
         redirect.addFlashAttribute("flashSuccess", "分量を直しました");
         return "redirect:/inventory/recipes/" + menuItemId;

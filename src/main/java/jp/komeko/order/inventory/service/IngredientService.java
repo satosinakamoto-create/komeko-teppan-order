@@ -40,15 +40,18 @@ public class IngredientService {
     private final IngredientRepository ingredients;
     private final ItemAliasRepository aliases;
     private final PurchaseLineRepository purchaseLines;
+    private final jp.komeko.order.inventory.repository.RecipeLineRepository recipeLines;
     private final Clock clock;
 
     public IngredientService(IngredientRepository ingredients,
                              ItemAliasRepository aliases,
                              PurchaseLineRepository purchaseLines,
+                             jp.komeko.order.inventory.repository.RecipeLineRepository recipeLines,
                              Clock clock) {
         this.ingredients = ingredients;
         this.aliases = aliases;
         this.purchaseLines = purchaseLines;
+        this.recipeLines = recipeLines;
         this.clock = clock;
     }
 
@@ -85,7 +88,7 @@ public class IngredientService {
                              BigDecimal costOverride, String memo) {
         Ingredient ingredient = new Ingredient(name, unit);
         ingredient.setLowThresholdQty(lowThreshold);
-        ingredient.setCostOverride(costOverride);
+        ingredient.setCostOverride(normalizeCostOverride(costOverride));
         ingredient.setMemo(memo);
         Ingredient saved = ingredients.save(ingredient);
         log.info("食材を登録しました: {} ({})", name, unit.getSymbol());
@@ -107,12 +110,27 @@ public class IngredientService {
             ingredient.setName(name);
             ingredient.setUnit(unit);
             ingredient.setLowThresholdQty(lowThreshold);
-            ingredient.setCostOverride(costOverride);
+            ingredient.setCostOverride(normalizeCostOverride(costOverride));
             ingredient.setSortOrder(sortOrder);
             ingredient.setActive(active);
             ingredient.setMemo(memo);
             log.info("食材を更新しました: id={} {}", id, name);
         });
+    }
+
+    /**
+     * 単価固定の 0 以下を「固定なし」に倒す。
+     *
+     * <p>画面側でも弾いていますが、ここでも倒しておきます。
+     * 0 円の単価が正規の値として通ると、その食材を使う全メニューの原価から
+     * 材料費が黙って消え、「単価不明」の警告も立たないまま
+     * 原価率が実際より低く表示されるためです。
+     */
+    private BigDecimal normalizeCostOverride(BigDecimal costOverride) {
+        if (costOverride != null && costOverride.signum() <= 0) {
+            return null;
+        }
+        return costOverride;
     }
 
     /**
@@ -127,6 +145,26 @@ public class IngredientService {
             ingredient.setActive(false);
             log.info("食材を使用停止にしました: id={} {}", id, ingredient.getName());
         });
+    }
+
+    /**
+     * この食材をレシピで使っているメニューの名前。
+     *
+     * <p>使用停止の前に知らせるためのものです。止めること自体は妨げません
+     * （現物がもう無いなら止めるのが正しい）が、黙って止めると
+     * その食材を使う全メニューの原価が「単価不明」になり、
+     * 気づく手掛かりが原価表の警告だけになります。止める人に先に言うのが筋です。
+     */
+    @Transactional(readOnly = true)
+    public List<String> menuItemsUsing(Long ingredientId) {
+        List<String> names = new ArrayList<>();
+        for (jp.komeko.order.inventory.domain.RecipeLine line : recipeLines.findByIngredient(ingredientId)) {
+            String name = line.getMenuItem().getName();
+            if (!names.contains(name)) {
+                names.add(name);
+            }
+        }
+        return names;
     }
 
     // ========================================================================

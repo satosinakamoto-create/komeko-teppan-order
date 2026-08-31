@@ -147,4 +147,125 @@ class InventoryPurchasePageTest {
                 .andExpect(view().name("inventory/purchase-form"))
                 .andExpect(content().string(containsString("明細を1行以上入力してください")));
     }
+
+    /**
+     * 2026-08-31 の全体チェックで直した分の回帰テスト。
+     * どれも「税理士に見せた瞬間に信用を失う」類いのずれだったもの。
+     */
+    @org.junit.jupiter.api.Nested
+    @DisplayName("全体チェック（2026-08-31）の回帰")
+    class FinalAuditRegressions {
+
+        @org.springframework.beans.factory.annotation.Autowired
+        private jp.komeko.order.inventory.service.PurchaseService purchaseService;
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        @DisplayName("期限超過のレシートは、同等確認しても「保管してください」と言う")
+        void overdue_receipt_keeps_paper_after_check() throws Exception {
+            // 受領から 10 日後に登録 → 入力期限（7日）超過 → 紙の保管が必要
+            jp.komeko.order.inventory.domain.Purchase overdue = purchaseService.record(
+                    new jp.komeko.order.inventory.service.PurchaseDraft(
+                            LocalDate.now().minusDays(10), LocalDate.now().minusDays(10),
+                            "期限切れテスト店", 500,
+                            jp.komeko.order.inventory.domain.PaymentMethod.CASH,
+                            null, jp.komeko.order.inventory.domain.EvidenceType.NOT_QUALIFIED,
+                            null, null, null, false,
+                            java.util.List.of(new jp.komeko.order.inventory.service.PurchaseDraft.LineDraft(
+                                    "テスト品", null, 500, 8, null,
+                                    jp.komeko.order.inventory.domain.PurchaseCategory.FOOD,
+                                    null, null, false))), null);
+            org.assertj.core.api.Assertions.assertThat(overdue.isPaperRetentionRequired()).isTrue();
+
+            // 詳細画面のフォームにも「破棄して構いません」が出ないこと
+            mockMvc.perform(get("/inventory/purchases/" + overdue.getId()))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.not(containsString("破棄して構いません"))));
+
+            // 確認ボタンを押しても「保管してください」と言うこと
+            mockMvc.perform(post("/inventory/purchases/" + overdue.getId() + "/checked").with(csrf()))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(flash().attribute("flashSuccess",
+                            containsString("保管してください")));
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        @DisplayName("手入力の確認画面は「インボイスなし」が既定（適格簡易ではない）")
+        void manual_defaults_to_not_qualified() throws Exception {
+            // 手入力＝登録番号なし・合計不明の状態。先頭の「適格簡易請求書（全額控除）」が
+            // 既定のまま保存されるのがいちばん危ない。
+            mockMvc.perform(post("/inventory/purchases/manual").with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString(
+                            "value=\"NOT_QUALIFIED\" selected")));
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        @DisplayName("確認画面に、印字された税額の入力欄がある")
+        void confirm_form_has_printed_tax_field() throws Exception {
+            // 「印字された値を保存する」（設計2章）の入口。
+            // 欄が無いと purchase_line.tax_amount がどの経路でも埋まらない。
+            mockMvc.perform(post("/inventory/purchases/manual").with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("lines[0].taxAmount")));
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        @DisplayName("検索結果を CSV でダウンロードできる（UTF-8 + BOM）")
+        void csv_export_works() throws Exception {
+            purchaseService.record(
+                    new jp.komeko.order.inventory.service.PurchaseDraft(
+                            LocalDate.now(), LocalDate.now(), "CSVテスト商店", 1080,
+                            jp.komeko.order.inventory.domain.PaymentMethod.CASH,
+                            null, jp.komeko.order.inventory.domain.EvidenceType.NOT_QUALIFIED,
+                            null, null, null, false,
+                            java.util.List.of(new jp.komeko.order.inventory.service.PurchaseDraft.LineDraft(
+                                    "CSV用の品", null, 1080, 8, null,
+                                    jp.komeko.order.inventory.domain.PurchaseCategory.FOOD,
+                                    null, null, false))), null);
+
+            byte[] body = mockMvc.perform(get("/inventory/purchases/export.csv"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Content-Type", containsString("text/csv")))
+                    .andReturn().getResponse().getContentAsByteArray();
+
+            // BOM（EF BB BF）で始まること。無いと日本語 Excel が文字化けする
+            org.assertj.core.api.Assertions.assertThat(body[0]).isEqualTo((byte) 0xEF);
+            org.assertj.core.api.Assertions.assertThat(body[1]).isEqualTo((byte) 0xBB);
+            org.assertj.core.api.Assertions.assertThat(body[2]).isEqualTo((byte) 0xBF);
+
+            String text = new String(body, java.nio.charset.StandardCharsets.UTF_8);
+            org.assertj.core.api.Assertions.assertThat(text).contains("CSVテスト商店");
+            org.assertj.core.api.Assertions.assertThat(text).contains("取引年月日");
+        }
+
+        @Test
+        @WithMockUser(roles = "STAFF")
+        @DisplayName("原価率はスタッフには見えない（ADMIN と公開デモの見学者だけ）")
+        void cost_ratio_hidden_from_staff() throws Exception {
+            // 設計6章の初期案どおり。打ち合わせ⑥で見直すまでは見せない側に倒す。
+            mockMvc.perform(get("/inventory/purchases"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.not(containsString("実際原価率"))));
+
+            mockMvc.perform(get("/inventory/recipes"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.not(containsString("原価率"))));
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        @DisplayName("原価率は店長には見える")
+        void cost_ratio_visible_to_admin() throws Exception {
+            mockMvc.perform(get("/inventory/purchases"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("実際原価率")));
+        }
+    }
 }

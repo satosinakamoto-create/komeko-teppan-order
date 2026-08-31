@@ -184,10 +184,12 @@ public class ClaudeReceiptReader implements ReceiptReader {
         lineProps.set("quantity", nullableType("number", "個数。印字がなければ null"));
         lineProps.set("amount", nullableType("integer", "行の合計金額（税込・円）"));
         lineProps.set("tax_rate_percent", nullableType("integer", "この行の消費税率（%）"));
+        lineProps.set("tax_amount", nullableType("integer",
+                "この行の消費税額（円）。レシートに印字がある場合だけ。推定はせず、無ければ null"));
         lineProps.set("reduced_mark", plainType("boolean", "軽減税率の印が付いているか"));
         item.set("required", objectMapper.createArrayNode()
                 .add("item_text").add("quantity").add("amount")
-                .add("tax_rate_percent").add("reduced_mark"));
+                .add("tax_rate_percent").add("tax_amount").add("reduced_mark"));
         item.put("additionalProperties", false);
 
         schema.set("required", objectMapper.createArrayNode()
@@ -265,6 +267,7 @@ public class ClaudeReceiptReader implements ReceiptReader {
                     decimal(line, "quantity"),
                     integer(line, "amount"),
                     integer(line, "tax_rate_percent"),
+                    integer(line, "tax_amount"),
                     line.path("reduced_mark").asBoolean(false)));
         }
 

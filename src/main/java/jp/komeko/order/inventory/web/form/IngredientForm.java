@@ -31,8 +31,15 @@ public class IngredientForm {
     @NumberFormat(pattern = "#.###")
     private BigDecimal lowThresholdQty;
 
-    /** 単価の手動固定（円・税込・1単位あたり）。空欄なら最新の仕入れから自動。 */
-    @DecimalMin(value = "0", message = "単価は0以上で入力してください")
+    /**
+     * 単価の手動固定（円・税込・1単位あたり）。空欄なら最新の仕入れから自動。
+     *
+     * <p><b>0 は弾きます。</b>「固定をやめたい」つもりで 0 を入れる誤操作があり得ますが、
+     * 0 を通すとその食材の原価が黙って 0 円になり、原価率が実際より低く出ます
+     * （「単価不明」の警告も立ちません）。やめるときは空欄、が正しい操作です。
+     */
+    @DecimalMin(value = "0", inclusive = false,
+            message = "単価を固定する場合は0より大きい値を。固定をやめるときは空欄にしてください")
     @NumberFormat(pattern = "#.####")
     private BigDecimal costOverride;
 

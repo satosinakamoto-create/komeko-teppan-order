@@ -155,6 +155,7 @@
             <th style="min-width:6rem">数量</th>
             <th style="min-width:8rem">金額（税込）</th>
             <th style="min-width:6rem">税率%</th>
+            <th style="min-width:6rem">税額<br><span class="tiny faint">印字があれば</span></th>
             <th style="min-width:9rem">費目</th>
             <th style="min-width:10rem">食材</th>
             <th style="min-width:7rem">在庫に入れる量</th>
@@ -183,6 +184,13 @@
                      8/10 を選択肢に焼き込むと、税率が増えた日に画面が嘘をつきます。 */-->
               <input class="input" type="number" min="0" max="100"
                      th:field="*{lines[__${iter.index}__].taxRatePercent}">
+            </td>
+            <td>
+              <!--/* レシートに印字された消費税額。「印字された値を保存する」の入口。
+                     無印字（適格簡易請求書では合法）なら空欄のままでよく、
+                     表示のたびに割り戻される。0 を入れる必要はない。 */-->
+              <input class="input" type="number" min="0"
+                     th:field="*{lines[__${iter.index}__].taxAmount}" placeholder="空欄可">
             </td>
             <td>
               <select class="select" th:field="*{lines[__${iter.index}__].category}">

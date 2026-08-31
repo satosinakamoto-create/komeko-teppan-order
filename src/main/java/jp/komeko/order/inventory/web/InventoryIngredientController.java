@@ -30,10 +30,9 @@ import java.util.List;
  * <p><b>この画面が答えるのは 1 つだけです。「いま何がどれだけあるか」。</b>
  * 残量と、少なくなっているものが一目で分かること。それ以上は望みません。
  *
- * <p><b>「あと◯営業日」はここにはまだ出ません。</b>
- * それを出すには、注文からどれだけ食材が減ったかを知る必要があり、
- * つまりレシピの登録が要ります。レシピの層（Step 3）の仕事です。
- * いまは<b>残量と、設定した警告残量を下回ったかどうか</b>までを扱います。
+ * <p><b>「あと◯営業日」はレシピ（Step 3）から出ます。</b>
+ * レシピ未登録のメニューぶんは消費に入らないため、日数は実際より長めに出ます。
+ * その旨の警告を画面に常時出しています。
  *
  * <p>棚卸しの入力もこの画面に置いています。残量を見て「合ってないな」と
  * 思った、まさにその場で直せるほうが、別画面に移るより実際に使われるからです。
@@ -47,15 +46,31 @@ public class InventoryIngredientController {
     private final StockService stockService;
     private final PurchaseService purchaseService;
     private final RecipeService recipeService;
+    private final jp.komeko.order.service.ShopSettingService shopSettingService;
 
     public InventoryIngredientController(IngredientService ingredientService,
                                          StockService stockService,
                                          PurchaseService purchaseService,
-                                         RecipeService recipeService) {
+                                         RecipeService recipeService,
+                                         jp.komeko.order.service.ShopSettingService shopSettingService) {
         this.ingredientService = ingredientService;
         this.stockService = stockService;
         this.purchaseService = purchaseService;
         this.recipeService = recipeService;
+        this.shopSettingService = shopSettingService;
+    }
+
+    /**
+     * 棚卸し・廃棄フォームの既定日。<b>暦日ではなく営業日</b>。
+     *
+     * <p>この店は深夜 1 時過ぎまで営業します。閉店後 0:30 に棚卸しをすると、
+     * 暦の上ではもう「翌日」ですが、営業日はまだ前日です
+     * （切り替えは既存設定の 5 時。売上・注文はすべて営業日で動いている）。
+     * 暦日を既定にすると、消費の集計が「棚卸し日より後の営業日」を数える際に
+     * <b>翌営業日の消費が丸ごと 1 日ぶん漏れ</b>、在庫が過大に出ます。
+     */
+    private java.time.LocalDate businessToday() {
+        return shopSettingService.currentBusinessDate();
     }
 
     @ModelAttribute
@@ -98,7 +113,7 @@ public class InventoryIngredientController {
         model.addAttribute("linesNeedingQuantity", ingredientService.linesNeedingQuantity());
 
         if (!model.containsAttribute("stocktakeForm")) {
-            model.addAttribute("stocktakeForm", new StocktakeForm(purchaseService.today()));
+            model.addAttribute("stocktakeForm", new StocktakeForm(businessToday()));
         }
         return "inventory/ingredients";
     }
@@ -117,7 +132,7 @@ public class InventoryIngredientController {
             model.addAttribute("ingredientForm", IngredientForm.of(ingredient));
         }
         if (!model.containsAttribute("stocktakeForm")) {
-            StocktakeForm form = new StocktakeForm(purchaseService.today());
+            StocktakeForm form = new StocktakeForm(businessToday());
             form.setIngredientId(id);
             model.addAttribute("stocktakeForm", form);
         }
@@ -177,9 +192,21 @@ public class InventoryIngredientController {
     /** 使用停止にする。行は消さない。 */
     @PostMapping("/{id}/deactivate")
     public String deactivate(@PathVariable Long id, RedirectAttributes redirect) {
+        // 止める前ではなく止めた後に知らせる（止めること自体は正しい操作なので妨げない）。
+        // 黙って止めると、この食材を使う全メニューの原価が「単価不明」になり、
+        // 気づく手掛かりが原価表の警告だけになる。
+        List<String> using = ingredientService.menuItemsUsing(id);
         ingredientService.deactivate(id);
-        redirect.addFlashAttribute("flashInfo",
-                "使用停止にしました。過去の仕入れと原価の記録はそのまま残ります");
+        if (using.isEmpty()) {
+            redirect.addFlashAttribute("flashInfo",
+                    "使用停止にしました。過去の仕入れと原価の記録はそのまま残ります");
+        } else {
+            redirect.addFlashAttribute("flashInfo",
+                    "使用停止にしました。ただし " + using.size() + " 品のレシピ（"
+                            + String.join("、", using.subList(0, Math.min(3, using.size())))
+                            + (using.size() > 3 ? " ほか" : "")
+                            + "）がこの食材を使っています。該当メニューの原価は単価不明になります");
+        }
         return "redirect:/inventory/ingredients";
     }
 

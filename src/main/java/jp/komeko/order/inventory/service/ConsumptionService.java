@@ -32,7 +32,7 @@ import java.util.Map;
  * <p><b>レシピ未登録のメニューは、この計算から静かに漏れます。</b>
  * それ自体は設計どおり（全部そろわなくても動く）ですが、
  * 漏れた分は「使ったのに減っていない」ことになり、予測が甘く出ます。
- * だから {@link #menuItemsWithoutRecipe} を画面に常時出します。
+ * だから未登録の一覧（{@code RecipeService#menuItemsWithoutRecipe}）を画面に常時出します。
  */
 @Service
 public class ConsumptionService {
@@ -121,23 +121,8 @@ public class ConsumptionService {
         return average;
     }
 
-    /** レシピが 1 行でも登録されている商品の id。 */
-    @Transactional(readOnly = true)
-    public List<Long> menuItemsWithRecipe() {
-        return recipes.findMenuItemIdsWithRecipe();
-    }
-
-    /**
-     * レシピが未登録の商品。
-     *
-     * <p>この一覧を画面に出し続けるのが<b>予測の甘さに対する唯一の保険</b>です。
-     * 登録漏れは静かに効き、しかも汎用食材ほど大きく効きます。
-     * 「まだある」と言われて発注しなかった、という形で実害が出るので、
-     * 見えなくしてはいけません。
-     */
-    @Transactional(readOnly = true)
-    public List<Long> menuItemsWithoutRecipe(List<Long> allMenuItemIds) {
-        List<Long> withRecipe = menuItemsWithRecipe();
-        return allMenuItemIds.stream().filter(id -> !withRecipe.contains(id)).toList();
-    }
+    // レシピ未登録メニューの一覧は RecipeService.menuItemsWithoutRecipe が持つ。
+    // 以前ここにも同じ趣旨のメソッドがあったが、非表示メニューの扱いが
+    // あちらと違い（こちらは除外しない）、将来どちらかを使った人が
+    // 件数の食い違いに悩むだけなので消した。判断は 1 箇所に置く。
 }

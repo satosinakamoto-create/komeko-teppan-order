@@ -70,7 +70,11 @@
     </table>
   </div>
 
-  <form th:action="@{/inventory/tax-rates/tax}" method="post" th:object="${taxRateForm}" class="card">
+  <!--/* 登録は「前の行に終了日が入る」不可逆操作で、削除機能も意図的に無い。
+       打ち間違いをワンクリックで確定させないため、送信前に一度確認を挟む
+       （設計 6 章の「ADMIN限定+確認ダイアログ」の約束。既存の QR 画面と同じ流儀）。 */-->
+  <form th:action="@{/inventory/tax-rates/tax}" method="post" th:object="${taxRateForm}" class="card"
+        onsubmit="return confirm('この改定を登録します。同じ区分でいま有効な行には自動で終了日が入ります。施行日と率に間違いはありませんか？');">
     <div class="card__head">税率の改定を登録する</div>
     <div class="card__body">
 
@@ -151,7 +155,8 @@
     </table>
   </div>
 
-  <form th:action="@{/inventory/tax-rates/deduction}" method="post" th:object="${deductionRateForm}" class="card">
+  <form th:action="@{/inventory/tax-rates/deduction}" method="post" th:object="${deductionRateForm}" class="card"
+        onsubmit="return confirm('この改定を登録します。いま有効な控除率の行には自動で終了日が入ります。施行日と率に間違いはありませんか？');">
     <div class="card__head">控除率の改定を登録する</div>
     <div class="card__body">
 

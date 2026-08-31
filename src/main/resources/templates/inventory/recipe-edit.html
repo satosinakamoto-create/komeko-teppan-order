@@ -7,6 +7,7 @@
    保存してから一覧に戻って確かめるより、はるかに使いやすい。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
       th:replace="~{layout/staff :: layout('レシピの編集', ~{::main})}">
 <body>
 <main>
@@ -18,8 +19,8 @@
     <a class="btn btn--sm btn--ghost" th:href="@{/inventory/recipes}">← 原価表へ</a>
   </div>
 
-  <!--/* ── 原価がその場で見える ── */-->
-  <div th:if="${cost != null}" class="grid grid--4">
+  <!--/* ── 原価がその場で見える（店長と公開デモの見学者にだけ。設計6章の初期案） ── */-->
+  <div th:if="${cost != null}" class="grid grid--4" sec:authorize="hasAnyRole('ADMIN','GUEST')">
     <div class="stat">
       <div class="stat__label">売価（税込）</div>
       <div class="stat__value"
@@ -51,7 +52,8 @@
     </div>
   </div>
 
-  <div th:if="${cost != null and cost.isIncomplete()}" class="alert alert--warn">
+  <div th:if="${cost != null and cost.isIncomplete()}" class="alert alert--warn"
+       sec:authorize="hasAnyRole('ADMIN','GUEST')">
     <p class="mb-0">
       <strong th:text="${cost.unknownCostCount()} + ' 種類'">1 種類</strong>
       の食材が、まだ一度も仕入れていないため単価が分かりません。
@@ -79,8 +81,10 @@
       <tr>
         <th>食材</th>
         <th class="right">1品あたり</th>
+        <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
         <th class="right">単価</th>
         <th class="right">この材料の原価</th>
+        </th:block>
         <th>メモ</th>
         <th></th>
       </tr>
@@ -100,6 +104,7 @@
             <button type="submit" class="btn btn--sm">直す</button>
           </form>
         </td>
+        <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
         <td class="right num tiny">
           <span th:if="${lc.unitCost() != null}"
                 th:text="${#numbers.formatDecimal(lc.unitCost(), 1, 'COMMA', 2, 'POINT')}
@@ -111,6 +116,7 @@
                 th:text="'¥' + ${#numbers.formatDecimal(lc.costIncludingTax(), 1, 'COMMA', 1, 'POINT')}">¥18.0</span>
           <span th:if="${lc.isUnknown()}" class="faint">―</span>
         </td>
+        </th:block>
         <td class="tiny faint" th:text="${line.memo}"></td>
         <td class="right">
           <form th:action="@{/inventory/recipes/{m}/lines/{l}/delete(m=${menuItem.id},l=${line.id})}"

@@ -206,4 +206,52 @@ class PurchaseCalculationTest {
             assertThat(next.coversOn(LocalDate.of(2027, 4, 1))).isTrue();
         }
     }
+
+    @org.junit.jupiter.api.Nested
+    @org.junit.jupiter.api.DisplayName("税額の丸めは「税率ごとに 1 回」")
+    class TaxRounding {
+
+        /**
+         * 行ごとに逆算して足すと、切り捨てが行数ぶん効いて紙とずれる。
+         * 適格請求書の端数処理は「1 枚につき税率ごとに 1 回」が制度上のルールで、
+         * レシートの印字もその方式。束ねてから 1 回だけ丸める。
+         */
+        @org.junit.jupiter.api.Test
+        @org.junit.jupiter.api.DisplayName("8% の 101 円 × 3 行 → 税額 22 円（行ごとだと 21 円になってしまう）")
+        void groups_by_rate_before_rounding() {
+            Purchase purchase = newPurchase(303);
+            purchase.addLine(new PurchaseLine(1, "品A", null, 101, 8, null, PurchaseCategory.FOOD));
+            purchase.addLine(new PurchaseLine(2, "品B", null, 101, 8, null, PurchaseCategory.FOOD));
+            purchase.addLine(new PurchaseLine(3, "品C", null, 101, 8, null, PurchaseCategory.FOOD));
+
+            // 303 × 8 ÷ 108 = 22.44… → 22。行ごと（7+7+7=21）ではない。
+            org.assertj.core.api.Assertions.assertThat(purchase.taxTotal()).isEqualTo(22);
+            org.assertj.core.api.Assertions.assertThat(purchase.netTotal()).isEqualTo(281);
+        }
+
+        @org.junit.jupiter.api.Test
+        @org.junit.jupiter.api.DisplayName("印字された税額のある行は、その値をそのまま信じる")
+        void printed_tax_wins() {
+            Purchase purchase = newPurchase(303);
+            // 印字 8 円（逆算なら 7 円のところ）。紙に書いてある値が正。
+            purchase.addLine(new PurchaseLine(1, "印字あり", null, 101, 8, 8, PurchaseCategory.FOOD));
+            purchase.addLine(new PurchaseLine(2, "印字なしA", null, 101, 8, null, PurchaseCategory.FOOD));
+            purchase.addLine(new PurchaseLine(3, "印字なしB", null, 101, 8, null, PurchaseCategory.FOOD));
+
+            // 印字 8 円 ＋ 印字なし 2 行を束ねて 202×8÷108=14.96…→14 円
+            org.assertj.core.api.Assertions.assertThat(purchase.taxTotal()).isEqualTo(8 + 14);
+        }
+
+        @org.junit.jupiter.api.Test
+        @org.junit.jupiter.api.DisplayName("8% と 10% が混ざるレシートは、税率ごとに別々に丸める")
+        void mixed_rates_round_separately() {
+            Purchase purchase = newPurchase(419);
+            purchase.addLine(new PurchaseLine(1, "食材", null, 101, 8, null, PurchaseCategory.FOOD));
+            purchase.addLine(new PurchaseLine(2, "食材2", null, 101, 8, null, PurchaseCategory.FOOD));
+            purchase.addLine(new PurchaseLine(3, "洗剤", null, 217, 10, null, PurchaseCategory.SUPPLIES));
+
+            // 8%: 202×8÷108=14.96→14 / 10%: 217×10÷110=19.7→19
+            org.assertj.core.api.Assertions.assertThat(purchase.taxTotal()).isEqualTo(14 + 19);
+        }
+    }
 }

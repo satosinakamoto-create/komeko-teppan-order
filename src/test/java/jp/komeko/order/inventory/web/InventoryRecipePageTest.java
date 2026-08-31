@@ -91,7 +91,7 @@ class InventoryRecipePageTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "ADMIN")   // 原価の表示は ADMIN（と公開デモの GUEST）だけの仕様
     @DisplayName("材料を足せて、原価がその場に出る")
     void can_add_line_and_see_cost() throws Exception {
         // 100g を 50 円（税込8%）で仕入れた → 0.5 円/g
@@ -140,7 +140,7 @@ class InventoryRecipePageTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "ADMIN")   // 単価不明の警告も原価の一部なので ADMIN 表示
     @DisplayName("一度も仕入れていない食材は「単価不明」と断る")
     void warns_about_unknown_unit_cost() throws Exception {
         // 0 円として足すと原価率が実際より低く出て「思ったより儲かる」と誤解させる

@@ -104,7 +104,7 @@
         <div class="grid grid--2">
           <div class="field">
             <label class="label" for="dQty">数えた量</label>
-            <input class="input" type="number" step="0.001" id="dQty" th:field="*{quantity}">
+            <input class="input" type="number" step="0.001" min="0" id="dQty" th:field="*{quantity}">
             <p class="help" th:text="'単位は ' + ${ingredient.unit.symbol}">単位は g</p>
           </div>
           <div class="field">
@@ -141,6 +141,10 @@
             </select>
           </div>
         </div>
+        <p class="help">
+          <strong>棚卸しをした日の廃棄をあとから入れないでください</strong>
+          （実測に織り込み済みのため二重に引かれます）。
+        </p>
         <button type="submit" class="btn">この内容で記録する</button>
       </div>
     </form>

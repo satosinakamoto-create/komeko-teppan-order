@@ -111,5 +111,17 @@ class PurchaseServiceRulesTest {
             assertThat(service.suggestEvidenceType(null, 5_000, LocalDate.of(2029, 10, 1)))
                     .isEqualTo(EvidenceType.NOT_QUALIFIED);
         }
+
+        /**
+         * OCR が合計を読めなかったレシート（かすれ・読取失敗）で頻発する経路。
+         * 以前は null を 0 円として扱い、全部「1 万円未満 → 帳簿のみ特例（全額控除）」の
+         * 候補になっていた。分からないときは控除の少ない側（経過措置）に倒す。
+         */
+        @Test
+        @DisplayName("合計が読めていない（null）ときは、少額特例を候補にしない")
+        void unknown_total_is_not_small_amount() {
+            assertThat(service.suggestEvidenceType(null, null, TODAY))
+                    .isEqualTo(EvidenceType.NOT_QUALIFIED);
+        }
     }
 }

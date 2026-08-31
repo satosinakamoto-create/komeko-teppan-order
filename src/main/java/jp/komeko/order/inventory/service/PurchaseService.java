@@ -208,12 +208,17 @@ public class PurchaseService {
      * <p>制度の解釈をシステムに任せきると、細部が変わったときに
      * 気づかないまま間違え続けます。確認画面で人が見て直せる形にしておきます。
      */
-    public EvidenceType suggestEvidenceType(String normalizedRegNumber, int totalAmount, LocalDate purchasedOn) {
+    public EvidenceType suggestEvidenceType(String normalizedRegNumber, Integer totalAmount, LocalDate purchasedOn) {
         if (normalizedRegNumber != null && RegistrationNumber.hasValidFormat(normalizedRegNumber)) {
             return EvidenceType.SIMPLIFIED_INVOICE;
         }
+        // ★ 合計が分からないときは、少額特例を候補にしない。
+        //   以前は null を 0 円として扱っていたため、OCR が合計を読めなかった
+        //   レシートが全部「1 万円未満 → 帳簿のみ特例（全額控除）」の候補になっていた。
+        //   分からないときは控除の少ない側（経過措置）に倒す。
+        //   候補が保守的すぎる分には、人が確認画面で直せば済む。逆は帳簿が過大控除になる。
         boolean smallAmountEraStillOpen = purchasedOn != null && !purchasedOn.isAfter(SMALL_AMOUNT_SPECIAL_UNTIL);
-        if (smallAmountEraStillOpen && totalAmount < SMALL_AMOUNT_THRESHOLD) {
+        if (smallAmountEraStillOpen && totalAmount != null && totalAmount < SMALL_AMOUNT_THRESHOLD) {
             // ※ 少額特例が使えるのは基準期間の課税売上高が 1 億円以下などの事業者に限られる。
             //    その判定は店の属性なので、ここでは「候補」として出すだけにとどめる。
             return EvidenceType.BOOK_ONLY_SPECIAL;
@@ -260,6 +265,53 @@ public class PurchaseService {
                                  String storeKeyword, boolean includeDeleted, Pageable pageable) {
         String keyword = (storeKeyword == null || storeKeyword.isBlank()) ? null : storeKeyword.trim();
         return purchases.search(from, to, minAmount, maxAmount, keyword, includeDeleted, pageable);
+    }
+
+    /**
+     * 検索結果を CSV の文字列に組み立てる（税務調査・税理士への受け渡し用）。
+     *
+     * <p><b>組み立てまで含めてトランザクションの中で行います。</b>
+     * 税額の集計は明細（遅延読み込み）を読むため、コントローラ側で回すと
+     * {@code open-in-view: false} により LazyInitializationException で落ちます。
+     * 実際、最初コントローラに書いて落ちました（テストが先に踏んだ）。
+     * 「必要な関連は Service の中で読み終えてから返す」が既存の規約です。
+     */
+    @Transactional(readOnly = true)
+    public String exportCsv(LocalDate from, LocalDate to, Integer minAmount, Integer maxAmount,
+                            String storeKeyword, boolean includeDeleted) {
+        StringBuilder csv = new StringBuilder();
+        csv.append('\uFEFF');   // BOM。無いと日本語 Excel が文字化けする
+        csv.append("取引年月日,取引先,合計金額(税込),消費税額,税抜金額,証憑区分,控除率(%),登録番号,支払方法,同等確認,紙原本の保管,削除,削除理由\n");
+        for (Purchase p : search(from, to, minAmount, maxAmount, storeKeyword, includeDeleted,
+                org.springframework.data.domain.Pageable.unpaged())) {
+            p.getLines().size();   // 遅延読み込みをこの場で実体化（税額の集計が明細を読む）
+            csv.append(p.getPurchasedOn()).append(',')
+                    .append(csvField(p.getStoreName())).append(',')
+                    .append(p.getTotalAmount()).append(',')
+                    .append(p.taxTotal()).append(',')
+                    .append(p.netTotal()).append(',')
+                    .append(csvField(p.getEvidenceType() != null ? p.getEvidenceType().getLabel() : "")).append(',')
+                    .append(p.getDeductionRatePercent()).append(',')
+                    .append(csvField(p.getRegNumber() != null ? p.getRegNumber() : "")).append(',')
+                    .append(csvField(p.getPaymentMethod() != null ? p.getPaymentMethod().getLabel() : "")).append(',')
+                    .append(p.getEquivalenceCheckedAt() != null ? "済" : "未").append(',')
+                    .append(p.isPaperRetentionRequired() ? "必要" : "不要").append(',')
+                    .append(p.isDeleted() ? "削除済み" : "").append(',')
+                    .append(csvField(p.getDeleteReason() != null ? p.getDeleteReason() : ""))
+                    .append('\n');
+        }
+        return csv.toString();
+    }
+
+    /** CSV の 1 項目。カンマ・引用符・改行が入り得る文字列はここを通す。 */
+    private String csvField(String value) {
+        if (value == null) {
+            return "";
+        }
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
     }
 
     /** 1 件を明細つきで読む。 */

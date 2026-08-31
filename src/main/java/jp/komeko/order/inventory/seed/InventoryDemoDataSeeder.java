@@ -213,8 +213,11 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
                 line("キッチンペーパー", "1", 328, 10, null, null),
                 line("ゴミ袋 45L", "1", 218, 10, null, null)));
 
-        // ── 2. 八百屋（登録番号なし）: 経過措置 80% が効く ──
-        //    税理士がいちばん気にするところ。実物で見せられるようにしておく。
+        // ── 2. 八百屋（登録番号なし・1万円未満）: 少額特例の実物 ──
+        //    合計 890 円 < 1 万円なので、候補は「帳簿のみ（少額特例）」＝全額控除になる。
+        //    経過措置 80% の実物は、この下の createUntrackedFoodPurchases にある
+        //    たなか青果店 18,050 円のレシート（1 万円以上・登録番号なし）のほう。
+        //    プレゼンで「80% の例」を見せるときはそちらを開くこと。
         record(today.minusDays(11), "たなか青果店", null, PaymentMethod.CASH, List.of(
                 line("キャベツ", "3", 450, 8, pantry.get("キャベツ"), "3200"),
                 line("青ねぎ", "2", 320, 8, pantry.get("青ねぎ"), "400"),

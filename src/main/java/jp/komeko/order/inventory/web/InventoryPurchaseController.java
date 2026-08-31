@@ -143,6 +143,36 @@ public class InventoryPurchaseController {
         return "inventory/purchases";
     }
 
+    /**
+     * 検索結果を CSV でダウンロードする（設計 6 章の約束。税務調査・税理士への受け渡し用）。
+     *
+     * <p>電子帳簿保存法の検索要件そのものは画面の検索で満たしていますが、
+     * 調査官や税理士に「その結果をください」と言われたとき、
+     * 画面を見せる以外の手が無いのでは話になりません。
+     * <b>検索と同じ条件</b>で全件（ページ分割なし）を出します。
+     *
+     * <p>ダウンロードは読み取りなので GET でよい（PRG の対象は状態を変える操作）。
+     * 文字コードは UTF-8 + BOM。Excel で開く人がほとんどで、
+     * BOM が無いと日本語 Excel が文字化けするためです。
+     */
+    @GetMapping("/export.csv")
+    public org.springframework.http.ResponseEntity<byte[]> exportCsv(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Integer minAmount,
+            @RequestParam(required = false) Integer maxAmount,
+            @RequestParam(required = false) String store,
+            @RequestParam(defaultValue = "true") boolean includeDeleted) {
+
+        // 組み立てはサービス側（明細の遅延読み込みがあるため。規約どおり）
+        String csv = purchaseService.exportCsv(from, to, minAmount, maxAmount, store, includeDeleted);
+        String filename = "shiire-" + purchaseService.today() + ".csv";
+        return org.springframework.http.ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                .header("Content-Type", "text/csv; charset=UTF-8")
+                .body(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     /** 1 件の詳細。 */
     @GetMapping("/{id}")
     public String detail(@PathVariable Long id, Model model) {
@@ -230,7 +260,14 @@ public class InventoryPurchaseController {
     /** 手入力で確認画面を開く（写真なし）。 */
     @PostMapping("/manual")
     public String manual(Model model) {
-        model.addAttribute("purchaseForm", PurchaseForm.manual(purchaseService.today()));
+        PurchaseForm form = PurchaseForm.manual(purchaseService.today());
+        // ★ 手入力でも証憑区分の候補を入れる。
+        //   入れないと、セレクトの先頭（適格簡易請求書＝全額控除）が既定のまま送信され、
+        //   八百屋の手書き領収書が控除率 100% で保存されてしまう。
+        //   登録番号なし・合計不明の状態での候補は「インボイスなし」（経過措置）になる。
+        //   画面の説明文（候補を入れてあります）とも、これでつじつまが合う。
+        suggestEvidence(form);
+        model.addAttribute("purchaseForm", form);
         model.addAttribute("stage", "confirm");
         return "inventory/purchase-form";
     }
@@ -311,11 +348,27 @@ public class InventoryPurchaseController {
     //  記録の手入れ
     // ========================================================================
 
-    /** 「紙と見比べました」を記録する。 */
+    /**
+     * 「紙と見比べました」を記録する。
+     *
+     * <p><b>「破棄して構いません」は無条件に言ってはいけません。</b>
+     * 入力期限を過ぎたレシートは、確認しても紙の原本の保管が必要です
+     * （{@link Purchase#canDiscardPaper}）。以前ここが無条件だったため、
+     * 同じ画面の上部で「保管してください」と警告しながら、
+     * ボタンを押すと「破棄して構いません」と言う自己矛盾が起きていました。
+     * 店主がこれを信じて原本を捨てると電子帳簿保存法違反になります。
+     */
     @PostMapping("/{id}/checked")
     public String markChecked(@PathVariable Long id, RedirectAttributes redirect) {
         purchaseService.markEquivalenceChecked(id);
-        redirect.addFlashAttribute("flashSuccess", "同等確認を記録しました。紙の原本は破棄して構いません");
+        Purchase purchase = purchaseService.findWithLines(id);
+        if (purchase != null && purchase.canDiscardPaper()) {
+            redirect.addFlashAttribute("flashSuccess",
+                    "同等確認を記録しました。紙の原本は破棄して構いません");
+        } else {
+            redirect.addFlashAttribute("flashSuccess",
+                    "同等確認を記録しました。ただし入力期限を過ぎているため、紙の原本は引き続き保管してください");
+        }
         return "redirect:/inventory/purchases/" + id;
     }
 
@@ -380,10 +433,10 @@ public class InventoryPurchaseController {
     /** 証憑区分のたたき台を入れる（人が確認画面で直せる）。 */
     private void suggestEvidence(PurchaseForm form) {
         String normalized = RegistrationNumber.normalize(form.getRegistrationNumber());
+        // 合計が読めていないときは null のまま渡す。
+        // 0 円に変換すると「1 万円未満 → 少額特例（全額控除）」の候補になってしまう。
         form.setEvidenceType(purchaseService.suggestEvidenceType(
-                normalized,
-                form.getTotalAmount() != null ? form.getTotalAmount() : 0,
-                form.getPurchasedOn()));
+                normalized, form.getTotalAmount(), form.getPurchasedOn()));
     }
 
     /**

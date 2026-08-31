@@ -46,6 +46,8 @@ public record ReceiptReading(
      * @param quantity       個数。印字がなければ null
      * @param amount         行の合計金額（税込・円）
      * @param taxRatePercent 行の税率（%）。印字や軽減マークから判断。分からなければ null
+     * @param taxAmount      行の消費税額（円）。<b>印字があるときだけ</b>。無ければ null
+     *                       （適格簡易請求書は税額の印字が無くても合法）
      * @param reducedMark    軽減税率の印（※ など）が付いていたか
      */
     public record Line(
@@ -53,6 +55,7 @@ public record ReceiptReading(
             java.math.BigDecimal quantity,
             Integer amount,
             Integer taxRatePercent,
+            Integer taxAmount,
             boolean reducedMark
     ) {
     }

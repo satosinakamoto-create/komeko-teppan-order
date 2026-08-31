@@ -1,6 +1,7 @@
 package jp.komeko.order.inventory.domain;
 
 import jakarta.persistence.*;
+import jp.komeko.order.domain.TaxCalculator;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -211,20 +212,43 @@ public class Purchase {
 
     /** 明細の税抜合計。 */
     public int netTotal() {
+        return totalAmount() - taxTotal();
+    }
+
+    /** 明細の合計（税込）。書類合計 {@code totalAmount} との突き合わせにも使う。 */
+    private int totalAmount() {
         int sum = 0;
         for (PurchaseLine line : lines) {
-            sum += line.netAmount();
+            sum += line.getAmount();
         }
         return sum;
     }
 
     /** 明細の消費税合計。 */
     public int taxTotal() {
-        int sum = 0;
+        // ── 印字された税額がある行は、その値をそのまま信じる ──
+        int printed = 0;
+        // ── 印字の無い行は、税率ごとに束ねてから 1 回だけ逆算する ──
+        //
+        // 行ごとに逆算して足すと、切り捨てが行数ぶん効いて紙とずれる。
+        // 例: 8% の 101 円が 3 行 → 行ごとだと 7+7+7=21 円、
+        //     束ねてからだと 303×8÷108=22 円。適格請求書の端数処理は
+        //     「1 枚につき税率ごとに 1 回」が制度上のルールで、レシートの
+        //     印字もその方式なので、束ねるほうが紙と合う。
+        // 深夜料金で踏んだ「切り捨ては合計してから 1 回」と同じ教訓。
+        java.util.Map<Integer, Integer> unprintedByRate = new java.util.TreeMap<>();
         for (PurchaseLine line : lines) {
-            sum += line.effectiveTaxAmount();
+            if (line.getTaxAmount() != null) {
+                printed += line.getTaxAmount();
+            } else {
+                unprintedByRate.merge(line.getTaxRatePercent(), line.getAmount(), Integer::sum);
+            }
         }
-        return sum;
+        int computed = 0;
+        for (java.util.Map.Entry<Integer, Integer> group : unprintedByRate.entrySet()) {
+            computed += TaxCalculator.includedTax(group.getValue(), group.getKey());
+        }
+        return printed + computed;
     }
 
     /** 食材（原価率の分子）の税込合計。 */

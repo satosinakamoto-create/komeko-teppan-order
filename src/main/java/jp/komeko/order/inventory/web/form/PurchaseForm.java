@@ -104,14 +104,18 @@ public class PurchaseForm {
         form.purchasedOn = parseDate(reading.purchasedOn(), today);
 
         for (ReceiptReading.Line line : reading.lines()) {
-            form.lines.add(new PurchaseLineForm(
+            PurchaseLineForm lineForm = new PurchaseLineForm(
                     line.itemText(),
                     line.quantity(),
                     line.amount(),
                     line.taxRatePercent() != null ? line.taxRatePercent() : defaultRates,
                     // 軽減税率の印が付いていれば食材の可能性が高い、という程度の当たりを付ける。
                     // あくまで初期値で、人が確認画面で直せる。
-                    line.reducedMark() ? PurchaseCategory.FOOD : PurchaseCategory.SUPPLIES));
+                    line.reducedMark() ? PurchaseCategory.FOOD : PurchaseCategory.SUPPLIES);
+            // 印字されていた税額。「印字された値を保存する」（設計 2 章）の入口はここ。
+            // 無ければ null のままで、表示のたびに割り戻す（それも合法）。
+            lineForm.setTaxAmount(line.taxAmount());
+            form.lines.add(lineForm);
         }
         for (int i = 0; i < SPARE_LINES; i++) {
             form.lines.add(new PurchaseLineForm());
