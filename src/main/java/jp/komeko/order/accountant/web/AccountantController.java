@@ -207,14 +207,21 @@ public class AccountantController {
     //  補助
     // ========================================================================
 
+    /**
+     * 画面の対象月を決める。指定が無ければ前月（{@code defaultMonth}）。
+     *
+     * <p>読めない値が来ても例外にせず既定の月に倒します。
+     * URL を手で書き換えた程度で画面が落ちると、
+     * 「壊した」と思わせてしまうためです。
+     */
     private YearMonth parseMonth(String value) {
         if (value == null || value.isBlank()) {
-            return accountantService.currentMonth();
+            return accountantService.defaultMonth();
         }
         try {
             return YearMonth.parse(value);
         } catch (Exception e) {
-            return accountantService.currentMonth();
+            return accountantService.defaultMonth();
         }
     }
 }

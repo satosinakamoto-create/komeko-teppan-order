@@ -187,9 +187,24 @@ public class AccountantService {
         });
     }
 
-    /** 今日（テストから差し替えられるよう Clock 経由）。 */
+    /** 今日の月（テストから差し替えられるよう Clock 経由）。 */
     public YearMonth currentMonth() {
         return YearMonth.from(java.time.LocalDate.now(clock));
+    }
+
+    /**
+     * 月を指定せずに開いたときに見せる月。<b>前月</b>。
+     *
+     * <p>当月ではありません。税理士が扱うのは締まった月で、
+     * 当月はまだ仕入れが積み上がっている途中だからです。
+     *
+     * <p>当月を既定にしていたときは、月初に開くと数字がほとんど無く、
+     * <b>画面が壊れているのか、まだ何も無いだけなのか区別できません</b>でした。
+     * 前月なら 1 か月ぶんが揃っているので、開いた瞬間に仕事が始められます。
+     * 当月を見たいときは「翌月 →」で移動できます。
+     */
+    public YearMonth defaultMonth() {
+        return currentMonth().minusMonths(1);
     }
 
     /**

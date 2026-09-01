@@ -146,6 +146,21 @@
            th:classappend="${#strings.startsWith(p, '/admin/orders')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_clock_counter_clockwise}"/><span>注文履歴</span>
         </a>
+        <!--/*
+          税理士の画面への入口。
+
+          ★ 画面を作っただけでは誰も辿り着けません。
+            /accountant は独立したレイアウトで、こちら側のサイドバーに
+            項目が無かったため、URL を直接打つ以外に行く方法がありませんでした。
+            向こうには「店舗管理へ戻る」があるのに、行きが無かった。
+
+          店長は ACCOUNTANT ではなく ADMIN ですが、SecurityConfig で
+          両方に開けてあるので押せます（自分の帳簿を見られないのは不自然なため）。
+        */-->
+        <a class="sb__item" th:href="@{/accountant}"
+           th:classappend="${#strings.startsWith(p, '/accountant')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_notebook}"/><span>税理士の画面</span>
+        </a>
 
         <p class="sb__label">システム</p>
         <a class="sb__item" th:href="@{/admin/backups}"

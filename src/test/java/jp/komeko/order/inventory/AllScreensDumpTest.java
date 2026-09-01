@@ -106,10 +106,10 @@ class AllScreensDumpTest {
         }
 
         // ── 税理士側 ──
-        // デモの仕入れは先月ぶんが中心なので、データのある月を指定して撮る
-        // （既定は当月。月初に開くと空に見えるのは仕様どおり）。
-        String dataMonth = java.time.YearMonth.from(
-                java.time.LocalDate.now().minusDays(20)).toString();
+        // 月を指定せずに撮る。既定が前月になったので、これが
+        // 税理士が開いた瞬間に見る画面そのものになる。
+        // （以前はここで月を明示していた。既定が当月で、そのままだと
+        //   空の画面が撮れてしまったため。回避策のほうを直した。）
         Map<String, String> ledger = new LinkedHashMap<>();
         ledger.put("t01-summary", "/accountant");
         ledger.put("t02-tax", "/accountant/tax");
@@ -118,7 +118,6 @@ class AllScreensDumpTest {
         ledger.put("t05-rules", "/accountant/rules");
         for (Map.Entry<String, String> page : ledger.entrySet()) {
             String html = mockMvc.perform(get(page.getValue())
-                            .param("month", dataMonth)
                             .with(user("税理士").roles("ACCOUNTANT")))
                     .andReturn().getResponse().getContentAsString();
             write(page.getKey(), html);

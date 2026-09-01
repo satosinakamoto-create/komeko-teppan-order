@@ -125,6 +125,31 @@ class AccountantPageTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("店舗管理のサイドバーから税理士の画面へ行ける")
+    void staff_sidebar_links_to_accountant() throws Exception {
+        // 画面を作っても入口が無ければ誰も辿り着けない。
+        // 実際、この導線が無いあいだは URL を直接打つ以外に開く方法が無く、
+        // 「画面が見当たらない」状態になっていた。
+        mockMvc.perform(get("/admin"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("税理士の画面")))
+                .andExpect(content().string(containsString("href=\"/accountant\"")));
+    }
+
+    @Test
+    @WithMockUser(roles = "ACCOUNTANT")
+    @DisplayName("月を指定しないと前月を開く（当月だと月初に空の画面を見せてしまう）")
+    void defaults_to_previous_month() throws Exception {
+        String previous = YearMonth.now().minusMonths(1).toString();
+
+        mockMvc.perform(get("/accountant"))
+                .andExpect(status().isOk())
+                // 対象月の表示にも、前後の月へ動くリンクにも前月が入る
+                .andExpect(content().string(containsString(previous)));
+    }
+
+    @Test
     @WithMockUser(roles = "ACCOUNTANT")
     @DisplayName("記録が 1 件も無くても壊れない")
     void renders_when_empty() throws Exception {
