@@ -11,6 +11,8 @@
    ② 文字の大きさが違う。この画面は数字を長時間正確に読むためのもので、
       最小 16px・中 20px・大 24px を保証する（app.css の .theme-ledger）。
       営業中にちらっと見るスタッフ画面とは要求が違う。
+      ただし<b>見た目（色・フォント）は店舗管理と同じ</b>。
+      .theme-snow に .theme-ledger を重ねて、寸法だけを足している。
 
    ★ 月（month）はどの画面でも持ち回る。
      税理士の作業は「◯月の処理」が単位なので、画面を移るたびに
@@ -27,7 +29,9 @@
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
-<body class="theme-ledger">
+<!--/* SnowUI（店舗管理と同じ見た目）に、文字寸法だけを重ねる。
+       見た目を増やすと「同じシステムなのに画面ごとに別物」に見えるため。 */-->
+<body class="theme-snow theme-ledger">
 <div class="staff-shell" th:with="p=${currentPath} ?: '',
                                   m=${month != null} ? ('?month=' + ${month}) : ''">
 

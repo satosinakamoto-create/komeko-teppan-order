@@ -131,10 +131,20 @@ class AllScreensDumpTest {
         System.out.println("書き出し先: " + OUT);
     }
 
-    /** ファイルとして開けるよう、絶対パスとハッシュ付きの参照を相対に直す。 */
+    /**
+     * ファイルとして開けるよう、絶対パスとハッシュ付きの参照を相対に直す。
+     *
+     * <p>CSS だけは更新時刻を問い合わせ文字列に付ける。
+     * 本番は Spring が中身のハッシュを URL に入れてくれるので気にしなくてよいが、
+     * ここは <code>css/app.css</code> という固定の名前になるため、
+     * ブラウザが前回の中身を使い回す。<b>app.css を直したのに古い見た目のまま撮れてしまい、
+     * 「効いていない」と誤って判断した</b>ので、名前を変わるようにしてある。
+     */
     private void write(String name, String html) throws Exception {
-        html = html.replaceAll("href=\"/css/app-[0-9a-f]+\\.css\"", "href=\"css/app.css\"")
-                .replace("href=\"/css/app.css\"", "href=\"css/app.css\"")
+        String cssUrl = "css/app.css?v=" + Files.getLastModifiedTime(
+                Path.of("src/main/resources/static/css/app.css")).toMillis();
+        html = html.replaceAll("href=\"/css/app-[0-9a-f]+\\.css\"", "href=\"" + cssUrl + "\"")
+                .replace("href=\"/css/app.css\"", "href=\"" + cssUrl + "\"")
                 .replaceAll("src=\"/js/([^\"]*?)-[0-9a-f]{32}\\.js\"", "src=\"js/$1.js\"")
                 .replace("src=\"/js/", "src=\"js/")
                 .replace("href=\"/images/", "href=\"images/")

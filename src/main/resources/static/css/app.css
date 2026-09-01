@@ -2122,38 +2122,34 @@ body.is-sending .staff-main {
    チップは <a href="#cat-N"> なので履歴に積まれ、ブラウザの戻るで位置が復元されます。 */
 
 /* ============================================================================
-   22. 税理士テーマ（.theme-ledger）
+   22. 帳簿の文字寸法（.theme-ledger）
    ============================================================================
-   税理士の画面だけ、文字を一段大きくする。
+   税理士画面のための「文字サイズだけ」の追加レイヤー。
 
-   理由は好みではなく用途。この画面は「数字を長時間、正確に読む」ためのもので、
-   1 桁の読み違いが申告の誤りになる。スタッフ側（.theme-snow）は
-   営業中にちらっと見る画面なので基準が違ってよい。
+   ★ 色やフォントは決めない。SnowUI（.theme-snow）にそのまま乗る。
+     body class="theme-snow theme-ledger" の 2 枚重ねで使う。
+
+     最初これを独立したテーマ（生成り＋明朝）として作ったが、
+     店舗管理の画面から浮いて 3 つ目の見た目になってしまった。
+     見た目を増やすほど「同じシステムなのに画面ごとに別物」に見えるので、
+     管理系はスタッフ側と揃える。ここが引き受けるのは寸法だけ。
 
    ★ 決めた寸法（これより小さい文字を作らないこと）
        本文・表の中身   16px … 最小。どんなに詰めたくてもここは割らない
        中見出し・重要値 20px
        大見出し・大数値 24px
 
+   数字を長時間、正確に読む画面だから大きくする。1 桁の読み違いが
+   申告の誤りになる。営業中にちらっと見るスタッフ画面とは要求が違う。
+
    rem ではなく px で書いているのは、ここが「最低保証」だから。
    ルート font-size の変更で意図せず縮むことがないようにする。
    ========================================================================= */
-.theme-ledger {
-  --bg: #f7f7f5;
-  --bg-elevated: #ffffff;
-  --text: #1a1a18;
-  --text-muted: #55524d;      /* 本文より濃いめ。細い文字が薄いと読めない */
-  --border: #d9d6d0;
-  --accent: var(--ai-600);     /* 帳簿は藍。きつね色は「熱いもの」に取ってある */
-  font-size: 16px;
-  line-height: 1.9;
-}
-
-.theme-ledger .staff-main { padding-block: var(--sp-6); }
+.theme-ledger { font-size: 16px; line-height: 1.9; }
 
 /* 見出し */
 .theme-ledger h1,
-.theme-ledger .section-title__text { font-size: 24px; letter-spacing: .02em; }
+.theme-ledger .section-title__text { font-size: 24px; }
 .theme-ledger h2 { font-size: 20px; }
 .theme-ledger h3,
 .theme-ledger .card__head { font-size: 20px; }
@@ -2168,36 +2164,26 @@ body.is-sending .staff-main {
 .theme-ledger label { font-size: 16px; }
 
 /* 表 — 帳簿の本体。数字は等幅で桁をそろえる */
-.theme-ledger .table { font-size: 16px; }
-.theme-ledger .table th { font-size: 16px; font-weight: 600; }
+.theme-ledger .table,
+.theme-ledger .table th { font-size: 16px; }
 .theme-ledger .table td.num,
 .theme-ledger .table td.right { font-variant-numeric: tabular-nums; font-size: 16px; }
-.theme-ledger .table td.bold,
-.theme-ledger .table td.total { font-size: 20px; font-weight: 700; }
+.theme-ledger .table td.bold { font-size: 20px; font-weight: 700; }
 
 /* 数値カード */
 .theme-ledger .stat__value { font-size: 24px; font-variant-numeric: tabular-nums; }
 .theme-ledger .stat__unit { font-size: 16px; }
 
-/* 入力 — 老眼でも押せるよう、タップ領域も大きめに */
+/* 入力 — 押し間違いを減らすためタップ領域も大きめに */
 .theme-ledger .input,
 .theme-ledger .select,
-.theme-ledger .textarea { font-size: 16px; min-height: 48px; }
+.theme-ledger .textarea,
 .theme-ledger .btn { font-size: 16px; min-height: 48px; }
 .theme-ledger .btn--lg { font-size: 20px; min-height: 56px; }
+.theme-ledger .btn--sm { min-height: 40px; }
 
 /* 帳簿の合計行 */
 .theme-ledger .total-table th,
-.theme-ledger .total-table td { font-size: 16px; padding-block: var(--sp-3); }
+.theme-ledger .total-table td { font-size: 16px; }
 .theme-ledger .total-table tr:last-child th,
 .theme-ledger .total-table tr:last-child td { font-size: 20px; font-weight: 700; }
-
-@media (prefers-color-scheme: dark) {
-  .theme-ledger {
-    --bg: #16161a;
-    --bg-elevated: #1e1e23;
-    --text: #f0efec;
-    --text-muted: #b0aca5;
-    --border: #34343a;
-  }
-}

@@ -19,7 +19,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -276,13 +275,14 @@ class AccountantPageTest {
 
     @Test
     @WithMockUser(roles = "ACCOUNTANT")
-    @DisplayName("帳簿テーマが当たっている（最小16px・中20px・大24px）")
-    void uses_the_ledger_theme() throws Exception {
-        // 数字を長時間読む画面なので、スタッフ画面より一段大きい寸法を保証する。
-        // クラスが外れると全部が既定サイズに戻るので、当たっていることを固定する。
+    @DisplayName("★ 見た目は店舗管理と同じ（SnowUI）で、文字寸法だけ上乗せする")
+    void uses_snow_theme_plus_ledger_sizes() throws Exception {
+        // 見た目を増やすと「同じシステムなのに画面ごとに別物」に見えるので、
+        // 管理系はスタッフ側と同じ SnowUI に揃える。
+        // .theme-ledger が引き受けるのは寸法（最小16px・中20px・大24px）だけ。
+        // どちらか片方でも外れると、色が浮くか文字が小さくなるので両方を固定する。
         mockMvc.perform(get("/accountant"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("theme-ledger")))
-                .andExpect(content().string(not(containsString("theme-snow"))));
+                .andExpect(content().string(containsString("theme-snow theme-ledger")));
     }
 }
