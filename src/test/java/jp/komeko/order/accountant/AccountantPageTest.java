@@ -19,7 +19,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -315,17 +314,31 @@ class AccountantPageTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("厨房・ホールには寸法の層を付けない（営業中は一覧性が優先）")
-    void floor_screens_do_not_get_the_desk_layer() throws Exception {
-        // 立って一瞬見る画面で行を大きくすると、1 画面に入る注文の数が減る。
-        // 「読みやすくしたつもりが、営業中に見える件数を減らしていた」を防ぐ。
-        mockMvc.perform(get("/kitchen"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("theme-desk"))));
+    @DisplayName("店側の画面は全部そろえる。お客さんの画面には漏らさない")
+    void desk_layer_covers_staff_screens_but_not_customers() throws Exception {
+        // 同じサイドバーの中で、厨房だけ古い見た目のまま残ると
+        // 「同じシステムなのに画面ごとに別物」になる。店側は全部そろえる。
+        for (String path : new String[]{"/admin", "/kitchen", "/hall", "/kitchen/stock",
+                "/inventory/purchases", "/accountant"}) {
+            mockMvc.perform(get(path))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("theme-desk")));
+        }
+    }
 
-        // 逆に、机で使う画面には付いていること
-        mockMvc.perform(get("/admin"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("theme-desk")));
+    @Test
+    @DisplayName("★ お客さんの画面に寸法の層が漏れていない")
+    void customer_layout_never_gets_the_desk_layer() throws Exception {
+        // .theme-snow は customer にも付いている。同じ感覚で .theme-desk を
+        // 足されると、変えてはいけない注文画面まで一緒に大きくなる。
+        // 画面を開くのではなくテンプレートを直接見ているのは、
+        // 「どのレイアウトに書いてあるか」が守りたいことそのものだから。
+        for (String layout : new String[]{"customer.html", "plain.html"}) {
+            String html = java.nio.file.Files.readString(java.nio.file.Path.of(
+                    "src/main/resources/templates/layout/" + layout));
+            assertThat(html)
+                    .as("%s に theme-desk が入っている（お客さん側へ漏れる）", layout)
+                    .doesNotContain("theme-desk");
+        }
     }
 }

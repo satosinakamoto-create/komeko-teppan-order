@@ -31,19 +31,21 @@
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
-<!--/* theme-desk … 座って数字を読む画面（/admin と /inventory）だけに付ける寸法の層。
-       app.css の 30 節。文字を大きくし、表の見出しをきつね色でベタ塗りする。
+<!--/* theme-desk … 店側の画面の寸法とトンマナ（app.css の 30 節）。
+       文字を大きくし、余白を広げ、表の見出しを緑でベタ塗りにする。
 
-       厨房ボードとホール・会計には付けません。立って一瞬見る画面で、
-       行を大きくすると 1 画面に入る注文の数が減ります。
-       営業中はその一覧性のほうが、読みやすさより効きます。
+       ★ はじめ /admin と /inventory だけに付けていましたが、
+         厨房ボード・ホール・品切れ・残数だけ古い見た目で取り残され、
+         同じサイドバーの中で 2 種類の画面が混ざっていました。
+         店側は全部そろえます。
 
-       currentPath は null になり得ます。#strings.startsWith(null, …) は
-       例外になるので、先に null を確かめる形で書いてください（下の帯の判定と同じ）。 */-->
-<body class="theme-snow"
-      th:classappend="${currentPath != null
-                        and (#strings.startsWith(currentPath, '/admin')
-                             or #strings.startsWith(currentPath, '/inventory'))} ? 'theme-desk'">
+         厨房ボードは 1 画面に入る注文の数が減ります。
+         それでも「画面ごとに別物」に見えるほうが実害が大きいと判断しました。
+         現場で足りなくなったら、.staff-shell--floor 側だけ
+         余白を戻す形（app.css 30-2）で調整してください。
+
+       お客さんの注文画面（layout/customer）には付けません。 */-->
+<body class="theme-snow theme-desk">
 <!--/* staff-shell--floor … サイドバーをアイコンだけの帯に畳む合図（app.css の「サイドバーシェル」）。
 
        対象は営業中に立って使う画面（厨房ボード・ホール・会計・品切れ・残数）。
