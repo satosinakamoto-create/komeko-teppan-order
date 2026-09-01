@@ -40,6 +40,9 @@ class InventoryPurchasePageTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private jp.komeko.order.inventory.service.PurchaseService purchases;
+
     @Test
     @DisplayName("ログインしていなければ入れない")
     void requires_login() throws Exception {
@@ -122,7 +125,17 @@ class InventoryPurchasePageTest {
                 .andExpect(content().string(containsString("216")));
 
         // ── 詳細に出る ──
-        mockMvc.perform(get("/inventory/purchases/1"))
+        //
+        // ★ id をベタ書きしないこと。
+        //   以前 "/inventory/purchases/1" と書いていて、ほかのテストが先に
+        //   仕入れを作ると別の記録を開いてしまい、全体を流したときだけ落ちた。
+        //   単体では通るので原因が分かるまで時間を食う類い。
+        //   いま保存したものを名前で引き当てる。
+        Long savedId = purchases.search(null, null, null, null, "テスト商店", false,
+                        org.springframework.data.domain.PageRequest.of(0, 1))
+                .stream().findFirst().orElseThrow().getId();
+
+        mockMvc.perform(get("/inventory/purchases/" + savedId))
                 .andExpect(status().isOk())
                 .andExpect(view().name("inventory/purchase-detail"))
                 .andExpect(content().string(containsString("キャベツ")))

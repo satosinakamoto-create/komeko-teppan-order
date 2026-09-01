@@ -250,6 +250,12 @@ public class SecurityConfig {
                     //   app.inventory.enabled=false のときはコントローラ自体が存在しないため、
                     //   ここを許可していても 404 になる（InventoryPurchaseController 参照）。
                     .requestMatchers("/inventory/**").hasAnyRole("STAFF", "ADMIN")
+                    // ── 税理士の画面 ──
+                    //   顧問税理士（ACCOUNTANT）と店長（ADMIN）だけ。
+                    //   店長にも見せるのは、「税理士に何が見えているか」を
+                    //   店主が確認できないと、外部に渡す情報の責任が持てないため。
+                    //   スタッフには見せない（帳簿と原価が全部見えるので）。
+                    .requestMatchers("/accountant/**").hasAnyRole("ACCOUNTANT", "ADMIN")
                     // ── 上記以外はすべて要ログイン ──
                     .anyRequest().authenticated();
             })

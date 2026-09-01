@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<!--/*
+   消費税の集計表。申告書に写す数字そのもの。
+
+   ★ 税率だけで束ねてはいけない。
+     同じ 8% でも、登録番号のある仕入れは全額控除、無い仕入れは
+     経過措置（2026-09 時点で 80%、2026-10 から 70%）。
+     控除できる税額が違うので、税率×控除区分の 2 軸で出す。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/accountant :: layout('消費税の集計', ~{::main})}">
+<body>
+<main>
+
+  <div class="section-title">
+    <h1 class="section-title__text">消費税の集計</h1>
+    <span class="section-title__count">課税仕入（税率 × 控除区分）</span>
+  </div>
+
+  <p th:if="${taxRows.isEmpty()}" class="help">この月の仕入れはまだ記録されていません。</p>
+
+  <div th:unless="${taxRows.isEmpty()}" class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>税率</th>
+        <th>控除区分</th>
+        <th class="right">課税仕入（税込）</th>
+        <th class="right">税抜</th>
+        <th class="right">うち消費税</th>
+        <th class="right">控除できる税額</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="r : ${taxRows}">
+        <td th:text="${r.taxRatePercent} + '%'">8%</td>
+        <td th:text="${r.deductionLabel}">全額控除</td>
+        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(r.grossAmount, 1, 'COMMA')}">¥0</td>
+        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(r.netAmount, 1, 'COMMA')}">¥0</td>
+        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(r.taxAmount, 1, 'COMMA')}">¥0</td>
+        <td class="right num bold" th:text="'¥' + ${#numbers.formatInteger(r.deductibleTax, 1, 'COMMA')}">¥0</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" th:unless="${taxRows.isEmpty()}">
+    <div class="card__head">この表の読み方</div>
+    <div class="card__body">
+      <p class="help">
+        <strong>控除区分が分かれるのは、インボイス制度のためです。</strong>
+        登録番号のある事業者から買った分は消費税を全額引けますが、
+        登録していない事業者（個人商店・小さな青果店など）から買った分は
+        経過措置の割合しか引けません。割合は段階的に下がり、最後はゼロになります。
+      </p>
+      <p class="help">
+        <strong>控除できる税額は、区分ごとに 1 回だけ丸めています。</strong>
+        レシート 1 枚ごとに丸めて足すと、枚数が多いほど誤差が積み上がります。
+      </p>
+      <p class="help mb-0">
+        経過措置を使った仕入れは<strong>帳簿にその旨を書くことが義務</strong>です。
+        仕訳の書き出しでは、摘要に「80%控除対象」を自動で入れています。
+      </p>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

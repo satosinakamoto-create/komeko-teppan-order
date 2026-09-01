@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<!--/*
+   証憑の確認。税理士の作業台。
+
+   ★ 未確認を上に出す。
+     「どれをまだ見ていないか」を人の記憶に頼らせない。
+     これが無いと、月末に全部を見直すことになる。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/accountant :: layout('証憑の確認', ~{::main})}">
+<body>
+<main>
+
+  <div class="section-title">
+    <h1 class="section-title__text">証憑の確認</h1>
+    <span class="section-title__count"
+          th:text="'未確認 ' + ${awaitingCount} + ' 件'">未確認 0 件</span>
+  </div>
+
+  <!--/* ── 判断が要るもの ── */-->
+  <div th:if="${!attentions.isEmpty()}" class="section-title">
+    <h2 class="section-title__text">判断が要るもの</h2>
+    <span class="section-title__count" th:text="${attentions.size()} + ' 件'">3 件</span>
+  </div>
+
+  <div th:if="${!attentions.isEmpty()}" class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>取引日</th>
+        <th>取引先</th>
+        <th>内容</th>
+        <th>なぜ手当てが要るか</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="a : ${attentions}">
+        <td class="num" th:text="${a.purchase().purchasedOn}">2026-09-01</td>
+        <td>
+          <a th:href="@{/accountant/evidence/{id}(id=${a.purchase().id},month=${month})}"
+             th:text="${a.purchase().storeName}">たなか青果店</a>
+        </td>
+        <td th:text="${a.label()}">登録番号なし</td>
+        <td class="help" th:text="${a.detail()}">控除率 80% で計上されています</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!--/* ── 全件（未確認が先） ── */-->
+  <div class="section-title">
+    <h2 class="section-title__text">この月の仕入れ</h2>
+    <span class="section-title__count" th:text="${queue.size()} + ' 件'">0 件</span>
+  </div>
+
+  <p th:if="${queue.isEmpty()}" class="help">この月の仕入れはまだ記録されていません。</p>
+
+  <div th:unless="${queue.isEmpty()}" class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>確認</th>
+        <th>取引日</th>
+        <th>取引先</th>
+        <th class="right">合計（税込）</th>
+        <th>証憑区分</th>
+        <th class="right">控除率</th>
+        <th>登録番号</th>
+        <th></th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="p : ${queue}" th:if="${!p.deleted}">
+        <td>
+          <span th:if="${p.accountantCheckedAt != null}" class="badge badge--gf">確認済</span>
+          <span th:if="${p.accountantCheckedAt == null}" class="badge">未確認</span>
+        </td>
+        <td class="num" th:text="${p.purchasedOn}">2026-09-01</td>
+        <td th:text="${p.storeName}">業務スーパー</td>
+        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(p.totalAmount, 1, 'COMMA')}">¥0</td>
+        <td th:text="${p.evidenceType != null} ? ${p.evidenceType.getLabel()} : '—'">適格簡易請求書</td>
+        <td class="right num" th:text="${p.deductionRatePercent} + '%'">100%</td>
+        <td class="num" th:text="${p.regNumber} ?: '—'">—</td>
+        <td class="right">
+          <a class="btn btn--sm btn--ghost"
+             th:href="@{/accountant/evidence/{id}(id=${p.id},month=${month})}">開く</a>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!--/* ── 削除された記録（訂正の透明性） ── */-->
+  <div th:if="${!deleted.isEmpty()}" class="section-title">
+    <h2 class="section-title__text">取り消された記録</h2>
+    <span class="section-title__count" th:text="${deleted.size()} + ' 件'">1 件</span>
+  </div>
+
+  <div th:if="${!deleted.isEmpty()}" class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>取引日</th>
+        <th>取引先</th>
+        <th class="right">合計</th>
+        <th>取り消した理由</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="p : ${deleted}">
+        <td class="num" th:text="${p.purchasedOn}">2026-09-01</td>
+        <td th:text="${p.storeName}">業務スーパー</td>
+        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(p.totalAmount, 1, 'COMMA')}">¥0</td>
+        <td th:text="${p.deleteReason} ?: '（理由なし）'">二重登録のため</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="help">
+    記録は<strong>物理的に削除されません</strong>。取り消しても行は残り、
+    ここから確認できます。電子帳簿保存法が「訂正・削除の履歴を残し、
+    削除済みも検索できること」を求めているためです。
+  </p>
+
+</main>
+</body>
+</html>

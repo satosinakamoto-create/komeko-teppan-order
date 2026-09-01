@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   税理士画面の共通レイアウト
+  ============================================================================
+   スタッフ用（layout/staff）と分けている理由:
+
+   ① メニューが違う。税理士には卓・QR・商品・スタッフを見せない。
+      同じサイドバーに条件分岐を足していくと、権限の境界が
+      テンプレートの中に散らばって、あとから追えなくなる。
+   ② 文字の大きさが違う。この画面は数字を長時間正確に読むためのもので、
+      最小 16px・中 20px・大 24px を保証する（app.css の .theme-ledger）。
+      営業中にちらっと見るスタッフ画面とは要求が違う。
+
+   ★ 月（month）はどの画面でも持ち回る。
+     税理士の作業は「◯月の処理」が単位なので、画面を移るたびに
+     月を選び直させると、それだけで使われなくなる。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:fragment="layout(pageTitle, content)">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title th:text="${pageTitle} + ' | ' + ${shop.shopName} + ' 帳簿'">帳簿</title>
+  <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="theme-ledger">
+<div class="staff-shell" th:with="p=${currentPath} ?: '',
+                                  m=${month != null} ? ('?month=' + ${month}) : ''">
+
+  <aside class="sb">
+    <div class="sb__brand">
+      <img class="sb__brand-logo" th:src="@{/images/logo.jpg}" alt="" aria-hidden="true">
+      <span class="sb__brand-text">
+        <span class="sb__brand-name" th:text="${shop.shopName}">米粉と鉄板</span>
+        <span class="sb__brand-sub">帳簿・証憑</span>
+      </span>
+    </div>
+
+    <nav class="sb__nav" aria-label="帳簿メニュー">
+      <p class="sb__label">月次の処理</p>
+
+      <a class="sb__item" th:href="@{/accountant} + ${m}"
+         th:classappend="${p == '/accountant'} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_chart_pie_slice}"/><span>今月のまとめ</span>
+      </a>
+      <a class="sb__item" th:href="@{/accountant/tax} + ${m}"
+         th:classappend="${#strings.startsWith(p, '/accountant/tax')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_chart_line_up}"/><span>消費税の集計</span>
+      </a>
+      <a class="sb__item" th:href="@{/accountant/evidence} + ${m}"
+         th:classappend="${#strings.startsWith(p, '/accountant/evidence')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_receipt}"/><span>証憑の確認</span>
+        <span th:if="${awaitingCount != null and awaitingCount > 0}"
+              class="badge" th:text="${awaitingCount}">3</span>
+      </a>
+      <a class="sb__item" th:href="@{/accountant/journal} + ${m}"
+         th:classappend="${#strings.startsWith(p, '/accountant/journal')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_notebook}"/><span>仕訳の書き出し</span>
+      </a>
+
+      <p class="sb__label">設定</p>
+      <a class="sb__item" th:href="@{/accountant/rules} + ${m}"
+         th:classappend="${#strings.startsWith(p, '/accountant/rules')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_gear_six}"/><span>勘定科目の対応表</span>
+      </a>
+
+      <!--/* 店長がこの画面を見ているときだけ、店舗管理へ戻る導線を出す。
+             税理士には店舗管理の入口を見せない（権限的にも入れない）。 */-->
+      <th:block sec:authorize="hasRole('ADMIN')">
+        <p class="sb__label">店長のみ</p>
+        <a class="sb__item" th:href="@{/admin}">
+          <th:block th:replace="~{fragments/icons :: ic_squares_four}"/><span>店舗管理へ戻る</span>
+        </a>
+      </th:block>
+    </nav>
+
+    <div class="sb__account">
+      <span class="sb__avatar">税</span>
+      <span class="sb__account-text">
+        <span class="sb__account-name" sec:authentication="name">税理士</span>
+        <span class="sb__account-role">閲覧と確認</span>
+      </span>
+      <form class="sb__logout-form" th:action="@{/logout}" method="post">
+        <button class="sb__logout" type="submit" title="ログアウト">
+          <th:block th:replace="~{fragments/icons :: ic_sign_out}"/>
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <main class="staff-main">
+    <div class="container container--wide">
+
+      <!--/* 対象の月。どの画面でも同じ位置にあることが大事で、
+             「いま何月を見ているか」を見失わせない。 */-->
+      <div class="section-title" th:if="${month != null}">
+        <span class="section-title__count">対象の月</span>
+        <h2 class="section-title__text" th:text="${month}">2026-09</h2>
+        <!--/* 行き先はいまの画面のまま、月だけ変える。
+               currentPath は GlobalModelAttributes が全画面に渡している
+               （#httpServletRequest は Thymeleaf 3.1 で使えない）。 */-->
+        <a class="btn btn--sm btn--ghost"
+           th:href="@{__${p}__(month=${prevMonth})}">← 前月</a>
+        <a class="btn btn--sm btn--ghost"
+           th:href="@{__${p}__(month=${nextMonth})}">翌月 →</a>
+      </div>
+
+      <div th:replace="~{fragments/common :: flash}"></div>
+      <div th:replace="${content}">ページ本文</div>
+    </div>
+  </main>
+
+</div>
+</body>
+</html>

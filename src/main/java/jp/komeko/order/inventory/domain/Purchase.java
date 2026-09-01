@@ -157,6 +157,27 @@ public class Purchase {
     @Column(name = "created_by")
     private Long createdBy;
 
+    // ── 税理士の確認（V5 で追加） ──
+
+    /**
+     * 税理士が帳簿として確認した日時。null なら未確認。
+     *
+     * <p>店の {@link #equivalenceCheckedAt}（紙と見比べた）とは別物です。
+     * あちらは電子帳簿保存法の同等確認で店の人がやる作業、
+     * こちらは<b>第二の目</b>としての確認。両方あって初めて
+     * 「店も税理士も見た」と言えます。
+     */
+    @Column(name = "accountant_checked_at")
+    private LocalDateTime accountantCheckedAt;
+
+    /** 確認した税理士（staff_user.id）。 */
+    @Column(name = "accountant_checked_by")
+    private Long accountantCheckedBy;
+
+    /** 税理士の申し送り（「これは何の支出か店主に確認」など）。 */
+    @Column(name = "accountant_note", length = 300)
+    private String accountantNote;
+
     // ── 論理削除（物理削除は絶対にしない） ──
 
     @Column(nullable = false)
@@ -414,6 +435,32 @@ public class Purchase {
 
     public String getDeleteReason() {
         return deleteReason;
+    }
+
+    public LocalDateTime getAccountantCheckedAt() {
+        return accountantCheckedAt;
+    }
+
+    public Long getAccountantCheckedBy() {
+        return accountantCheckedBy;
+    }
+
+    public String getAccountantNote() {
+        return accountantNote;
+    }
+
+    /** 税理士が確認したことを記録する。 */
+    public void markAccountantChecked(LocalDateTime at, Long staffId, String note) {
+        this.accountantCheckedAt = at;
+        this.accountantCheckedBy = staffId;
+        if (note != null && !note.isBlank()) {
+            this.accountantNote = note;
+        }
+    }
+
+    /** 税理士がまだ見ていないか。作業台の並びに使う。 */
+    public boolean isAwaitingAccountant() {
+        return accountantCheckedAt == null && !deleted;
     }
 
     public List<PurchaseLine> getLines() {

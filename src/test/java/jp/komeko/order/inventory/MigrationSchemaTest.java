@@ -52,6 +52,7 @@ class MigrationSchemaTest {
             "db/migration/V2__inventory_step1.sql",
             "db/migration/V3__inventory_step2.sql",
             "db/migration/V4__inventory_step3.sql",
+            "db/migration/V5__accountant.sql",
     };
 
     /**

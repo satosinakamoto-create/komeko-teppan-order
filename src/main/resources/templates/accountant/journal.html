@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!--/*
+   仕訳の書き出し。会計ソフトに取り込む CSV を作る。
+
+   ★ 出す前に「対応表に無い組み合わせ」を見せる。
+     未設定のまま出すと、「未設定」と書かれた CSV を会計ソフトに
+     取り込んでから気づくことになる。出す前に分かるほうがずっと安い。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/accountant :: layout('仕訳の書き出し', ~{::main})}">
+<body>
+<main>
+
+  <div class="section-title">
+    <h1 class="section-title__text">仕訳の書き出し</h1>
+    <span class="section-title__count">弥生形式（25項目）</span>
+  </div>
+
+  <div th:if="${!missingRules.isEmpty()}" class="alert alert--warn">
+    <p class="mb-0">
+      <strong>対応表に無い組み合わせが <span th:text="${missingRules.size()}">2</span> 件あります。</strong>
+      このまま書き出すと、その行の勘定科目と税区分が「未設定」になり、
+      会計ソフトで取り込めません。
+    </p>
+    <p class="mb-0" th:each="m : ${missingRules}" th:text="'・' + ${m}">・食材 / 8% / 控除70%</p>
+    <p class="mb-0">
+      <a th:href="@{/accountant/rules(month=${month})}">勘定科目の対応表で設定する →</a>
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card__head">この月の仕訳</div>
+    <div class="card__body">
+      <div class="grid grid--2">
+        <div class="stat">
+          <p class="stat__label">書き出される行数</p>
+          <p class="stat__value"><span th:text="${rowCount}">0</span><span class="stat__unit">行</span></p>
+        </div>
+        <div class="stat">
+          <p class="stat__label">対象の月</p>
+          <p class="stat__value" th:text="${month}">2026-09</p>
+        </div>
+      </div>
+
+      <p class="help">
+        レシート 1 枚が 1 行ではありません。<strong>費目と税率が同じ明細はまとめて 1 行</strong>にします。
+        レシートに食材が 5 行あっても仕訳としては 1 行で足り、
+        明細をそのまま流すと帳簿が店の買い物リストで埋まってしまうためです。
+        税区分が分かれる単位では必ず行を分けるので、消費税の計算に必要な情報は失われません。
+      </p>
+
+      <a class="btn btn--primary btn--lg"
+         th:href="@{/accountant/journal/export.csv(month=${month})}">
+        仕訳CSVをダウンロード
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head">取り込む前に確かめてほしいこと</div>
+    <div class="card__body">
+      <p class="help">
+        <strong>税区分の名前は、事務所ごとに違います。</strong>
+        弥生は「その事務所に登録されている税区分名と完全一致」していないと
+        行を取り込みません。初期値はよくある書き方を置いてあるだけなので、
+        <a th:href="@{/accountant/rules(month=${month})}">対応表</a>で
+        実際に使っている名称に直してください。
+      </p>
+      <p class="help">
+        <strong>勘定科目も同じです。</strong>「仕入高」か「材料費」かは事務所の流儀です。
+      </p>
+      <p class="help mb-0">
+        文字コードは UTF-8（BOM つき）、改行は CR+LF、日付は yyyy/MM/dd。
+        取り消された記録は含めていません（帳簿に載せてはいけないため）。
+      </p>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

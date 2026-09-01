@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<!--/*
+   今月のまとめ。税理士が最初に開く画面。
+
+   ここで答えたいのは「今月、処理できる状態か」の一点。
+   数字が揃っているか、手当ての要るものが何件あるか、が分かれば
+   仕事に取りかかれる。細かい内訳は次の画面に譲る。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/accountant :: layout('今月のまとめ', ~{::main})}">
+<body>
+<main>
+
+  <div class="section-title">
+    <h1 class="section-title__text">今月のまとめ</h1>
+  </div>
+
+  <!--/* 手当ての要る件数を最初に出す。ゼロなら「そのまま進めます」と言い切る */-->
+  <div th:if="${attentionCount > 0}" class="alert alert--warn">
+    <p class="mb-0">
+      <strong th:text="${attentionCount} + ' 件'">3 件</strong>
+      の仕入れに、判断が要ることがあります（登録番号なし・紙の保管・合計のずれなど）。
+      <a th:href="@{/accountant/evidence(month=${month})}">証憑の確認で見る →</a>
+    </p>
+  </div>
+  <div th:if="${attentionCount == 0}" class="alert alert--success">
+    <p class="mb-0">判断が要る仕入れはありません。このまま仕訳に進めます。</p>
+  </div>
+
+  <!--/* ── 売上と仕入れ ── */-->
+  <div class="grid grid--3">
+    <div class="stat">
+      <p class="stat__label">売上（会計済みの伝票）</p>
+      <p class="stat__value">
+        ¥<span th:text="${#numbers.formatInteger(summary.salesIncludingTax(), 1, 'COMMA')}">0</span>
+      </p>
+      <p class="help mb-0"
+         th:text="'税抜 ¥' + ${#numbers.formatInteger(summary.salesNet(), 1, 'COMMA')}">税抜</p>
+    </div>
+    <div class="stat">
+      <p class="stat__label">仕入れ・経費（税込）</p>
+      <p class="stat__value">
+        ¥<span th:text="${#numbers.formatInteger(summary.totalIncludingTax(), 1, 'COMMA')}">0</span>
+      </p>
+      <p class="help mb-0"
+         th:text="'税抜 ¥' + ${#numbers.formatInteger(summary.totalNet(), 1, 'COMMA')} + ' / ' + ${summary.purchaseCount()} + '件'">内訳</p>
+    </div>
+    <div class="stat">
+      <p class="stat__label">実際原価率（税抜）</p>
+      <p class="stat__value" th:if="${summary.costRatioNet() != null}">
+        <span th:text="${#numbers.formatDecimal(summary.costRatioNet(), 1, 1)}">0.0</span><span class="stat__unit">%</span>
+      </p>
+      <p class="stat__value" th:unless="${summary.costRatioNet() != null}">—</p>
+      <p class="help mb-0">食材だけを売上で割った数字</p>
+    </div>
+  </div>
+
+  <!--/* ── 費目別の内訳 ── */-->
+  <div class="section-title">
+    <h2 class="section-title__text">費目別の内訳</h2>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>費目</th>
+        <th class="right">税込</th>
+        <th class="right">税抜</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="row : ${summary.categories()}">
+        <td th:text="${row.category().getLabel()}">食材</td>
+        <td class="right num"
+            th:text="'¥' + ${#numbers.formatInteger(row.amountIncludeTax(), 1, 'COMMA')}">¥0</td>
+        <td class="right num"
+            th:text="'¥' + ${#numbers.formatInteger(row.amountNet(), 1, 'COMMA')}">¥0</td>
+      </tr>
+      <tr>
+        <td class="bold">合計</td>
+        <td class="right num bold"
+            th:text="'¥' + ${#numbers.formatInteger(summary.totalIncludingTax(), 1, 'COMMA')}">¥0</td>
+        <td class="right num bold"
+            th:text="'¥' + ${#numbers.formatInteger(summary.totalNet(), 1, 'COMMA')}">¥0</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!--/* ── 消費税のさわり（詳細は専用画面へ） ── */-->
+  <div class="section-title">
+    <h2 class="section-title__text">消費税（課税仕入）</h2>
+    <a class="btn btn--sm btn--ghost" th:href="@{/accountant/tax(month=${month})}">集計表を開く →</a>
+  </div>
+
+  <p th:if="${taxRows.isEmpty()}" class="help">この月の仕入れはまだ記録されていません。</p>
+
+  <div th:unless="${taxRows.isEmpty()}" class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>税率</th>
+        <th>控除区分</th>
+        <th class="right">課税仕入（税込）</th>
+        <th class="right">控除できる税額</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="r : ${taxRows}">
+        <td th:text="${r.taxRatePercent} + '%'">8%</td>
+        <td th:text="${r.deductionLabel}">全額控除</td>
+        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(r.grossAmount, 1, 'COMMA')}">¥0</td>
+        <td class="right num bold" th:text="'¥' + ${#numbers.formatInteger(r.deductibleTax, 1, 'COMMA')}">¥0</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="help">
+    この画面の数字は、店が記録したレシートと注文から自動で出しています。
+    金額はすべて<strong>税込で保存</strong>し、税抜は表示のたびに計算しています
+    （紙のレシートと 1 円単位で合わせるため）。
+  </p>
+
+</main>
+</body>
+</html>
