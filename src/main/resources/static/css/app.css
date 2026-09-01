@@ -1164,6 +1164,16 @@ hr {
   top: 0;
 }
 .table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ★ .right を表の中でも効かせる（2026-09-02 修正）
+   ユーティリティの .right（20 節）は詳細度 (0,1,0) で、
+   すぐ上の .table th, .table td（0,1,1）に負けていました。
+   そのため <th class="right"> は 13 テンプレート 37 箇所すべてで左寄せのまま、
+   <td class="right"> も .num を併記したセルしか右に寄っていませんでした。
+
+   見出しが左・数字が右で食い違って見えていた原因です。
+   表の見出しをベタ塗りにするまで気づきにくい、古くからのずれでした。 */
+.table th.right, .table td.right { text-align: right; }
 /* この列だけ折り返しを許す。
    .table は既定で nowrap（狭い端末で表が崩れないようにするため）だが、
    長い商品名が 1 列を独占すると、右端の操作列が表示領域の外へ出てしまう。
