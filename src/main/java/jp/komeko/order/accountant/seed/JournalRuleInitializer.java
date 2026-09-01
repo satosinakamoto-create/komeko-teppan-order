@@ -40,7 +40,12 @@ public class JournalRuleInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (rules.count() > 0) {
+        long existing = rules.count();
+        if (existing > 0) {
+            // ★ 何もしないときも記録を残す。
+            //   黙って戻ると、あとで「対応表が空だ」となったときに
+            //   「動かなかった」のか「動いて何もしなかった」のか区別できない。
+            log.info("仕訳の対応表はすでに {} 行あるため、初期値は入れませんでした", existing);
             return;   // すでに人が直しているかもしれないので触らない
         }
 
