@@ -105,6 +105,25 @@ class AllScreensDumpTest {
             }
         }
 
+        // ── 税理士側 ──
+        // デモの仕入れは先月ぶんが中心なので、データのある月を指定して撮る
+        // （既定は当月。月初に開くと空に見えるのは仕様どおり）。
+        String dataMonth = java.time.YearMonth.from(
+                java.time.LocalDate.now().minusDays(20)).toString();
+        Map<String, String> ledger = new LinkedHashMap<>();
+        ledger.put("t01-summary", "/accountant");
+        ledger.put("t02-tax", "/accountant/tax");
+        ledger.put("t03-evidence", "/accountant/evidence");
+        ledger.put("t04-journal", "/accountant/journal");
+        ledger.put("t05-rules", "/accountant/rules");
+        for (Map.Entry<String, String> page : ledger.entrySet()) {
+            String html = mockMvc.perform(get(page.getValue())
+                            .param("month", dataMonth)
+                            .with(user("税理士").roles("ACCOUNTANT")))
+                    .andReturn().getResponse().getContentAsString();
+            write(page.getKey(), html);
+        }
+
         // ── ログイン画面（誰でも見る入口） ──
         write("s00-login", mockMvc.perform(get("/login"))
                 .andReturn().getResponse().getContentAsString());
