@@ -31,7 +31,19 @@
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
-<body class="theme-snow">
+<!--/* theme-desk … 座って数字を読む画面（/admin と /inventory）だけに付ける寸法の層。
+       app.css の 30 節。文字を大きくし、表の見出しをきつね色でベタ塗りする。
+
+       厨房ボードとホール・会計には付けません。立って一瞬見る画面で、
+       行を大きくすると 1 画面に入る注文の数が減ります。
+       営業中はその一覧性のほうが、読みやすさより効きます。
+
+       currentPath は null になり得ます。#strings.startsWith(null, …) は
+       例外になるので、先に null を確かめる形で書いてください（下の帯の判定と同じ）。 */-->
+<body class="theme-snow"
+      th:classappend="${currentPath != null
+                        and (#strings.startsWith(currentPath, '/admin')
+                             or #strings.startsWith(currentPath, '/inventory'))} ? 'theme-desk'">
 <!--/* staff-shell--floor … サイドバーをアイコンだけの帯に畳む合図（app.css の「サイドバーシェル」）。
 
        対象は営業中に立って使う画面（厨房ボード・ホール・会計・品切れ・残数）。

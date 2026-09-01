@@ -99,7 +99,10 @@
 
         <!--/* なぜこの数字になったかを出す。在庫が合わないとき、
                人が知りたいのは合計ではなくどこがずれたか。 */-->
-        <td class="tiny faint" th:with="i=${l.ingredient()}">
+        <!--/* wrap を付けている理由: .table は既定で nowrap。
+               この列は「実測 1000 ＋入庫 400 −消費 200」と断片が連なるので、
+               折り返さないと右端の操作列を表示領域の外へ押し出す。 */-->
+        <td class="tiny faint wrap" th:with="i=${l.ingredient()}">
           <span th:if="${l.hasNoBaseline()}">棚卸しなし（0 から）</span>
           <span th:unless="${l.hasNoBaseline()}"
                 th:text="'実測 ' + ${i.format(l.baselineQty(), false)}">実測 1000</span>

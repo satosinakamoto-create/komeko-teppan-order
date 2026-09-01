@@ -29,9 +29,13 @@
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
-<!--/* SnowUI（店舗管理と同じ見た目）に、文字寸法だけを重ねる。
-       見た目を増やすと「同じシステムなのに画面ごとに別物」に見えるため。 */-->
-<body class="theme-snow theme-ledger">
+<!--/* 3 枚重ね。それぞれ引き受けるものが違う。
+       theme-snow   … 配色（白基調）。お客さん側も含む全レイアウト共通
+       theme-desk   … 机で読む画面の寸法ときつね色。店舗管理と共通（app.css 30 節）
+       theme-ledger … 帳簿だけの上振れ（補足文にも 16px の床、行間を広く）
+       見た目を増やすと「同じシステムなのに画面ごとに別物」に見えるので、
+       独自に持つのはいちばん外側の 1 枚だけにしてある。 */-->
+<body class="theme-snow theme-desk theme-ledger">
 <div class="staff-shell" th:with="p=${currentPath} ?: '',
                                   m=${month != null} ? ('?month=' + ${month}) : ''">
 

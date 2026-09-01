@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -300,14 +301,31 @@ class AccountantPageTest {
 
     @Test
     @WithMockUser(roles = "ACCOUNTANT")
-    @DisplayName("★ 見た目は店舗管理と同じ（SnowUI）で、文字寸法だけ上乗せする")
-    void uses_snow_theme_plus_ledger_sizes() throws Exception {
+    @DisplayName("★ 見た目は店舗管理と同じ。層は 3 枚重ねで、独自に持つのは 1 枚だけ")
+    void uses_snow_desk_and_ledger_layers() throws Exception {
         // 見た目を増やすと「同じシステムなのに画面ごとに別物」に見えるので、
-        // 管理系はスタッフ側と同じ SnowUI に揃える。
-        // .theme-ledger が引き受けるのは寸法（最小16px・中20px・大24px）だけ。
-        // どちらか片方でも外れると、色が浮くか文字が小さくなるので両方を固定する。
+        // 配色（theme-snow）と寸法（theme-desk）は店舗管理と共有する。
+        // 税理士だけの上乗せ（補足文の 16px 床・行間）が theme-ledger。
+        // どれか 1 枚でも外れると、色が浮くか文字が小さくなるので順番ごと固定する。
         mockMvc.perform(get("/accountant"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("theme-snow theme-ledger")));
+                .andExpect(content().string(
+                        containsString("theme-snow theme-desk theme-ledger")));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("厨房・ホールには寸法の層を付けない（営業中は一覧性が優先）")
+    void floor_screens_do_not_get_the_desk_layer() throws Exception {
+        // 立って一瞬見る画面で行を大きくすると、1 画面に入る注文の数が減る。
+        // 「読みやすくしたつもりが、営業中に見える件数を減らしていた」を防ぐ。
+        mockMvc.perform(get("/kitchen"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("theme-desk"))));
+
+        // 逆に、机で使う画面には付いていること
+        mockMvc.perform(get("/admin"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("theme-desk")));
     }
 }
