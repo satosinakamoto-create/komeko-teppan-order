@@ -110,5 +110,46 @@ public interface TableSessionRepository extends JpaRepository<TableSession, Long
             """)
     Object[] summarizeClosed(@Param("businessDate") LocalDate businessDate);
 
+    /**
+     * 期間ぶんの、会計済み伝票の合計（月次の売上画面用）。
+     *
+     * <p><b>戻り値を Object[] にしていない理由</b><br>
+     * 上の {@code summarizeClosed} は列が並んだだけの配列を返すので、
+     * どの位置が何の金額かを人が覚えておく必要があり、間違えても
+     * コンパイラは何も言いません（実際どこからも呼ばれていません）。
+     * こちらは名前で読める形（Spring Data の projection）にしてあります。
+     *
+     * <p>数えるのは<b>閉じた伝票</b>です。注文ではありません。
+     * テーブルチャージと深夜料金は伝票にしか乗らないので、
+     * 注文の合計を売上と呼ぶと、実際にいただいた金額より小さくなります。
+     */
+    interface ClosedTotal {
+        /** 会計した組数。 */
+        Long getBills();
+        /** ご請求額の合計（税込・チャージと深夜料金を含む）。 */
+        Long getGross();
+        /** うち消費税（内税）。 */
+        Long getTax();
+        /** テーブルチャージの合計。 */
+        Long getTableCharge();
+        /** 深夜料金の合計。 */
+        Long getLateNight();
+        /** 客数の合計。 */
+        Long getGuests();
+    }
+
+    @Query("""
+            select count(s) as bills,
+                   coalesce(sum(s.totalAmount), 0) as gross,
+                   coalesce(sum(s.taxAmount), 0) as tax,
+                   coalesce(sum(s.tableChargeAmount), 0) as tableCharge,
+                   coalesce(sum(s.lateNightAmount), 0) as lateNight,
+                   coalesce(sum(s.guestCount), 0) as guests
+            from TableSession s
+            where s.businessDate between :from and :to
+              and s.status = jp.komeko.order.domain.SessionStatus.CLOSED
+            """)
+    ClosedTotal summarizeClosedBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
     long countByStatus(SessionStatus status);
 }

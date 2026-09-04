@@ -2667,6 +2667,149 @@ body.is-sending .staff-main {
 .table--items th:nth-child(6), .table--items td:nth-child(6) { width: 120px; }
 
 /* --------------------------------------------------------------------------
+   30-6-3. 売上・ダッシュボードの面（.sheet）— 2026-09-05
+   --------------------------------------------------------------------------
+   商品一覧のような「白地に表」ではなく、
+   薄いグレーの地に白いパネルが浮く形。設計（Figma「14 売上」）どおり。
+
+   地の色を変えているのは、この画面だけ<b>読む画面</b>だから。
+   商品や卓は「直す」画面なので、白地のまま操作対象を目立たせる。
+   売上は数字を見比べる画面なので、面を分けて塊を作る。
+   -------------------------------------------------------------------------- */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: var(--surface);
+  margin: -64px -24px;      /* .staff-main の余白を打ち消して、地を端まで敷く */
+  padding: 32px 24px;
+}
+
+/* 月を移る帯 */
+.monthnav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 68px;
+  padding: 16px 40px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.monthnav__label { font-size: 14px; color: var(--text-muted); }
+.monthnav__go    { font-size: 16px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.monthnav__go:hover { text-decoration: underline; }
+.monthnav__value { font-size: 24px; font-weight: 700; font-family: var(--font-num); }
+
+.page-head--bare { padding: 0; }
+
+/* 3 つの数字 */
+.statrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.statcard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* 上下 19px は設計の 20px から枠の 1px を返したもの。
+     Figma の枠は面の内側にあり 128px に含まれるが、CSS の border は外に足される */
+  padding: 19px 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+/* 行送りを明示するのは、既定のままだと文字の行間で高さが決まり、
+   設計の 128px（17 + 38 + 17 ＋ 余白 40 ＋ 間隔 16）に収まらないため */
+.statcard__label { font-size: 14px; line-height: 17px; color: var(--text-muted); margin: 0; }
+.statcard__value { font-size: 32px; line-height: 38px; font-weight: 700; font-family: var(--font-num); margin: 0; }
+.statcard__delta { display: flex; align-items: baseline; gap: 6px; margin: 0; font-size: 14px; line-height: 17px; font-weight: 700; }
+.statcard__delta .is-up   { color: var(--ok); }
+.statcard__delta .is-down { color: var(--danger); }
+.statcard__note { font-size: 13px; font-weight: 400; color: var(--text-muted); }
+
+/* 白いパネル */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.panel__head { display: flex; align-items: baseline; gap: 10px; }
+/* h2 の既定（.theme-desk で 24px）より小さくする。
+   パネルの題はページの見出しではなく「この箱の名前」なので、
+   32px の「売上」と同じ強さで出ると、どこが章でどこが箱か分からなくなる */
+/* .theme-desk h2（詳細度 0,1,1）が 24px を持つので、こちらも 0,1,1 まで上げる */
+.theme-desk h2.panel__title,
+.panel__title { font-size: 17px; font-weight: 700; margin: 0; line-height: 20px; }
+.panel__sub { font-size: 13px; color: var(--text-muted); }
+.panel__spacer { flex: 1; }
+
+/* 期間の切り替え（1か月／3か月／6か月／1年） */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  /* 2px は設計の 3px から枠の 1px を返したもの（数値カードと同じ理由） */
+  padding: 2px 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.segmented__item {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  /* 16px（設計の文字の高さ）を明示。既定の行送りだと 28px に収まらない */
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.segmented__item:hover { background: var(--bg-elevated); }
+.segmented__item.is-active { background: var(--accent); color: #ffffff; font-weight: 700; }
+
+/* 折れ線。座標は Java 側で計算済みなので、ここは見た目だけ。
+   preserveAspectRatio="none" で横に伸ばすため、
+   線幅が横方向に潰れないよう vector-effect で実寸を保つ */
+.linechart { width: 100%; height: 264px; display: block; }
+.linechart__grid line { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.linechart__area { fill: var(--green-100, #ddf0ec); opacity: .55; }
+.linechart__line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.linechart__dot { fill: #ffffff; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.linechart__dot.is-last { fill: var(--accent); }
+
+/* 月と金額のラベル。SVG の中に置くと横に引き伸ばされるので HTML で並べる */
+.linechart__xaxis { display: flex; padding-left: 56px; }
+.linechart__xaxis > span { flex: 1; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.linechart__xaxis b { font-size: 12px; font-weight: 400; color: var(--text-muted); font-family: var(--font-num); }
+.linechart__xaxis i { font-size: 12px; font-style: normal; color: var(--text-muted); }
+.linechart__xaxis > span.is-last b { color: var(--accent); font-weight: 700; }
+
+/* 配分 */
+.breakdown { display: flex; flex-direction: column; gap: 12px; }
+.breakdown__chip {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 3px;
+  margin-right: 8px;
+  vertical-align: -1px;
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 960px) {
+  .statrow { grid-template-columns: 1fr; }
+  .monthnav { padding: 16px; height: auto; flex-wrap: wrap; }
+  .sheet { margin: -20px -20px; padding: 20px; }
+}
+
+/* --------------------------------------------------------------------------
    30-7. サイドバー
    --------------------------------------------------------------------------
    本文が 16px になると、13〜14px のサイドバーだけが取り残されて見える。

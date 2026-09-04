@@ -3,6 +3,8 @@ package jp.komeko.order.web.admin;
 import jp.komeko.order.domain.SessionStatus;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
+import jp.komeko.order.inventory.service.PurchaseService;
+import jp.komeko.order.inventory.service.PurchaseSummary;
 import jp.komeko.order.service.SalesReportService;
 import jp.komeko.order.service.ShopSettingService;
 import jp.komeko.order.service.TableService;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -71,13 +74,22 @@ public class AdminSalesController {
     private final SalesReportService salesReportService;
     private final ShopSettingService shopSettingService;
     private final TableService tableService;
+    /**
+     * 仕入れの集計。
+     *
+     * <p>在庫モジュール（{@code app.inventory.enabled}）を切ると Bean が存在しないので
+     * {@code ObjectProvider} で受けます。無いときは配分を「記録なし」で描きます。
+     */
+    private final org.springframework.beans.factory.ObjectProvider<PurchaseService> purchaseServiceProvider;
 
     public AdminSalesController(SalesReportService salesReportService,
                                 ShopSettingService shopSettingService,
-                                TableService tableService) {
+                                TableService tableService,
+                                org.springframework.beans.factory.ObjectProvider<PurchaseService> purchaseServiceProvider) {
         this.salesReportService = salesReportService;
         this.shopSettingService = shopSettingService;
         this.tableService = tableService;
+        this.purchaseServiceProvider = purchaseServiceProvider;
     }
 
     /**
@@ -92,43 +104,185 @@ public class AdminSalesController {
      * そのときは「いまの営業日」を見ます（深夜営業を考慮した営業日で、暦の今日とは限りません）。
      */
     @GetMapping
-    public String sales(@RequestParam(required = false)
-                        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+    public String sales(@RequestParam(required = false) String month,
+                        @RequestParam(required = false, defaultValue = "6") int span,
                         Model model) {
 
-        LocalDate target = (date != null) ? date : shopSettingService.currentBusinessDate();
-
-        DailySales summary = salesReportService.summary(target);
-        List<ItemSales> ranking = salesReportService.ranking(target);
-        List<DaySummary> series = salesReportService.recentDays(RECENT_DAYS);
-        Map<Integer, Long> hourly = salesReportService.hourlyAmount(target);
-
-        // 伝票（＝実際にいただいた金額）の集計。
-        // TableService#sessionsOf は
-        // TableSessionRepository#findByBusinessDateOrderByOpenedAtDesc を呼ぶだけの薄い窓口です。
-        // 卓（diningTable）まで読み終えた状態で返ってくるので、
-        // open-in-view: false でも画面で困りません（今回は金額しか使いませんが）。
-        List<TableSession> sessions = tableService.sessionsOf(target);
-
-        model.addAttribute("summary", summary);
-        // モデル名に "session" は使えない（Thymeleaf では HttpSession を指す予約語とぶつかる）ので
-        // 伝票の集計は billSummary という名前で渡す。
-        model.addAttribute("billSummary", summarizeBills(sessions));
-        model.addAttribute("ranking", ranking);
-        model.addAttribute("dailyBars", toDailyBars(series));
-        model.addAttribute("hourlyBars", toHourlyBars(hourly));
-
-        // 日付は「表示用の日本語」と「URL 用の ISO 文字列」を分けて渡す。
-        //   LocalDate をそのままテンプレートに渡して @{...(date=${date})} と書くと、
-        //   環境のロケールに合わせて "2026/08/16" のような形に変換されることがあり、
-        //   そのリンクを踏んだ瞬間 400 エラーになる。文字列で渡すのがいちばん安全。
-        model.addAttribute("dateIso", target.toString());
-        model.addAttribute("dateLabel", target.format(TITLE_FORMAT));
-        model.addAttribute("prevDateIso", target.minusDays(1).toString());
-        model.addAttribute("nextDateIso", target.plusDays(1).toString());
-        model.addAttribute("recentDays", RECENT_DAYS);
-
+        YearMonth target = parseMonth(month);
+        salesViewModel(model, target, span);
         return "admin/sales";
+    }
+
+    /** 折れ線に出せる月数。ここに無い値が来たら 6 に倒す。 */
+    private static final List<Integer> SPANS = List.of(1, 3, 6, 12);
+
+    /**
+     * 月の文字列（{@code 2026-08}）を読む。
+     *
+     * <p>読めない値が来たら今の営業月に倒します。
+     * URL を手で打ち替えられても 400 にせず、必ず何かが表示される側に寄せています。
+     */
+    private YearMonth parseMonth(String month) {
+        if (month != null && !month.isBlank()) {
+            try {
+                return YearMonth.parse(month);
+            } catch (RuntimeException ignored) {
+                // 読めない値は無視して、いまの月に倒す
+            }
+        }
+        return YearMonth.from(shopSettingService.currentBusinessDate());
+    }
+
+    /**
+     * 売上画面（月単位）に渡す値をまとめて作る。
+     *
+     * <p>ダッシュボードからも同じ形で呼べるように、モデルへの詰め込みだけを切り出してあります。
+     */
+    private void salesViewModel(Model model, YearMonth target, int span) {
+        int months = SPANS.contains(span) ? span : 6;
+
+        SalesReportService.MonthlySales now = salesReportService.monthlySummary(target);
+        SalesReportService.MonthlySales prev = salesReportService.monthlySummary(target.minusMonths(1));
+        List<SalesReportService.MonthlySales> series = salesReportService.monthlySeries(target, months);
+        List<ItemSales> ranking = salesReportService.monthlyRanking(target);
+
+        model.addAttribute("sales", now);
+        model.addAttribute("prevSales", prev);
+        model.addAttribute("salesDelta", SalesView.deltaPercent(now.sales(), prev.sales()));
+        model.addAttribute("ordersDelta", SalesView.deltaPercent(now.orders(), prev.orders()));
+        model.addAttribute("averageDelta",
+                SalesView.deltaPercent(now.averagePerBill(), prev.averagePerBill()));
+
+        model.addAttribute("chart", SalesView.chart(
+                series.stream().map(s -> s.month().getMonthValue() + "月").toList(),
+                series.stream().map(SalesReportService.MonthlySales::sales).toList()));
+        model.addAttribute("spans", SPANS);
+        model.addAttribute("span", months);
+
+        model.addAttribute("breakdown", breakdownOf(target, now.sales()));
+        model.addAttribute("ranking", SalesView.ranking(ranking, now.sales()));
+
+        // 月は「表示用」と「URL 用」を分けて渡す。
+        // YearMonth をそのままリンクに埋めると環境のロケールで形が変わり、
+        // そのリンクを踏んだ瞬間に読めなくなることがある。
+        model.addAttribute("monthIso", target.toString());
+        model.addAttribute("monthLabel", target.toString());
+        model.addAttribute("prevMonthIso", target.minusMonths(1).toString());
+        model.addAttribute("nextMonthIso", target.plusMonths(1).toString());
+    }
+
+    /**
+     * 前月比（%）。前月が 0 なら null。
+     *
+     * <p>0 からの伸びを「＋100%」と書くと、1 円でも売れた月が
+     * 満点のように見えてしまいます。比べられないときは比べない。
+     */
+    private static java.math.BigDecimal deltaPercent(long now, long prev) {
+        if (prev <= 0) {
+            return null;
+        }
+        return java.math.BigDecimal.valueOf(now - prev)
+                .multiply(java.math.BigDecimal.valueOf(100))
+                .divide(java.math.BigDecimal.valueOf(prev), 1, java.math.RoundingMode.HALF_UP);
+    }
+
+    // ========================================================================
+    //  売上の配分（何にいくら出ていったか）
+    // ========================================================================
+
+    /**
+     * 配分の 1 行。
+     *
+     * @param label   費目の名前
+     * @param amount  金額。記録が無い費目は null
+     * @param percent 売上に対する割合。金額が null なら null
+     * @param target  目安の割合（%）
+     * @param color   帯の色
+     */
+    public record BreakdownRow(String label, Integer amount, java.math.BigDecimal percent,
+                               int target, String color, boolean recorded) {
+    }
+
+    /**
+     * 売上の配分。
+     *
+     * <p><b>目安（FL 60 / 光熱 10 / 雑費 10 / 賃貸 10 / 利益 10）と、実績を並べて出します。</b>
+     * 目安は業種の一般論で、実績はこのアプリに記録された仕入れです。
+     *
+     * <p><b>賃貸と人件費は、いまのアプリに記録する場所がありません。</b>
+     * {@code PurchaseCategory} は 食材／飲料・酒／消耗品／光熱費／その他 の 5 つで、
+     * 家賃も給与も入れる先がない（入れるなら「その他」＝帳簿では「雑費」になってしまう）。
+     * <b>数字を決め打ちで書き込むことはしません。</b>
+     * 画面には「記録していない」と出して、
+     * 足りない費目があることが分かる状態にしておきます。
+     */
+    private List<BreakdownRow> breakdownOf(YearMonth month, long sales) {
+        PurchaseService purchaseService = purchaseServiceProvider.getIfAvailable();
+        if (purchaseService == null) {
+            // 在庫モジュールを切っているときは仕入れの記録そのものが無い。
+            // 目安だけを出して、実績は「記録していない」にする
+            List<BreakdownRow> none = new ArrayList<>();
+            none.add(new BreakdownRow("F 食材・飲料", null, null, 60, "var(--border)", false));
+            none.add(new BreakdownRow("光熱費", null, null, 10, "var(--border)", false));
+            none.add(new BreakdownRow("雑費（消耗品・その他）", null, null, 10, "var(--border)", false));
+            none.add(new BreakdownRow("賃貸", null, null, 10, "var(--border)", false));
+            none.add(new BreakdownRow("L 人件費＋利益", null, null, 10, "var(--border)", false));
+            return none;
+        }
+        PurchaseSummary p = purchaseService.summarize(month);
+
+        int food = 0;
+        int drink = 0;
+        int supplies = 0;
+        int utilities = 0;
+        int other = 0;
+        for (PurchaseSummary.CategoryRow row : p.categories()) {
+            switch (row.category()) {
+                case FOOD -> food = row.amountIncludeTax();
+                case DRINK -> drink = row.amountIncludeTax();
+                case SUPPLIES -> supplies = row.amountIncludeTax();
+                case UTILITIES -> utilities = row.amountIncludeTax();
+                case OTHER -> other = row.amountIncludeTax();
+            }
+        }
+
+        List<BreakdownRow> rows = new ArrayList<>();
+        rows.add(row("F 食材・飲料", food + drink, sales, 60, "var(--green-700)"));
+        rows.add(row("光熱費", utilities, sales, 10, "var(--green-600)"));
+        rows.add(row("雑費（消耗品・その他）", supplies + other, sales, 10, "var(--green-100)"));
+        // 記録する場所が無いものは、0 円ではなく「記録していない」として出す。
+        // 0 と書くと「家賃がかかっていない」という嘘になる。
+        rows.add(new BreakdownRow("賃貸", null, null, 10, "var(--border)", false));
+        rows.add(new BreakdownRow("L 人件費＋利益", null, null, 10, "var(--border)", false));
+        return rows;
+    }
+
+    private static BreakdownRow row(String label, int amount, long sales, int target, String color) {
+        java.math.BigDecimal percent = (sales <= 0) ? null
+                : java.math.BigDecimal.valueOf(amount)
+                        .multiply(java.math.BigDecimal.valueOf(100))
+                        .divide(java.math.BigDecimal.valueOf(sales), 1, java.math.RoundingMode.HALF_UP);
+        return new BreakdownRow(label, amount, percent, target, color, true);
+    }
+
+    // ========================================================================
+    //  注文されている商品
+    // ========================================================================
+
+    /** ランキング 1 行（構成比つき）。 */
+    public record RankingRow(String name, long quantity, long amount, java.math.BigDecimal share) {
+    }
+
+    private List<RankingRow> toRanking(List<ItemSales> ranking, long sales) {
+        List<RankingRow> rows = new ArrayList<>();
+        for (ItemSales i : ranking) {
+            java.math.BigDecimal share = (sales <= 0) ? null
+                    : java.math.BigDecimal.valueOf(i.sales())
+                            .multiply(java.math.BigDecimal.valueOf(100))
+                            .divide(java.math.BigDecimal.valueOf(sales), 1, java.math.RoundingMode.HALF_UP);
+            rows.add(new RankingRow(i.menuItemName(), i.qty(), i.sales(), share));
+        }
+        return rows;
     }
 
     // ========================================================================

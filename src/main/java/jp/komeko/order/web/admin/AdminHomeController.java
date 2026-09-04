@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -68,14 +69,44 @@ public class AdminHomeController {
     public String home(Model model) {
         LocalDate today = shopSettingService.currentBusinessDate();
 
-        // 会計済み（受渡済）の注文だけを集計したサマリ
-        DailySales sales = salesReportService.summary(today);
         // 厨房で作業中の 3 レーン（受付／調理中／お渡し可）
         KitchenBoard board = orderService.kitchenBoard();
 
+        // ★ 売上画面と同じ形にする（2026-09-05）★
+        //   売上は「月」を見る画面、ダッシュボードは「今日」を見る画面で、
+        //   見るものは同じ（総売上・注文数・平均単価・推移・売れている品）。
+        //   同じ形にしておけば、店主は片方の読み方を覚えるだけで両方読めます。
+        //
+        //   数字の出どころも売上画面とそろえて、閉じた伝票から取ります。
+        //   注文の合計にはテーブルチャージと深夜料金が乗らないので、
+        //   ここだけ注文ベースにすると「ダッシュボードと売上で今日の額が違う」ことになります。
+        SalesReportService.MonthlySales sales = salesReportService.daySummary(today);
+        SalesReportService.MonthlySales prev = salesReportService.daySummary(today.minusDays(1));
+        List<SalesReportService.MonthlySales> series = salesReportService.dailySeries(today, RECENT_DAYS);
+
         model.addAttribute("todayLabel", today.format(DATE_LABEL));
-        model.addAttribute("sales", sales);
         model.addAttribute("board", board);
+
+        model.addAttribute("sales", sales);
+        model.addAttribute("salesDelta", SalesView.deltaPercent(sales.sales(), prev.sales()));
+        model.addAttribute("ordersDelta", SalesView.deltaPercent(sales.orders(), prev.orders()));
+        model.addAttribute("averageDelta",
+                SalesView.deltaPercent(sales.averagePerBill(), prev.averagePerBill()));
+
+        model.addAttribute("chart", SalesView.chart(
+                series.stream().map(s -> s.month().getMonthValue() + "/" + s.day()).toList(),
+                series.stream().map(SalesReportService.MonthlySales::sales).toList()));
+        model.addAttribute("recentDays", RECENT_DAYS);
+
+        model.addAttribute("ranking",
+                SalesView.ranking(salesReportService.ranking(today), sales.sales()));
+
+        model.addAttribute("dateIso", today.toString());
+        model.addAttribute("prevDateIso", today.minusDays(1).toString());
+        model.addAttribute("nextDateIso", today.plusDays(1).toString());
         return "admin/home";
     }
+
+    /** 推移グラフに出す日数。1 週間ぶんあれば「昨日より良いか」も「先週の同じ曜日と比べて」も読める。 */
+    private static final int RECENT_DAYS = 7;
 }

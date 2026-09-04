@@ -118,6 +118,37 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("since") LocalDateTime since,
             @Param("statuses") Collection<OrderStatus> statuses);
 
+    /**
+     * 期間の商品別ランキング（売上の大きい順）。
+     *
+     * <p>日単位の {@code rankItems} の期間版。where 句を {@code between} にしただけで、
+     * 集計の中身も並び順も同じにしてある。
+     *
+     * <p>並べるキーが商品 id ではなく<b>注文時点の商品名</b>なのも同じ。
+     * 商品名を変えたら別の行として集計されるが、それは
+     * 「あのとき出していた品」の売れ行きを見たいという意図どおり。
+     */
+    @Query("""
+            select new jp.komeko.order.service.dto.ItemSales(l.menuItemName, sum(l.quantity), sum(l.lineTotal))
+            from OrderLine l join l.order o
+            where o.businessDate between :from and :to and o.status = :status
+            group by l.menuItemName
+            order by sum(l.lineTotal) desc, sum(l.quantity) desc
+            """)
+    List<jp.komeko.order.service.dto.ItemSales> rankItemsBetween(
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            @Param("status") OrderStatus status);
+
+    /** 期間の注文件数（指定した状態のもの）。 */
+    @Query("""
+            select count(o) from Order o
+            where o.businessDate between :from and :to and o.status = :status
+            """)
+    long countBetween(@Param("from") LocalDate from,
+                      @Param("to") LocalDate to,
+                      @Param("status") OrderStatus status);
+
     /** 待ち組数のカウント。 */
     long countByBusinessDateAndStatusIn(LocalDate businessDate, Collection<OrderStatus> statuses);
 

@@ -1,50 +1,46 @@
 <!DOCTYPE html>
 <!--/*
-   管理画面のダッシュボード。
+   ダッシュボード（今日の営業）。
 
-     ${todayLabel} … 営業日の見出し（String。日付の書式化は Java 側で済ませてある）
-     ${sales}      … DailySales（record。アクセサは sales.total() のように () を付けて呼ぶ）
-     ${board}      … KitchenBoard（record。board.received() などで 3 レーンを取れる）
-     ${shop}       … ShopSetting（@ControllerAdvice が全画面に自動で入れている）
+   ── 売上画面と同じ形にしてある（2026-09-05）──
+   売上は「月」を、ここは「今日」を見る画面で、見るものは同じです。
+     ・総売上・注文数・平均単価
+     ・推移（売上は月ごと、ここは日ごと）
+     ・注文されている商品
+   形をそろえておけば、店主は片方の読み方を覚えるだけで両方読めます。
 
-   ★「在席の卓数」だけは model に入っていないので、
-     ${@tableService.openSessions().size()} と書いて Spring の TableService を直接呼んでいます。
-     @beanName という書き方で、Spring に登録された部品をテンプレートから呼べます。
+   ダッシュボードにしか無いのは、上の 2 つ。
+     ・注文受付の状態（いちばん大事なので最初にいちばん大きく）
+     ・厨房の状況（在席・進行中・提供待ち）
 
-     本来この値も AdminHomeController が model に入れて渡すのが正しい形です。
-     今回はイートイン化の作業を複数人で分担していて、そのコントローラが別担当の範囲のため
-     こう書いています。コントローラを直せるようになったら
-     model.addAttribute("openTables", ...) に移してください。
-
-     （openSessions() は自分でトランザクションを開いて、卓と注文まで読み終えてから返すので、
-       画面を描く時点で DB 接続が無くても安全に呼べます。）
+   ── 数字の出どころ ──
+   売上は<b>閉じた伝票</b>から取ります。注文の合計ではありません。
+   テーブルチャージと深夜料金は伝票にしか乗らないので、
+   ここだけ注文ベースにすると「ダッシュボードと売上で今日の額が違う」ことになります。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('ダッシュボード', ~{::main})}">
 <body>
-<main>
+<main class="sheet">
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">ダッシュボード</h1>
-    <span class="section-title__count" th:text="${todayLabel} + ' の営業'">2026年8月16日(日) の営業</span>
+  <div class="page-head page-head--bare">
+    <h1 class="page-head__title">ダッシュボード</h1>
+    <span class="page-head__sub" th:text="${todayLabel} + ' の営業'">2026年9月5日(金) の営業</span>
   </div>
 
   <!--/* ====== 注文受付の状態 ======
-         いちばん大事な情報なので最初に、いちばん大きく出す。
          ここでは切り替えません（切り替えは店舗設定画面の役目）。
-         「見る場所」と「変える場所」を分けると、うっかり操作を減らせます。
-  */-->
-  <section class="card">
-    <div class="card__body row row--between row--wrap">
+         「見る場所」と「変える場所」を分けると、うっかり操作を減らせます。 */-->
+  <section class="panel">
+    <div class="row row--between row--wrap">
       <div>
-        <p class="stat__label mb-0">ただいまの注文受付</p>
-        <p class="stat__value" style="font-size:2.25rem"
-           th:text="${shop.acceptingOrders} ? '受付中' : '停止中'">受付中</p>
+        <p class="statcard__label">ただいまの注文受付</p>
+        <p class="statcard__value" th:text="${shop.acceptingOrders} ? '受付中' : '停止中'">受付中</p>
         <p class="small muted mb-0" th:if="${shop.acceptingOrders}"
            th:text="'営業 ' + ${shop.openTime} + ' 〜 ' + ${shop.closeTime} + '（ラストオーダー ' + ${shop.lastOrderTime} + '）'">
-          営業 11:00 〜 19:00（ラストオーダー 18:30）
+          営業 17:30 〜 02:00（ラストオーダー 01:30）
         </p>
         <p class="small muted mb-0" th:unless="${shop.acceptingOrders}"
            th:text="${shop.closedMessage}">ただいま大変混み合っております。</p>
@@ -56,79 +52,143 @@
     </div>
   </section>
 
-  <!--/* ====== 今日の数字 ======
-         売上は「受渡済（卓へお出しし終えた注文）」だけを数えています。
-         調理中のぶんを足してしまうと、キャンセルが出たときに数字が合わなくなるためです。
-
-         なお、ここの売上には席料（テーブルチャージ）と深夜料金が入っていません。
-         それらは注文ではなく伝票に付くためです。実際にいただいた金額は売上画面で見ます。
-  */-->
-  <div class="section-title">
-    <h2 class="section-title__text">今日の数字</h2>
-    <span class="section-title__count">売上は受渡済の注文のみ</span>
+  <!--/* ====== 厨房の状況 ====== */-->
+  <div class="statrow">
+    <div class="statcard">
+      <p class="statcard__label">在席の卓</p>
+      <p class="statcard__value" th:text="${@tableService.openSessions().size()}">0</p>
+      <p class="statcard__delta"><span class="statcard__note">ご案内中の卓の数</span></p>
+    </div>
+    <div class="statcard">
+      <p class="statcard__label">進行中の注文</p>
+      <p class="statcard__value" th:text="${board.activeCount()}">0</p>
+      <p class="statcard__delta">
+        <span class="statcard__note"
+              th:text="'受付 ' + ${board.received().size()} + ' ／ 調理中 ' + ${board.cooking().size()} + ' ／ 提供待ち ' + ${board.ready().size()}">
+          受付 0 ／ 調理中 0 ／ 提供待ち 0
+        </span>
+      </p>
+    </div>
+    <div class="statcard">
+      <p class="statcard__label">提供待ち</p>
+      <p class="statcard__value" th:text="${board.ready().size()}">0</p>
+      <p class="statcard__delta">
+        <span class="statcard__note">できあがり。卓へお持ちする</span>
+      </p>
+    </div>
   </div>
 
-  <div class="grid grid--4">
-
-    <div class="stat">
-      <p class="stat__label">在席の卓数</p>
-      <p class="stat__value">
-        <span th:text="${@tableService.openSessions().size()}">0</span><span class="stat__unit">卓</span>
-      </p>
-      <p class="tiny faint mb-0">お会計がまだの伝票の数</p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">進行中の注文</p>
-      <p class="stat__value">
-        <span th:text="${board.activeCount()}">0</span><span class="stat__unit">件</span>
-      </p>
-      <p class="tiny faint mb-0"
-         th:text="'受付 ' + ${board.received().size()} + ' ／ 調理中 ' + ${board.cooking().size()} + ' ／ 提供待ち ' + ${board.ready().size()}">
-        受付 0 ／ 調理中 0 ／ 提供待ち 0
+  <!--/* ====== 今日の数字（売上画面と同じ 3 枚） ====== */-->
+  <div class="statrow">
+    <div class="statcard">
+      <p class="statcard__label">本日の総売上</p>
+      <p class="statcard__value"
+         th:text="'¥' + ${#numbers.formatInteger(sales.sales(), 1, 'COMMA')}">¥63,770</p>
+      <p class="statcard__delta">
+        <span th:if="${salesDelta != null}"
+              th:classappend="${salesDelta.signum() >= 0} ? 'is-up' : 'is-down'"
+              th:text="(${salesDelta.signum() >= 0} ? '＋' : '') + ${salesDelta} + '%'">＋12.5%</span>
+        <span th:if="${salesDelta == null}" class="faint">—</span>
+        <span class="statcard__note">前日比</span>
       </p>
     </div>
-
-    <div class="stat">
-      <p class="stat__label">提供待ち</p>
-      <p class="stat__value">
-        <span th:text="${board.ready().size()}">0</span><span class="stat__unit">件</span>
-      </p>
-      <p class="tiny faint mb-0">できあがり。卓へお持ちする品</p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">商品の売上（税込）</p>
-      <p class="stat__value">
-        ¥<span th:text="${#numbers.formatInteger(sales.total(), 1, 'COMMA')}">0</span>
-      </p>
-      <p class="tiny faint mb-0"
-         th:text="'受渡済 ' + ${sales.orders()} + ' 件 ／ うち消費税 ¥' + ${#numbers.formatInteger(sales.tax(), 1, 'COMMA')}">
-        受渡済 0 件 ／ うち消費税 ¥0
+    <div class="statcard">
+      <p class="statcard__label">注文数</p>
+      <p class="statcard__value" th:text="${#numbers.formatInteger(sales.orders(), 1, 'COMMA')}">12</p>
+      <p class="statcard__delta">
+        <span th:if="${ordersDelta != null}"
+              th:classappend="${ordersDelta.signum() >= 0} ? 'is-up' : 'is-down'"
+              th:text="(${ordersDelta.signum() >= 0} ? '＋' : '') + ${ordersDelta} + '%'">＋8.2%</span>
+        <span th:if="${ordersDelta == null}" class="faint">—</span>
+        <span class="statcard__note">前日比</span>
       </p>
     </div>
-
+    <div class="statcard">
+      <p class="statcard__label">平均単価</p>
+      <p class="statcard__value"
+         th:text="'¥' + ${#numbers.formatInteger(sales.averagePerBill(), 1, 'COMMA')}">¥3,150</p>
+      <p class="statcard__delta">
+        <span th:if="${averageDelta != null}"
+              th:classappend="${averageDelta.signum() >= 0} ? 'is-up' : 'is-down'"
+              th:text="(${averageDelta.signum() >= 0} ? '＋' : '') + ${averageDelta} + '%'">＋4.0%</span>
+        <span th:if="${averageDelta == null}" class="faint">—</span>
+        <span class="statcard__note">1組あたり／前日比</span>
+      </p>
+    </div>
   </div>
 
-  <!--/* ====== クイックリンク「よく使う画面」は 2026-08-27 に削除しました ======
+  <!--/* ====== 売上推移（日ごと） ====== */-->
+  <section class="panel">
+    <div class="panel__head">
+      <h2 class="panel__title">売上推移</h2>
+      <span class="panel__sub" th:text="'直近 ' + ${recentDays} + ' 日（本日まで）'">直近 7 日（本日まで）</span>
+      <span class="panel__spacer"></span>
+      <a class="btn btn--sm" th:href="@{/admin/sales}">月ごとの売上を見る</a>
+    </div>
 
-         ホール・会計 / 厨房ボード / 卓 / QRコード / 売上 / 商品 の 6 本を並べていましたが、
-         6 本とも左のサイドバーにある項目で、しかも同じ画面に同時に映っていました。
+    <svg class="linechart" viewBox="0 0 1000 300" preserveAspectRatio="none" role="img"
+         aria-label="日ごとの売上の推移">
+      <g class="linechart__grid">
+        <line th:each="g : ${chart.grid()}" x1="56" x2="992"
+              th:y1="${g.y()}" th:y2="${g.y()}"></line>
+      </g>
+      <polygon class="linechart__area" th:attr="points=${chart.area()}"></polygon>
+      <polyline class="linechart__line" th:attr="points=${chart.line()}"></polyline>
+      <circle th:each="p : ${chart.points()}" class="linechart__dot"
+              th:classappend="${p.last()} ? 'is-last'"
+              th:cx="${p.x()}" th:cy="${p.y()}" r="4"></circle>
+    </svg>
 
-         置いた理由は「忙しい時間帯に、指で押しやすい大きさで並べる」でした。
-         つまりサイドバーが押しにくいことの埋め合わせで、重複は目的ではなく症状でした。
-         実測するとサイドバーの項目は 38px しかなく、
-         CLAUDE.md の「タップ領域は 48px 以上」を満たしていませんでした。
+    <div class="linechart__xaxis">
+      <span th:each="p : ${chart.points()}" th:classappend="${p.last()} ? 'is-last'">
+        <b th:text="${p.amountLabel()}">¥6万</b>
+        <i th:text="${p.label()}">9/5</i>
+      </span>
+    </div>
+  </section>
 
-         app.css で .sb__item に min-height:var(--tap) を入れて高さを直したので、
-         埋め合わせのほうは要らなくなりました。
-         同じ行き先への入口を 2 つ持たない、という判断です。 */-->
+  <!--/* ====== 注文されている商品（今日） ====== */-->
+  <section class="panel">
+    <div class="panel__head">
+      <h2 class="panel__title">注文されている商品</h2>
+      <span class="panel__sub">今日の売れ行き</span>
+    </div>
 
-  <p class="tiny faint mt-6 mb-0">
-    ※ 集計は「営業日」単位です。深夜営業ぶんは店舗設定の切り替え時刻に従って前日に含まれます。<br>
-    ※ お会計は卓の伝票ごとに行います。席料（テーブルチャージ）と深夜料金を含む
-    「実際にいただいた金額」は、売上画面の「お会計（伝票）ベース」に出ます。
-  </p>
+    <div th:if="${#lists.isEmpty(ranking)}">
+      <div th:replace="~{fragments/common :: empty('—', '今日はまだ受け渡しが完了した注文がありません')}"></div>
+    </div>
+
+    <div class="table-wrap" th:unless="${#lists.isEmpty(ranking)}">
+      <table class="table table--ranking">
+        <thead>
+        <tr>
+          <th>商品</th>
+          <th class="num">数量</th>
+          <th class="num">売上（税込）</th>
+          <th class="num">構成比</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${ranking}">
+          <td th:text="${r.name()}">肉玉米粉そば</td>
+          <td class="num" th:text="${#numbers.formatInteger(r.quantity(), 1, 'COMMA')}">12</td>
+          <td class="num"
+              th:text="'¥' + ${#numbers.formatInteger(r.amount(), 1, 'COMMA')}">¥14,160</td>
+          <td class="num">
+            <span th:if="${r.share() != null}" th:text="${r.share()} + '%'">22.2%</span>
+            <span th:unless="${r.share() != null}" class="faint">—</span>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="help mb-0">
+      売上は<b>受渡済</b>の注文だけを数えています。営業日は
+      深夜 <span th:text="${shop.businessDayCutoverHour}">5</span> 時に切り替わるので、
+      日付をまたいでも同じ営業日として集計されます。
+    </p>
+  </section>
 
 </main>
 </body>
