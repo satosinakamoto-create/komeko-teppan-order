@@ -24,7 +24,15 @@ public class OptionChoice {
     @Column(nullable = false, length = 40)
     private String name;
 
-    /** 追加料金（税込・円）。0 なら無料オプション。マイナスも可（例: ソース抜きで -50円）。 */
+    /**
+     * 追加料金（税込・円）。0 なら無料オプション。
+     *
+     * <p><b>マイナスは入れない</b>（2026-09-04 に値引きオプションを廃止）。
+     * 単価は {@code OrderLine#recalculate} が {@code basePrice + オプション代} を
+     * 下限なしで計算するため、マイナスを許すと単価が負になり、
+     * その卓の小計から他の品の代金が引かれる。
+     * 入口は {@code OptionChoiceForm} の {@code @Min(0)} で閉じてある。
+     */
     @Column(nullable = false)
     private int extraPrice = 0;
 

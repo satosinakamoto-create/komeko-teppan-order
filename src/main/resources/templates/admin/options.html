@@ -130,7 +130,11 @@
 
         <div class="field" style="flex:0 1 130px;margin-bottom:0">
           <label class="label" th:for="'choice-price-' + ${g.id}">追加料金（円）</label>
-          <input class="input" type="number" name="extraPrice" min="-10000" max="100000"
+          <!--/* min="0" … 値引き（マイナス）は受け付けません。
+                 単価が負になると、その卓の小計から他の品の代金が引かれるためです。
+                 これは入力を楽にするための補助で、本当の歯止めは
+                 OptionChoiceForm の @Min(0)（サーバ側）にあります。 */-->
+          <input class="input" type="number" name="extraPrice" min="0" max="100000"
                  inputmode="numeric"
                  th:id="'choice-price-' + ${g.id}"
                  th:value="${cerrs != null ? choiceForm.extraPrice : 0}"
@@ -166,7 +170,7 @@
       </form>
 
       <p class="help mb-0">
-        追加料金は 0 円でも構いません（「ソースなし」など）。マイナスを入れると値引きになります。
+        追加料金は 0 円でも構いません（「ソースなし」など）。値引き（マイナス）は入れられません。
       </p>
 
     </div>
