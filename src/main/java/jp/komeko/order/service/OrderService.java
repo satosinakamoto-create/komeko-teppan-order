@@ -291,6 +291,25 @@ public class OrderService {
                 orders.stream().filter(o -> o.getStatus() == OrderStatus.READY).toList());
     }
 
+    /**
+     * まだ提供していない注文の件数（店舗ヘッダーの「未提供 N 件」）。
+     *
+     * <p>数えるのは {@link #kitchenBoard()} と<b>同じ母集合</b>——
+     * 受付・調理中・お渡し可の 3 レーンに出ている注文です。
+     * 厨房ボードの見出し「未処理 N 件」と必ず同じ数字になります。
+     *
+     * <p>ヘッダーは店側の全画面で描かれるので、
+     * {@code kitchenBoard()} を呼んで {@code activeCount()} を読む形にはしません。
+     * あちらは明細・伝票・卓まで読み込むので、数字 1 つには重すぎます。
+     */
+    @Transactional(readOnly = true)
+    public int pendingCount() {
+        return (int) orderRepository.countKitchenBoardOrders(
+                shopSettingService.currentBusinessDate(),
+                carryOverSince(),
+                List.of(OrderStatus.RECEIVED, OrderStatus.COOKING, OrderStatus.READY));
+    }
+
     /** 当日の全注文（管理画面の一覧）。 */
     @Transactional(readOnly = true)
     public List<Order> ordersOf(LocalDate businessDate) {

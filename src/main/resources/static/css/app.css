@@ -477,6 +477,12 @@ hr {
    塗りつぶして、周りより一段強く見せる。 */
 .badge--soldout { background: var(--text-muted);  color: var(--bg);         border-color: transparent; }
 .badge--allergen{ background: transparent; color: var(--text-muted); border-color: var(--border-strong); font-weight: 500; }
+/* 管理画面の表で使う「止まっている」印。
+   お客さま側の .badge--soldout（塗りつぶし）と分けているのは、
+   あちらは「押しても無駄だと一目で伝える」ための強さが要るのに対し、
+   こちらは 68px の行がずらりと並ぶ中で、赤が強すぎると表が読めなくなるため。
+   同じ「品切れ」でも、置かれる場所で必要な強さが違う。 */
+.badge--stop    { background: var(--danger-soft); color: var(--danger); border-color: currentColor; }
 
 .status-chip {
   display: inline-flex;
@@ -1413,14 +1419,182 @@ body.theme-snow { background-image: none; }
    ★ 姿の違いは下の変数の差し替えだけで表す。
      部品ごとに display:none を並べると、条件が増えるたびに同じ行が増える。
      .theme-snow と同じやり方。 */
+/* --------------------------------------------------------------------------
+   上の帯（ヘッダー）— 2026-09-04
+
+   営業中に「いま店がどうなっているか」を、画面を移らずに読める場所。
+   高さは 64px。Figma は 88px だが、あれは 1432px の広い画面での寸法で、
+   ここは 1024px のタブレットでも本文が十分に残る必要がある。
+   帯に取られた高さは、そのまま「一度に見える注文の数」から引かれる。
+
+   位置は sticky。スクロールしても状態は見えていてほしいが、
+   fixed にすると本文の上端に余白を足す責任が別の場所に移るので、
+   レイアウトの流れの中に置いたまま貼り付ける。
+   -------------------------------------------------------------------------- */
+.staff-frame {
+  --topbar-h: 88px;
+  min-height: 100dvh;
+}
+
+.topbar {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 左は 0。左端の余白は店名ブロック（264px）の内側に持たせて、
+     サイドバーの内側の余白と同じ位置から文字が始まるようにする */
+  padding: 0 20px 0 0;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+/* ★ 幅 264px は「たまたま」ではない。サイドバーと同じ幅にしてある。
+     店名ブロックの右端と、サイドバーの右端（本文が始まる線）が一直線にそろう。
+     内容の幅で縮める（hug）と、この線がずれて帯と本文の関係が崩れる。
+     .topbar の左 padding 16 は店名ブロックの内側に持たせ、264 の中に含める */
+.topbar__brand {
+  flex: 0 0 var(--sb-w, 264px);
+  width: var(--sb-w, 264px);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  /* 帯の gap は 10px（受付ピル→未提供ピルの値）。
+     店名と受付のあいだだけ設計は 12px なので、2px 足して差を作る */
+  margin-right: 2px;
+  min-width: 0;
+}
+/* 店舗の切り替え（将来の複数店対応）。いまは押せないので印だけ置く */
+.topbar__brand-caret { font-size: 12px; color: var(--text-muted); flex: none; }
+.topbar__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+  background: #fff;
+  border: 1px solid var(--border);
+}
+.topbar__brand-text { line-height: 1.25; min-width: 0; }
+.topbar__brand-name { display: block; font-size: 14px; font-weight: 700; white-space: nowrap; }
+/* 副題は --text-faint（38%）だと薄すぎて読めない。--text-muted（55%）が設計の色に近い */
+.topbar__brand-sub  { display: block; font-size: 11px; color: var(--text-muted); }
+
+/* 受付の状態。丸い点＋文字。面は白のままで、点の色だけが状態を持つ。
+   line-height を明示するのは、これを既定のままにすると
+   ピルの高さが文字の行送りで決まってしまい、設計の 38px に収まらないため */
+.topbar__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  /* 上下 9px は設計の 10px から 1px 引いたもの。
+     Figma の枠線は面の内側に引かれるので、38px の中に枠の 1px が含まれる。
+     CSS の border は padding の外に足されるため、同じ 10px にすると
+     18 + 20 + 2 = 40px になって 2px 高くなる。枠のぶんを padding から返す */
+  padding: 9px 17px 9px 15px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.topbar__dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+/* 修飾は is- 接頭辞。BEM の -- ではなく is- にしてあるのは、
+   テンプレート側の th:classappend の式に __ を書けないため
+   （Thymeleaf が __...__ を前処理の記号として読む）。layout/staff.html のコメント参照 */
+.topbar__state.is-on  .topbar__dot { background: var(--ok); }
+.topbar__state.is-off .topbar__dot { background: var(--danger); }
+.topbar__state.is-off { color: var(--danger); border-color: var(--danger); }
+
+/* 未提供の件数。押すと厨房ボードへ飛ぶ。0 件のときはテンプレート側で出さない */
+.topbar__pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* 上下 9px の理由は .topbar__state と同じ（枠のぶんを padding から返す）。
+     左右は設計どおり。中身が絵文字ではなくアイコン SVG なので、幅は文字送りで決まる */
+  padding: 9px 12px 9px 14px;
+  border: 1px solid var(--danger);
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.topbar__pending:hover { background: var(--danger); color: #fff; }
+.topbar__pending:hover .ic { color: #fff; }
+.topbar__pending .ic { width: 20px; height: 20px; flex: none; }
+.topbar__pending-count { font-size: 17px; font-weight: 700; font-family: var(--font-num); }
+.topbar__pending-go { font-size: 15px; font-weight: 700; }
+
+.topbar__spacer { flex: 1; }
+
+.topbar__day { display: inline-flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.topbar__day-label { font-size: 13px; color: var(--text-muted); }
+.topbar__day-value { font-size: 17px; font-weight: 700; font-family: var(--font-num); }
+
+.topbar__divider { width: 1px; height: 20px; background: var(--border); flex: none; }
+
+.topbar__help {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-decoration: none;
+  flex: none;
+}
+.topbar__help:hover { background: rgba(28, 28, 28, .04); color: var(--text); }
+
+.topbar__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  /* 面と文字を同じ系統でそろえる。管理画面（.theme-desk）では緑、
+     厨房・ホール（.theme-snow だけ）では黒。層ごとの色をそのまま使う */
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex: none;
+}
+
+/* 帯が置ける幅がないときは、店名と営業日だけ残して畳む。
+   受付の状態と未提供は厨房ボードにも出るので、ここで無理に残さない */
+@media (max-width: 720px) {
+  .topbar { padding: 0 12px; gap: 8px; }
+  .topbar__brand-text,
+  .topbar__day-label,
+  .topbar__divider,
+  .topbar__help { display: none; }
+  .topbar__state { padding: 8px 12px; font-size: 13px; }
+}
+
 .staff-shell {
   display: flex;
-  min-height: 100dvh;
+  /* 帯のぶんを引く。100dvh のままだと、帯の高さだけ縦スクロールが増える */
+  min-height: calc(100dvh - var(--topbar-h, 0px));
 
-  --sb-w: 232px;                    /* サイドバーの幅 */
-  --sb-pad: 16px 12px;              /* サイドバーの内側の余白 */
+  --sb-w: 264px;                    /* サイドバーの幅。ヘッダーの店名ブロックと同じ幅 */
+  --sb-pad: 12px;                   /* サイドバーの内側の余白 */
   --sb-text: block;                 /* 文字（ブランド名・グループ見出し・項目名・アカウント名） */
-  --sb-item-pad: 0 10px;            /* 項目の左右の余白。高さは --tap で確保する */
+  --sb-item-pad: 0 12px;            /* 項目の左右の余白。高さは --tap で確保する */
   --sb-item-justify: flex-start;
   --sb-brand-justify: flex-start;
   --sb-brand-pad: 8px;
@@ -1453,8 +1627,9 @@ body.theme-snow { background-image: none; }
   border-right: 1px solid var(--border);
   background: #ffffff;
   position: sticky;
-  top: 0;
-  height: 100dvh;
+  /* 上の帯のぶんだけ下げて貼り付ける。0 のままだと帯の裏に潜り込む */
+  top: var(--topbar-h, 0px);
+  height: calc(100dvh - var(--topbar-h, 0px));
   /* サイドバー全体ではなく、下の .sb__nav だけをスクロールさせる。
      全体をスクロールにしていたため、項目が多い店長の画面では
      いちばん下のログアウトが画面の外に出ていた（1024×768 で実測 830px）。
@@ -1496,12 +1671,16 @@ body.theme-snow { background-image: none; }
   overflow-y: auto;
 }
 
+/* 小見出し。設計は 高さ28・余白 12/0/2/8・12px。
+   左が 8px と項目（12px）より内側なのは、見出しは押せないので
+   項目の面の左端ではなく、アイコンの位置に頭をそろえるほうが列として静かになるため */
 .sb__label {
   display: var(--sb-text);
-  margin: 14px 0 2px;
-  padding: 0 12px;
-  font-size: 13px;
-  color: var(--text-faint);
+  margin: 0;
+  padding: 12px 0 2px 8px;
+  font-size: 12px;
+  line-height: 14px;
+  color: var(--text-muted);
 }
 
 .sb__item {
@@ -1517,8 +1696,8 @@ body.theme-snow { background-image: none; }
      高さを直したので、そちらは消してある。 */
   min-height: var(--tap);
   padding: var(--sb-item-pad);
-  border-radius: 12px;
-  font-size: 14px;
+  border-radius: 6px;
+  font-size: 15px;
   color: var(--text);
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
@@ -2245,7 +2424,10 @@ body.is-sending .staff-main {
      カードの頭   12/16px → 20/24px
      カード同士   16px    → 24px
    -------------------------------------------------------------------------- */
-.theme-desk .staff-main   { padding: 32px 40px 64px; }
+/* 設計は 64/24/64/24。左右 24px はサイドバーの右端から本文までのあき。
+   もとは 40px 取っていたが、設計はサイドバー側の余白（12px）と
+   本文側（24px）で「間」を作る配分になっている */
+.theme-desk .staff-main   { padding: 64px 24px; }
 .theme-desk .section-title { margin: 48px 0 24px; }
 /* いちばん上の見出しにまで 48px 付けると、頭が間延びする */
 .theme-desk .staff-main > :first-child { margin-top: 0; }
@@ -2376,6 +2558,115 @@ body.is-sending .staff-main {
 .theme-desk .faint { color: var(--text-muted); }
 
 /* --------------------------------------------------------------------------
+   30-6-2. ページの見出し・検索・タブつきの表 — 2026-09-05
+   --------------------------------------------------------------------------
+   商品一覧のために作った 3 つの部品。設計（Figma「08 商品」）の寸法どおり。
+
+   ★ タブと表のあいだに隙間を作らないこと。
+     選ばれたタブと表の見出し帯が同じ緑でひと続きに見えることで、
+     「この表はいまこの絞り込みの結果だ」が形で伝わる。
+     ここに 1px でも隙間が入ると、タブと表が別々のものに見える。
+   -------------------------------------------------------------------------- */
+
+/* 見出し（大きな題＋添え字＋右のボタン） */
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 40px;
+}
+.page-head__title  { font-size: 32px; font-weight: 700; margin: 0; line-height: 1.4; }
+.page-head__sub    { font-size: 14px; color: var(--text-muted); }
+.page-head__spacer { flex: 1; }
+
+/* 探す。入力欄そのものが 64px の面になる */
+.searchbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 64px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+}
+.searchbox__icon { display: inline-flex; color: var(--text-muted); flex: none; }
+.searchbox__icon .ic { width: 16px; height: 16px; }
+.searchbox__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+}
+.searchbox__input::placeholder { color: var(--text-muted); }
+.searchbox__input:focus { outline: none; }
+.searchbox:focus-within { border-color: var(--accent); }
+
+/* タブつきの表 */
+.tabtable__tabs { display: flex; gap: 8px; }
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 136px;
+  height: 56px;
+  padding: 0 18px;
+  /* 上だけ角丸。下は表とつながるので丸めない */
+  border-radius: 8px 8px 0 0;
+  background: var(--surface-sunken, #eef1f4);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  color: var(--accent);
+  font-size: 15px;
+  /* リンクの既定（600）が効くと、未選択のタブまで太くなって
+     どれが選ばれているのか形で分からなくなる。太いのは選択中だけ */
+  font-weight: 400;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tab:hover { background: var(--green-100, #ddf0ec); }
+.tab.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  font-weight: 700;
+}
+.tab__num   { display: inline-flex; align-items: baseline; gap: 1px; }
+.tab__count { font-size: 13px; font-weight: 700; color: var(--text-muted); font-family: var(--font-num); }
+.tab__unit  { font-size: 12px; color: var(--text-muted); }
+.tab.is-active .tab__count,
+.tab.is-active .tab__unit { color: var(--green-100, #ddf0ec); }
+
+/* 商品の表。
+   見出しの余白 16、行の余白 20 は設計どおり。
+   見出しのほうが狭いのは、緑のベタ塗りが厚く見えるのを抑えるため。
+   高さは行が 68、見出しが 64 になる（中身 28 ＋ 余白）。 */
+/* ★ .theme-desk .table th（詳細度 0,2,1）が padding: 20px var(--sp-3) を持つので、
+     .table--items th（0,1,1）では負ける。同じ 0,2,1 まで上げて勝たせる。
+     この表は「見出し 16 / 行 20」と上下で余白が違う唯一の表なので、
+     共通側（.theme-desk .table）を動かさず、こちらで受ける。 */
+.theme-desk .table--items th { padding: 16px; height: 64px; }
+/* 下だけ 19px。行の区切り線（border-bottom 1px）が設計では面の内側にあり、
+   68px の中に含まれる。CSS の border は外に足されるので、
+   そのぶんを下の余白から返して 68px にそろえる（ピルと同じ理由） */
+.theme-desk .table--items td { padding: 20px 20px 19px; height: 68px; }
+
+/* 列幅は設計どおり（合計 1120）。
+   画面が 1432px より広いときは、この比率のまま横に伸びる */
+.table--items { table-layout: fixed; }
+.table--items th:nth-child(1), .table--items td:nth-child(1) { width: 340px; }
+.table--items th:nth-child(2), .table--items td:nth-child(2) { width: 240px; }
+.table--items th:nth-child(3), .table--items td:nth-child(3) { width: 160px; }
+.table--items th:nth-child(4), .table--items td:nth-child(4) { width: 130px; }
+.table--items th:nth-child(5), .table--items td:nth-child(5) { width: 130px; }
+.table--items th:nth-child(6), .table--items td:nth-child(6) { width: 120px; }
+
+/* --------------------------------------------------------------------------
    30-7. サイドバー
    --------------------------------------------------------------------------
    本文が 16px になると、13〜14px のサイドバーだけが取り残されて見える。
@@ -2388,9 +2679,13 @@ body.is-sending .staff-main {
 
    厨房・ホールではサイドバーがアイコンだけの帯（.staff-shell--floor）に
      畳まれ、文字そのものが出ないので、ここの指定は効かない。
+
+   ★ 2026-09-05 — 項目とグループ見出しの上書きを外した。
+     設計（Figma）は項目 15px・見出し 12px で、サイドバー全体を
+     本文より一段小さく保つ配分になっている。ここで 16/14 に上げると
+     「本文と同じ大きさのナビ」になり、目が本文に向かなくなる。
+     .sb__item / .sb__label の素の値（15px / 12px）をそのまま使う。
    -------------------------------------------------------------------------- */
-.theme-desk .sb__item        { font-size: 16px; }
-.theme-desk .sb__label       { font-size: 14px; }
 .theme-desk .sb__brand-name  { font-size: 16px; }
 .theme-desk .sb__brand-sub   { font-size: 13px; }
 .theme-desk .sb__account-name { font-size: 15px; }

@@ -55,21 +55,81 @@
 
        currentPath は null になり得ます。#strings.startsWith(null, …) は例外になるので、
        この形（先に null を確かめる）で書いてください。下の見学モードの判定と同じ書き方です。 */-->
-<div class="staff-shell" th:with="p=${currentPath} ?: ''"
+<!--/* ============ 上の帯（ヘッダー） ============ 2026-09-04 に追加
+
+      営業中に「いま店がどうなっているか」を、画面を移らずに確かめられるようにする帯。
+      出すのは 3 つだけ ― 受付の状態・未提供の件数・営業日。
+      どれも「顔を上げた 1 秒で読めること」が仕事なので、それ以外は右端に小さく置く。
+
+      ★ 未提供の件数はボタンにしてある
+        件数を見て「多いな」と思ったとき、次にやりたいのは厨房ボードを開くこと。
+        数字と行き先が離れていると、サイドバーを探す一手間が毎回挟まる。
+        0 件のときは出さない。「0」と書いてあるより、無いほうが速く読める。
+
+      値は StaffHeaderModelAttributes が配っている（店側のパッケージだけに効く）。
+      お客さま側で無駄なクエリを増やさないための線引きなので、
+      ここで使う値を増やすときは、あちらの適用範囲も一緒に確かめること。 */-->
+<div class="staff-frame" th:with="p=${currentPath} ?: ''">
+
+  <header class="topbar">
+
+    <div class="topbar__brand">
+      <img class="topbar__logo" th:src="@{/images/logo.jpg}" alt="" aria-hidden="true">
+      <span class="topbar__brand-text">
+        <span class="topbar__brand-name" th:text="${shop.shopName}">米粉と鉄板</span>
+        <span class="topbar__brand-sub">店舗管理</span>
+      </span>
+      <span class="topbar__brand-caret" aria-hidden="true">⌄</span>
+    </div>
+
+    <!--/* 受付の状態。判定は headerAccepting（営業時間とラストオーダーまで見た結果）。
+           shop.acceptingOrders は店長が倒した非常ブレーキだけなので使わない。 */-->
+    <!--/* ★ 式の中に BEM の __ を書かないこと。
+           Thymeleaf は __...__ を前処理の記号として読むので、
+           'topbar__state--on' と書くと「__state--on' : 'topbar__」を
+           式として解釈しようとして、店側の全画面がテンプレート解析エラーになる。
+           修飾は is- 接頭辞（is-active / is-error と同じ流儀）で書く。 */-->
+    <span class="topbar__state" th:if="${headerAccepting != null}"
+          th:classappend="${headerAccepting} ? 'is-on' : 'is-off'">
+      <span class="topbar__dot" aria-hidden="true"></span>
+      <span th:text="${headerAccepting} ? '注文を受付中' : '注文を停止中'">注文を受付中</span>
+    </span>
+
+    <a class="topbar__pending" th:if="${headerPendingCount != null and headerPendingCount > 0}"
+       th:href="@{/kitchen}">
+      <th:block th:replace="~{fragments/icons :: ic_cooking_pot}"/>
+      <span class="topbar__pending-label">未提供</span>
+      <span class="topbar__pending-count" th:text="${headerPendingCount}">3</span>
+      <span class="topbar__pending-unit">件</span>
+      <span class="topbar__pending-go" aria-hidden="true">›</span>
+    </a>
+
+    <span class="topbar__spacer"></span>
+
+    <span class="topbar__day" th:if="${headerBusinessDate != null}">
+      <span class="topbar__day-label">営業日</span>
+      <span class="topbar__day-value"
+            th:text="${#temporals.format(headerBusinessDate, 'yyyy-MM-dd')}">2026-09-04</span>
+    </span>
+
+    <span class="topbar__divider" aria-hidden="true"></span>
+
+    <a class="topbar__help" th:href="@{/admin/settings}" title="店舗設定">
+      <span aria-hidden="true">?</span><span class="visually-hidden">店舗設定</span>
+    </a>
+
+    <span class="topbar__avatar" aria-hidden="true"
+          th:with="pr=${#authentication != null} ? ${#authentication.principal} : null"
+          th:text="${pr instanceof T(jp.komeko.order.security.StaffUserDetails)} ? ${#strings.substring(pr.displayName, 0, 1)} : '店'">店</span>
+  </header>
+
+<div class="staff-shell"
      th:classappend="${currentPath != null
                        and (#strings.startsWith(currentPath, '/kitchen')
                             or #strings.startsWith(currentPath, '/hall'))} ? 'staff-shell--floor'">
 
   <!--/* ============ サイドバー ============ */-->
   <aside class="sb">
-
-    <div class="sb__brand">
-      <img class="sb__brand-logo" th:src="@{/images/logo.jpg}" alt="" aria-hidden="true">
-      <span class="sb__brand-text">
-        <span class="sb__brand-name" th:text="${shop.shopName}">米粉と鉄板</span>
-        <span class="sb__brand-sub">店舗管理</span>
-      </span>
-    </div>
 
     <!--/*
       ダッシュボード（大カテゴリの外）。
@@ -314,6 +374,7 @@
     <div th:replace="${content}">ページ本文</div>
   </div>
 
+</div>
 </div>
 
 <!--/* 見学モードのとき、本文の中の「送信」だけを押せなくする。
