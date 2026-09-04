@@ -1926,22 +1926,14 @@ body.theme-night { background-image: none; }
   min-width: 0;
   padding: 20px 28px 48px;
 
-  /* ★ 広い画面で本文だけが伸びるのを止める（2026-09-05）★
-     設計は画面 1432px＝サイドバー 264 ＋ 本文 1168 で描いてある。
-     上限を付けないと、2560px の画面で本文だけ 2273px（設計の 2 倍）に伸び、
-     サイドバーが画面に占める割合は 18.7% → 10.4% に落ちる。
-     文字は 15px のままなのに、隣が 2 倍になるので小さく見える。
-     これは文字の単位（px か rem か）の問題ではなく、比率の問題。
+  /* ★ 幅の上限は付けない（2026-09-05）★
+     いちどは 1168px で止めたが、それは「レスポンシブ」ではなく
+     使わない幅を作っているだけだった。2560px で 1105px が丸ごと空く。
+     ダッシュボードは幅を埋めるもの。
 
-     表のほうも困っていて、1 行 2273px だと
-     商品名から「並び」まで目を大きく振ることになる。
-
-     余った幅は右に寄せる（本文はサイドバーの隣に置く）。
-     中央に置くと、2560px の画面でサイドバーと本文のあいだが 553px 空く。
-     これはサイドバー自身（264px）より広く、
-     ナビと中身が切り離されて見える。参考にした Render も左に詰める形。 */
-  max-width: 1168px;
-  margin-right: auto;
+     「広い画面でサイドバーの字が小さく見える」は、下の
+     @media (min-width: 1800px) で UI ごと一段上げて受ける。
+     幅を狭めるのではなく、寸法のほうを画面に合わせる。 */
 }
 
 /* --------------------------------------------------------------------------
@@ -2608,8 +2600,10 @@ body.is-sending .staff-main {
    -------------------------------------------------------------------------- */
 /* 設計は 64/24/64/24。左右 24px はサイドバーの右端から本文までのあき。
    もとは 40px 取っていたが、設計はサイドバー側の余白（12px）と
-   本文側（24px）で「間」を作る配分になっている */
-.theme-desk .staff-main   { padding: 64px 24px; }
+   本文側（24px）で「間」を作る配分になっている。
+   値を変数にしてあるのは .sheet が同じ量を打ち消すため（30-6-3 節） */
+.theme-desk .staff-main   { --main-pad-y: 64px; --main-pad-x: 24px;
+                            padding: var(--main-pad-y) var(--main-pad-x); }
 .theme-desk .section-title { margin: 48px 0 24px; }
 /* いちばん上の見出しにまで 48px 付けると、頭が間延びする */
 .theme-desk .staff-main > :first-child { margin-top: 0; }
@@ -2623,7 +2617,8 @@ body.is-sending .staff-main {
 
 @media (max-width: 960px) {
   /* 狭い画面で 40px も左右に取ると、本文の幅が足りなくなる */
-  .theme-desk .staff-main    { padding: 20px 20px 48px; }
+  .theme-desk .staff-main    { --main-pad-y: 20px; --main-pad-x: 20px;
+                               padding: 20px 20px 48px; }
   .theme-desk .section-title { margin: 32px 0 16px; }
   .theme-desk .card__body,
   .theme-desk .stat          { padding: 16px; }
@@ -2863,8 +2858,12 @@ body.is-sending .staff-main {
   flex-direction: column;
   gap: 20px;
   background: var(--surface);
-  margin: -64px -24px;      /* .staff-main の余白を打ち消して、地を端まで敷く */
-  padding: 32px 24px;
+  /* .staff-main の余白を打ち消して、地を端まで敷く。
+     打ち消す量は変数で結んである。直接 -64px と書くと、
+     広い画面で本文の余白を変えたときにここだけ取り残されて、
+     地が端まで届かない（または はみ出す）ずれになる */
+  margin: calc(var(--main-pad-y) * -1) calc(var(--main-pad-x) * -1);
+  padding: 32px var(--main-pad-x);
 }
 
 /* 月を移る帯 */
@@ -3055,3 +3054,55 @@ body.is-sending .staff-main {
 .theme-desk.theme-ledger .total-table td { font-size: 16px; }
 .theme-desk.theme-ledger .total-table tr:last-child th,
 .theme-desk.theme-ledger .total-table tr:last-child td { font-size: 20px; font-weight: 700; }
+
+/* ==========================================================================
+   32. 広い画面（1800px 以上）— 2026-09-05
+   --------------------------------------------------------------------------
+   ★ ファイルのいちばん最後に置くこと。
+     .theme-desk の寸法（30 節）より前に書くと、同じ詳細度で後勝ちに負ける。
+     実際 30-6-4 に置いていたときは、表の文字だけ 16px のまま上がらなかった。
+
+   ★ 幅の上限で止めるのではなく、寸法のほうを画面に合わせる。
+     いちど本文を 1168px で止めてみたが、2560px で 1105px が丸ごと空いた。
+     それは「使わない幅を作った」だけで、ダッシュボードの形ではない。
+
+     ここで上げているのは寸法だけで、設計の比率
+     （サイドバー：本文＝264：1168）は保っていない。
+     1800px 以上はそもそも設計に無い画面幅なので、
+     「設計どおり」ではなく「同じ密度に見えること」を目標にしている。
+   ========================================================================== */
+@media (min-width: 1800px) {
+  /* ★ :not(.staff-shell--floor) を外さないこと。
+     厨房・ホール・品切れは、営業中に立って使う画面なので
+     サイドバーを 64px のアイコンだけの帯に畳んである（.staff-shell--floor）。
+     ここで素の .staff-shell に --sb-w を書くと、詳細度が同じで
+     こちらのほうがファイルの後ろにあるぶん勝ってしまい、
+     畳んだはずのサイドバーが 300px に戻る。
+     しかも文字は --sb-text: none のままなので、
+     300px の空白にアイコンだけが並ぶ壊れ方をする。 */
+  .staff-shell:not(.staff-shell--floor) {
+    --sb-w: 300px;
+    --sb-pad: 14px;
+    --sb-item-pad: 0 14px;
+  }
+  .staff-shell:not(.staff-shell--floor) .sb__item  { font-size: 17px; border-radius: 8px; }
+  .staff-shell:not(.staff-shell--floor) .sb__label { font-size: 14px; line-height: 16px; padding: 14px 0 4px 10px; }
+  .sb .ic          { width: 22px; height: 22px; }
+  .sb__account-name { font-size: 15px; }
+  .sb__account-role { font-size: 13px; }
+
+  .staff-frame     { --topbar-h: 96px; }
+  .topbar__brand   { height: 64px; }
+  .topbar__brand-name { font-size: 16px; }
+  .topbar__brand-sub  { font-size: 12px; }
+  .topbar__state   { font-size: 16px; }
+  .topbar__day-value { font-size: 19px; }
+
+  .theme-desk .staff-main { --main-pad-y: 72px; --main-pad-x: 40px; }
+  .theme-desk .table      { font-size: 17px; }
+  .theme-desk .table--items th { font-size: 17px; }
+  .page-head__title { font-size: 36px; }
+  .statcard__value  { font-size: 36px; line-height: 42px; }
+  .theme-desk h2.panel__title, .panel__title { font-size: 18px; line-height: 22px; }
+  .linechart        { height: 300px; }
+}
