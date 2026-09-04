@@ -17,11 +17,18 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">仕入れ・経費</h1>
-    <a class="btn btn--sm btn--ghost" sec:authorize="hasRole('ADMIN')"
+  <!--/* ====== 見出し ====== 設計（Figma「05 仕入れ・経費」）どおり。
+         題の右に「2026年08月」を添える。どの月を見ているかは、
+         この画面のすべての数字にかかる前提なので、いちばん先に読ませる。
+         月を移る操作は下の月ナビにある（見る場所と変える場所を分ける）。 */-->
+  <div class="page-head">
+    <h1 class="page-head__title">仕入れ・経費</h1>
+    <span class="page-head__sub"
+          th:text="${#temporals.format(month, 'yyyy年MM月')}">2026年08月</span>
+    <span class="page-head__spacer"></span>
+    <a class="btn btn--ghost" sec:authorize="hasRole('ADMIN')"
        th:href="@{/inventory/tax-rates}">税率マスタ</a>
-    <a class="btn btn--primary btn--sm" th:href="@{/inventory/purchases/new}">レシートを登録</a>
+    <a class="btn btn--primary" th:href="@{/inventory/purchases/new}">レシートを登録</a>
   </div>
 
   <!--/* ===== 税率マスタの終端警告 =====
@@ -46,80 +53,63 @@
     <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${nextMonth})}">翌月 →</a>
   </form>
 
-  <div class="grid grid--3">
+  <!--/* ====== 今月の数字 ====== 設計（Figma）はカード 3 枚。
 
-    <div class="stat">
-      <p class="stat__label">仕入れ・経費（税込）</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span
-          th:text="${#numbers.formatInteger(summary.totalIncludingTax(), 1, 'COMMA')}">0</span>
-      </p>
-      <p class="tiny faint mb-0"
+         もとは 6 枚（＋売上・原価率税込・要確認）並べていた。
+         6 枚あると、いちばん見たい「いくら出たか」と「原価率」が
+         他の 4 枚に埋もれる。設計の 3 枚に絞った。
+
+         落とした 3 つは消していない。
+           売上          … 原価率の分母。下の注記に書いてある
+           原価率（税込） … 同上。レシートと突き合わせるときの数字
+           要確認        … 下の「要確認」の節に一覧そのものが出る
+         カードは「一目で読む数字」の場所なので、
+         そこに置くかどうかと、画面に出すかどうかは別に決める。
+
+         ★ 原価率は店長（ADMIN）と公開デモの見学者（GUEST）にだけ見せる。
+           アルバイトに店の儲けの構造まで見せるかは店主の判断ごとなので、
+           決まるまでは見せない側に倒す。 */-->
+  <div class="statrow statrow--wide">
+
+    <div class="statcard statcard--tall">
+      <p class="statcard__label">仕入れ・経費（税込）</p>
+      <p class="statcard__value"
+         th:text="'¥' + ${#numbers.formatInteger(summary.totalIncludingTax(), 1, 'COMMA')}">¥0</p>
+      <p class="statcard__note"
          th:text="'税抜 ¥' + ${#numbers.formatInteger(summary.totalNet(), 1, 'COMMA')}
-                  + ' / ' + ${summary.purchaseCount()} + '件'">税抜 ¥0 / 0件</p>
+                  + ' ／ ' + ${summary.purchaseCount()} + '件'">税抜 ¥0 ／ 0件</p>
     </div>
 
-    <div class="stat">
-      <p class="stat__label">食材だけ（原価率の分子）</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span
-          th:text="${#numbers.formatInteger(summary.foodCostIncludingTax(), 1, 'COMMA')}">0</span>
-      </p>
-      <p class="tiny faint mb-0"
+    <div class="statcard statcard--tall">
+      <p class="statcard__label">食材だけ（原価率の分子）</p>
+      <p class="statcard__value"
+         th:text="'¥' + ${#numbers.formatInteger(summary.foodCostIncludingTax(), 1, 'COMMA')}">¥0</p>
+      <p class="statcard__note"
          th:text="'税抜 ¥' + ${#numbers.formatInteger(summary.foodCostNet(), 1, 'COMMA')}">税抜 ¥0</p>
     </div>
 
-    <div class="stat">
-      <p class="stat__label">売上（会計済みの伝票）</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span
-          th:text="${#numbers.formatInteger(summary.salesIncludingTax(), 1, 'COMMA')}">0</span>
-      </p>
-      <p class="tiny faint mb-0"
-         th:text="'税抜 ¥' + ${#numbers.formatInteger(summary.salesNet(), 1, 'COMMA')}">税抜 ¥0</p>
-    </div>
-
-    <!--/* 原価率は税込と税抜で意味が違うので、並べて出します。
-           税込＝財布から出た実感。税抜＝税率が動いても連続する経営の数字。
-
-           ★ 原価率は店長（ADMIN）と公開デモの見学者（GUEST）にだけ見せる。
-             設計 6 章の初期案「原価率の表示のみ ADMIN 限定」どおり。
-             アルバイトに店の儲けの構造まで見せるかは店主の判断ごと
-             （打ち合わせ⑥）なので、決まるまでは見せない側に倒す。
-             GUEST に見せるのは、公開デモの見どころがまさにここだから。 */-->
-    <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
-    <div class="stat">
-      <p class="stat__label">実際原価率（税抜）</p>
-      <p class="stat__value" th:if="${summary.costRatioNet() != null}">
-        <span th:text="${#numbers.formatDecimal(summary.costRatioNet(), 1, 1)}">0.0</span><span
-          class="stat__unit">%</span>
-      </p>
-      <p class="stat__value faint" th:unless="${summary.costRatioNet() != null}">—</p>
-      <p class="tiny faint mb-0">経営の数字。目標管理や他店との比較はこちら</p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">実際原価率（税込）</p>
-      <p class="stat__value" th:if="${summary.costRatioIncludingTax() != null}">
-        <span th:text="${#numbers.formatDecimal(summary.costRatioIncludingTax(), 1, 1)}">0.0</span><span
-          class="stat__unit">%</span>
-      </p>
-      <p class="stat__value faint" th:unless="${summary.costRatioIncludingTax() != null}">—</p>
-      <p class="tiny faint mb-0">レシートと突き合わせるときはこちら</p>
-    </div>
-    </th:block>
-
-    <div class="stat">
-      <p class="stat__label">要確認</p>
-      <p class="stat__value">
-        <span th:text="${attention.size()}">0</span><span class="stat__unit">件</span>
-      </p>
-      <p class="tiny faint mb-0">登録番号・紙の保管・同等確認</p>
+    <div class="statcard statcard--tall" sec:authorize="hasAnyRole('ADMIN','GUEST')">
+      <p class="statcard__label">実際原価率（税抜）</p>
+      <p class="statcard__value" th:if="${summary.costRatioNet() != null}"
+         th:text="${#numbers.formatDecimal(summary.costRatioNet(), 1, 1)} + '%'">0.0%</p>
+      <p class="statcard__value faint" th:unless="${summary.costRatioNet() != null}">—</p>
+      <p class="statcard__note">食材だけを売上で割った数字</p>
     </div>
 
   </div>
 
+  <!--/* カードから外した「売上」と「原価率（税込）」は、ここに数字ごと残す。
+         カードに並べるほど毎回は見ないが、
+         原価率がどの売上を分母にしているかを確かめたいときには要る。 */-->
   <p class="help" sec:authorize="hasAnyRole('ADMIN','GUEST')">
+    分母の売上は
+    <strong th:text="'¥' + ${#numbers.formatInteger(summary.salesIncludingTax(), 1, 'COMMA')}">¥0</strong>（税込）／
+    <strong th:text="'¥' + ${#numbers.formatInteger(summary.salesNet(), 1, 'COMMA')}">¥0</strong>（税抜）、
+    会計済みの伝票の合計です。
+    レシートと突き合わせるときの<strong>税込ベースの原価率</strong>は
+    <strong th:if="${summary.costRatioIncludingTax() != null}"
+            th:text="${#numbers.formatDecimal(summary.costRatioIncludingTax(), 1, 1)} + '%'">0.0%</strong>
+    <span th:unless="${summary.costRatioIncludingTax() != null}">—</span>。<br>
     原価率は<strong>食材だけ</strong>を売上で割ったものです（酒・消耗品・光熱費は含みません）。
     食材は軽減税率 8%、売上は 10% と税率が違うため、税込どうしで割ると実態より低く出ます。
     比較や目標管理には税抜の数字を使ってください。
@@ -235,16 +225,24 @@
   </p>
 
   <!--/* ===== 結果 ===== */-->
+  <!--/* 列は設計（Figma「05 仕入れ・経費」）どおり。
+         いちばん右は「状態」ではなく「控除率」。
+         控除率は税額に直接効く数字で、証憑の種類とセットで見るもの。
+         もとは証憑の欄に小さなバッジで出していたが、
+         100% でないときしか出ないので、あることに気づけなかった。
+
+         「状態」（取り消し済み・紙を保管・確認まだ）は消していない。
+         証憑の欄の下に残してある。紙の保管は法律の話なので落とせない。 */-->
   <div class="table-wrap">
-    <table class="table">
+    <table class="table table--purchases">
       <thead>
       <tr>
         <th>取引日</th>
         <th>取引先</th>
-        <th class="right">合計（税込）</th>
+        <th>合計（税込）</th>
         <th>支払</th>
         <th>証憑</th>
-        <th>状態</th>
+        <th>控除率</th>
       </tr>
       </thead>
       <tbody>
@@ -253,20 +251,19 @@
         <td>
           <a th:href="@{/inventory/purchases/{id}(id=${p.id})}" th:text="${p.storeName}">店名</a>
         </td>
-        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(p.totalAmount, 1, 'COMMA')}">¥0</td>
-        <td class="tiny" th:text="${p.paymentMethod.getLabel()}">現金</td>
-        <td class="tiny">
+        <td class="num" th:text="'¥' + ${#numbers.formatInteger(p.totalAmount, 1, 'COMMA')}">¥0</td>
+        <td th:text="${p.paymentMethod.getLabel()}">現金</td>
+        <td>
           <span th:text="${p.evidenceType.getLabel()}">適格簡易請求書</span>
-          <span th:if="${p.deductionRatePercent < 100}" class="badge"
-                th:text="${p.deductionRatePercent} + '%控除'">70%控除</span>
+          <span class="tiny">
+            <span th:if="${p.deleted}" class="badge badge--soldout">取り消し済み</span>
+            <span th:if="${!p.deleted and p.canDiscardPaper()}" class="badge badge--gf">紙は破棄可</span>
+            <span th:if="${!p.deleted and p.paperRetentionRequired}" class="badge">紙を保管</span>
+            <span th:if="${!p.deleted and !p.paperRetentionRequired and p.equivalenceCheckedAt == null}"
+                  class="badge">確認まだ</span>
+          </span>
         </td>
-        <td class="tiny">
-          <span th:if="${p.deleted}" class="badge badge--soldout">取り消し済み</span>
-          <span th:if="${!p.deleted and p.canDiscardPaper()}" class="badge badge--gf">紙は破棄可</span>
-          <span th:if="${!p.deleted and p.paperRetentionRequired}" class="badge">紙を保管</span>
-          <span th:if="${!p.deleted and !p.paperRetentionRequired and p.equivalenceCheckedAt == null}"
-                class="badge">確認まだ</span>
-        </td>
+        <td class="num" th:text="${p.deductionRatePercent} + '%'">100%</td>
       </tr>
       <tr th:if="${results.isEmpty()}">
         <td colspan="6" class="faint">記録がありません。「レシートを登録」から始めてください。</td>

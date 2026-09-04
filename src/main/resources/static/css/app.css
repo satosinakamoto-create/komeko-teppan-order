@@ -2885,6 +2885,20 @@ body.is-sending .staff-main {
 /* 列幅は設計どおり（合計 1120）。
    画面が 1432px より広いときは、この比率のまま横に伸びる */
 .table--items { table-layout: fixed; }
+
+/* 仕入れの表。見出し 16／行 20 と列幅は商品の表と同じ流儀（設計どおり） */
+.theme-desk .table--purchases th { padding: 16px; height: 64px; }
+.theme-desk .table--purchases td { padding: 20px 20px 19px; height: 68px; }
+.table--purchases { table-layout: fixed; }
+.table--purchases th:nth-child(1), .table--purchases td:nth-child(1) { width: 150px; }
+.table--purchases th:nth-child(2), .table--purchases td:nth-child(2) { width: 300px; }
+.table--purchases th:nth-child(3), .table--purchases td:nth-child(3) { width: 160px; }
+.table--purchases th:nth-child(4), .table--purchases td:nth-child(4) { width: 170px; }
+.table--purchases th:nth-child(5), .table--purchases td:nth-child(5) { width: 220px; }
+.table--purchases th:nth-child(6), .table--purchases td:nth-child(6) { width: 120px; }
+/* 金額も左揃え。設計は数字を含めて全部左でそろえてある
+   （右寄せは列の中で数字が離れて、名前と金額を目で結びにくい） */
+.table--purchases td.num, .table--purchases th.num { text-align: left; }
 .table--items th:nth-child(1), .table--items td:nth-child(1) { width: 340px; }
 .table--items th:nth-child(2), .table--items td:nth-child(2) { width: 240px; }
 .table--items th:nth-child(3), .table--items td:nth-child(3) { width: 160px; }
@@ -2954,6 +2968,24 @@ body.is-sending .staff-main {
 .statcard__delta .is-up   { color: var(--ok); }
 .statcard__delta .is-down { color: var(--danger); }
 .statcard__note { font-size: 13px; font-weight: 400; color: var(--text-muted); }
+
+/* 背の高いほう（仕入れ・経費）。設計は 357x202・余白 40/24・間隔 16・角 6。
+   売上の 128px 版と分けているのは、置かれる数が違うから。
+   あちらは 3 枚を推移グラフの上に敷くので低く、
+   こちらは画面の主役が数字そのものなので大きく取る。 */
+.statcard--tall {
+  gap: 16px;
+  /* 上下 39px は設計の 40px から枠の 1px を返したもの（枠は面の内側にある）。
+     中身は 30 + 16 + 38 + 16 + 22 = 122、枠込みで 202px になる */
+  padding: 39px 24px;
+  border-radius: 6px;
+}
+.statcard--tall .statcard__label { font-size: 20px; line-height: 30px; font-weight: 700; }
+.statcard--tall .statcard__value { font-size: 32px; line-height: 38px; font-weight: 900; }
+.statcard--tall .statcard__note  { font-size: 14px; line-height: 22px; margin: 0; }
+/* 3 枚を並べる列。仕入れの設計は間隔 24（売上の 20 より広い）。
+   カードが大きいぶん、間も広く取らないと 3 枚が 1 つの塊に見える */
+.statrow--wide { gap: 24px; }
 
 /* 白いパネル */
 .panel {
