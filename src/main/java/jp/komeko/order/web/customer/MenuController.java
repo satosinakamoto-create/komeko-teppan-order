@@ -103,7 +103,30 @@ public class MenuController {
      */
     @GetMapping("/items/{id}")
     public String item(@PathVariable Long id, Model model) {
+        // ★ 一覧（/menu）にある 2 つの守りが、ここには無かった（2026-09-04 に追加）★
+        //
+        //   一覧は「卓の QR を読んだか」と「掲載中か」の 2 つで絞っている。
+        //   ところが詳細は menuService.itemWithOptions(id) を素で呼ぶだけで、
+        //   その裏の findByIdWithOptions は where m.id = :id しか見ていない。
+        //   つまり URL の数字を 42 → 43 と変えるだけで、
+        //   一覧に出していない商品まで読めていた。
+        //
+        //   困るのは「まだ出していない商品」を隠したときで、
+        //   店主は一覧から消えたのを見て隠せたと思うが、詳細では読める。
+        //   注文ボタンが出ないだけで警告も無いので、
+        //   営業中の普通の商品ページに見えてしまう。
+        //
+        //   新しい仕組みは要らない。一覧が既にやっていることを、ここでもやる。
+        if (!tableContext.isBound()) {
+            return "customer/no-table";
+        }
         MenuItem item = menuService.itemWithOptions(id);
+        // カテゴリごと非表示にしている場合もあるので、商品とカテゴリの両方を見る
+        // （findVisibleForCustomer の where 句と同じ条件にそろえてある）
+        if (!item.isVisible() || !item.getCategory().isVisible()) {
+            // 商品名は渡さない。隠している品の名前を出したら、隠した意味が無い
+            return "customer/no-item";
+        }
         ShopSetting setting = shopSettingService.currentReadOnly();
 
         model.addAttribute("item", item);

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!--/*
+   お取り扱いのない商品を開いたときのページ。
+
+   出るのは次の 2 つの場合です。
+     ・店が「掲載停止」にした商品を、URL の数字を変えて開いたとき
+     ・カテゴリごと非表示にしている商品を開いたとき
+
+   ★ 商品名を出しません ★
+   隠している品の名前をここに出したら、隠した意味がなくなります。
+   「その番号に何かがある」ことすら伝えないのが正しい応答です。
+
+   メニューへ戻る導線だけ置いてあります。
+   お客さまから見れば「押した先が無かった」だけなので、
+   謝りすぎず、次にどうすればよいかだけを短く出します。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout('お取り扱いがありません', ~{::main})}">
+<body>
+<main>
+  <div class="container">
+
+    <div class="empty-state mt-6">
+      <div class="empty-state__mark">品</div>
+      <h1>ただいまお取り扱いがありません</h1>
+      <p class="lead">
+        こちらのお品は、いまメニューに載せておりません。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card__body stack">
+        <p class="mb-0">
+          メニューからお選びなおしてください。
+        </p>
+        <p class="mb-0">
+          <a class="btn btn--primary" th:href="@{/menu}">メニューを見る</a>
+        </p>
+      </div>
+    </div>
+
+  </div>
+</main>
+</body>
+</html>
