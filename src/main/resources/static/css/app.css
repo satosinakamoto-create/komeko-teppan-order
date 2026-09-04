@@ -1855,7 +1855,21 @@ body.theme-night { background-image: none; }
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+
+  /* ★ スクロールバーを場所を取らない形にすること。
+     項目が多いのでこの中はスクロールするが、既定のスクロールバーは
+     <b>幅を 23px も食う</b>。畳んだ帯（64px）では
+     内側 47px のうち 24px しか残らず、
+       ・項目がアイコン 1 つぶんに縮む
+       ・--sb-item-justify: center が効かない（24px の中で中央に置いても動かない）
+       ・アイコンが左端に寄る
+     という壊れ方をしていた。実測して初めて分かった（clientWidth が 24px）。
+
+     広いサイドバーでも 23px は大きい。項目名が早く折り返す。
+     消してもホイールとドラッグでスクロールできる。 */
+  scrollbar-width: none;
 }
+.sb__nav::-webkit-scrollbar { width: 0; height: 0; }
 
 /* 小見出し。設計は 高さ28・余白 12/0/2/8・12px。
    左が 8px と項目（12px）より内側なのは、見出しは押せないので
@@ -1887,6 +1901,14 @@ body.theme-night { background-image: none; }
   color: var(--text);
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
+
+  /* ★ 幅いっぱいに広げること。
+     広げないと項目は中身の幅（アイコン 1 つぶん＝24px）に縮み、
+     --sb-item-justify: center が効かない（24px の中で中央に置いても動かない）。
+     厨房・ホールの畳んだ帯（64px）で、アイコンが左端に寄って見えていた原因。
+     押せる面も 24px しかなく、CLAUDE.md の「タップ領域は 48px 以上」も
+     横方向については満たせていなかった。 */
+  width: 100%;
 }
 
 .sb__item span { display: var(--sb-text); }
@@ -1909,6 +1931,8 @@ body.theme-night { background-image: none; }
 /* アカウント欄（左下固定） */
 /* .sb__nav が伸びるので margin-top:auto は要らない。
    flex-shrink:0 で、項目が増えてもここだけは縮まないようにする */
+/* アカウント欄も同じ理由で広げる（畳んだ帯で左に寄っていた） */
+.sb__account { width: 100%; }
 .sb__account {
   flex: none;
   display: flex;
