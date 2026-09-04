@@ -97,20 +97,26 @@
       </div>
     </div>
 
-    <svg class="linechart" viewBox="0 0 1000 300" preserveAspectRatio="none" role="img"
-         aria-label="月ごとの売上の推移">
-      <!--/* 横罫線と目盛り。y 座標は Java が計算済み */-->
-      <g class="linechart__grid">
-        <line th:each="g : ${chart.grid()}" x1="56" x2="992"
-              th:y1="${g.y()}" th:y2="${g.y()}"></line>
-      </g>
-      <!--/* 線の下の面。線だけより「量」が読み取りやすい */-->
-      <polygon class="linechart__area" th:attr="points=${chart.area()}"></polygon>
-      <polyline class="linechart__line" th:attr="points=${chart.line()}"></polyline>
-      <circle th:each="p : ${chart.points()}" class="linechart__dot"
-              th:classappend="${p.last()} ? 'is-last'"
-              th:cx="${p.x()}" th:cy="${p.y()}" r="4"></circle>
-    </svg>
+    <!--/* 点は SVG の外（HTML）に置く。
+           preserveAspectRatio="none" は横だけを伸ばすので、
+           SVG の中の円は画面幅に応じて楕円に潰れる。
+           線と面は伸びてよいが、点は形が意味なので伸ばせない。 */-->
+    <div class="linechart__wrap">
+      <svg class="linechart" viewBox="0 0 1000 300" preserveAspectRatio="none" role="img"
+           aria-label="月ごとの売上の推移">
+        <!--/* 横罫線と目盛り。y 座標は Java が計算済み */-->
+        <g class="linechart__grid">
+          <line th:each="g : ${chart.grid()}" x1="56" x2="992"
+                th:y1="${g.y()}" th:y2="${g.y()}"></line>
+        </g>
+        <!--/* 線の下の面。線だけより「量」が読み取りやすい */-->
+        <polygon class="linechart__area" th:attr="points=${chart.area()}"></polygon>
+        <polyline class="linechart__line" th:attr="points=${chart.line()}"></polyline>
+      </svg>
+      <span th:each="p : ${chart.points()}" class="linechart__dot"
+            th:classappend="${p.last()} ? 'is-last'"
+            th:style="'left:' + ${p.x()} / 10 + '%; top:' + ${p.y()} / 3 + '%'"></span>
+    </div>
 
     <!--/* 目盛りと月のラベルは SVG の外に HTML で置く。
            viewBox で横に伸縮させているので、SVG の中の文字は

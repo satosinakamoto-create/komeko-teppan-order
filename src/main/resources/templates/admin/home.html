@@ -126,18 +126,21 @@
       <a class="btn btn--sm" th:href="@{/admin/sales}">月ごとの売上を見る</a>
     </div>
 
-    <svg class="linechart" viewBox="0 0 1000 300" preserveAspectRatio="none" role="img"
-         aria-label="日ごとの売上の推移">
-      <g class="linechart__grid">
-        <line th:each="g : ${chart.grid()}" x1="56" x2="992"
-              th:y1="${g.y()}" th:y2="${g.y()}"></line>
-      </g>
-      <polygon class="linechart__area" th:attr="points=${chart.area()}"></polygon>
-      <polyline class="linechart__line" th:attr="points=${chart.line()}"></polyline>
-      <circle th:each="p : ${chart.points()}" class="linechart__dot"
-              th:classappend="${p.last()} ? 'is-last'"
-              th:cx="${p.x()}" th:cy="${p.y()}" r="4"></circle>
-    </svg>
+    <!--/* 点を SVG の外に置く理由は admin/sales.html と同じ（横だけ伸びて楕円になる） */-->
+    <div class="linechart__wrap">
+      <svg class="linechart" viewBox="0 0 1000 300" preserveAspectRatio="none" role="img"
+           aria-label="日ごとの売上の推移">
+        <g class="linechart__grid">
+          <line th:each="g : ${chart.grid()}" x1="56" x2="992"
+                th:y1="${g.y()}" th:y2="${g.y()}"></line>
+        </g>
+        <polygon class="linechart__area" th:attr="points=${chart.area()}"></polygon>
+        <polyline class="linechart__line" th:attr="points=${chart.line()}"></polyline>
+      </svg>
+      <span th:each="p : ${chart.points()}" class="linechart__dot"
+            th:classappend="${p.last()} ? 'is-last'"
+            th:style="'left:' + ${p.x()} / 10 + '%; top:' + ${p.y()} / 3 + '%'"></span>
+    </div>
 
     <div class="linechart__xaxis">
       <span th:each="p : ${chart.points()}" th:classappend="${p.last()} ? 'is-last'">

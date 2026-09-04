@@ -1446,11 +1446,20 @@ body.theme-night { background-image: none; }
    env(safe-area-inset-top) を足すのは、ノッチのある端末で
    タブの文字が時計に重なるのを避けるため。
    -------------------------------------------------------------------------- */
+/* ★ 本文と同じ幅（--page-max）に収めて中央に置くこと。
+   これはスマホの画面なので、PC で開いたときに帯だけ画面いっぱいに伸びると、
+   720px の本文の上に 2000px の帯が乗った形になって縮尺が壊れる。
+   本文が中央の 1 列にいるのだから、帯もその列の中にいる。 */
 .tabbar {
   position: sticky;
   top: 0;
   z-index: 20;
   display: flex;
+  /* width:100% を明示する。親（.page）の並べ方によっては
+     flex コンテナが内容の幅まで縮み、4 項目が中央に寄った短い帯になる */
+  width: 100%;
+  max-width: var(--page-max);
+  margin-inline: auto;
   padding: calc(32px + env(safe-area-inset-top, 0px)) 8px 0;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
@@ -1486,6 +1495,10 @@ body.theme-night { background-image: none; }
 .cartbar {
   position: fixed;
   left: 0; right: 0; bottom: 0;
+  /* タブ帯と同じ理由で本文の幅に収める。
+     left/right を 0 にしたまま margin-inline:auto を効かせて中央に置く */
+  max-width: var(--page-max);
+  margin-inline: auto;
   z-index: 30;
   display: flex;
   align-items: center;
@@ -2924,6 +2937,13 @@ body.is-sending .staff-main {
 /* 折れ線。座標は Java 側で計算済みなので、ここは見た目だけ。
    preserveAspectRatio="none" で横に伸ばすため、
    線幅が横方向に潰れないよう vector-effect で実寸を保つ */
+/* ★ 点を SVG の中に置かないこと（2026-09-05）★
+   preserveAspectRatio="none" は横だけを引き伸ばすので、
+   <circle> は画面幅に応じて楕円に潰れる。
+   1440px で 13×7 の楕円になっていた（vector-effect は線の太さしか守らない）。
+   線と面は伸びてよい（それが折れ線の意味）が、点は形が意味なので伸ばせない。
+   点だけ HTML 側に出し、% で置く。 */
+.linechart__wrap { position: relative; }
 .linechart { width: 100%; height: 264px; display: block; }
 .linechart__grid line { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .linechart__area { fill: var(--green-100, #ddf0ec); opacity: .55; }
@@ -2934,8 +2954,17 @@ body.is-sending .staff-main {
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
-.linechart__dot { fill: #ffffff; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
-.linechart__dot.is-last { fill: var(--accent); }
+.linechart__dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -5px 0 0 -5px;      /* 中心を座標に合わせる（枠 1px を含めて 5px） */
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: var(--bg-elevated);
+  pointer-events: none;
+}
+.linechart__dot.is-last { background: var(--accent); }
 
 /* 月と金額のラベル。SVG の中に置くと横に引き伸ばされるので HTML で並べる */
 .linechart__xaxis { display: flex; padding-left: 56px; }
