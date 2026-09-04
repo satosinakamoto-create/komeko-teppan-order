@@ -1912,21 +1912,25 @@ body.theme-night { background-image: none; }
 }
 
 .sb__item span { display: var(--sb-text); }
-.sb__item:hover { background: rgba(28, 28, 28, .04); color: var(--text); }
-.sb__item.is-active { background: rgba(28, 28, 28, .05); font-weight: 700; }
-/* アクティブ項目の左に付く短い黒バー（SnowUI の目印） */
-.sb__item.is-active::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 50%;
-  transform: translateY(-50%);
-  width: 4px; height: 16px;
-  border-radius: 2px;
-  background: var(--accent);
+.sb__item:hover { background: var(--accent-soft); color: var(--text); }
+
+/* 現在地。設計（Figma）は 面 #ddf0ec ／ 文字とアイコン #0b7a78 ／ 太字。
+   もとは面がグレー（黒の 5%）＋左に黒い縦棒で、SnowUI の流儀のままだった。
+   店側のトンマナを白と緑にした時点で、ここだけ取り残されていた。
+
+   ★ 左の縦棒は消した。
+     設計に無いだけでなく、緑の面が付いた時点で二重の目印になる。
+     「いまここ」を 2 つの記号で言うと、どちらが本体か分からなくなる。 */
+.sb__item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .sb .ic { width: 20px; height: 20px; flex: none; }
-.sb__item .ic { opacity: .85; }
+/* アイコンは文字色に追従する（fill="currentColor"）。
+   opacity を掛けていたのをやめた。設計では現在地のアイコンも
+   ラベルと同じ緑の濃さで出る。薄めると、緑にした意味が半分消える。 */
 
 /* アカウント欄（左下固定） */
 /* .sb__nav が伸びるので margin-top:auto は要らない。
