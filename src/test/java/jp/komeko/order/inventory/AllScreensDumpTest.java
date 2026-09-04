@@ -1,7 +1,9 @@
 package jp.komeko.order.inventory;
 
 import jp.komeko.order.domain.DiningTable;
+import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.repository.DiningTableRepository;
+import jp.komeko.order.repository.MenuItemRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,10 +17,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
  * 全画面を HTML に書き出す、使い捨ての道具（テストではない）。
@@ -50,6 +55,9 @@ class AllScreensDumpTest {
     @Autowired
     private DiningTableRepository tables;
 
+    @Autowired
+    private MenuItemRepository menuItems;
+
     @Test
     @DisplayName("店舗側とお客側の画面を全部 HTML に落とす")
     void dumpAll() throws Exception {
@@ -62,7 +70,9 @@ class AllScreensDumpTest {
         Map<String, String> staff = new LinkedHashMap<>();
         staff.put("s01-dashboard", "/admin");
         staff.put("s02-kitchen", "/kitchen");
-        staff.put("s03-hall", "/hall");
+        // s03-hall（ホール・会計）はここでは撮らない。
+        // 「卓ごとの注文」は在席の卓が無いと何も写らないので、
+        // 下でお客側の注文を作り終えてから撮る。
         staff.put("s04-stock", "/kitchen/stock");
         staff.put("s05-items", "/admin/items");
         staff.put("s06-categories", "/admin/categories");
@@ -95,15 +105,47 @@ class AllScreensDumpTest {
                     .andReturn().getResponse().getContentAsString();
             write("c01-table-entry", entry);
 
-            for (Map.Entry<String, String> page : Map.of(
-                    "c02-menu", "/menu",
-                    "c03-cart", "/cart",
-                    "c04-bill", "/bill").entrySet()) {
-                String html = mockMvc.perform(get(page.getValue()).session(session))
-                        .andReturn().getResponse().getContentAsString();
-                write(page.getKey(), html);
+            //   人数を決めるまで伝票（TableSession）は開かない。
+            //   開いていないと注文が作れず、伝票の画面が「お会計は完了しております」になる。
+            mockMvc.perform(post("/t/" + table.getAccessToken() + "/start")
+                    .session(session).with(csrf()).param("guestCount", "2"));
+
+            write("c02-menu", mockMvc.perform(get("/menu").session(session))
+                    .andReturn().getResponse().getContentAsString());
+
+            // ★ カートと伝票は、空のまま撮ると「まだ何も選ばれていません」しか写らない。
+            //   デザインの検討には中身が入った状態が要るので、ここで実際に注文を作る。
+            //   作り話の HTML を置くのではなく、本物の画面を通した結果を撮るための手順。
+            //   open-in-view: false なので、ここで getOptionGroups() を直接触ると
+            //   LazyInitializationException になる（CLAUDE.md の JPA の項）。
+            //   選択肢まで読んでくれる findByIdWithOptions を通してから判定する。
+            List<MenuItem> orderable = menuItems.findVisibleForCustomer().stream()
+                    .filter(MenuItem::isOrderable)
+                    .map(m -> menuItems.findByIdWithOptions(m.getId()).orElse(null))
+                    .filter(m -> m != null && m.getOptionGroups().isEmpty())
+                    .limit(3)
+                    .toList();
+            for (MenuItem item : orderable) {
+                mockMvc.perform(post("/cart/add").session(session).with(csrf())
+                        .param("menuItemId", String.valueOf(item.getId()))
+                        .param("quantity", item.equals(orderable.get(0)) ? "2" : "1"));
             }
+            write("c03-cart", mockMvc.perform(get("/cart").session(session))
+                    .andReturn().getResponse().getContentAsString());
+
+            mockMvc.perform(post("/checkout").session(session).with(csrf()));
+            write("c04-bill", mockMvc.perform(get("/bill").session(session))
+                    .andReturn().getResponse().getContentAsString());
+
+            System.out.println("  お客側: カートに " + orderable.size() + " 品入れて注文を 1 件作った");
         }
+
+        // ── ホール・会計（在席の卓ができてから撮る） ──
+        // 上の店舗側ループと一緒に撮ると、まだ誰も座っていないので
+        // 「卓ごとの注文」が空の画面になってしまう。
+        // 注文が入った状態の画面でないと、余白も行の詰まり具合も確かめられない。
+        write("s03-hall", mockMvc.perform(get("/hall").with(user("店長").roles("ADMIN")))
+                .andReturn().getResponse().getContentAsString());
 
         // ── 税理士側 ──
         // 月を指定せずに撮る。既定が前月になったので、これが

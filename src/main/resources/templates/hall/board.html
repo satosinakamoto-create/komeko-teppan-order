@@ -113,6 +113,93 @@
     </article>
   </div>
 
+  <!--/* ===== 卓ごとの注文 =====
+         「どの卓が何を頼んでいるか」を 1 画面で見るための一覧です。
+         上の伝票カードは金額しか出ないので、中身を知るには卓を 1 つずつ
+         開くしかありませんでした。
+
+         取り消した注文も薄く残します（ご請求額には入りません）。
+         「さっき頼んだのに来ない」の確認と、打ち直しの経緯を追うのに要るためです。
+         お客さまに見せる伝票詳細ではキャンセルを隠していますが、
+         ここは店が現場を把握するための画面なので、意図的に扱いを変えています。
+
+         ※ ここで row.order().lines に触れるのは、TableService.openSessions() が
+            明細とオプションまで読み終えて返しているからです。
+            open-in-view: false なので、読み終えていない関連を触ると画面ごと落ちます。
+            この前提は TableServiceIntegrationTest で固定してあります。
+
+         ※ TableOrders / TableOrderRow は record なので、
+            アクセサは括弧付きで ${t.bill()} ${row.order()} のように呼びます。
+  */-->
+  <div class="section-title">
+    <h2 class="section-title__text">卓ごとの注文</h2>
+    <span class="section-title__count" th:text="${occupiedCount} + ' 卓'">3 卓</span>
+  </div>
+
+  <p class="small faint" th:if="${tableOrders.isEmpty()}">
+    在席のお客さまがいないため、表示するご注文はありません。
+  </p>
+
+  <article class="card mt-4" th:each="t : ${tableOrders}">
+
+    <div class="card__head row row--between row--wrap">
+      <span>
+        <a th:href="@{/hall/bills/{id}(id=${t.bill().id})}"
+           th:text="${t.bill().diningTable.name}">3番テーブル</a>
+        <span class="tiny faint"
+              th:text="${t.bill().guestCount} + ' 名 ／ 滞在 ' + ${t.bill().stayMinutes} + ' 分'">
+          4 名 ／ 滞在 62 分</span>
+      </span>
+      <span>
+        <span class="badge badge--rec" th:if="${t.bill().hasPendingOrders()}">調理中あり</span>
+        <b class="num"
+           th:text="'¥' + ${#numbers.formatInteger(t.bill().totalAmount, 1, 'COMMA')}">¥11,044</b>
+      </span>
+    </div>
+
+    <div class="card__body">
+
+      <p class="small faint mb-0" th:if="${t.orders().isEmpty()}">まだご注文がありません。</p>
+
+      <!--/* 注文 1 回ぶん。
+             TableSession.orders の @OrderBy("createdAt ASC, id ASC") が効くので時刻順です。
+             取り消した注文を薄くするのは、空席カード（下）と同じくインラインの
+             opacity で行います。app.css にクラスを増やさないための方針です。 */-->
+      <div th:each="row : ${t.orders()}"
+           th:style="${row.canceled()} ? 'opacity:.55' : null">
+
+        <div class="row row--between row--wrap mt-4">
+          <span>
+            <b class="num" th:text="${row.receivedAt()}">18:42</b>
+            <span class="muted small" th:text="'#' + ${row.order().orderNumber}">#101</span>
+          </span>
+          <!--/* 状態チップは共通部品。CANCELED なら「キャンセル」と出るので、
+                 取り消しの印を別に足す必要はありません。 */-->
+          <span th:replace="~{fragments/common :: statusChip(${row.order().status})}">受付</span>
+        </div>
+
+        <div class="cart-line" th:each="line : ${row.order().lines}">
+          <div>
+            <div class="cart-line__name">
+              <span th:text="${line.menuItemName}">肉玉米粉そば</span>
+              <span class="muted" th:text="' × ' + ${line.quantity}"> × 2</span>
+            </div>
+            <div class="cart-line__opts" th:if="${!line.options.isEmpty()}"
+                 th:text="${line.optionSummary}">麺大盛り / チーズ</div>
+          </div>
+          <div class="cart-line__price"
+               th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥2,360</div>
+        </div>
+
+        <p class="tiny faint mb-0" th:if="${row.canceled()}"
+           th:text="'取消の理由：' + ${row.order().canceledReason}">取消の理由：お客さま都合</p>
+        <p class="tiny faint mb-0" th:if="${row.order().note != null}"
+           th:text="'ご要望：' + ${row.order().note}">ご要望：ソース少なめ</p>
+      </div>
+
+    </div>
+  </article>
+
   <!--/* ===== 空席（ここからご案内する） ===== */-->
   <div class="section-title">
     <h2 class="section-title__text">空席</h2>

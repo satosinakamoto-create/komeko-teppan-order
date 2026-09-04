@@ -2,6 +2,7 @@ package jp.komeko.order.web.hall;
 
 import jp.komeko.order.domain.DiningTable;
 import jp.komeko.order.domain.Order;
+import jp.komeko.order.domain.OrderStatus;
 import jp.komeko.order.domain.SessionStatus;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
@@ -107,6 +108,38 @@ public class HallController {
     // ========================================================================
 
     /**
+     * 「卓ごとの注文」に出す、注文 1 回ぶん。
+     *
+     * <p><b>なぜ {@link Order} をそのまま渡さずに包むのか</b><br>
+     * 受付時刻の {@code createdAt} は {@link LocalDateTime} 型で、そのまま画面に出すと
+     * {@code 2026-08-29T18:42:03.412} という機械向けの表記になります。
+     * かといってテンプレート側で書式を組み立てると
+     * 「動く環境と動かない環境がある」という厄介な問題を抱えがちなので、
+     * このアプリでは<b>表示のための整形は Java 側で済ませる</b>ことにしています
+     * （{@code AdminOrderController.OrderRow} と同じ考え方）。
+     *
+     * <p>{@code canceled} をわざわざ持たせているのは、テンプレートに
+     * {@code ${order.status.name() == 'CANCELED'}} という<b>文字列の比較</b>を
+     * 書かせないためです。enum の名前を文字列で書くと、あとから enum を直したときに
+     * コンパイラが教えてくれず、画面だけが静かに壊れます。
+     *
+     * @param order      注文そのもの（明細・状態はここから読む）
+     * @param receivedAt 受付時刻を "HH:mm" に整えた文字列
+     * @param canceled   取り消された注文か（薄く出すかどうかの判断に使う）
+     */
+    public record TableOrderRow(Order order, String receivedAt, boolean canceled) {
+    }
+
+    /**
+     * 「卓ごとの注文」の、卓 1 つぶん。
+     *
+     * @param bill   その卓の伝票（卓名・人数・滞在時間・ご請求額はここから読む）
+     * @param orders その伝票にぶら下がる注文を時刻の古い順に並べたもの
+     */
+    public record TableOrders(TableSession bill, List<TableOrderRow> orders) {
+    }
+
+    /**
      * 伝票一覧。
      *
      * <p>「いま開いている伝票」と「まだ誰も座っていない卓」を並べます。
@@ -151,6 +184,7 @@ public class HallController {
         }
 
         model.addAttribute("bills", bills);
+        model.addAttribute("tableOrders", tableOrdersOf(bills));
         model.addAttribute("vacantTables", vacantTables);
         model.addAttribute("occupiedCount", bills.size());
         model.addAttribute("vacantCount", vacantTables.size());
@@ -406,6 +440,45 @@ public class HallController {
     // ========================================================================
     //  内部ヘルパー
     // ========================================================================
+
+    /**
+     * 在席の伝票を「卓ごとの注文」の形に組み替える。
+     *
+     * <p>上の伝票カードには金額しか出ないため、何を頼まれているかを知るには
+     * 卓を 1 つずつ開くしかありませんでした。この一覧は
+     * <b>どの卓が何を頼んでいるかを 1 画面で見る</b>ためのものです。
+     *
+     * <p><b>取り消した注文も残します。</b>
+     * 「さっき頼んだのに来ない」の確認や、打ち直しの経緯を追うのに要るためです。
+     * 請求額には入りません（{@code TableSession#recalculate} がキャンセルを除いて計算します）。
+     * 伝票詳細（{@code hall/bill.html}）が {@code getBillableOrders()} を使って
+     * キャンセルを隠しているのとは、意図的に扱いを変えています。
+     * あちらは<b>お客さまに見せて金額を confirm する画面</b>、
+     * こちらは<b>店が現場を把握する画面</b>だからです。
+     *
+     * <p><b>ここで {@code bill.getOrders()} の中身に触れてよい理由</b><br>
+     * {@link TableService#openSessions()} が明細（{@code lines}）とオプションまで
+     * 読み終えてから返しているからです。このアプリは {@code open-in-view: false} なので、
+     * 読み終えていない関連に画面から触ると {@code LazyInitializationException} で
+     * 画面ごと落ちます。この前提は {@code TableServiceIntegrationTest} で固定してあります。
+     *
+     * <p>並び順は {@code TableSession.orders} の {@code @OrderBy("createdAt ASC, id ASC")}
+     * がそのまま効くので、ここでは並べ替えません。
+     */
+    private List<TableOrders> tableOrdersOf(List<TableSession> bills) {
+        List<TableOrders> result = new ArrayList<>();
+        for (TableSession bill : bills) {
+            List<TableOrderRow> rows = new ArrayList<>();
+            for (Order order : bill.getOrders()) {
+                rows.add(new TableOrderRow(
+                        order,
+                        order.getCreatedAt().format(TIME_FORMAT),
+                        order.getStatus() == OrderStatus.CANCELED));
+            }
+            result.add(new TableOrders(bill, rows));
+        }
+        return result;
+    }
 
     /**
      * 本日（営業日）の会計済み伝票を、画面に出せる形にして返す。
