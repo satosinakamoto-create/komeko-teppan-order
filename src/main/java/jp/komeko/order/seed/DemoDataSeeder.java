@@ -13,6 +13,7 @@ import jp.komeko.order.service.CartService;
 import jp.komeko.order.service.OrderService;
 import jp.komeko.order.service.ShopSettingService;
 import jp.komeko.order.service.TableService;
+import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -61,17 +62,20 @@ import java.util.Optional;
  * 設定値なら環境変数 {@code APP_DEMO_DATA} からそのまま入るので、
  * 途中の道具（Maven / PowerShell）の癖に左右されません。
  *
- * <p>また、すでに開いている伝票があるときは<b>何もせずに終わります</b>。
- * 撮影のたびに走らせても伝票が積み上がらず、
- * 営業中にうっかり実行しても実データを荒らしません。
- *
- * <p><b>⚠ 撮影する日に実行すること</b><br>
- * 厨房ボードは<b>その日の営業日ぶん</b>しか表示しません。
- * 前の日に作ったデモデータは、日付が変わると（正確には
- * 営業日の切り替え時刻 5:00 をまたぐと）ボードから消えます。
- * 実際、深夜 3:39 に作ったデータが翌朝 11:39 には 1 件も出ませんでした。
- * バグではなく、営業日で区切る仕様どおりの動きです。
- * <b>撮る直前に走らせてください。</b>
+ * <p><b>何度起動しても「いまの営業日の、営業中らしい状態」に収束します。</b><br>
+ * 以前は「開いている伝票が 1 つでもあれば全部見送り」でしたが、
+ * それだと<b>前の営業日に入れたデモの伝票が安全装置そのものに引っかかり、
+ * 再起動しても二度とデータが入らなくなりました</b>。
+ * 実際、5:00（営業日の切り替え）の 15 分前に起動したデモデータが
+ * 15 分後にボードから消え、しかも残った伝票のせいで入れ直せない、が起きています。
+ * いまは次の 3 段階で、その日ぶんの状態を毎回作り直します。
+ * <ol>
+ *   <li>前の営業日から残っている OPEN の伝票は、提供を済ませて会計する（片付け）</li>
+ *   <li>今の営業日の卓の埋まりが目標に足りなければ、伝票と注文を足す（積み増し）</li>
+ *   <li>今の営業日に会計済みの伝票が無ければ、先に帰った組を 2 組作る（本日の売上）</li>
+ * </ol>
+ * すでに足りている段は何もしないので、同じ日に何度起動しても積み上がりません。
+ * 今の営業日にすでに開いている伝票（自分で操作中のものを含む）には触りません。
  *
  * <p><b>{@code @Order(2)} — {@link DataSeeder} の後に走らせる</b><br>
  * このクラスは卓とメニューが<b>すでにある前提</b>で伝票を積みます。
@@ -106,6 +110,23 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final OrderService orderService;
     private final ShopSettingService shopSettingService;
 
+    /**
+     * 注文時刻をずらすためだけに使う。
+     *
+     * <p>{@code Order} の注文時刻は<b>業務コードから書き換えられないようにしてあります</b>
+     * （{@code Order#setCreatedAtForTest} は domain パッケージ内からしか見えない）。
+     * 会計の証跡なので、それでよい設計です。
+     *
+     * <p>ただしデモの注文は全部「たったいま」入ったことになるため、
+     * 厨房ボードの経過時間が<b>全部 0 分</b>になります。
+     * 厨房ボードでいちばん大事な情報は「何分待たせているか」なので、
+     * それが全部 0 分では画面を見ても何も判断できません。
+     * <b>このクラスだけ</b>、DB を直接更新して時刻を巻き戻します。
+     * dev / demo プロファイルでしか作られないクラスなので、
+     * 実店舗のデータにこの操作が届くことはありません。
+     */
+    private final EntityManager entityManager;
+
     /** true のときだけデモデータを入れる。既定は false（うっかり動かないように）。 */
     private final boolean enabled;
 
@@ -115,6 +136,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                           CartService cartService,
                           OrderService orderService,
                           ShopSettingService shopSettingService,
+                          EntityManager entityManager,
                           @Value("${app.demo-data:false}") boolean enabled) {
         this.tableRepository = tableRepository;
         this.menuItemRepository = menuItemRepository;
@@ -122,6 +144,7 @@ public class DemoDataSeeder implements ApplicationRunner {
         this.cartService = cartService;
         this.orderService = orderService;
         this.shopSettingService = shopSettingService;
+        this.entityManager = entityManager;
         this.enabled = enabled;
     }
 
@@ -159,28 +182,26 @@ public class DemoDataSeeder implements ApplicationRunner {
     }
 
     void seed() {
-        if (!tableService.openSessions().isEmpty()) {
-            log.info("開いている伝票があるため、デモデータの投入を見送りました。"
-                    + "ホール画面（/hall）で全部お会計してから、もう一度 -Demo で起動してください");
-            return;
-        }
-
         openTheShop();
         setUpStock();
         setUpDemoPhotos();
-        int created = fillOtherTables();
+
+        int cleaned = closeLeftoverSessions();
+        int created = fillLiveScene();
+        int closed = closeEarlierGuests();
 
         log.warn("""
 
                 ============================================================
-                 撮影用のデモデータを入れました。
-                   ・{} 卓ぶんの伝票を作成（厨房ボードが埋まります）
-                   ・在庫の残数と品切れを設定（残り○個 / 売り切れが映ります）
-                   ・{} は空けてあります ← ここで QR を読んで撮影してください
+                 デモデータを「営業中」の状態にそろえました。
+                   ・前の営業日の伝票を片付け: {} 卓
+                   ・営業中の伝票を追加: {} 卓（厨房ボードの 3 列が埋まります）
+                   ・会計済みの組を追加: {} 組（本日の売上に数字が出ます）
+                   ・{} は空けてあります ← ここで QR を読んで注文を試せます
 
-                 撮り終わったら ホール画面から会計して片付けてください。
+                 片付けたいときは ホール画面（/hall）から会計してください。
                 ============================================================
-                """, created, STAGE_TABLE);
+                """, cleaned, created, closed, STAGE_TABLE);
     }
 
     /**
@@ -445,39 +466,191 @@ public class DemoDataSeeder implements ApplicationRunner {
                 }));
     }
 
+    /** 埋めておきたい卓の数。全 10 卓のうち 6 卓（満席にはしない。空きも見せどころ）。 */
+    private static final int TARGET_OCCUPIED = 6;
+
     /**
-     * 撮影用の卓以外に、それらしい伝票を作る。
+     * 注文の状態をこの順で回して配る。
      *
      * <p>厨房ボードは「受付 → 調理中 → 提供済」の 3 列で見せるので、
      * どの列にも品が並んでいる状態にします。
-     * 1 列だけ埋まっていても、ボードの意味が伝わりません。
+     * COMPLETED（提供済）も混ぜるのは、伝票側の見た目のためです。
+     * 全品が未提供の伝票ばかりだと「座った直後の卓」しか無い店になり、
+     * ホール画面の金額も育ちません。
      */
-    private int fillOtherTables() {
-        List<DiningTable> tables = tableRepository.findAll().stream()
-                .filter(t -> !STAGE_TABLE.equals(t.getName()))
-                .limit(3)
-                .toList();
+    private static final OrderStatus[] STATUS_CYCLE = {
+            OrderStatus.COMPLETED, OrderStatus.RECEIVED, OrderStatus.COOKING,
+            OrderStatus.RECEIVED, OrderStatus.READY, OrderStatus.COOKING,
+            OrderStatus.RECEIVED, OrderStatus.COMPLETED,
+    };
 
-        int created = 0;
-        for (int i = 0; i < tables.size(); i++) {
-            DiningTable table = tables.get(i);
-            TableSession session = tableService.openSession(table.getId(), 2 + i);
+    /** たまに添える注文メモ。厨房ボードのメモ表示にも実物を出すため。 */
+    private static final List<String> ORDER_NOTES = List.of(
+            "ソース多めで", "マヨネーズ抜きでお願いします", "取り皿を2枚ください");
 
-            // 卓ごとに違う品を頼ませる。同じ品ばかりだと「1件を複製しただけ」に見える
-            Order first = order(session, i * 2);
-            Order second = order(session, i * 2 + 1);
-
-            // 状態をばらけさせて、ボードの3列すべてに品を置く
-            if (first != null && i >= 1) {
-                orderService.changeStatus(first.getId(), OrderStatus.COOKING, "厨房スタッフ");
+    /**
+     * 前の営業日から残っている OPEN の伝票を片付ける。
+     *
+     * <p>提供まで済ませてから会計します。未提供のまま締めると、
+     * その注文は受付から 6 時間（{@code OrderService.CARRY_OVER_WINDOW}）は
+     * 厨房ボードに「焼き忘れ」として残り続け、せっかく作る今日の景色に
+     * 昨日のゴミが混ざるからです。
+     *
+     * <p>今の営業日の伝票には触りません。自分で開いて操作中の伝票を
+     * 勝手に会計されたら、それはデータ投入ではなく妨害です。
+     */
+    private int closeLeftoverSessions() {
+        var today = shopSettingService.currentBusinessDate();
+        int cleaned = 0;
+        for (TableSession session : tableService.openSessions()) {
+            if (today.equals(session.getBusinessDate())) {
+                continue;
             }
-            if (second != null && i >= 2) {
-                orderService.changeStatus(second.getId(), OrderStatus.COOKING, "厨房スタッフ");
-                orderService.changeStatus(second.getId(), OrderStatus.READY, "厨房スタッフ");
+            for (Order order : session.getOrders()) {
+                completeOrder(order);
+            }
+            tableService.closeSession(session.getId(), true, "デモ", "前の営業日の片付け");
+            cleaned++;
+        }
+        return cleaned;
+    }
+
+    /**
+     * 卓の埋まりが目標（{@value #TARGET_OCCUPIED} 卓）になるまで伝票と注文を足す。
+     *
+     * <p>撮影用の卓と、すでに伝票が開いている卓は飛ばします。
+     * 目標に達していれば 1 卓も作らないので、同じ日に何度起動しても増えません。
+     */
+    private int fillLiveScene() {
+        List<MenuItem> candidates = orderCandidates();
+        if (candidates.isEmpty()) {
+            return 0;
+        }
+
+        long occupied = tableService.openSessions().size();
+        int created = 0;
+        int dish = 0;
+        int waited = 0;
+
+        for (DiningTable table : tableRepository.findAll()) {
+            if (occupied + created >= TARGET_OCCUPIED) {
+                break;
+            }
+            if (STAGE_TABLE.equals(table.getName())
+                    || tableService.currentSession(table.getId()).isPresent()) {
+                continue;
+            }
+
+            // カウンターは 1〜2 名、テーブルは 2〜4 名。席の種類で人数の相場が違う
+            int guests = table.getCapacity() <= 1
+                    ? 1 + (created % 2)
+                    : 2 + (created % 3);
+            TableSession session = tableService.openSession(table.getId(), guests);
+
+            // 1 卓 1〜3 回の注文。「とりあえずビール→料理→追加」の追い注文を模す
+            int orders = 1 + (created % 3);
+            for (int j = 0; j < orders; j++) {
+                Order order = order(session, candidates, dish, 1 + ((created + j) % 2));
+                if (order != null) {
+                    advanceTo(order, STATUS_CYCLE[dish % STATUS_CYCLE.length]);
+                    backdate(order, WAITED_MINUTES[waited % WAITED_MINUTES.length]);
+                }
+                dish += 2;
+                waited++;
             }
             created++;
         }
         return created;
+    }
+
+    /**
+     * 注文を「何分前に受け付けたことにするか」。
+     *
+     * <p><b>15 分未満に収めているのには理由があります。</b>
+     * 厨房ボードは見学モード（{@code app.guest-login=true}）のとき、
+     * 15 分を超えた注文の経過時間を<b>数字ごと消します</b>
+     * （{@code KitchenController.DEMO_STALE_MINUTES}。起動時に置いた注文が
+     * 何時間も居座って画面が真っ赤になるのを防ぐため）。
+     * 「27 分」「63 分」と散らしたところ、ボードの経過時間欄が
+     * ほとんど空欄になり、かえって判断できない画面になりました。
+     *
+     * <p>そのうえで<b>値をばらけさせる</b>のが目的です。
+     * 全部が同じ分数だと、並び順にも色にも意味が見えません。
+     * 要素数を 7 にしてあるのは、状態の周期（{@link #STATUS_CYCLE} は 8 個）と
+     * 割り切れないようにするためです。同じ長さにすると
+     * 「調理中はいつも 11 分」のように状態と分数が固定で結び付きます。
+     */
+    private static final int[] WAITED_MINUTES = {2, 9, 5, 13, 1, 11, 7};
+
+    /**
+     * 注文の受付時刻を巻き戻す。
+     *
+     * <p>JPQL の更新文で DB を直接書き換えます。理由は {@link #entityManager} の説明のとおりです。
+     *
+     * <p><b>前後の {@code flush} と {@code refresh} は省けません。</b>
+     * 更新文は<b>永続化コンテキストを迂回して</b> DB へ直接飛びます。
+     * <ul>
+     *   <li>先に {@code flush} しないと、まだ DB に出ていない注文を更新することになり
+     *       0 件更新で静かに空振りする</li>
+     *   <li>あとで {@code refresh} しないと、メモリ上の写しは古い時刻のままなので、
+     *       コミット時の変更検知が<b>巻き戻した時刻を元に戻してしまう</b></li>
+     * </ul>
+     * {@code clear()} で全部捨てないのは、まだ書き出していない他の伝票の変更まで
+     * 道連れになるからです。直した 1 件だけ読み直します。
+     */
+    private void backdate(Order order, int minutes) {
+        entityManager.flush();
+        entityManager.createQuery(
+                        "update Order o set o.createdAt = :at where o.id = :id")
+                .setParameter("at", order.getCreatedAt().minusMinutes(minutes))
+                .setParameter("id", order.getId())
+                .executeUpdate();
+        entityManager.refresh(order);
+    }
+
+    /**
+     * 今の営業日に会計済みの伝票が 1 つも無ければ、先に帰った組を作る。
+     *
+     * <p>ダッシュボードと売上画面の「本日」は<b>会計済みの伝票</b>から数えます。
+     * 営業中の伝票をいくら積んでも本日の売上は 0 円のままなので、
+     * 最初から最後まで済ませた組が別に要ります。
+     * 会計まで済ませるので卓はまた空きに戻り、卓を消費しません。
+     */
+    private int closeEarlierGuests() {
+        var today = shopSettingService.currentBusinessDate();
+        boolean alreadyClosed = tableService.sessionsOf(today).stream()
+                .anyMatch(s -> !s.isOpen());
+        if (alreadyClosed) {
+            return 0;
+        }
+
+        List<MenuItem> candidates = orderCandidates();
+        if (candidates.isEmpty()) {
+            return 0;
+        }
+
+        int closed = 0;
+        int dish = 1;
+        for (DiningTable table : tableRepository.findAll()) {
+            if (closed >= 2) {
+                break;
+            }
+            if (STAGE_TABLE.equals(table.getName())
+                    || tableService.currentSession(table.getId()).isPresent()) {
+                continue;
+            }
+            TableSession session = tableService.openSession(table.getId(), 2 + closed);
+            for (int j = 0; j < 3; j++) {
+                Order order = order(session, candidates, dish, 1 + (j % 2));
+                if (order != null) {
+                    completeOrder(order);
+                }
+                dish += 3;
+            }
+            tableService.closeSession(session.getId(), true, "デモ", null);
+            closed++;
+        }
+        return closed;
     }
 
     /**
@@ -487,21 +660,59 @@ public class DemoDataSeeder implements ApplicationRunner {
      * ここだけ直接 INSERT すると、金額の計算や在庫の引き当てを通らず、
      * 「録画では合っていたのに実際は違う」という一番まずいデモになります。
      */
-    private Order order(TableSession session, int seed) {
-        List<MenuItem> candidates = menuItemRepository.findAll().stream()
+    private Order order(TableSession session, List<MenuItem> candidates, int seed, int dishes) {
+        Cart cart = new Cart();
+        for (int i = 0; i < dishes; i++) {
+            MenuItem item = candidates.get((seed + i * 7) % candidates.size());
+            cartService.addToCart(cart, item.getId(), List.of(), 1 + ((seed + i) % 2));
+        }
+        // 3 件に 1 件だけメモを付ける。全件に付くと逆に作り物くさい
+        String note = (seed % 3 == 0)
+                ? ORDER_NOTES.get((seed / 3) % ORDER_NOTES.size())
+                : null;
+        return orderService.placeOrder(cart, session.getId(), note);
+    }
+
+    /** デモの注文に使える品を選ぶ。 */
+    private List<MenuItem> orderCandidates() {
+        return menuItemRepository.findAll().stream()
                 .filter(MenuItem::isVisible)
                 .filter(i -> !i.isSoldOut())
                 // オプション必須の品はカートに入れる条件が複雑なので、ここでは避ける
                 .filter(i -> i.getOptionGroups().isEmpty())
+                // 「残り○個」を見せるために絞った品は避ける。
+                // デモの注文が食いつぶすと、見せたい残数がゼロになってしまう
+                .filter(i -> i.getStockRemaining() == null)
                 .toList();
-        if (candidates.isEmpty()) {
-            return null;
-        }
-        MenuItem item = candidates.get(seed % candidates.size());
+    }
 
-        Cart cart = new Cart();
-        cartService.addToCart(cart, item.getId(), List.of(), 1 + (seed % 2));
-        return orderService.placeOrder(cart, session.getId(), null);
+    /** 受付から目的の状態まで、正規の順（調理中 → 提供準備 → 提供済）で進める。 */
+    private void advanceTo(Order order, OrderStatus target) {
+        if (target == OrderStatus.RECEIVED) {
+            return;
+        }
+        orderService.changeStatus(order.getId(), OrderStatus.COOKING, "厨房スタッフ");
+        if (target == OrderStatus.COOKING) {
+            return;
+        }
+        orderService.changeStatus(order.getId(), OrderStatus.READY, "厨房スタッフ");
+        if (target == OrderStatus.READY) {
+            return;
+        }
+        orderService.changeStatus(order.getId(), OrderStatus.COMPLETED, "ホールスタッフ");
+    }
+
+    /** 未提供の注文を提供済みまで進める（すでに済んでいれば何もしない）。 */
+    private void completeOrder(Order order) {
+        switch (order.getStatus()) {
+            case RECEIVED -> advanceTo(order, OrderStatus.COMPLETED);
+            case COOKING -> {
+                orderService.changeStatus(order.getId(), OrderStatus.READY, "厨房スタッフ");
+                orderService.changeStatus(order.getId(), OrderStatus.COMPLETED, "ホールスタッフ");
+            }
+            case READY -> orderService.changeStatus(order.getId(), OrderStatus.COMPLETED, "ホールスタッフ");
+            default -> { /* 提供済み・キャンセルはそのまま */ }
+        }
     }
 
     /** 撮影用の卓を探す（見つからなければ空）。 */

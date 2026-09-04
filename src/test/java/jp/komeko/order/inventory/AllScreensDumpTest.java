@@ -35,6 +35,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "spring.datasource.url=jdbc:h2:mem:all-screens;DB_CLOSE_DELAY=-1",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "app.demo-data=true",
+        // 売上や仕入れの画面を「数字入り」で書き出すために、過去の帳簿も入れる。
+        // ただし既定の 13 か月ぶんは書くのに 1 分かかるので、
+        // 折れ線と前月比が成り立つ最小限（4 か月）にとどめる
+        "app.demo-history-months=4",
         "app.seed-on-startup=true",
         "app.inventory.enabled=true",
         "app.backup.enabled=false",

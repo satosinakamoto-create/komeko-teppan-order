@@ -58,6 +58,10 @@ class SeederOrderTest {
         assertThat(OrderUtils.getOrder(DemoDataSeeder.class))
                 .as("DemoDataSeeder に @Order が無いと、実行順がクラスパスの走査順まかせになる")
                 .isNotNull();
+
+        assertThat(OrderUtils.getOrder(SalesHistoryDemoSeeder.class))
+                .as("SalesHistoryDemoSeeder に @Order が無いと、実行順がクラスパスの走査順まかせになる")
+                .isNotNull();
     }
 
     @Test
@@ -70,5 +74,18 @@ class SeederOrderTest {
                 .as("卓とメニューを作る DataSeeder は、伝票を積む DemoDataSeeder より先に走ること。"
                         + "逆になると『0 卓ぶんの伝票を作成』で終わり、公開デモの厨房ボードが空になる")
                 .isLessThan(demo);
+    }
+
+    @Test
+    @DisplayName("過去の帳簿（SalesHistoryDemoSeeder）は、直近の伝票が置かれたあとに走る")
+    void historySeederRunsLast() {
+        int demo = OrderUtils.getOrder(DemoDataSeeder.class, Integer.MAX_VALUE);
+        int history = OrderUtils.getOrder(SalesHistoryDemoSeeder.class, Integer.MAX_VALUE);
+
+        assertThat(demo)
+                .as("過去の帳簿は『すでにある伝票のいちばん古い営業日』を境目にして、"
+                        + "その手前だけを埋める。先に走ると境目が今日になり、"
+                        + "直近の仕込みと同じ日付に二重で伝票を作ってしまう")
+                .isLessThan(history);
     }
 }

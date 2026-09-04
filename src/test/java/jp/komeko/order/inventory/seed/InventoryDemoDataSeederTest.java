@@ -45,6 +45,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.url=jdbc:h2:mem:inventory-demo-seed;DB_CLOSE_DELAY=-1",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "app.demo-data=true",
+        // 過去 1 年ぶんの架空の帳簿（SalesHistoryDemoSeeder）は、このテストには要らない。
+        // 既定の 13 か月ぶんを書くと起動だけで 1 分かかり、
+        // 食材とレシピしか見ていないこのテストが一様に遅くなる
+        "app.demo-history-months=1",
         "app.seed-on-startup=true",
         "app.inventory.enabled=true",
         "app.backup.enabled=false",

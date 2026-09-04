@@ -34,7 +34,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@TestPropertySource(properties = "app.demo-data=true")
+@TestPropertySource(properties = {
+        "app.demo-data=true",
+        // 見ているのは経過時間の表示だけ。過去 1 年ぶんの帳簿を書く必要はない
+        "app.demo-history-months=1"})
 @DisplayName("厨房ボードの経過時間の見せ方（公開デモ）")
 class KitchenBoardDemoElapsedRenderTest extends KitchenBoardElapsedRenderSupport {
 

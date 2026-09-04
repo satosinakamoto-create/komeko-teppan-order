@@ -101,6 +101,33 @@ public interface TableSessionRepository extends JpaRepository<TableSession, Long
     @EntityGraph(attributePaths = {"diningTable"})
     List<TableSession> findByBusinessDateOrderByOpenedAtDesc(LocalDate businessDate);
 
+    /**
+     * その日より前の伝票があるか。
+     *
+     * <p>デモ用の帳簿（{@code SalesHistoryDemoSeeder}）が
+     * 「もう入れてあるか」を確かめるために使います。
+     * 件数を数えず存在だけ聞くのは、1 件見つかった時点で答えが出るからです。
+     */
+    boolean existsByBusinessDateBefore(LocalDate businessDate);
+
+    /**
+     * その営業日の伝票の数。
+     *
+     * <p>デモ用の帳簿が「この日はあと何組ぶん足りないか」を数えるのに使います。
+     * 一覧を読んで数えると、1 年ぶんで数千件を無駄に載せることになります。
+     */
+    long countByBusinessDate(LocalDate businessDate);
+
+    /**
+     * いちばん古い伝票の営業日。1 件も無ければ空。
+     *
+     * <p>デモ用の帳簿が「どこまで埋めればいいか」の境目に使います。
+     * 日数で決め打ちにすると、既存の仕込み量を変えたときに
+     * 穴が開くか二重に入るかのどちらかになります。
+     */
+    @Query("select min(s.businessDate) from TableSession s")
+    Optional<LocalDate> findEarliestBusinessDate();
+
     /** 会計済みの伝票の合計（売上集計用）。 */
     @Query("""
             select count(s), sum(s.totalAmount), sum(s.taxAmount),
