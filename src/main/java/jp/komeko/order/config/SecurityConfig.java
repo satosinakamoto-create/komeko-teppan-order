@@ -262,7 +262,26 @@ public class SecurityConfig {
             .formLogin(form -> form
                     .loginPage("/login")
                     .loginProcessingUrl("/login")
-                    .defaultSuccessUrl("/kitchen", true)
+                    // ── ログインしたあとの行き先は、役割で分ける ──
+                    //
+                    // ここは長らく defaultSuccessUrl("/kitchen", true) の一択でした。
+                    // ところが税理士（ACCOUNTANT）は /kitchen に入れません
+                    // （上の requestMatchers で STAFF と ADMIN だけに絞っているため）。
+                    // つまり税理士は、正しいパスワードでログインした直後に
+                    // 必ず 403 の画面を見て、自分でアドレス欄に /accountant と
+                    // 打ち直さないと仕事を始められませんでした。
+                    //
+                    // 権限の設定は正しく、行き先だけが間違っている状態だったので、
+                    // ここで役割を見て振り分けます。
+                    //
+                    // 第 2 引数 true と同じ挙動（元のリクエストに戻さず必ずここへ行く）を
+                    // 保つため、SavedRequest は見ずに素直にリダイレクトします。
+                    .successHandler((request, response, authentication) -> {
+                        boolean accountant = authentication.getAuthorities().stream()
+                                .anyMatch(a -> "ROLE_ACCOUNTANT".equals(a.getAuthority()));
+                        String target = accountant ? "/accountant" : "/kitchen";
+                        response.sendRedirect(request.getContextPath() + target);
+                    })
                     .failureUrl("/login?error")
                     .permitAll())
             .logout(logout -> logout

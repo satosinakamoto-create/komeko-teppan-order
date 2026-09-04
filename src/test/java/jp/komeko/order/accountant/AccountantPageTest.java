@@ -1,9 +1,11 @@
 package jp.komeko.order.accountant;
 
 import jp.komeko.order.accountant.service.AccountantService;
+import jp.komeko.order.domain.StaffRole;
 import jp.komeko.order.inventory.domain.*;
 import jp.komeko.order.inventory.service.PurchaseDraft;
 import jp.komeko.order.inventory.service.PurchaseService;
+import jp.komeko.order.service.StaffUserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +21,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -48,6 +52,9 @@ class AccountantPageTest {
 
     @Autowired
     private AccountantService accountantService;
+
+    @Autowired
+    private StaffUserService staffUserService;
 
     /** 経過措置（登録番号なし）の仕入れを 1 枚作る。 */
     private Purchase recordWithoutRegistration(LocalDate on, int amount) {
@@ -99,9 +106,78 @@ class AccountantPageTest {
         mockMvc.perform(get("/accountant")).andExpect(status().isOk());
     }
 
+    /**
+     * ログイン直後の行き先。
+     *
+     * <p><b>ここで守っているもの＝税理士が 403 で仕事を始めないこと</b><br>
+     * 行き先は長らく {@code /kitchen} 固定でした。ところが厨房ボードは
+     * STAFF と ADMIN にしか開いていないので、税理士は正しいパスワードを入れた直後に
+     * 必ず「権限がありません」の画面を見て、自分でアドレス欄に
+     * {@code /accountant} と打ち直す必要がありました。
+     *
+     * <p>権限の設定は正しく、行き先だけが間違っている——という壊れ方なので、
+     * 権限のテスト（上のブロック）は全部通ったまま素通りします。
+     * だから行き先そのものを、ここで別に留めておきます。
+     */
+    @Test
+    @DisplayName("★ 税理士はログインしたら自分の画面に着く（厨房に飛ばすと 403 で始まる）")
+    void accountant_lands_on_the_ledger() throws Exception {
+        // ユーザー名が他のテストとぶつからないようにしておく
+        String name = "zeirishi-" + System.nanoTime();
+        staffUserService.create(name, "Test-Pass-9999", "テスト税理士", StaffRole.ACCOUNTANT);
+
+        mockMvc.perform(formLogin("/login").user(name).password("Test-Pass-9999"))
+                .andExpect(authenticated())
+                .andExpect(redirectedUrl("/accountant"));
+    }
+
+    @Test
+    @DisplayName("店の人はこれまでどおり厨房ボードに着く")
+    void staff_lands_on_the_kitchen_board() throws Exception {
+        String name = "kitchen-" + System.nanoTime();
+        staffUserService.create(name, "Test-Pass-9999", "テスト厨房", StaffRole.STAFF);
+
+        mockMvc.perform(formLogin("/login").user(name).password("Test-Pass-9999"))
+                .andExpect(authenticated())
+                .andExpect(redirectedUrl("/kitchen"));
+    }
+
     // ========================================================================
     //  画面が描けること
     // ========================================================================
+
+    /**
+     * 原価率を税理士に渡さないこと。
+     *
+     * <p><b>なぜテストにするか</b><br>
+     * 原価率は申告書のどの欄にも要らない、経営判断のための数字です。
+     * 「いくら入って、いくら出たか」は税理士の仕事に必要ですが、
+     * 「なぜ儲かっているか」は店の中に置いておく、という線引きにしました。
+     *
+     * <p>この手の項目は、画面を作り込むうちに「あると便利だから」と
+     * 戻ってきがちです。消したことではなく<b>消したままであること</b>を
+     * 守りたいので、テストにしています。
+     *
+     * <p>売上と食材費は下の内訳に残っているので、割れば同じ数は出せます。
+     * それでも意味があるのは、こちらから経営指標の形にして手渡さない、
+     * という点です。
+     */
+    @Test
+    @WithMockUser(roles = "ACCOUNTANT")
+    @DisplayName("★ 原価率は税理士に見せない（申告に要らない経営の数字なので）")
+    void cost_ratio_is_not_handed_to_the_accountant() throws Exception {
+        String html = mockMvc.perform(get("/accountant"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(html)
+                .as("原価率は税理士の画面に出さない")
+                .doesNotContain("原価率");
+        // 仕入れの実額そのものは仕事に要るので、消しすぎていないことも確かめる
+        assertThat(html)
+                .as("費目別の内訳は残っている")
+                .contains("費目別の内訳");
+    }
 
     @Test
     @WithMockUser(roles = "ACCOUNTANT")

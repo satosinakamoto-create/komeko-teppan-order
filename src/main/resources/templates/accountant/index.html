@@ -27,8 +27,20 @@
     <p class="mb-0">判断が要る仕入れはありません。このまま仕訳に進めます。</p>
   </div>
 
-  <!--/* ── 売上と仕入れ ── */-->
-  <div class="grid grid--3">
+  <!--/* ── 売上と仕入れ ──
+
+     ここに「実際原価率」を出していましたが、2026-09-04 に外しました。
+     原価率は申告書のどの欄にも要らない、経営判断のための数字です
+     （PurchaseSummary#costRatioNet のコメント自身が「目標管理や他店との比較に使う」と
+     書いているとおり、用途が経営そのものです）。
+     税理士にお渡しするのは「いくら入って、いくら出たか」までで、
+     「なぜ儲かっているか」は店の中に置いておく、という線引きにしました。
+
+     素の売上と食材費は下の内訳に残っているので、割れば同じ数は出せます。
+     それでも外す意味はあって、こちらから経営指標の形にして手渡さない、
+     というのがここでの判断です。原価率が要る画面は /inventory 側にあります。
+  */-->
+  <div class="grid grid--2">
     <div class="stat">
       <p class="stat__label">売上（会計済みの伝票）</p>
       <p class="stat__value">
@@ -44,14 +56,6 @@
       </p>
       <p class="help mb-0"
          th:text="'税抜 ¥' + ${#numbers.formatInteger(summary.totalNet(), 1, 'COMMA')} + ' / ' + ${summary.purchaseCount()} + '件'">内訳</p>
-    </div>
-    <div class="stat">
-      <p class="stat__label">実際原価率（税抜）</p>
-      <p class="stat__value" th:if="${summary.costRatioNet() != null}">
-        <span th:text="${#numbers.formatDecimal(summary.costRatioNet(), 1, 1)}">0.0</span><span class="stat__unit">%</span>
-      </p>
-      <p class="stat__value" th:unless="${summary.costRatioNet() != null}">—</p>
-      <p class="help mb-0">食材だけを売上で割った数字</p>
     </div>
   </div>
 
