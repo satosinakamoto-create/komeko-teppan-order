@@ -172,9 +172,26 @@
         <th:block th:replace="~{fragments/icons :: ic_package}"/><span>品切れ・残数</span>
       </a>
 
-      <!--/* ── 仕入れ・経費（在庫モジュール） ──
+      <!--/* ── 原価と仕入れ ── 2026-09-05 に見出しを足した
+
+             この 3 つには見出しが無く、上の「営業中につかう」に吸われていた。
+             サイドバーが「厨房ボード〜レシピ・原価表」までひと続きに見え、
+             設計（Figma）の「厨房〜品切れ」で切れる形と食い違っていた。
+
+             見出しの有無は、ただの飾りではなく<b>どこまでが同じ仲間か</b>を決める。
+             営業中に立って使うもの（厨房・ホール・品切れ）と、
+             机で座って入力するもの（仕入れ・食材・レシピ）は、
+             使う時間も場所も違う。混ざっていると、
+             営業中にレシピ画面を開いてしまう導線になる。
+
              app.inventory.enabled=false のときはコントローラが存在せず 404 になるので、
-             設定で切っている間はリンクも出さない（${inventoryEnabled} は
+             設定で切っている間はリンクも出さない。
+             ★ 見出しにも同じ条件を付けること。
+               付け忘れると、在庫を切ったときに「原価と仕入れ」だけが
+               中身の無い見出しとして残る。 */-->
+      <p class="sb__label" th:if="${inventoryEnabled}">原価と仕入れ</p>
+
+      <!--/* （${inventoryEnabled} は
              InventoryModelAttributes が全画面に渡している）。 */-->
       <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/purchases}"
          th:classappend="${#strings.startsWith(p, '/inventory/purchases')} ? 'is-active'">
