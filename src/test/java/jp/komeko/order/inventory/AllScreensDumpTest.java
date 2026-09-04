@@ -130,6 +130,14 @@ class AllScreensDumpTest {
                         .param("menuItemId", String.valueOf(item.getId()))
                         .param("quantity", item.equals(orderable.get(0)) ? "2" : "1"));
             }
+            // ★ カートに品が入った状態のメニューも撮る。
+            //   下に貼り付くカートバーは「注文リストに品があるとき」しか出ないので、
+            //   空のメニュー（c02）だけを見ていると、バーが出ているつもりで
+            //   一度も確かめないまま進んでしまう。
+            //   ここが隠れると、最後の 1 品がバーに隠れる不具合にも気づけない。
+            write("c02b-menu-with-cart", mockMvc.perform(get("/menu").session(session))
+                    .andReturn().getResponse().getContentAsString());
+
             write("c03-cart", mockMvc.perform(get("/cart").session(session))
                     .andReturn().getResponse().getContentAsString());
 
