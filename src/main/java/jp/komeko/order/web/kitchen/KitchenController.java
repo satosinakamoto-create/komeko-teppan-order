@@ -444,7 +444,7 @@ public class KitchenController {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/kitchen/stock";
         }
-        return redirectToCategoryOf(itemId);
+        return redirectToItem(itemId);
     }
 
     /**
@@ -453,10 +453,9 @@ public class KitchenController {
      * <p>戻り先は品切れパネルです。厨房ボードに飛ばすと、
      * 続けて何品も操作したいときに毎回パネルを開き直すことになるためです。
      *
-     * <p><b>成功したときは、操作した品のカテゴリまで戻します</b>（{@link #redirectToCategoryOf}）。
+     * <p><b>成功したときは、操作した行まで戻します</b>（{@link #redirectToItem}）。
      * この画面は 14 カテゴリ 94 行あるので、素の {@code /kitchen/stock} に戻すと
      * 毎回いちばん上に着地し、「続けて何品も」ができません。
-     * カテゴリのチップで飛んだ意味も、1 操作で消えてしまいます。
      */
     @PostMapping("/stock/{itemId}/toggle")
     public String toggleSoldOut(@PathVariable Long itemId, RedirectAttributes redirectAttributes) {
@@ -477,11 +476,11 @@ public class KitchenController {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/kitchen/stock";
         }
-        return redirectToCategoryOf(itemId);
+        return redirectToItem(itemId);
     }
 
     /**
-     * 品切れパネルの、その商品が属するカテゴリまで戻す。
+     * 品切れパネルの、<b>操作した行そのもの</b>へ戻す。
      *
      * <p><b>成功時だけ使います。</b>失敗したときは素の {@code /kitchen/stock} に戻して、
      * 画面上端のエラーを必ず読ませます。うまくいかなかったのに操作した場所へ戻すと、
@@ -491,17 +490,25 @@ public class KitchenController {
      * <b>操作した行そのものが「品切れ」の表示に変わる</b>ので、
      * 結果は押した場所で見えます。離れた場所の通知より、そちらのほうが速く伝わります。
      *
-     * <p>カテゴリが引けなかったときは素の URL に落とします。
+     * <p><b>カテゴリではなく行に戻すようにしました（2026-09-05）。</b><br>
+     * もとはカテゴリの先頭（{@code #cat-N}）に戻していましたが、
+     * この画面は 14 カテゴリ 94 行あり、カテゴリの中だけでも十数行あります。
+     * 続けて何品も品切れにするとき、押すたびにカテゴリの頭まで戻され、
+     * <b>さっき押した行をまた探す</b>ことになっていました。
+     *
+     * <p>行に戻すのは JS が動かないときの受け皿で、
+     * ふだんは {@code kitchen/stock.html} のスクリプトが
+     * 送信前の位置をそのまま復元します（そちらは画面が 1px も動きません）。
+     *
+     * <p>商品が引けなかったときは素の URL に落とします。
      * 戻り先を決めるためだけの読み直しで例外を投げて、
      * 成功した操作を失敗に見せてしまわないようにするためです。
      */
-    private String redirectToCategoryOf(Long itemId) {
-        try {
-            Long categoryId = menuService.itemWithOptions(itemId).getCategory().getId();
-            return "redirect:/kitchen/stock#cat-" + categoryId;
-        } catch (RuntimeException e) {
+    private String redirectToItem(Long itemId) {
+        if (itemId == null) {
             return "redirect:/kitchen/stock";
         }
+        return "redirect:/kitchen/stock#item-" + itemId;
     }
 
     // ========================================================================

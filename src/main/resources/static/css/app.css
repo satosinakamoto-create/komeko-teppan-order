@@ -1609,6 +1609,11 @@ body.theme-night { background-image: none; }
    ここが 264px のままだと、細い帯の上に太い店名が乗ってはみ出す */
 .staff-frame--floor { --brand-w: 64px; }
 
+/* アンカー（#item-◯）で飛んだとき、その行が上の帯の裏に潜らないようにする。
+   帯は position:sticky なので、飛び先の上端に帯の高さぶんの逃げが要る。
+   品切れ・残数の「押した行に戻る」で使う（kitchen/stock.html） */
+.staff-frame [id] { scroll-margin-top: calc(var(--topbar-h) + 8px); }
+
 .topbar {
   height: var(--topbar-h);
   display: flex;

@@ -144,7 +144,10 @@
           </tr>
           </thead>
           <tbody>
-          <tr th:each="item : ${g.items()}">
+          <!--/* id は「押した行に戻る」ための目印（下のスクリプトと KitchenController の
+                 redirectToItem が使う）。JS が動かない環境ではこの目印だけが効き、
+                 押した行が画面の頭に来る。 */-->
+          <tr th:each="item : ${g.items()}" th:id="'item-' + ${item.id}">
 
             <!--/* .wrap … この列だけ折り返しを許す。
                    .table は既定で white-space:nowrap です（狭い端末で崩さないため）。
@@ -224,6 +227,53 @@
     すでに注文リストに入っている品は、注文確定のタイミングで自動的に取り除かれます。
     すでに受け付けた注文は自動では消えません。焼けない場合は厨房ボードからキャンセルしてください。
   </p>
+
+  <!--/* ====== 押した位置にとどまる ======
+
+        この画面は 14 カテゴリ 94 行あり、仕込みの前後に何品も続けて操作します。
+        POST → リダイレクト（PRG）で画面が作り直されるので、
+        何もしないと押すたびに頭へ戻り、さっき押した行をまた探すことになります。
+
+        送信の直前に縦の位置を控えて、戻ってきたら同じ位置へ戻します。
+        コントローラ側が #item-◯ を付けて返すので、
+        <b>この JS が動かない環境でも</b>押した行の高さには着きます。
+        JS が動くときは、そのアンカーによる移動も打ち消して 1px も動かしません。
+
+        ★ sessionStorage を使う理由
+          値はこのタブだけ・この画面だけのもので、残す価値がありません。
+          localStorage だと次に開いたときの位置まで復元してしまいます。
+
+        ★ 消してから使う理由
+          復元したら必ず消します。残したままにすると、
+          サイドバーからこの画面に入り直したときにも前の位置へ飛び、
+          「なぜか途中から始まる」画面になります。 */-->
+  <script>
+    (function () {
+      var KEY = 'kitchen-stock-scroll';
+
+      document.addEventListener('submit', function () {
+        sessionStorage.setItem(KEY, String(window.scrollY));
+      });
+
+      function restore() {
+        var y = sessionStorage.getItem(KEY);
+        if (y === null) { return; }
+        sessionStorage.removeItem(KEY);
+        // アンカー（#item-◯）による移動より後に効かせる必要があるので、
+        // 読み込み完了のあと 1 回だけ上書きする。
+        //
+        // ★ behavior:'instant' を外さないこと。
+        //   app.css は html に scroll-behavior:smooth を掛けているので、
+        //   既定のままだとアンカーの位置から保存位置まで画面が滑って動く。
+        //   「その場にとどまる」ためにやっているのに、
+        //   かえって長い移動を見せることになる。
+        window.scrollTo({ top: parseInt(y, 10), left: 0, behavior: 'instant' });
+      }
+
+      if (document.readyState === 'complete') { restore(); }
+      else { window.addEventListener('load', restore); }
+    })();
+  </script>
 
 </main>
 </body>
