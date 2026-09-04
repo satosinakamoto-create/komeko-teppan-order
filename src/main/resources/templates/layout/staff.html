@@ -69,7 +69,16 @@
       値は StaffHeaderModelAttributes が配っている（店側のパッケージだけに効く）。
       お客さま側で無駄なクエリを増やさないための線引きなので、
       ここで使う値を増やすときは、あちらの適用範囲も一緒に確かめること。 */-->
-<div class="staff-frame" th:with="p=${currentPath} ?: ''">
+<!--/* ★ staff-frame--floor をヘッダー側にも付けること。
+       サイドバーを畳む合図（staff-shell--floor）は下の .staff-shell に付いているが、
+       ヘッダーはその外側にあるので、そこで定義した --sb-w が届かない。
+       付け忘れると、64px に畳んだサイドバーの上に
+       264px の店名ブロックが乗り、右端がそろわずに文字がはみ出す。
+       畳むかどうかの条件は下の .staff-shell と同じものを書くこと。 */-->
+<div class="staff-frame" th:with="p=${currentPath} ?: ''"
+     th:classappend="${currentPath != null
+                       and (#strings.startsWith(currentPath, '/kitchen')
+                            or #strings.startsWith(currentPath, '/hall'))} ? 'staff-frame--floor'">
 
   <header class="topbar">
 

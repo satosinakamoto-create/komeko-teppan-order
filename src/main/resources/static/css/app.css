@@ -1598,8 +1598,16 @@ body.theme-night { background-image: none; }
    -------------------------------------------------------------------------- */
 .staff-frame {
   --topbar-h: 88px;
+  /* 店名ブロックの幅。サイドバーと同じ値にして、右端をそろえる。
+     ★ ここ（.staff-frame）に置くこと。
+       .staff-shell に書くと、その外にあるヘッダーには届かない。 */
+  --brand-w: 264px;
   min-height: 100dvh;
 }
+
+/* 厨房・ホール（サイドバーを 64px に畳む画面）では、店名ブロックも同じ幅にする。
+   ここが 264px のままだと、細い帯の上に太い店名が乗ってはみ出す */
+.staff-frame--floor { --brand-w: 64px; }
 
 .topbar {
   height: var(--topbar-h);
@@ -1621,9 +1629,10 @@ body.theme-night { background-image: none; }
      内容の幅で縮める（hug）と、この線がずれて帯と本文の関係が崩れる。
      .topbar の左 padding 16 は店名ブロックの内側に持たせ、264 の中に含める */
 .topbar__brand {
-  flex: 0 0 var(--sb-w, 264px);
-  width: var(--sb-w, 264px);
+  flex: 0 0 var(--brand-w);
+  width: var(--brand-w);
   height: 56px;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1635,6 +1644,13 @@ body.theme-night { background-image: none; }
 }
 /* 店舗の切り替え（将来の複数店対応）。いまは押せないので印だけ置く */
 .topbar__brand-caret { font-size: 12px; color: var(--text-muted); flex: none; }
+
+/* 畳む画面（厨房・ホール）では、64px にロゴだけを置く。
+   サイドバーが --sb-text: none で文字を消しているのと同じ扱い。
+   左右の余白も落として、ロゴが帯の中央に来るようにする */
+.staff-frame--floor .topbar__brand { padding: 0; justify-content: center; margin-right: 12px; }
+.staff-frame--floor .topbar__brand-text,
+.staff-frame--floor .topbar__brand-caret { display: none; }
 .topbar__logo {
   width: 28px;
   height: 28px;
@@ -3092,6 +3108,8 @@ body.is-sending .staff-main {
   .sb__account-role { font-size: 13px; }
 
   .staff-frame     { --topbar-h: 96px; }
+  /* 畳む画面の店名は 64px のまま。ここで広げると、また帯からはみ出す */
+  .staff-frame:not(.staff-frame--floor) { --brand-w: 300px; }
   .topbar__brand   { height: 64px; }
   .topbar__brand-name { font-size: 16px; }
   .topbar__brand-sub  { font-size: 12px; }
