@@ -84,6 +84,43 @@ public class CartService {
     }
 
     /**
+     * カートを洗い替えた結果。
+     *
+     * <p><b>変更を 2 種類に分けている理由</b><br>
+     * もとは変更をひとまとめの {@code List<String>} で返していて、
+     * 1 つでもあれば注文を丸ごと差し戻していました。
+     * そのため<b>4 品のうち 1 品が売り切れただけで、残り 3 品も通らない</b>という
+     * 挙動になっていました。しかも売り切れは、他の卓が最後の 1 点を買っただけで
+     * 起こります。誰も管理画面を触っていなくても起こる、ごく普通のことです。
+     *
+     * <p>そこで「もうその品は出せない」と「出せるけれど中身が違う」を分けました。
+     *
+     * <ul>
+     *   <li>{@link #removed} … 売り切れ・残数ゼロ・取り扱い終了・削除済み。
+     *       <b>落として先に進んでよい</b>。その品が無いだけで、他の品には影響しない。</li>
+     *   <li>{@link #needsConfirm} … 価格やオプションの中身が変わった。
+     *       <b>止めて確認してもらう</b>。黙って通すと、
+     *       お客さまが画面で見ていない金額で確定してしまう。</li>
+     * </ul>
+     *
+     * <p>運用としては「価格を変えるときは、いったん販売中止にしてから変える」と
+     * 決めてあります。そうすれば価格が動く瞬間には誰も注文できないので、
+     * {@code needsConfirm} は実際にはめったに埋まりません。
+     * それでも残してあるのは、手順を飛ばしたときに
+     * 金額のほうが黙って通ってしまわないようにするためです。
+     *
+     * @param removed      落とした品の説明（お客さまにそのまま見せる文）
+     * @param needsConfirm 確認が要る変更の説明
+     */
+    public record CartRefresh(List<String> removed, List<String> needsConfirm) {
+
+        /** 何も変わっていなければ true。 */
+        public boolean isUnchanged() {
+            return removed.isEmpty() && needsConfirm.isEmpty();
+        }
+    }
+
+    /**
      * カートの中身を「いまのメニュー情報」で洗い替える。
      *
      * <p>カートはセッションに置かれるため、入れてから注文するまでの間に
@@ -91,10 +128,13 @@ public class CartService {
      * セッションの値をそのまま信じて会計すると、
      * 実際の売価と違う金額で受け付けてしまうので、注文直前に必ず通します。
      *
-     * @return 変更点の説明（空ならカートは最新のまま）
+     * @return 落とした品と、確認が要る変更（{@link CartRefresh} 参照）
      */
     @Transactional(readOnly = true)
-    public List<String> refresh(Cart cart) {
+    public CartRefresh refresh(Cart cart) {
+        // 落とした品。これがあっても注文は先に進む
+        List<String> removed = new ArrayList<>();
+        // 金額や中身が変わったもの。これがあると注文は止まる
         List<String> changes = new ArrayList<>();
         List<CartLine> rebuilt = new ArrayList<>();
 
@@ -103,13 +143,13 @@ public class CartService {
             try {
                 item = menuService.itemWithOptions(line.getMenuItemId());
             } catch (MenuService.MenuItemNotFoundException e) {
-                changes.add("「%s」はメニューから削除されたため、カートから外しました".formatted(line.getMenuItemName()));
+                removed.add("「%s」はメニューから削除されたため、カートから外しました".formatted(line.getMenuItemName()));
                 continue;
             }
             if (!item.isOrderable()) {
                 // 手動の品切れフラグでも残数ゼロでも、お客さまへの言葉は同じ「売り切れ」
                 String reason = (item.isSoldOut() || item.isOutOfStock()) ? "売り切れ" : "取り扱い終了";
-                changes.add("「%s」は%sのため、カートから外しました".formatted(item.getName(), reason));
+                removed.add("「%s」は%sのため、カートから外しました".formatted(item.getName(), reason));
                 continue;
             }
             if (item.getPrice() != line.getBasePrice()) {
@@ -154,7 +194,7 @@ public class CartService {
         }
 
         cart.replaceAll(rebuilt);
-        return changes;
+        return new CartRefresh(List.copyOf(removed), List.copyOf(changes));
     }
 
     private OptionChoice findChoice(MenuItem item, Long choiceId) {
