@@ -1605,9 +1605,6 @@ body.theme-night { background-image: none; }
   min-height: 100dvh;
 }
 
-/* 厨房・ホール（サイドバーを 64px に畳む画面）では、店名ブロックも同じ幅にする。
-   ここが 264px のままだと、細い帯の上に太い店名が乗ってはみ出す */
-.staff-frame--floor { --brand-w: 64px; }
 
 /* アンカー（#item-◯）で飛んだとき、その行が上の帯の裏に潜らないようにする。
    帯は position:sticky なので、飛び先の上端に帯の高さぶんの逃げが要る。
@@ -1650,12 +1647,6 @@ body.theme-night { background-image: none; }
 /* 店舗の切り替え（将来の複数店対応）。いまは押せないので印だけ置く */
 .topbar__brand-caret { font-size: 12px; color: var(--text-muted); flex: none; }
 
-/* 畳む画面（厨房・ホール）では、64px にロゴだけを置く。
-   サイドバーが --sb-text: none で文字を消しているのと同じ扱い。
-   左右の余白も落として、ロゴが帯の中央に来るようにする */
-.staff-frame--floor .topbar__brand { padding: 0; justify-content: center; margin-right: 12px; }
-.staff-frame--floor .topbar__brand-text,
-.staff-frame--floor .topbar__brand-caret { display: none; }
 .topbar__logo {
   width: 28px;
   height: 28px;
@@ -1789,19 +1780,17 @@ body.theme-night { background-image: none; }
   --sb-account-gap: 10px;
 }
 
-/* 営業中に立って使う画面（厨房ボード・ホール・会計・品切れ・残数） */
-.staff-shell--floor {
-  --sb-w: 64px;
-  --sb-pad: 12px 8px;
-  --sb-text: none;
-  --sb-item-pad: 0;
-  --sb-item-justify: center;
-  --sb-brand-justify: center;
-  --sb-brand-pad: 4px;
-  --sb-account-dir: column;
-  --sb-account-pad: 8px 0 0;
-  --sb-account-gap: 6px;
-}
+/* ★ 画面ごとに畳む .staff-shell--floor は 2026-09-05 に廃止した。
+   厨房・ホール・品切れだけ 64px のアイコンの帯にしていたが、
+   設計（Figma）に畳んだ姿は無く、全画面 264px で描いてある。
+
+   サイドバーから厨房へ移った瞬間にナビが別物に変わると、
+   いまどこにいるのかを読み直すことになる。行き先の名前も消えていた。
+   「立って使うから文字より面積」という当初の判断より、
+   「画面ごとにナビが変わらない」ほうが効く、と入れ替えた。
+
+   幅が足りないとき（960px 以下）に畳むのは下の @media に残してある。
+   あちらは物理的な理由なので、画面ごとの判断とは別の話。 */
 
 .sb {
   flex: 0 0 var(--sb-w);
@@ -1986,11 +1975,10 @@ body.theme-night { background-image: none; }
 }
 
 /* --------------------------------------------------------------------------
-   画面そのものが狭いとき（スマホ・縦向きタブレット）も帯に畳む。
+   画面そのものが狭いとき（スマホ・縦向きタブレット）だけ帯に畳む。
 
-   厨房・ホールを畳むのは「幅」ではなく「役割」の担当になったので、
-   そちらは .staff-shell--floor が受け持つ（上のコメント参照）。
-   ここは純粋に幅だけの受け持ちで、入れる値は --floor と同じもの。
+   畳む条件はここだけになった（画面ごとの判断は 2026-09-05 に廃止）。
+   理由が「幅が足りない」1 つなので、どの画面でも同じように畳まれる。
    -------------------------------------------------------------------------- */
 @media (max-width: 960px) {
   .staff-shell {
@@ -2005,6 +1993,12 @@ body.theme-night { background-image: none; }
     --sb-account-pad: 8px 0 0;
     --sb-account-gap: 6px;
   }
+  /* 店名ブロックも同じ幅にする。ここを 264px のままにすると、
+     細い帯の上に太い店名が乗って右端がそろわない */
+  .staff-frame { --brand-w: 64px; }
+  .topbar__brand { padding: 0; justify-content: center; margin-right: 12px; }
+  .topbar__brand-text,
+  .topbar__brand-caret { display: none; }
   .staff-main { padding: 16px 16px 40px; }
 }
 
@@ -3152,29 +3146,24 @@ body.is-sending .staff-main {
      1800px 以上はそもそも設計に無い画面幅なので、
      「設計どおり」ではなく「同じ密度に見えること」を目標にしている。
    ========================================================================== */
-@media (min-width: 1800px) {
-  /* ★ :not(.staff-shell--floor) を外さないこと。
-     厨房・ホール・品切れは、営業中に立って使う画面なので
-     サイドバーを 64px のアイコンだけの帯に畳んである（.staff-shell--floor）。
-     ここで素の .staff-shell に --sb-w を書くと、詳細度が同じで
-     こちらのほうがファイルの後ろにあるぶん勝ってしまい、
-     畳んだはずのサイドバーが 300px に戻る。
-     しかも文字は --sb-text: none のままなので、
-     300px の空白にアイコンだけが並ぶ壊れ方をする。 */
-  .staff-shell:not(.staff-shell--floor) {
+/* 1440px から。設計は 1432px で描いてあるので、
+   それを超えた時点で「設計より広い画面」になる。
+   1800px にしていたときは、1536px や 1600px のノート PC で
+   一度も効かず、「まだ小さい」と言われていた。 */
+@media (min-width: 1440px) {
+  .staff-shell {
     --sb-w: 300px;
     --sb-pad: 14px;
     --sb-item-pad: 0 14px;
   }
-  .staff-shell:not(.staff-shell--floor) .sb__item  { font-size: 17px; border-radius: 8px; }
-  .staff-shell:not(.staff-shell--floor) .sb__label { font-size: 14px; line-height: 16px; padding: 14px 0 4px 10px; }
+  .staff-shell .sb__item  { font-size: 17px; border-radius: 8px; }
+  .staff-shell .sb__label { font-size: 14px; line-height: 16px; padding: 14px 0 4px 10px; }
   .sb .ic          { width: 22px; height: 22px; }
   .sb__account-name { font-size: 15px; }
   .sb__account-role { font-size: 13px; }
 
-  .staff-frame     { --topbar-h: 96px; }
-  /* 畳む画面の店名は 64px のまま。ここで広げると、また帯からはみ出す */
-  .staff-frame:not(.staff-frame--floor) { --brand-w: 300px; }
+  /* 店名の幅はサイドバーと同じ値。ここがずれると右端がそろわない */
+  .staff-frame     { --topbar-h: 96px; --brand-w: 300px; }
   .topbar__brand   { height: 64px; }
   .topbar__brand-name { font-size: 16px; }
   .topbar__brand-sub  { font-size: 12px; }
@@ -3188,4 +3177,31 @@ body.is-sending .staff-main {
   .statcard__value  { font-size: 36px; line-height: 42px; }
   .theme-desk h2.panel__title, .panel__title { font-size: 18px; line-height: 22px; }
   .linechart        { height: 300px; }
+}
+
+/* もう一段。27 インチ級（2000px 以上）だと、上の一段でもまだ小さい。
+   ここまで来ると画面と目の距離も遠いので、素直に大きくしてよい */
+@media (min-width: 2000px) {
+  .staff-shell {
+    --sb-w: 332px;
+    --sb-pad: 16px;
+    --sb-item-pad: 0 16px;
+    --tap: 56px;
+  }
+  .staff-shell .sb__item  { font-size: 19px; }
+  .staff-shell .sb__label { font-size: 15px; line-height: 18px; }
+  .sb .ic { width: 24px; height: 24px; }
+
+  .staff-frame { --topbar-h: 104px; --brand-w: 332px; }
+  .topbar__brand-name { font-size: 18px; }
+  .topbar__state      { font-size: 17px; }
+  .topbar__day-value  { font-size: 21px; }
+
+  .theme-desk .staff-main { --main-pad-y: 80px; --main-pad-x: 48px; }
+  .theme-desk .table      { font-size: 18px; }
+  .theme-desk .table--items th,
+  .theme-desk .table--purchases th { font-size: 18px; }
+  .page-head__title { font-size: 40px; }
+  .statcard__value  { font-size: 40px; line-height: 46px; }
+  .linechart        { height: 340px; }
 }

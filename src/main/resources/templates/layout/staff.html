@@ -69,16 +69,20 @@
       値は StaffHeaderModelAttributes が配っている（店側のパッケージだけに効く）。
       お客さま側で無駄なクエリを増やさないための線引きなので、
       ここで使う値を増やすときは、あちらの適用範囲も一緒に確かめること。 */-->
-<!--/* ★ staff-frame--floor をヘッダー側にも付けること。
-       サイドバーを畳む合図（staff-shell--floor）は下の .staff-shell に付いているが、
-       ヘッダーはその外側にあるので、そこで定義した --sb-w が届かない。
-       付け忘れると、64px に畳んだサイドバーの上に
-       264px の店名ブロックが乗り、右端がそろわずに文字がはみ出す。
-       畳むかどうかの条件は下の .staff-shell と同じものを書くこと。 */-->
-<div class="staff-frame" th:with="p=${currentPath} ?: ''"
-     th:classappend="${currentPath != null
-                       and (#strings.startsWith(currentPath, '/kitchen')
-                            or #strings.startsWith(currentPath, '/hall'))} ? 'staff-frame--floor'">
+<!--/* ★ 画面ごとにサイドバーを畳むのはやめた（2026-09-05）★
+
+       もとは厨房ボード・ホール・品切れ・残数のときだけ、
+       サイドバーを 64px のアイコンだけの帯に畳んでいた
+       （「営業中は立って使うので、文字より面積」という判断）。
+
+       だが設計（Figma）に畳んだ姿は無く、全画面 264px で描いてある。
+       実際に使うと、サイドバーから厨房ボードへ移った瞬間に
+       ナビが別物に変わるので、いまどこにいるのか読み直すことになる。
+       行き先の名前が消えるのも、慣れていない人には戻れない作りだった。
+
+       狭い画面（960px 以下）で畳むのは残してある。そちらは
+       「幅が足りない」という物理的な理由なので、画面ごとの判断とは別。 */-->
+<div class="staff-frame" th:with="p=${currentPath} ?: ''">
 
   <header class="topbar">
 
@@ -132,10 +136,7 @@
           th:text="${pr instanceof T(jp.komeko.order.security.StaffUserDetails)} ? ${#strings.substring(pr.displayName, 0, 1)} : '店'">店</span>
   </header>
 
-<div class="staff-shell"
-     th:classappend="${currentPath != null
-                       and (#strings.startsWith(currentPath, '/kitchen')
-                            or #strings.startsWith(currentPath, '/hall'))} ? 'staff-shell--floor'">
+<div class="staff-shell">
 
   <!--/* ============ サイドバー ============ */-->
   <aside class="sb">
