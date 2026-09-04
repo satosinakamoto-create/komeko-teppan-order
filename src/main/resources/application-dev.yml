@@ -35,6 +35,14 @@ spring:
       enabled: true
       path: /h2-console
 
+  thymeleaf:
+    # false にすると HTML を保存しただけで画面に反映される（再起動不要）
+    cache: false
+
+  devtools:
+    restart:
+      enabled: true
+
 # ── アクセスログ（開発用） ──────────────────────────────────────
 # 「スマホから開けない」の切り分けで一番効くのがこれ。
 # ここに行が出る＝リクエストはサーバまで届いている（アプリ側の問題）、
@@ -48,13 +56,11 @@ server:
       directory: logs
       pattern: "%h %t \"%r\" %s %b"
 
-  thymeleaf:
-    # false にすると HTML を保存しただけで画面に反映される（再起動不要）
-    cache: false
-
-  devtools:
-    restart:
-      enabled: true
+# ※ thymeleaf と devtools の設定は spring: の下にある（上を見ること）。
+#   ここ（server: の下）に書いてあったが、server.thymeleaf.cache という
+#   キーは存在しないので、まったく効いていなかった。
+#   いま画面が保存しただけで反映されるのは devtools が同じ既定値を
+#   自分で入れているからで、devtools を外すと黙って効かなくなる状態だった。
 
 logging:
   level:
