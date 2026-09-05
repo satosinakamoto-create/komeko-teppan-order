@@ -67,17 +67,30 @@ public class ServiceController {
     public static final String SERVICE_CATEGORY = "サービス";
 
     /**
-     * タイルに出すアイコン。商品名 → {@code fragments/icons.html} の名前。
+     * タイルに出すアイコン。商品名 → 画像のファイル名。
      *
-     * <p>ここに無い商品は札だけのタイルになります。落ちません。
-     * アイコンは飾りなので、名前が変わったくらいで画面が壊れないようにしてあります。
+     * <p>設計ではこの 4 つが<b>画像</b>で置かれていて、ベクタがありません。
+     * 似せて描き直したものを一度入れましたが、手で描いた形はどうやっても別物になり、
+     * 「アイコンがフィグマデータと違う」と指摘されました。
+     * Figma の画像をそのまま {@code /images/icons/} に置いて使っています。
+     *
+     * <p>ここに無い商品は、下の {@link #TILE_SVG_ICONS} を見ます。
+     * どちらにも無ければ札だけのタイルになります。落ちません。
+     * アイコンは飾りなので、商品名を変えたくらいで画面が壊れないようにしてあります。
      */
-    private static final Map<String, String> TILE_ICONS = Map.of(
-            "お水", "ic_water",
+    private static final Map<String, String> TILE_IMAGE_ICONS = Map.of(
+            "お水", "water.png",
+            "取り皿", "plate.png",
+            "灰皿", "ashtray.png",
+            "塩コショウ", "shaker.png");
+
+    /**
+     * ベクタで持っているアイコン。商品名 → {@code fragments/icons.html} の名前。
+     *
+     * <p>こちらは色が文字色に追従します（{@code fill="currentColor"}）。
+     */
+    private static final Map<String, String> TILE_SVG_ICONS = Map.of(
             "おしぼり", "ic_towel",
-            "取り皿", "ic_plate",
-            "灰皿", "ic_ashtray",
-            "塩コショウ", "ic_shaker",
             "領収書", "ic_receipt");
 
     private final MenuService menuService;
@@ -115,7 +128,8 @@ public class ServiceController {
             return "customer/no-table";
         }
         model.addAttribute("items", serviceItems());
-        model.addAttribute("icons", TILE_ICONS);
+        model.addAttribute("imageIcons", TILE_IMAGE_ICONS);
+        model.addAttribute("svgIcons", TILE_SVG_ICONS);
         model.addAttribute("calls", List.of(ServiceCallType.values()));
         return "customer/service";
     }

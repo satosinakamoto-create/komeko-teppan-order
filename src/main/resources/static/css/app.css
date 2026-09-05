@@ -2439,9 +2439,12 @@ body.theme-night { background-image: none; }
      同じ 14px でも字幅と行の乗り方が他の部品と揃わない。
      font 一括はあとの指定を消すので、必ずこの順で書くこと */
   font: inherit;
-  /* 設計（暗/チップ1つ）は 高さ 40 ／ 14px ／ 行送り 22 ／ 字間 0。
-     上下は (40 - 22) / 2 = 9 */
-  padding: 9px 12px;
+  /* 設計（暗/チップ1つ 122x40）の中身の位置。
+       ラベル  x=12 y=6  （98x22）
+       下線    x=12 y=32 （98x2）
+     上から 6 ＋ ラベル 22 ＋ 4 ＋ 下線 2 ＋ 6 で 40。
+     上下を 9 ずつにして中央に置くと、下線がラベルに近づきすぎる。 */
+  padding: 6px 12px 12px;
   min-height: 0;
   font-size: 14px;
   font-weight: 400;
@@ -2457,10 +2460,13 @@ body.theme-night { background-image: none; }
 }
 
 /* 下線は設計どおり 2px・角丸なし。左右はチップの余白と同じ 12px にして、
-   文字の幅にちょうど収まるようにする */
+   文字の幅にちょうど収まるようにする。
+   下から 6px 浮かせるのも設計どおり（y=32、下線 2px、チップ 40px）。
+   bottom: 0 にすると、チップの底に貼り付いて帯の区切りのように見える。 */
 .tab::after {
   left: 12px;
   right: 12px;
+  bottom: 6px;
   height: 2px;
   border-radius: 0;
 }

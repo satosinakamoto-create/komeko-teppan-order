@@ -28,8 +28,19 @@
     <div class="svc-grid mt-6">
       <form th:each="item : ${items}" th:action="@{/service/items/{id}(id=${item.id})}" method="post">
         <button type="submit" class="svc-tile">
-          <th:block th:if="${icons.containsKey(item.name)}"
-                    th:replace="~{fragments/icons :: __${icons.get(item.name)}__}"/>
+          <!--/* 設計で画像として置かれているアイコン。ベクタが無いので画像のまま使う */-->
+          <img class="ic" th:if="${imageIcons.containsKey(item.name)}"
+               th:src="@{'/images/icons/' + ${imageIcons.get(item.name)}}" alt="" aria-hidden="true">
+          <!--/* ベクタで持っているものは文字色に追従させる。
+
+                 ★ th:if と th:replace を同じタグに書かないこと（CLAUDE.md）。
+                   th:replace が先に評価されて th:if が無視され、
+                   名前が null のまま icons.html を丸ごと差し込む。
+                   実際それで 1 タイルにアイコンが 20 個入っていた。
+                   条件は外側の th:block に持たせる。 */-->
+          <th:block th:if="${svgIcons.containsKey(item.name)}">
+            <th:block th:replace="~{fragments/icons :: __${svgIcons.get(item.name)}__}"/>
+          </th:block>
           <span th:text="${item.name}">お水</span>
         </button>
       </form>
@@ -52,10 +63,14 @@
       <form th:each="type : ${calls}" th:action="@{/service/call/{t}(t=${type})}" method="post">
         <button type="submit" class="svc-tile svc-tile--call"
                 th:onclick="'return confirm('' + ${type.customerLabel} + '。よろしいですか？')'">
-          <th:block th:replace="~{fragments/icons :: ic_bell}"
-                    th:if="${type.name() == 'STAFF'}"/>
-          <th:block th:replace="~{fragments/icons :: ic_receipt}"
-                    th:unless="${type.name() == 'STAFF'}"/>
+          <!--/* ここも同じ。条件を同じタグに書くと両方とも描かれ、
+                 1 つのタイルにベルと領収書が並ぶ */-->
+          <th:block th:if="${type.name() == 'STAFF'}">
+            <th:block th:replace="~{fragments/icons :: ic_bell}"/>
+          </th:block>
+          <th:block th:unless="${type.name() == 'STAFF'}">
+            <th:block th:replace="~{fragments/icons :: ic_receipt}"/>
+          </th:block>
           <span th:text="${type.customerLabel}">スタッフを呼ぶ</span>
         </button>
       </form>
