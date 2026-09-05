@@ -3598,17 +3598,59 @@ body.is-sending .staff-main {
    閉じるのは やめる ボタンと Esc と背面のタップ。 */
 .sheet-modal__body .container { padding-inline: 18px; }
 .sheet-modal__body .back-link { display: none; }
-/* 写真はモーダルの上辺いっぱいに出す（設計は 342x213 の見出し写真） */
-.sheet-modal__body .card { margin-top: 0; border-radius: 0; }
-.sheet-modal__body .card img { border-radius: 0; }
 
-/* やめる／注文に追加 の 2 つ並び（設計 100 : 196、間 10） */
+/* ★ 写真はモーダルの上辺いっぱいに出す（設計は 342x213）。
+
+   商品ページの写真は .card の中にあり、その .card は 18px の余白を持つ
+   .container の中にいる。そのままだと写真の左右に 18px の隙間が空いて、
+   角丸のモーダルの中に小さい写真が浮いた見た目になる。
+   余白のぶんだけ外へ引っぱり出して、上辺いっぱいに戻す。 */
+.sheet-modal__body .card {
+  margin: 0 -18px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.sheet-modal__body .item-photo { border-radius: 0; }
+/* 品名と価格は写真の下、左右 18px（設計の「品名と価格」は x=18） */
+.sheet-modal__body .card__body { padding: 18px; }
+
+/* 商品の写真。設計（暗05）の見出し写真は 342 : 213 */
+.item-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 342 / 213;
+  object-fit: cover;
+  border-radius: 12px 12px 0 0;
+}
+
+/* ★ やめる／注文に追加 の 2 つ並び（設計 100 : 196、間 10）。
+
+   商品ページのボタンは .cart-bar（画面下に貼り付く帯）の中にいて、
+   左右に 16px の余白と枠線を持っている。モーダルの中では
+   その 32px ぶん幅が減り、「注文リストに追加 ¥1,180」が入りきらずに
+   右へはみ出していた（実測 102 + 10 + 257 が 274 の中）。
+
+   帯としての飾りを外し、幅を本文いっぱい（306px）に戻す。 */
+.sheet-modal__body .cart-bar {
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  border-top: 0;
+}
 .sheet-modal__foot {
   display: flex;
   gap: 10px;
   margin-top: 24px;
 }
-.sheet-modal__foot .btn { flex: 1; }
+/* btn--block の width:100% を打ち消し、縮められるようにする。
+   min-width: 0 が無いと、flex は中身の幅より小さくならない */
+.sheet-modal__foot .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  padding-inline: 12px;
+}
 .sheet-modal__foot .btn--ghost { flex: 0 0 100px; }
 
 /* 呼びかけのタイルは 2 つしかないので、3 列だと右が空いて据わりが悪い */

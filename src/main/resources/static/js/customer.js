@@ -92,7 +92,7 @@
       var left = shortfall();
       submitButton.disabled = left > 0;
       if (submitLabel) {
-        submitLabel.textContent = left > 0 ? ('あと' + left + '種類 ') : '注文リストに追加 ';
+        submitLabel.textContent = left > 0 ? ('あと' + left + '種類 ') : '注文に追加 ';
       }
     }
 

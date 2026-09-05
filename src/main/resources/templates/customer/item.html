@@ -12,8 +12,11 @@
     <div th:replace="~{fragments/common :: flash}"></div>
 
     <article class="card mt-4">
-      <img th:if="${item.imagePath != null}" th:src="@{${item.imagePath}}" th:alt="${item.name}"
-           style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px 12px 0 0">
+      <!--/* 寸法は CSS（.item-photo）に置く。
+             style 属性に書くと、モーダルで比を変えたくても
+             インラインが必ず勝つので上書きできない（実際 4:3 のまま 256px になった）。 */-->
+      <img class="item-photo" th:if="${item.imagePath != null}"
+           th:src="@{${item.imagePath}}" th:alt="${item.name}">
 
       <div class="card__body">
         <h1 class="mb-0" th:text="${item.name}">コンプレット</h1>
@@ -119,7 +122,7 @@
           <!--/* 先頭のテキストは JS が「あと1種類」に差し替える。
                  <span> で包まないのは、包むと最初の子が要素になり、
                  firstChild の差し替えで金額まで消えるため */-->
-          <button type="submit" class="btn btn--primary btn--lg btn--block">注文リストに追加
+          <button type="submit" class="btn btn--primary btn--lg btn--block">注文に追加
             <span id="add-total"
                   th:text="${item.price > 0}
                            ? '¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}
