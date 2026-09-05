@@ -57,7 +57,7 @@ public class ServiceCall {
     private TableSession session;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private ServiceCallType type;
 
     /**

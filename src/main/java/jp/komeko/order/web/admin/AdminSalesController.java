@@ -205,9 +205,31 @@ public class AdminSalesController {
     }
 
     /**
+     * 目安の割合（%）。飲食店で一般に言われる FL 比率にそろえてあります。
+     *
+     * <p><b>FL の 60% は「F と L を足して 60」という意味です（2026-09-05 に修正）。</b>
+     * もとは {@code F 食材・飲料} の行に 60 を、
+     * {@code L 人件費＋利益} の行に 10 を当てていました。
+     * つまり <b>L が 60 の外へ出たまま、F 単独の目安が 60 のまま</b>でした。
+     *
+     * <p>実績の F はふつう 25〜35% に収まるので、
+     * 原価率が正常な月でも「実績 30% / 目安 60%」と並び、
+     * <b>「目安の半分しか使っていない＝倍まで仕入れてよい」と読めてしまいます。</b>
+     * 行ごとの目安を足すと 100 になっていたので、表の中では破綻が見えませんでした。
+     *
+     * <p>いまは F 30 ／ L 30（合わせて FL 60）／ 光熱 10 ／ 雑費 10 ／ 賃貸 10 で、
+     * 合計 90。残りの約 10% が営業利益にあたります。
+     */
+    private static final int TARGET_FOOD = 30;
+    private static final int TARGET_LABOR = 30;
+    private static final int TARGET_UTILITIES = 10;
+    private static final int TARGET_SUNDRY = 10;
+    private static final int TARGET_RENT = 10;
+
+    /**
      * 売上の配分。
      *
-     * <p><b>目安（FL 60 / 光熱 10 / 雑費 10 / 賃貸 10 / 利益 10）と、実績を並べて出します。</b>
+     * <p><b>目安（F 30 ／ L 30 ＝ FL 60 ／ 光熱 10 ／ 雑費 10 ／ 賃貸 10）と、実績を並べて出します。</b>
      * 目安は業種の一般論で、実績はこのアプリに記録された仕入れです。
      *
      * <p><b>賃貸は店舗設定の「家賃（月額）」から入れます（2026-09-05）。</b>
@@ -234,11 +256,11 @@ public class AdminSalesController {
             // 目安だけを出して、実績は「記録していない」にする。
             // ただし家賃は在庫モジュールと無関係なので、設定があればここでも出す
             List<BreakdownRow> none = new ArrayList<>();
-            none.add(new BreakdownRow("F 食材・飲料", null, null, 60, "var(--border)", false));
-            none.add(new BreakdownRow("光熱費", null, null, 10, "var(--border)", false));
-            none.add(new BreakdownRow("雑費（消耗品・その他）", null, null, 10, "var(--border)", false));
+            none.add(new BreakdownRow("F 食材・飲料", null, null, TARGET_FOOD, "var(--border)", false));
+            none.add(new BreakdownRow("光熱費", null, null, TARGET_UTILITIES, "var(--border)", false));
+            none.add(new BreakdownRow("雑費（消耗品・その他）", null, null, TARGET_SUNDRY, "var(--border)", false));
             none.add(rentRow(monthlyRent, sales));
-            none.add(new BreakdownRow("L 人件費＋利益", null, null, 10, "var(--border)", false));
+            none.add(new BreakdownRow("L 人件費", null, null, TARGET_LABOR, "var(--border)", false));
             return none;
         }
         PurchaseSummary p = purchaseService.summarize(month);
@@ -259,13 +281,13 @@ public class AdminSalesController {
         }
 
         List<BreakdownRow> rows = new ArrayList<>();
-        rows.add(row("F 食材・飲料", food + drink, sales, 60, "var(--green-700)"));
-        rows.add(row("光熱費", utilities, sales, 10, "var(--green-600)"));
-        rows.add(row("雑費（消耗品・その他）", supplies + other, sales, 10, "var(--green-100)"));
+        rows.add(row("F 食材・飲料", food + drink, sales, TARGET_FOOD, "var(--green-700)"));
+        rows.add(row("光熱費", utilities, sales, TARGET_UTILITIES, "var(--green-600)"));
+        rows.add(row("雑費（消耗品・その他）", supplies + other, sales, TARGET_SUNDRY, "var(--green-100)"));
         rows.add(rentRow(monthlyRent, sales));
         // 人件費はまだ記録する場所が無い。0 円ではなく「記録していない」として出す。
         // 0 と書くと「人を雇っていない」という嘘になる。
-        rows.add(new BreakdownRow("L 人件費＋利益", null, null, 10, "var(--border)", false));
+        rows.add(new BreakdownRow("L 人件費", null, null, TARGET_LABOR, "var(--border)", false));
         return rows;
     }
 
@@ -278,9 +300,9 @@ public class AdminSalesController {
      */
     private static BreakdownRow rentRow(int monthlyRent, long sales) {
         if (monthlyRent <= 0) {
-            return new BreakdownRow("賃貸", null, null, 10, "var(--border)", false);
+            return new BreakdownRow("賃貸", null, null, TARGET_RENT, "var(--border)", false);
         }
-        return row("賃貸", monthlyRent, sales, 10, "var(--green-600)");
+        return row("賃貸", monthlyRent, sales, TARGET_RENT, "var(--green-600)");
     }
 
     private static BreakdownRow row(String label, int amount, long sales, int target, String color) {

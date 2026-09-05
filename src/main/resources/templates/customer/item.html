@@ -5,7 +5,9 @@
 <main>
   <div class="container">
 
-    <p class="small"><a th:href="@{/}">← メニューに戻る</a></p>
+    <!--/* モーダルで開いたときは要らない（やめる／Esc／背面で閉じる）。
+           CSS の .sheet-modal__body .back-link で隠している */-->
+    <p class="small back-link"><a th:href="@{/}">← メニューに戻る</a></p>
 
     <div th:replace="~{fragments/common :: flash}"></div>
 

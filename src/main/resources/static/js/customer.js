@@ -14,8 +14,14 @@
   }
 
   /* ------------------------------------------------------------------
-     1. 商品詳細ページ：個数ステッパーと合計金額のリアルタイム表示
+     1. 商品詳細：個数ステッパーと合計金額のリアルタイム表示
+     ------------------------------------------------------------------
+     ★ 関数にして window に出しているのは、モーダル（1-b）が
+       中身を差し替えたあとに、もう一度かけ直す必要があるため。
+       読み込み時に 1 回だけ動く書き方だと、
+       モーダルで開いた品では個数も合計も必須の判定も効かない。
      ------------------------------------------------------------------ */
+  window.komekoBindItemForm = function () {
   var addForm = document.getElementById('add-form');
   if (addForm) {
     var qtyInput = document.getElementById('quantity');
@@ -109,6 +115,79 @@
 
     updateSubmit();
     updateTotal();
+  }
+  };
+  window.komekoBindItemForm();
+
+  /* ------------------------------------------------------------------
+     1-b. メニューで品を押したら、その場でモーダルに出す
+     ------------------------------------------------------------------
+     設計「暗05 トッピングを選ぶ」。画面を離れずに選ばせる。
+
+     中身は商品ページ（/items/{id}）をそのまま取ってきて入れている。
+     モーダル用に別の HTML を書くと、オプションの出し方も個数の増減も
+     2 か所に分かれて、必ずどちらかが古くなる。
+
+     ★ リンクは本物の <a href> のままにしてある。
+       JS はクリックを横取りするだけなので、
+       読み込みに失敗したときも、JS が動かないときも、
+       ふつうに商品ページへ移動する。行き止まりにならない。
+     ------------------------------------------------------------------ */
+  var modal = document.getElementById('item-modal');
+  var modalBody = document.getElementById('item-modal-body');
+  if (modal && modalBody && typeof modal.showModal === 'function') {
+
+    function openItem(url) {
+      fetch(url, { headers: { 'X-Requested-With': 'fetch' } })
+        .then(function (res) { return res.ok ? res.text() : Promise.reject(res.status); })
+        .then(function (html) {
+          /* 返ってきた HTML から <main> の中身だけ取り出す。
+             DOMParser を使うのは、innerHTML に丸ごと入れると
+             <script> や <head> まで持ち込んでしまうため。 */
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          var main = doc.querySelector('main');
+          if (!main) { throw new Error('main が無い'); }
+
+          modalBody.innerHTML = main.innerHTML;
+          addCloseButton();
+          modal.showModal();
+          /* 商品ページ用のふるまい（個数・合計・必須の判定）を、
+             入れ直した中身に対してもう一度かける */
+          if (window.komekoBindItemForm) { window.komekoBindItemForm(); }
+        })
+        .catch(function () { window.location.href = url; });
+    }
+
+    /* 「やめる」を足す。設計では 注文に追加 の左に並ぶ */
+    function addCloseButton() {
+      var bar = modalBody.querySelector('.cart-bar__inner');
+      if (!bar || bar.querySelector('[data-close-modal]')) { return; }
+      bar.classList.add('sheet-modal__foot');
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'btn btn--ghost btn--lg';
+      cancel.textContent = 'やめる';
+      cancel.setAttribute('data-close-modal', '');
+      bar.insertBefore(cancel, bar.firstChild);
+    }
+
+    document.addEventListener('click', function (event) {
+      var close = event.target.closest('[data-close-modal]');
+      if (close) { modal.close(); return; }
+
+      var link = event.target.closest('a[href*="/items/"]');
+      if (!link || link.target === '_blank') { return; }
+      /* 修飾キー付きのクリックは、新しいタブで開きたいという意思表示 */
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) { return; }
+      event.preventDefault();
+      openItem(link.getAttribute('href'));
+    });
+
+    /* 背面を押したら閉じる。dialog 自身の当たり判定は中身の外側にも及ぶので、
+       押された位置が中身の外なら閉じる、という判定にする */
+    modal.addEventListener('click', function (event) {
+      if (event.target === modal) { modal.close(); }
+    });
   }
 
   /* ------------------------------------------------------------------

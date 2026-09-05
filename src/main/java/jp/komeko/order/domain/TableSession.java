@@ -65,7 +65,7 @@ public class TableSession {
     private LocalDate businessDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private SessionStatus status = SessionStatus.OPEN;
 
     /** 人数。テーブルチャージの計算に使う。 */

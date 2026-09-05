@@ -67,7 +67,7 @@ public class PurchaseLine {
 
     /** 経営上の費目。原価率の分子に入るのは {@link PurchaseCategory#FOOD} だけ。 */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private PurchaseCategory category = PurchaseCategory.FOOD;
 
     /**

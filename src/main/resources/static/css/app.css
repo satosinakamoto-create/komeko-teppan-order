@@ -3558,6 +3558,59 @@ body.is-sending .staff-main {
 /* 伝票の画面だけ左右 24px。本文の幅が 390 − 48 = 342 になる（設計 暗04） */
 .bill-page { padding-inline: 24px; }
 
+/* --------------------------------------------------------------------------
+   31-7. 品を選ぶモーダル（設計「暗05 トッピングを選ぶ」）
+
+   幅 342（390 − 24×2）、角丸 16、上下は画面に対して中央。
+   後ろのメニューは 30% の覆いとぼかしで沈める。
+   -------------------------------------------------------------------------- */
+.sheet-modal {
+  width: 342px;
+  max-width: calc(100vw - 48px);
+  /* 高さは中身しだい。ただし画面からはみ出さない。
+     設計の 722px は「中身がこれくらいのとき」の実測であって、決め打ちの高さではない */
+  max-height: calc(100dvh - 96px);
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* ::backdrop は dialog の後ろに敷かれる面。
+   ここをぼかすと、後ろの要素に filter を掛けずに済む。
+   .page に filter を掛けると position: fixed のカートバーが
+   その中に閉じ込められて動き、画面がガタつく */
+.sheet-modal::backdrop {
+  background: rgba(0, 0, 0, .3);
+  backdrop-filter: blur(4px);
+}
+
+/* 中身は商品ページをそのまま入れているので、縦に長くなればここがスクロールする */
+.sheet-modal__body {
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* モーダルの中では、商品ページの「メニューに戻る」と外側の余白は要らない。
+   閉じるのは やめる ボタンと Esc と背面のタップ。 */
+.sheet-modal__body .container { padding-inline: 18px; }
+.sheet-modal__body .back-link { display: none; }
+/* 写真はモーダルの上辺いっぱいに出す（設計は 342x213 の見出し写真） */
+.sheet-modal__body .card { margin-top: 0; border-radius: 0; }
+.sheet-modal__body .card img { border-radius: 0; }
+
+/* やめる／注文に追加 の 2 つ並び（設計 100 : 196、間 10） */
+.sheet-modal__foot {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+.sheet-modal__foot .btn { flex: 1; }
+.sheet-modal__foot .btn--ghost { flex: 0 0 100px; }
+
 /* 呼びかけのタイルは 2 つしかないので、3 列だと右が空いて据わりが悪い */
 .svc-grid--calls { grid-template-columns: repeat(2, 1fr); }
 .svc-tile--call { background: var(--bg-elevated); }

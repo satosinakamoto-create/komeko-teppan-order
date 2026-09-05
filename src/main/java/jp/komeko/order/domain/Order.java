@@ -69,7 +69,7 @@ public class Order {
     private int orderNumber;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private OrderStatus status = OrderStatus.RECEIVED;
 
     /** お客さん専用の注文状況 URL に使うランダム文字列。 */

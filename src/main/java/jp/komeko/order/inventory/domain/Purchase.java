@@ -109,12 +109,12 @@ public class Purchase {
 
     /** 登録番号をどこまで確かめたか。 */
     @Enumerated(EnumType.STRING)
-    @Column(name = "reg_verify_status", nullable = false, length = 20)
+    @Column(name = "reg_verify_status", nullable = false, length = 20, columnDefinition = "varchar(20)")
     private RegistrationVerifyStatus regVerifyStatus = RegistrationVerifyStatus.NONE;
 
     /** 証憑としての区分。 */
     @Enumerated(EnumType.STRING)
-    @Column(name = "evidence_type", nullable = false, length = 30)
+    @Column(name = "evidence_type", nullable = false, length = 30, columnDefinition = "varchar(30)")
     private EvidenceType evidenceType = EvidenceType.SIMPLIFIED_INVOICE;
 
     /**
@@ -132,7 +132,7 @@ public class Purchase {
 
     /** 支払い方法。仕訳の貸方（現金か未払金か）が変わるので記録する。 */
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_method", nullable = false, length = 20)
+    @Column(name = "payment_method", nullable = false, length = 20, columnDefinition = "varchar(20)")
     private PaymentMethod paymentMethod = PaymentMethod.CASH;
 
     /** レシート画像の公開パス（例: /uploads/xxxx.jpg）。手入力なら null。 */

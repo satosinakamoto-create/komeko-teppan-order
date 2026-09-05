@@ -60,8 +60,10 @@
     <span class="searchbox__icon" aria-hidden="true">
       <th:block th:replace="~{fragments/icons :: ic_magnifying_glass}"/>
     </span>
+    <!--/* th:value で打った語を戻す。戻さないと、検索したあとに欄が空になり
+           「何で絞った結果を見ているのか」が画面から消える */-->
     <input class="searchbox__input" type="search" name="q" placeholder="商品を探す"
-           aria-label="商品を探す">
+           th:value="${q}" aria-label="商品を探す">
   </form>
 
   <!--/* ====== 状態のタブ ＋ 表 ======
@@ -73,7 +75,7 @@
     <div class="tabtable__tabs" role="tablist">
       <a th:each="t : ${tabs}" class="tab"
          th:classappend="${t.active()} ? 'is-active'"
-         th:href="@{/admin/items(tab=${t.key()})}"
+         th:href="@{/admin/items(tab=${t.key()}, q=${q})}"
          th:attr="aria-selected=${t.active()}" role="tab">
         <span class="tab__label" th:text="${t.label()}">すべて</span>
         <span class="tab__num">

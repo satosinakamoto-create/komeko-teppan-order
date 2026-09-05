@@ -138,6 +138,7 @@ public class DataSeeder implements ApplicationRunner {
         if (categoryRepository.count() > 0) {
             backfillGroupNames();
             backfillServiceItems();
+            backfillToppings();
             log.info("メニューは登録済みのため、サンプル投入をスキップしました");
             return;
         }
@@ -173,6 +174,42 @@ public class DataSeeder implements ApplicationRunner {
         categoryRepository.saveAll(targets);
         log.info("既存カテゴリ {} 件に大カテゴリ（メニュー画面のタブ名）を設定しました。"
                 + "変更したいときは 管理画面 → カテゴリ から", targets.size());
+    }
+
+    /**
+     * すでに動いている店の お好み焼き に、トッピングを一度だけ足す。
+     *
+     * <p>トッピングは 2026-09-05 に足した組です。
+     * それ以前からメニューが入っている DB は {@code seedMenu()} を飛ばすので、
+     * 「麺の変更」だけがあってトッピングが無い状態になります。
+     *
+     * <p>目印は<b>「麺の変更」を持っていること</b>。
+     * カテゴリ名や商品名で探すと、店が名前を変えた瞬間に当たらなくなります。
+     * 組の名前はこのアプリが作ったもので、店が触る理由がありません。
+     *
+     * <p>すでにトッピングがある商品は飛ばします。
+     * 店長が中身を編集したあとに、起動のたびに元の 3 つが生えるのは最悪の挙動です。
+     */
+    private void backfillToppings() {
+        List<MenuItem> targets = new ArrayList<>();
+        for (MenuItem item : menuItemRepository.findAllWithOptions()) {
+            boolean hasNoodle = item.getOptionGroups().stream()
+                    .anyMatch(g -> "麺の変更".equals(g.getName()));
+            boolean hasTopping = item.getOptionGroups().stream()
+                    .anyMatch(g -> g.getName() != null && g.getName().startsWith("トッピング"));
+            if (hasNoodle && !hasTopping) {
+                optionGroup(item, "トッピング（任意）", 0, 3,
+                        choice("チーズ", 180, false),
+                        choice("餅", 150, false),
+                        choice("目玉焼き", 120, false));
+                targets.add(item);
+            }
+        }
+        if (targets.isEmpty()) {
+            return;
+        }
+        menuItemRepository.saveAll(targets);
+        log.info("お好み焼き {} 品にトッピング（チーズ・餅・目玉焼き）を追加しました", targets.size());
     }
 
     /**
@@ -447,6 +484,19 @@ public class DataSeeder implements ApplicationRunner {
             optionGroup(item, "麺の変更", 1, 1,
                     choice("米粉そば", 0, true),
                     choice("米粉うどん", 0, false));
+
+            // トッピング。設計（暗05 トッピングを選ぶ）に描かれている 3 つ。
+            // 任意（min=0）なので、何も選ばなくても注文できる。
+            //
+            // 設計のモーダルはスクロールする作りで、下にもう数行ある。
+            // ただし画面に写っているのはこの 3 つだけで、
+            // 隠れている行の品名と金額は読み取れなかった。
+            // 値段を勝手に決めるわけにいかないので、確かめられた 3 つだけ入れてある。
+            // 足すのは 管理画面 → 商品 → オプション から。
+            optionGroup(item, "トッピング（任意）", 0, 3,
+                    choice("チーズ", 180, false),
+                    choice("餅", 150, false),
+                    choice("目玉焼き", 120, false));
         }
     }
 

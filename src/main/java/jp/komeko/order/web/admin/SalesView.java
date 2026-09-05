@@ -76,7 +76,7 @@ public final class SalesView {
         List<GridLine> grid = new ArrayList<>();
         for (int i = 4; i >= 0; i--) {
             long v = step * i;
-            grid.add(new GridLine(yOf(v, top), manLabel(v)));
+            grid.add(new GridLine(yOf(v, top), axisLabel(v)));
         }
 
         List<ChartPoint> points = new ArrayList<>();
@@ -126,10 +126,48 @@ public final class SalesView {
     }
 
     /**
-     * 目盛りの金額表示。
+     * <b>目盛り（横罫線）の金額表示。丸めません。</b>
+     *
+     * <p>目盛りは軸の値そのものなので、点の注記と違って丸めてはいけません。
+     * もとは {@link #manLabel} を使っていましたが、あちらは万未満を四捨五入するため
+     * <b>罫線の値と表示が食い違っていました</b>（2026-09-05 に修正）。
+     *
+     * <p>{@code niceStep} の候補には 5,000 と 25,000 があり、
+     * この 2 つは 0.5 万刻みの罫線を作ります。すると
+     * <ul>
+     *   <li>¥25,000 の罫線 → 「¥3万」（実際より 5,000 円高く見える）</li>
+     *   <li>¥75,000 の罫線 → 「¥8万」（同上）</li>
+     *   <li>¥15,000 と ¥20,000 の罫線が<b>どちらも「¥2万」</b>になる</li>
+     * </ul>
+     * となり、その罫線を頼りに点を読むと ¥25,000 を ¥30,000 と読み違えます。
+     * 売上がまだ無い月（max=0 → step=25,000）でも必ず再現していました。
+     *
+     * <p>割り切れるときは「¥5万」、割り切れないときだけ「¥2.5万」と小数を出します。
+     * 1 万円未満は素の金額です。
+     */
+    private static String axisLabel(long yen) {
+        if (yen == 0) {
+            return "¥0";
+        }
+        if (yen < 10_000) {
+            return "¥" + String.format("%,d", yen);
+        }
+        if (yen % 10_000 == 0) {
+            return "¥" + (yen / 10_000) + "万";
+        }
+        if (yen % 1_000 == 0) {
+            return "¥" + (yen / 10_000) + "." + ((yen % 10_000) / 1_000) + "万";
+        }
+        return "¥" + String.format("%,d", yen);
+    }
+
+    /**
+     * 点に添える金額の表示。<b>こちらは読みやすさを優先して丸めます。</b>
      *
      * <p>1 万円以上は「¥128万」。桁を数えずに大小が読めます。
      * 日ごとのグラフだと 1 万円未満の日もあるので、そこは素の金額で出します。
+     *
+     * <p>目盛り（軸の値）には使わないこと。丸めが軸の嘘になります（{@link #axisLabel}）。
      */
     private static String manLabel(long yen) {
         if (yen == 0) {

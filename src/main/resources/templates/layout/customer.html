@@ -111,6 +111,24 @@
     <span class="cartbar__go">注文へ進む →</span>
   </a>
 
+  <!--/* ============ 品を選ぶモーダル ============ 設計「暗05 トッピングを選ぶ」
+
+        メニューで品を押すと、画面を離れずにここへ中身が入る。
+        中身は商品ページ（/items/{id}）をそのまま持ってきたもので、
+        作りは 1 つしかない。モーダル用に別の HTML を書くと、
+        オプションの出し方や個数の増減が 2 か所に分かれて必ずずれる。
+
+        ★ JavaScript が動かないときは、ふつうに商品ページへ移動する。
+          リンクは本物の <a href> のままにしてあるので、
+          何もしなくてもその動きになる（JS は押されたときに横取りするだけ）。
+
+        <dialog> を使うのは、開いているあいだ後ろを触れなくする仕組みと
+        Esc で閉じる動きが、ブラウザ側に最初から入っているため。
+        自前で作ると、背面のスクロールが動く・Esc が効かない、を必ず踏む。 */-->
+  <dialog class="sheet-modal" id="item-modal" aria-label="ご注文の内容">
+    <div class="sheet-modal__body" id="item-modal-body"></div>
+  </dialog>
+
   <footer class="app-footer" th:unless="${seated}">
     <div class="container">
       <p class="mb-0" th:text="${shop.shopName}">米粉と鉄板</p>

@@ -110,12 +110,39 @@ public class AdminMenuItemController {
      * <p><b>件数は絞り込む前の全件から数えます。</b>
      * 絞ったあとの母集合で数えると、品切れタブを開いている間は
      * 品切れ以外の件数が 0 になり、タブが「行き先の看板」として働きません。
+     *
+     * <p><b>{@code q}（商品を探す）を受け取っていませんでした（2026-09-05 に修正）。</b><br>
+     * 画面には検索の入力欄があり、{@code GET /admin/items?q=...&tab=...} を送っていたのに、
+     * このメソッドが {@code q} を受け取っていなかったため、
+     * <b>何を入れても全件がそのまま返っていました</b>。
+     * 検索結果が 0 件でも「見つからない」でもなく、94 品がそのまま並ぶので、
+     * 探せていないことに気づけません。エラーも出ません。
+     *
+     * <p>絞り込みは名前の部分一致（大文字小文字を無視）です。
+     * カテゴリ名で引けるようにもできますが、店主がこの欄に打つのは
+     * 「豚ロース」のような品名なので、まず名前だけにしています。
+     *
+     * @param q 商品名の一部。空・未指定なら絞り込まない
      */
     @GetMapping
     @Transactional(readOnly = true)
-    public String list(@RequestParam(required = false, defaultValue = "all") String tab, Model model) {
+    public String list(@RequestParam(required = false, defaultValue = "all") String tab,
+                       @RequestParam(required = false) String q,
+                       Model model) {
         List<Category> categories = categoryRepository.findAllByOrderBySortOrderAscIdAsc();
-        List<MenuItem> items = menuItemRepository.findAllForAdmin();
+        List<MenuItem> all = menuItemRepository.findAllForAdmin();
+
+        // 検索語。前後の空白だけの入力は「指定なし」と同じに扱う。
+        // 変数を分けているのは、下のラムダから参照する items を再代入しないため
+        // （ラムダが掴めるのは final か、実質的に final な変数だけ）。
+        String keyword = (q == null) ? "" : q.trim();
+        String needle = keyword.toLowerCase();
+        List<MenuItem> items = keyword.isEmpty()
+                ? all
+                : all.stream()
+                        .filter(item -> item.getName() != null
+                                && item.getName().toLowerCase().contains(needle))
+                        .toList();
 
         ItemTab selected = TABS.stream()
                 .filter(t -> t.key().equals(tab))
@@ -150,8 +177,14 @@ public class AdminMenuItemController {
         model.addAttribute("optionCounts", optionCounts);
         model.addAttribute("tabs", tabs);
         model.addAttribute("currentTab", selected.key());
-        model.addAttribute("totalCount", items.size());
-        model.addAttribute("visibleCount", (int) items.stream().filter(MenuItem::isVisible).count());
+        // 見出しの「掲載中 94 品」は店の全体像なので、検索で絞る前の数を出す。
+        // タブの件数のほうは検索の結果を分けたものなので、絞ったあとから数える
+        // （そうしないと「すべて 94」と出ているのに 5 行しか並ばない）
+        model.addAttribute("totalCount", all.size());
+        model.addAttribute("visibleCount", (int) all.stream().filter(MenuItem::isVisible).count());
+        // 入力した語を画面に返す。返さないと、検索したあとに入力欄が空に戻り、
+        // 何で絞った結果を見ているのか分からなくなる
+        model.addAttribute("q", keyword);
         return "admin/items";
     }
 

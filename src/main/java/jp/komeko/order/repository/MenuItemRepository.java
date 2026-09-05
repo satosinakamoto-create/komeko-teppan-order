@@ -63,6 +63,21 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     Optional<MenuItem> findByIdWithOptions(@Param("id") Long id);
 
     /**
+     * 全商品を、オプションの組まで読んで返す。
+     *
+     * <p>起動時の一度きりの移行（{@code DataSeeder#backfillToppings}）に使います。
+     * ふつうの画面から呼ばないこと。全件をオプションごと載せるので重く、
+     * 商品が増えるほど効きます。
+     *
+     * <p>選択肢まで一度に fetch しない理由は、上と同じ（MultipleBagFetchException）。
+     */
+    @Query("""
+            select distinct m from MenuItem m
+            left join fetch m.optionGroups g
+            """)
+    List<MenuItem> findAllWithOptions();
+
+    /**
      * 残数を「あれば引く」— 在庫管理の心臓部。
      *
      * <p><b>なぜ「読んで、引いて、書き戻す」ではダメなのか</b><br>

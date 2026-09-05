@@ -40,7 +40,7 @@ public class Ingredient {
 
     /** 在庫を数える単位。 */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private IngredientUnit unit = IngredientUnit.GRAM;
 
     /**

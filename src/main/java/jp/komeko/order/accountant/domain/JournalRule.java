@@ -35,7 +35,7 @@ public class JournalRule {
 
     /** 店の費目（食材・飲料・消耗品・光熱費・その他）。 */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private PurchaseCategory category;
 
     /** その仕入れの税率（%）。8 と 10 で勘定も税区分も変わる。 */
