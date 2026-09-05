@@ -57,7 +57,11 @@
 
       <input type="hidden" name="menuItemId" th:value="${item.id}">
 
-      <section th:each="g : ${item.optionGroups}" class="mt-6">
+      <!--/* data-min は「この組に最低いくつ要るか」。
+             JS がここを読んで、足りないあいだ注文のボタンを押せなくする。
+             値はサーバが持っている minSelect そのままで、画面では作らない。 */-->
+      <section th:each="g : ${item.optionGroups}" class="mt-6"
+               th:attr="data-min=${g.minSelect}">
         <div class="section-title" style="margin-block:0 12px">
           <h2 class="section-title__text" style="font-size:1.0625rem" th:text="${g.name}">サイズ</h2>
           <span class="badge badge--rec" th:if="${g.required}">必須</span>
@@ -110,8 +114,10 @@
 
       <div class="cart-bar mt-6">
         <div class="cart-bar__inner">
-          <button type="submit" class="btn btn--primary btn--lg btn--block">
-            注文リストに追加
+          <!--/* 先頭のテキストは JS が「あと1種類」に差し替える。
+                 <span> で包まないのは、包むと最初の子が要素になり、
+                 firstChild の差し替えで金額まで消えるため */-->
+          <button type="submit" class="btn btn--primary btn--lg btn--block">注文リストに追加
             <span id="add-total"
                   th:text="${item.price > 0}
                            ? '¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}

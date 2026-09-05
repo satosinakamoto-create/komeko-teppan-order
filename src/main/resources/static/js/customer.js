@@ -50,6 +50,46 @@
 
     qtyInput.addEventListener('input', updateTotal);
 
+    /* ------------------------------------------------------------------
+       選び終わるまで、注文のボタンを押せなくする
+       ------------------------------------------------------------------
+       「お味を 4 種類お選びください」のような必須の組は、
+       足りないまま送るとサーバが弾いて商品ページに戻ってきます。
+       そのとき<b>選んだ内容は消えます</b>。3 つ選んで押した人が、
+       また 1 つ目から選び直すことになる。
+
+       押せてしまうから起きる事故なので、そもそも押せなくする。
+       あと何種類要るかもボタンに出す（「あと1種類」）。
+       押せない理由が書いていないボタンは、ただの故障に見える。
+
+       ★ サーバ側の検査は消さないこと。
+         ここは使い勝手の話で、送られてくる内容を信じてよい理由にはならない。
+         画面を通さずに POST することはいくらでもできる。
+       ------------------------------------------------------------------ */
+    var submitButton = addForm.querySelector('button[type=submit]');
+    var submitLabel = submitButton ? submitButton.firstChild : null;
+
+    /* 必須の組ごとに「あと何個か」を数える */
+    function shortfall() {
+      var short = 0;
+      addForm.querySelectorAll('[data-min]').forEach(function (section) {
+        var need = parseInt(section.dataset.min || '0', 10);
+        if (need <= 0) { return; }
+        var chosen = section.querySelectorAll('input:checked').length;
+        if (chosen < need) { short += need - chosen; }
+      });
+      return short;
+    }
+
+    function updateSubmit() {
+      if (!submitButton) { return; }
+      var left = shortfall();
+      submitButton.disabled = left > 0;
+      if (submitLabel) {
+        submitLabel.textContent = left > 0 ? ('あと' + left + '種類 ') : '注文リストに追加 ';
+      }
+    }
+
     /* チェックボックスの上限（「3つまで」など）を超えたら選べなくする */
     addForm.addEventListener('change', function (event) {
       var target = event.target;
@@ -64,8 +104,10 @@
         });
       }
       updateTotal();
+      updateSubmit();
     });
 
+    updateSubmit();
     updateTotal();
   }
 
