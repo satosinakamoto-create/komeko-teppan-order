@@ -32,6 +32,44 @@ public class CartController {
     /** ラジオボタン（1 つだけ選ぶオプション）に付ける name の接頭辞。 */
     public static final String SINGLE_CHOICE_PREFIX = "single_";
 
+    /**
+     * チェックボックスとラジオ、2 通りの名前で届いた選択肢を 1 本のリストにまとめる。
+     *
+     * <p><b>なぜ 2 通りあるのか</b>は {@link #add} の説明を参照してください。
+     * HTML のラジオは「name が同じもの＝1 つのグループ」という決まりなので、
+     * すべて {@code choiceIds} にすると、サイズとソースを同時に選べなくなります。
+     *
+     * <p><b>なぜ静的メソッドとして外に出しているのか</b><br>
+     * スタッフが卓に代わって注文を入れる画面（{@code HallController}）も、
+     * まったく同じ形のフォームを送ります。接頭辞と取り出し方を両方に書き写すと、
+     * 片方だけ直したときに<b>選択肢が黙って落ちます</b>。
+     * 落ちても画面はエラーにならず、注文だけが素の状態で通るので気づけません。
+     * 送る側の決まりと受ける側の解釈は、必ず同じ場所に置きます。
+     *
+     * @param choiceIds チェックボックスから届いたぶん（null 可）
+     * @param allParams リクエストのパラメータ全部。ここからラジオのぶんを拾う
+     */
+    public static List<Long> mergeChoiceIds(List<Long> choiceIds, Map<String, String> allParams) {
+        List<Long> selected = new ArrayList<>();
+        if (choiceIds != null) {
+            selected.addAll(choiceIds);
+        }
+        if (allParams == null) {
+            return selected;
+        }
+        for (Map.Entry<String, String> entry : allParams.entrySet()) {
+            if (!entry.getKey().startsWith(SINGLE_CHOICE_PREFIX)) {
+                continue;
+            }
+            try {
+                selected.add(Long.valueOf(entry.getValue()));
+            } catch (NumberFormatException ignored) {
+                // 数値でない値が送られてきた場合は無視する（後段の検証で弾かれる）
+            }
+        }
+        return selected;
+    }
+
     private final Cart cart;
     private final CartService cartService;
     private final ShopSettingService shopSettingService;
@@ -75,20 +113,7 @@ public class CartController {
                       @RequestParam(defaultValue = "1") int quantity,
                       @RequestParam Map<String, String> allParams,
                       RedirectAttributes redirectAttributes) {
-        List<Long> selected = new ArrayList<>();
-        if (choiceIds != null) {
-            selected.addAll(choiceIds);
-        }
-        for (Map.Entry<String, String> entry : allParams.entrySet()) {
-            if (!entry.getKey().startsWith(SINGLE_CHOICE_PREFIX)) {
-                continue;
-            }
-            try {
-                selected.add(Long.valueOf(entry.getValue()));
-            } catch (NumberFormatException ignored) {
-                // 数値でない値が送られてきた場合は無視する（後段の検証で弾かれる）
-            }
-        }
+        List<Long> selected = mergeChoiceIds(choiceIds, allParams);
 
         try {
             cartService.addToCart(cart, menuItemId, selected, quantity);

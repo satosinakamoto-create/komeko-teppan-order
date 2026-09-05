@@ -1,6 +1,7 @@
 package jp.komeko.order.web.hall;
 
 import jp.komeko.order.domain.DiningTable;
+import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
 import jp.komeko.order.domain.SessionStatus;
@@ -8,10 +9,12 @@ import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.security.StaffUserDetails;
+import jp.komeko.order.service.MenuService;
 import jp.komeko.order.service.OrderService;
 import jp.komeko.order.service.ServiceCallService;
 import jp.komeko.order.service.ShopSettingService;
 import jp.komeko.order.service.TableService;
+import jp.komeko.order.web.customer.CartController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -30,6 +33,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -91,6 +95,14 @@ public class HallController {
     private final OrderService orderService;
 
     /**
+     * スタッフが卓に代わって注文を入れる画面で、商品と選択肢を引くために使う。
+     *
+     * <p>注文を通す判断（売り切れ・残数・金額）は {@link OrderService} 側にあります。
+     * ここで読むのは<b>画面に並べるため</b>だけです。
+     */
+    private final MenuService menuService;
+
+    /**
      * お客さまからの呼び出し。
      *
      * <p>ホールが受け持つのは「人が向かう」用件だけです。
@@ -109,11 +121,13 @@ public class HallController {
     public HallController(TableService tableService,
                           ShopSettingService shopSettingService,
                           OrderService orderService,
-                          ServiceCallService serviceCallService) {
+                          ServiceCallService serviceCallService,
+                          MenuService menuService) {
         this.tableService = tableService;
         this.shopSettingService = shopSettingService;
         this.orderService = orderService;
         this.serviceCallService = serviceCallService;
+        this.menuService = menuService;
     }
 
     // ========================================================================
@@ -303,6 +317,175 @@ public class HallController {
         // 保存時に黙って丸められる（＝押した数と違う結果になる）ので、ここで閉じる。
         model.addAttribute("exemptOptions", countOptions(bill.getGuestCount()));
         return "hall/bill";
+    }
+
+    // ========================================================================
+    //  スタッフが卓に代わって注文を入れる
+    // ========================================================================
+
+    /**
+     * 商品を選ぶ画面のカテゴリ 1 つぶん。
+     *
+     * <p>{@code Map<カテゴリ名, 商品>} にしないのは、同じ名前のカテゴリが 2 つあると
+     * 別物どうしが 1 つの見出しに混ざるためです（厨房の品切れパネルと同じ理由）。
+     *
+     * @param name  見出しに出すカテゴリ名
+     * @param items そのカテゴリの掲載中の商品（並び順は商品の sortOrder のまま）
+     */
+    public record PickCategory(String name, List<MenuItem> items) {
+    }
+
+    /**
+     * スタッフが卓に代わって注文を入れる画面。
+     *
+     * <p><b>何のための画面か</b><br>
+     * 時価の品（国産牛ステーキなど）は、その日の仕入れを見ないと金額が決まりません。
+     * お客さまの画面には金額を出せないので「スタッフを呼ぶ」しか置いていません。
+     * 呼ばれたスタッフが部位と焼き加減を聞き、その場で金額を伝える——
+     * <b>その金額を注文として残す</b>のがこの画面です。
+     *
+     * <p><b>2 段階にしている理由</b><br>
+     * 選択肢（焼き加減など）は商品ごとに違うので、商品が決まらないと出せません。
+     * JavaScript で出し分けることもできますが、この画面は
+     * <b>お客さまを待たせながら片手で操作する</b>場面で使います。
+     * 通信が細ったときに選択肢だけ出てこない、という壊れ方をすると、
+     * スタッフには「選ぶところが無い」ようにしか見えません。
+     * 素の GET で組み立てておけば、表示されたものは必ず操作できます。
+     *
+     * <p>{@code itemId} が無ければ商品を選ぶ段、あれば内容を決める段です。
+     */
+    @GetMapping("/bills/{id}/orders/new")
+    public String newOrder(@PathVariable Long id,
+                           @RequestParam(required = false) Long itemId,
+                           Model model,
+                           RedirectAttributes redirectAttributes) {
+        TableSession bill;
+        try {
+            bill = tableService.getSession(id);
+        } catch (TableService.SessionNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/hall";
+        }
+
+        // 入れられない伝票では、そもそも画面を開かせない。
+        // 開かせてから送信時に断ると、選び終えたあとで捨てさせることになる
+        if (!bill.isOrderable()) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(bill.isClosing()
+                    ? "この伝票はお会計の準備中です。追加するには「注文を再開」してください"
+                    : "この伝票はお会計が済んでいます。追加するには会計を取り消してください"));
+            return "redirect:/hall/bills/" + id;
+        }
+
+        model.addAttribute("bill", bill);
+
+        if (itemId == null) {
+            // 時価の品を先頭に別枠で出す。この画面がある理由がそれだからです。
+            // 掲載中の商品は 94 品・14 カテゴリあるので、カテゴリの並びに埋めると
+            // 毎回スクロールして探すことになります。下の一覧にも同じ品が出ますが、
+            // 一覧から消すと「時価の品はここにしか無い」という別の決まりが増えます。
+            model.addAttribute("marketPricedItems", marketPricedItems());
+            model.addAttribute("categoryGroups", pickCategories());
+            return "hall/order-new";
+        }
+
+        MenuItem item;
+        try {
+            item = menuService.itemWithOptions(itemId);
+        } catch (MenuService.MenuItemNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/hall/bills/" + id + "/orders/new";
+        }
+        if (!item.isVisible()) {
+            redirectAttributes.addFlashAttribute("flashErrors",
+                    List.of("「%s」は掲載を終了しています".formatted(item.getName())));
+            return "redirect:/hall/bills/" + id + "/orders/new";
+        }
+
+        model.addAttribute("item", item);
+        // 時価かどうかで、金額の欄を出すか・売り切れを警告として扱うかが変わる。
+        // 判定（価格 0 以下）を画面に書くと、意味が変わったときに直し漏れるので Java 側で持つ
+        model.addAttribute("marketPriced", item.getPrice() <= 0);
+        return "hall/order-new";
+    }
+
+    /**
+     * スタッフが入れた注文を確定する。
+     *
+     * <p>判断は {@link OrderService#placeByStaff} が持っています。
+     * ここは受け取って渡し、結果を言葉にするだけです。
+     *
+     * <p>断られたときは<b>選んだ商品の段に戻します</b>。
+     * 商品を選ぶ段まで戻すと、金額の打ち直しのために
+     * もう一度カテゴリから辿り直すことになります。
+     */
+    @PostMapping("/bills/{id}/orders")
+    public String addOrder(@PathVariable Long id,
+                           @RequestParam Long itemId,
+                           @RequestParam(name = "choiceIds", required = false) List<Long> choiceIds,
+                           @RequestParam(defaultValue = "1") int quantity,
+                           @RequestParam(required = false) Integer price,
+                           @RequestParam(required = false) String note,
+                           @RequestParam Map<String, String> allParams,
+                           @AuthenticationPrincipal StaffUserDetails user,
+                           RedirectAttributes redirectAttributes) {
+        // 1 つだけ選ぶ選択肢（焼き加減など）はラジオで届くので、
+        // お客さま側とまったく同じ規則でまとめ直す。
+        // 規則そのものは CartController が持っている（片方だけ直すと選択肢が黙って落ちる）
+        List<Long> selected = CartController.mergeChoiceIds(choiceIds, allParams);
+        try {
+            Order order = orderService.placeByStaff(
+                    id, itemId, selected, quantity, price, note, staffNameOf(user));
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    "%s に「%s」を入れました（#%d・¥%,d）。厨房に出ています"
+                            .formatted(order.getCustomerName(), itemNameOf(order),
+                                    order.getOrderNumber(), order.getTotalAmount()));
+            return "redirect:/hall/bills/" + id;
+
+        } catch (jp.komeko.order.service.OrderRejectedException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", e.getReasons());
+
+        } catch (MenuService.MenuItemNotFoundException | TableService.SessionNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/hall/bills/" + id;
+        }
+        return "redirect:/hall/bills/" + id + "/orders/new?itemId=" + itemId;
+    }
+
+    /** 選ぶ画面に並べるカテゴリと商品。掲載中のものだけ（品切れも出す。理由は画面側の説明を参照）。 */
+    private List<PickCategory> pickCategories() {
+        List<PickCategory> groups = new ArrayList<>();
+        Long currentId = null;
+        List<MenuItem> current = null;
+        // itemsForSoldOutPanel はカテゴリ順 → 商品の並び順で返ってくるので、
+        // 順に見て切り替わったところで束ねればよい（並べ替え直す必要がない）
+        for (MenuItem item : menuService.itemsForSoldOutPanel()) {
+            Long categoryId = item.getCategory().getId();
+            if (!categoryId.equals(currentId)) {
+                current = new ArrayList<>();
+                groups.add(new PickCategory(item.getCategory().getName(), current));
+                currentId = categoryId;
+            }
+            current.add(item);
+        }
+        return groups;
+    }
+
+    /**
+     * 時価・おまかせの品（価格が 0 以下のもの）。
+     *
+     * <p>売り切れかどうかで絞りません。時価の品は「価格 0 円のまま注文されるのを
+     * 防ぐため」に、はじめから売り切れとして登録されています。
+     * 絞ると<b>この画面から 1 品も出てこなくなります</b>。
+     */
+    private List<MenuItem> marketPricedItems() {
+        return menuService.itemsForSoldOutPanel().stream()
+                .filter(i -> i.getPrice() <= 0)
+                .toList();
+    }
+
+    /** 入れた品の名前（1 品ずつ入れるので、明細は必ず 1 行）。 */
+    private static String itemNameOf(Order order) {
+        return order.getLines().isEmpty() ? "商品" : order.getLines().get(0).getMenuItemName();
     }
 
     /**

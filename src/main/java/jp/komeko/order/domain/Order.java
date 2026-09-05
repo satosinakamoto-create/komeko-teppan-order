@@ -154,6 +154,28 @@ public class Order {
     @Column(length = 40)
     private String lastHandledBy;
 
+    /**
+     * この注文を<b>入れた</b>スタッフ名。お客さまが自分で入れた注文は null。
+     *
+     * <p><b>なぜ {@link #lastHandledBy} と分けるのか</b><br>
+     * あちらは「最後に状態を進めた人」で、調理開始・提供済みのたびに上書きされます。
+     * 入れた人の記録に使うと、厨房が「調理中」にした瞬間に消えます。
+     * 意味の違う 2 つを 1 本で持つと、片方が必ず失われます。
+     *
+     * <p><b>なぜ記録するのか</b><br>
+     * 時価の品はスタッフがその日の金額を決めるので、
+     * <b>請求額の一部を人が決めている</b>ことになります。
+     * あとから「この 6,800 円は誰が決めたのか」を確かめられないと、
+     * 打ち間違いも意図的な操作も追えません。
+     *
+     * <p>お客さま入力を null のままにしているのは、
+     * 「お客さま」のような文字列を入れると、
+     * 同じ名前のスタッフがいたときに区別できなくなるためです。
+     * 空であること自体が「お客さまが自分で入れた」の意味になります。
+     */
+    @Column(length = 40)
+    private String placedBy;
+
     protected Order() {
     }
 
@@ -412,5 +434,26 @@ public class Order {
 
     public String getLastHandledBy() {
         return lastHandledBy;
+    }
+
+    public String getPlacedBy() {
+        return placedBy;
+    }
+
+    /**
+     * 入れたスタッフを記録する。
+     *
+     * <p>空文字は null に倒します。空文字を残すと
+     * 「スタッフが入れたが名前が取れなかった」と「お客さまが入れた」が
+     * 見分けられなくなるためです（{@link #isPlacedByStaff()} も参照）。
+     */
+    public void setPlacedBy(String placedBy) {
+        this.placedBy = (placedBy == null || placedBy.isBlank()) ? null : placedBy.trim();
+        touch();
+    }
+
+    /** スタッフが入れた注文か（お客さま自身の注文なら false）。 */
+    public boolean isPlacedByStaff() {
+        return placedBy != null;
     }
 }

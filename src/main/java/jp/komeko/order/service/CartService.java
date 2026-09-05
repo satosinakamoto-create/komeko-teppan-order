@@ -84,6 +84,28 @@ public class CartService {
     }
 
     /**
+     * 選択肢の検証だけを行い、注文明細に載せられる形にして返す。
+     *
+     * <p>スタッフが卓に代わって注文を入れる経路（{@code OrderService#placeByStaff}）から
+     * 呼ばれます。あちらはカートを持たない——1 品ずつその場で確定するので、
+     * セッションに溜める入れ物が要りません。それでも
+     * <b>「必須を選んだか」「上限を超えていないか」「この商品の選択肢か」の判断は
+     * ここと同じでなければいけない</b>ので、検証の本体を共有しています。
+     *
+     * <p>スタッフ側で緩めると、お客さまの画面では通らない組み合わせが
+     * 伝票に載ることになります。金額はオプションの追加料金を含むので、
+     * それは請求額の食い違いとして表に出ます。
+     *
+     * @param item      商品（オプションを読み込み済みのもの）
+     * @param choiceIds 選ばれた選択肢の ID。null や空でもよい
+     * @throws OrderRejectedException 必須未選択・上限超過・別商品の選択肢が混ざっているとき
+     */
+    public List<CartOption> validateOptions(MenuItem item, List<Long> choiceIds) {
+        Set<Long> selected = new LinkedHashSet<>(choiceIds == null ? List.of() : choiceIds);
+        return validateAndBuildOptions(item, selected);
+    }
+
+    /**
      * カートを洗い替えた結果。
      *
      * <p><b>変更を 2 種類に分けている理由</b><br>

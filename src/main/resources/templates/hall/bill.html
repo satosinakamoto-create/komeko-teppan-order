@@ -102,6 +102,20 @@
     <span class="section-title__count" th:text="${#lists.size(orders)} + ' 回'">3 回</span>
   </div>
 
+  <!--/* ===== スタッフが代わりに注文を入れる =====
+         時価の品（ステーキなど）は、その日の仕入れを見ないと金額が決まらないので、
+         お客さまの画面からは注文できません。呼ばれたスタッフが部位と焼き加減を聞き、
+         その場で金額を伝える——その金額をここから入れます。
+
+         条件が bill.orderable なのは、会計済みとお会計待ちの両方で隠すためです。
+         押せてしまうと、選び終えてから断られることになります。
+         見学者（GUEST）には出しません。伝票が動くのは実店舗の操作だからです。 */-->
+  <p class="small mt-4" th:if="${bill.orderable}" sec:authorize="!hasRole('GUEST')">
+    <a class="btn btn--sm" th:href="@{/hall/bills/{id}/orders/new(id=${bill.id})}">
+      ＋ 注文を入れる（時価の品・お電話のご注文など）
+    </a>
+  </p>
+
   <div th:if="${orders.isEmpty()}">
     <div th:replace="~{fragments/common :: empty('膳', 'まだご注文がありません')}"></div>
   </div>
@@ -135,6 +149,15 @@
 
       <p class="small muted mt-4 mb-0" th:if="${order.note != null}"
          th:text="'ご要望：' + ${order.note}">ご要望：ソース少なめ</p>
+
+      <!--/* 誰が入れた注文か。お客さまがご自分で入れたものには出しません
+             （空であること自体が「お客さま入力」の意味なので、
+               わざわざ「お客さま」と書くと、その名前のスタッフと紛れます）。
+
+             時価の品はスタッフが金額を決めるので、
+             あとから「この金額は誰が決めたのか」を確かめられる必要があります。 */-->
+      <p class="tiny faint mt-2 mb-0" th:if="${order.placedByStaff}"
+         th:text="'スタッフ入力：' + ${order.placedBy}">スタッフ入力：やまだ</p>
 
       <!--/*
         明細ごとの深夜料金スイッチ。

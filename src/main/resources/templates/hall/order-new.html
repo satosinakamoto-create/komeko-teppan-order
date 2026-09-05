@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   スタッフが卓に代わって注文を入れる
+  ============================================================================
+   時価の品（国産牛ステーキなど）は、その日の仕入れを見ないと金額が決まりません。
+   お客さまの画面には金額を出せないので「スタッフを呼ぶ」しか置いていません。
+   呼ばれたスタッフが部位と焼き加減を聞き、その場で金額を伝える——
+   その金額を注文として残すのがこの画面です。
+
+   ★ 2 段構えです
+     itemId が無ければ「商品を選ぶ」段、あれば「内容を決める」段。
+     選択肢は商品ごとに違うので、商品が決まらないと出せません。
+     JavaScript で出し分けることもできますが、この画面は
+     お客さまを待たせながら片手で操作する場面で使います。
+     通信が細ったときに選択肢だけ出ない、という壊れ方をすると、
+     スタッフには「選ぶところが無い」ようにしか見えません。
+     素の GET で組み立てておけば、出ているものは必ず操作できます。
+
+   ★ 金額の計算はしません
+     単価も合計もこの画面では出しません（時価の入力欄を除く）。
+     入れたあとの金額は伝票の画面が TableSession の計算結果を出します。
+     ここで「単価 × 個数」を書くと、計算式が 2 箇所に増えます。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('注文を入れる', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text" th:text="${bill.diningTable.name} + ' に注文を入れる'">3番テーブル に注文を入れる</h1>
+    <span class="section-title__count" th:text="${bill.guestCount} + ' 名'">4 名</span>
+  </div>
+
+  <p class="small">
+    <a class="btn btn--sm btn--ghost" th:href="@{/hall/bills/{id}(id=${bill.id})}">← 伝票へ戻る</a>
+  </p>
+
+
+  <!--/* ======================================================================
+         1 段目：商品を選ぶ
+         ====================================================================== */-->
+  <div th:if="${item == null}">
+
+    <div class="alert alert--info mt-4">
+      <p class="mb-0">
+        入れた注文は<strong>厨房ボードにそのまま出ます</strong>。お客さまがご自分で入れた注文と同じ扱いです。
+        時価の品はこのあと金額を入力します。
+      </p>
+    </div>
+
+    <!--/* ===== 時価・おまかせ（先頭に別枠）=====
+           この画面がある理由がこれなので、探させません。
+           掲載中の商品は 94 品・14 カテゴリあり、カテゴリの並びに埋めると
+           毎回スクロールして探すことになります。
+           下の一覧にも同じ品が出ます。一覧から消すと
+           「時価の品はここにしか無い」という別の決まりが増えるためです。 */-->
+    <section class="card mt-4" th:unless="${#lists.isEmpty(marketPricedItems)}">
+      <div class="card__head">
+        <b>時価・おまかせ</b>
+        <span class="tiny faint">金額をその場で入れる品</span>
+      </div>
+      <div class="card__body">
+        <div class="row row--wrap">
+          <a class="btn btn--sm" th:each="i : ${marketPricedItems}"
+             th:href="@{/hall/bills/{id}/orders/new(id=${bill.id}, itemId=${i.id})}"
+             th:text="${i.name}">国産牛サーロインステーキ</a>
+        </div>
+      </div>
+    </section>
+
+    <!--/* 品切れの品も並べます。隠すと「無い」と「値段がまだ決まっていない」の
+           区別がつかず、時価の品（＝はじめから品切れとして登録されている）が
+           この画面から永久に選べなくなります。
+           選んだあとの段で、どちらなのかを言葉で出し分けます。 */-->
+    <section class="card mt-4" th:each="g : ${categoryGroups}">
+      <div class="card__head">
+        <b th:text="${g.name()}">鉄板焼き</b>
+        <span class="tiny faint" th:text="${#lists.size(g.items())} + ' 品'">8 品</span>
+      </div>
+      <div class="card__body">
+        <div class="row row--wrap">
+          <a class="btn btn--sm" th:each="i : ${g.items()}"
+             th:href="@{/hall/bills/{id}/orders/new(id=${bill.id}, itemId=${i.id})}">
+            <span th:text="${i.name}">国産牛サーロインステーキ</span>
+            <!--/* 価格 0 以下は時価。ここに「¥0」と出すと、
+                   ただの安い品に見えてしまう */-->
+            <span class="tiny faint" th:if="${i.price > 0}"
+                  th:text="' ¥' + ${#numbers.formatInteger(i.price, 1, 'COMMA')}"> ¥1,380</span>
+            <span class="tiny faint" th:unless="${i.price > 0}"> 時価</span>
+            <!--/* 時価でない品の品切れは、選んだ先で断られます。
+                   ここに出しておかないと、選んでから戻ってくることになります。
+                   時価の品には出しません。あちらの売り切れは
+                   「値段がまだ決まっていない」の意味で、この画面で解消されるからです。 */-->
+            <span class="badge badge--stop" th:if="${i.price > 0 and (i.soldOut or i.outOfStock)}">品切れ</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <div th:if="${#lists.isEmpty(categoryGroups)}">
+      <div th:replace="~{fragments/common :: empty('膳', '掲載中の商品がありません')}"></div>
+    </div>
+  </div>
+
+
+  <!--/* ======================================================================
+         2 段目：内容を決めて入れる
+         ====================================================================== */-->
+  <div th:if="${item != null}">
+
+    <p class="small">
+      <a class="btn btn--sm btn--ghost"
+         th:href="@{/hall/bills/{id}/orders/new(id=${bill.id})}">← 商品を選び直す</a>
+    </p>
+
+    <!--/* ★ 売り切れの意味は、時価かどうかで変わります。
+           時価の品は「価格 0 円のまま注文されるのを防ぐため」に
+           はじめから売り切れとして登録されています（DataSeeder 参照）。
+           つまりここでの売り切れは「今日はもう無い」ではなく
+           「まだ値段が決まっていない」の意味で、この画面で解消されます。 */-->
+    <div class="alert alert--warn mt-4" th:if="${item.soldOut and !marketPriced}" role="alert">
+      <p class="mb-0">
+        <strong th:text="'「' + ${item.name} + '」は売り切れになっています。'">「〜」は売り切れになっています。</strong>
+        出せる場合は<a th:href="@{/kitchen/stock}">品切れ管理</a>から販売を再開してから入れてください。
+      </p>
+    </div>
+
+    <div class="alert alert--warn mt-4" th:if="${item.outOfStock}" role="alert">
+      <p class="mb-0">
+        残数が 0 です。数が増えたなら<a th:href="@{/kitchen/stock}">品切れ管理</a>で残数を直してください。
+      </p>
+    </div>
+
+    <form th:action="@{/hall/bills/{id}/orders(id=${bill.id})}" method="post">
+      <input type="hidden" name="itemId" th:value="${item.id}">
+
+      <section class="card mt-4">
+        <div class="card__head row row--between row--wrap">
+          <b th:text="${item.name}">国産牛サーロインステーキ</b>
+          <span th:if="${item.price > 0}" class="num"
+                th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥1,380</span>
+          <span th:unless="${item.price > 0}" class="badge badge--rec">時価</span>
+        </div>
+
+        <div class="card__body">
+          <p class="small muted" th:if="${item.description != null}"
+             th:text="${item.description}">時価。仕入れ状況により価格が変わります。</p>
+
+          <!--/* ===== 時価の金額 =====
+                 この画面が存在する理由そのものです。
+                 空のまま通すと 0 円の注文が伝票に載り、お客さまは召し上がったのに
+                 請求されない形で店が損をします。しかも金額が 0 なので
+                 伝票を見ても気づきにくい。だからサーバ側でも必須にしています
+                 （required だけに頼らない。開発者ツールから外せるため）。 */-->
+          <div th:if="${marketPriced}">
+            <label class="label" for="price">今日の金額（税込・1 品あたり）</label>
+            <div class="row">
+              <span>¥</span>
+              <input class="input" type="number" id="price" name="price"
+                     min="1" max="100000" step="1" required
+                     inputmode="numeric" style="max-width:10rem"
+                     placeholder="6800">
+            </div>
+            <p class="small muted mt-2 mb-0">
+              お客さまにお伝えした金額を入れてください。ここで入れた金額がそのまま請求額になります。
+              <strong>入力した人の名前が注文に残ります。</strong>
+            </p>
+          </div>
+
+          <!--/* ===== 選択肢 =====
+                 焼き加減はここで表せます（オプションとして登録されていれば）。
+                 登録が無い品では、下の「ご要望・焼き加減」に書いてください。
+
+                 1 つだけ選ぶものはラジオ。name を single_グループID にしているのは
+                 HTML のラジオが「name が同じもの＝1 グループ」だからで、
+                 すべて choiceIds にすると 2 つのグループを同時に選べなくなります。
+                 受け取り側の規則は CartController.mergeChoiceIds が持っています。 */-->
+          <section th:each="g : ${item.optionGroups}" class="mt-4">
+            <div class="row row--between">
+              <span class="label mb-0" th:text="${g.name}">焼き加減</span>
+              <span class="badge badge--rec" th:if="${g.required}">必須</span>
+              <span class="tiny faint" th:unless="${g.required}"
+                    th:text="'任意・' + ${g.maxSelect} + 'つまで'">任意・3つまで</span>
+            </div>
+
+            <div class="row row--wrap mt-2">
+              <label class="row" th:each="c : ${g.choices}" style="gap:6px">
+                <input th:if="${g.singleChoice}" type="radio"
+                       th:name="'single_' + ${g.id}"
+                       th:value="${c.id}"
+                       th:checked="${c.defaultSelected}"
+                       th:disabled="${c.soldOut}"
+                       th:required="${g.required}">
+                <input th:unless="${g.singleChoice}" type="checkbox"
+                       name="choiceIds"
+                       th:value="${c.id}"
+                       th:checked="${c.defaultSelected}"
+                       th:disabled="${c.soldOut}">
+                <span th:text="${c.name}">ミディアム</span>
+                <span class="tiny faint" th:if="${c.extraPrice > 0}"
+                      th:text="'＋¥' + ${#numbers.formatInteger(c.extraPrice, 1, 'COMMA')}">＋¥180</span>
+                <span class="badge badge--stop" th:if="${c.soldOut}">品切れ</span>
+              </label>
+            </div>
+          </section>
+
+          <!--/* ===== 個数 ===== */-->
+          <div class="mt-4">
+            <label class="label" for="quantity">個数</label>
+            <input class="input" type="number" id="quantity" name="quantity"
+                   value="1" min="1" max="20" step="1"
+                   inputmode="numeric" style="max-width:7rem">
+          </div>
+
+          <!--/* ===== 備考 =====
+                 焼き加減の選択肢が登録されていない品のための逃げ道です。
+                 厨房ボードに「ご要望」として出ます。 */-->
+          <div class="mt-4">
+            <label class="label" for="note">ご要望・焼き加減（厨房に出ます）</label>
+            <input class="input" type="text" id="note" name="note" maxlength="200"
+                   placeholder="ミディアムレアで">
+          </div>
+        </div>
+
+        <div class="card__body">
+          <!--/* 売り切れ・残数切れのときはボタンを出しません。
+                 押せてしまうと、選び終えてから断られることになります。
+                 サーバ側でも同じ判断をしているので、ここは近道でしかありません。 */-->
+          <button class="btn btn--primary" type="submit"
+                  th:unless="${(item.soldOut and !marketPriced) or item.outOfStock}">
+            この内容で注文を入れる
+          </button>
+          <p class="small muted mb-0"
+             th:if="${(item.soldOut and !marketPriced) or item.outOfStock}">
+            この品はいま入れられません。上のご案内をご確認ください。
+          </p>
+        </div>
+      </section>
+    </form>
+  </div>
+
+</main>
+</body>
+</html>

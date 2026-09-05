@@ -67,6 +67,16 @@ public class OrderService {
      */
     private static final Duration CARRY_OVER_WINDOW = Duration.ofHours(6);
 
+    /**
+     * スタッフが時価の品に付けられる 1 品あたりの上限（円・税込）。
+     *
+     * <p>正しい値を決めるためのものではなく、<b>桁の打ち間違いを止める</b>ためのものです。
+     * この店のメニューで 1 品 10 万円に届くものはありません。
+     * 「0 を 1 つ余分に打った」の大半はここで止まります
+     * （6,800 → 68,000 のような間違いは通ります。それは人が読んで気づく領域です）。
+     */
+    private static final int STAFF_PRICE_LIMIT = 100_000;
+
     private final OrderRepository orderRepository;
     private final OrderNumberService orderNumberService;
     private final ShopSettingService shopSettingService;
@@ -218,18 +228,46 @@ public class OrderService {
             throw new OrderRejectedException("ご注文の品がすべて売り切れました。申し訳ありません");
         }
 
+        // cart ではなく accepted を渡す。売り切れで落とした品を入れないため
+        Order saved = assembleAndSave(session, accepted, note, null, setting.getOrderNumberStart());
+        return new Placed(saved, List.copyOf(soldOutNotices));
+    }
+
+    /**
+     * 検証を終えた明細から注文を組み立て、保存して厨房へ流す。
+     *
+     * <p><b>ここは「決まったものを形にする」だけの場所です。</b>
+     * 売り切れかどうか、その金額でよいか、といった<b>判断は一切しません</b>。
+     * 判断は呼び出し側で終わっている前提です。
+     * お客さま経由（{@link #place}）とスタッフ経由（{@link #placeByStaff}）では
+     * <b>判断の中身が違う</b>——時価の金額を入れられるか、売り切れの品を通すか——
+     * ので、そこを共有すると条件分岐だらけになります。
+     *
+     * <p>逆に<b>組み立ては 1 文字も違ってはいけません</b>。
+     * 営業日・税率・注文番号・明細の写し方・伝票への足し込み・厨房への通知は、
+     * どちらの経路でも同じでなければ、あとから片方だけ直されて静かにずれます。
+     * だから判断は分け、組み立てはここに寄せています。
+     *
+     * @param session         追加先の伝票（ロック済み・注文可であることは呼び出し側が確認済み）
+     * @param lines           載せる明細。単価はここでは検算しない
+     * @param note            備考（お客さまの要望・焼き加減など）
+     * @param placedBy        入れたスタッフ名。お客さま自身の注文なら null
+     * @param orderNumberStart 注文番号の開始値（店舗設定）
+     */
+    private Order assembleAndSave(TableSession session, List<CartLine> lines,
+                                  String note, String placedBy, int orderNumberStart) {
         // 営業日と税率は「伝票（＝来店）」の値に合わせる。
         // 深夜 0 時をまたいでも同じ伝票のままにするため、いまの日付では計算しない。
         LocalDate businessDate = session.getBusinessDate();
-        int orderNumber = orderNumberService.next(businessDate, setting.getOrderNumberStart());
+        int orderNumber = orderNumberService.next(businessDate, orderNumberStart);
 
         Order order = new Order(businessDate, orderNumber, session.getTaxRatePercent());
         order.setSession(session);
         order.setCustomerName(session.getDiningTable().getName());
         order.setNote(trimToNull(note, 200));
+        order.setPlacedBy(placedBy);
 
-        // cart ではなく accepted を回す。売り切れで落とした品を入れないため
-        for (CartLine line : accepted) {
+        for (CartLine line : lines) {
             OrderLine orderLine = new OrderLine(
                     line.getMenuItemId(),
                     line.getMenuItemName(),
@@ -251,12 +289,169 @@ public class OrderService {
         session.getOrders().add(saved);
         tableService.refresh(session);
 
-        log.info("注文受付 #{} 卓={} 合計{}円 {}点",
+        log.info("注文受付 #{} 卓={} 合計{}円 {}点 入力={}",
                 saved.getOrderNumber(), session.getDiningTable().getName(),
-                saved.getTotalAmount(), saved.getTotalQuantity());
+                saved.getTotalAmount(), saved.getTotalQuantity(),
+                placedBy == null ? "お客さま" : placedBy);
 
         eventPublisher.publishOrderChanged(OrderEvent.created(saved.getId(), saved.getOrderNumber()));
-        return new Placed(saved, List.copyOf(soldOutNotices));
+        return saved;
+    }
+
+    /**
+     * スタッフが卓に代わって注文を 1 品入れる（厨房・ホールの入力画面から）。
+     *
+     * <p><b>なぜこの経路が要るのか</b><br>
+     * 時価の品（国産牛ステーキなど）は、その日の仕入れを見ないと金額が決まりません。
+     * お客さまの画面には金額を出せないので、いまは「スタッフを呼ぶ」しか置いていません。
+     * 呼ばれたスタッフは、部位と焼き加減を聞き、<b>その場で金額を伝えます</b>。
+     * その金額を注文として残せる口がここです。
+     *
+     * <p>焼き加減そのものは、この経路が無くても選択肢（オプション）で表せます。
+     * この口が要る理由は<b>金額</b>のほうです。
+     *
+     * <p><b>1 品ずつ確定する（カートに溜めない）</b><br>
+     * スタッフはお客さまの目の前で 1 品を決めて厨房へ流します。
+     * 溜める入れ物を作ると「入れたつもりで送っていない」が起こり、
+     * それが起きたことに<b>誰も気づけません</b>（お客さまは頼んだつもりでいる）。
+     * 複数品は続けて入れれば済みます。
+     *
+     * <p><b>お客さま経路と judgement が違うところ</b>
+     * <ul>
+     *   <li><b>時価の品は「売り切れ」でも通す。</b>時価の品は価格 0 円のまま
+     *       注文されるのを防ぐために、はじめから売り切れとして登録されています
+     *       （{@code DataSeeder} 参照）。つまりここでの売り切れは
+     *       「今日はもう無い」ではなく<b>「まだ値段が決まっていない」</b>の意味です。
+     *       金額を入れるこの画面では、その理由は解消されています。</li>
+     *   <li><b>時価でない品の売り切れは通さない。</b>そちらは本当に品が無い意味なので、
+     *       通してしまうと厨房が作れないものが伝票に載ります。
+     *       出せるなら品切れ管理から販売を再開してください（ワンタップです）。</li>
+     *   <li><b>残数（数量限定）は必ず尊重する。</b>スタッフだから通す、にすると
+     *       売り越しになります。数が増えたなら残数のほうを直すのが筋です。</li>
+     * </ul>
+     *
+     * @param sessionId     入れ先の伝票 ID
+     * @param menuItemId    商品 ID
+     * @param choiceIds     選んだ選択肢の ID（無ければ null か空）
+     * @param quantity      個数
+     * @param decidedPrice  時価の品にスタッフが付けた単価（税込）。時価でない品では null
+     * @param note          備考（焼き加減など）
+     * @param staffName     入れたスタッフ名。記録に残す
+     * @throws OrderRejectedException 受け付けられない理由があるとき
+     */
+    @Transactional
+    public Order placeByStaff(Long sessionId, Long menuItemId, List<Long> choiceIds,
+                              int quantity, Integer decidedPrice, String note, String staffName) {
+        if (quantity < 1) {
+            throw new OrderRejectedException("個数は 1 以上を指定してください");
+        }
+        if (quantity > Cart.MAX_QUANTITY_PER_LINE) {
+            throw new OrderRejectedException(
+                    "一度に入れられるのは %d 個までです".formatted(Cart.MAX_QUANTITY_PER_LINE));
+        }
+
+        // お会計との同時実行を直列化する。理由は place() と同じ。
+        // 締めている最中の伝票に注文がぶら下がると、誰にも請求されない品ができる。
+        tableService.lockSession(sessionId);
+        TableSession session = tableService.getSession(sessionId);
+        if (!session.isOrderable()) {
+            // スタッフ向けの言葉にする。お客さま向けの「スタッフにお声がけください」は、
+            // 読んでいるのがそのスタッフなので意味をなさない
+            throw new OrderRejectedException(session.isClosing()
+                    ? "この伝票はお会計の準備中です。追加するには「注文を再開」してください"
+                    : "この伝票はお会計が済んでいます。追加するには会計を取り消してください");
+        }
+
+        MenuItem item = menuService.itemWithOptions(menuItemId);
+        if (!item.isVisible()) {
+            throw new OrderRejectedException("「%s」は掲載を終了しています".formatted(item.getName()));
+        }
+
+        boolean marketPriced = item.getPrice() <= 0;
+        int unitBasePrice = marketPriced ? requireStaffPrice(item, decidedPrice) : rejectStaffPrice(item, decidedPrice);
+
+        // 売り切れの扱いは時価かどうかで変わる（メソッドの説明を参照）
+        if (!marketPriced && item.isSoldOut()) {
+            throw new OrderRejectedException(
+                    "「%s」は売り切れになっています。出せる場合は品切れ管理から販売を再開してください"
+                            .formatted(item.getName()));
+        }
+        // 残数は時価でも尊重する。ここを緩めると売り越しになる
+        if (item.isOutOfStock()) {
+            throw new OrderRejectedException(
+                    "「%s」は残数が 0 です。数が増えたなら品切れ管理で残数を直してください"
+                            .formatted(item.getName()));
+        }
+
+        // 選択肢の検証はお客さま経路と同じものを使う。
+        // ここを緩めると、お客さまの画面では作れない組み合わせが伝票に載る
+        List<CartOption> options = cartService.validateOptions(item, choiceIds);
+
+        CartLine line = new CartLine(item.getId(), item.getName(), item.getImagePath(),
+                unitBasePrice, item.getCookMinutes(), options, quantity);
+
+        // 残数を引く。条件付き UPDATE なので、他の卓と最後の 1 点を取り合っても売り越さない。
+        // 番号を採番する前に引くのは place() と同じ理由（断るたびに番号が飛ばないように）
+        if (!menuService.tryConsumeStock(item.getId(), quantity)) {
+            Integer left = menuService.stockRemainingOf(item.getId());
+            throw new OrderRejectedException(
+                    "「%s」は残り %d 点です。個数を変更してください"
+                            .formatted(item.getName(), left == null ? 0 : left));
+        }
+
+        ShopSetting setting = shopSettingService.current();
+        Order saved = assembleAndSave(session, List.of(line), note,
+                staffName, setting.getOrderNumberStart());
+
+        log.info("スタッフ入力の注文 #{} 卓={} 品={} 単価{}円 入力={}",
+                saved.getOrderNumber(), session.getDiningTable().getName(),
+                item.getName(), unitBasePrice, staffName);
+        return saved;
+    }
+
+    /**
+     * 時価の品にスタッフが付けた金額を確かめる。
+     *
+     * <p>入力必須です。空のまま通すと 0 円の注文が伝票に載り、
+     * <b>お客さまは食べたのに請求されない</b>という形で店が損をします。
+     * しかも金額が 0 なので、伝票を見ても気づきにくい。
+     */
+    private static int requireStaffPrice(MenuItem item, Integer decidedPrice) {
+        if (decidedPrice == null) {
+            throw new OrderRejectedException(
+                    "「%s」は時価の品です。今日の金額を入力してください".formatted(item.getName()));
+        }
+        if (decidedPrice <= 0) {
+            throw new OrderRejectedException("金額は 1 円以上で入力してください");
+        }
+        // 桁を 1 つ多く打った事故を止める。この店の 1 品でここに届く値段は無い。
+        // 打ち間違いを完全には防げない（6,800 を 68,000 にする間違いは通る）が、
+        // 「0 を 1 つ余分に付けた」の大半はここで止まる
+        if (decidedPrice > STAFF_PRICE_LIMIT) {
+            throw new OrderRejectedException(
+                    "金額が大きすぎます（1 品 %,d 円まで）。桁をご確認ください".formatted(STAFF_PRICE_LIMIT));
+        }
+        return decidedPrice;
+    }
+
+    /**
+     * 時価でない品に金額が付いてきたら断る。
+     *
+     * <p><b>黙って捨てないのが要点です。</b>捨てると、スタッフは値引きしたつもりで
+     * 送信でき、画面には「入れました」と出ます。食い違いに気づくのはお会計のときで、
+     * そのときにはもうお客さまに別の金額を伝えたあとです。
+     *
+     * <p>値引きの手段としてここを開けないのは、単価が下がると
+     * その卓の小計から他の品の代金が引かれる形になり、
+     * 「どの品がいくらだったか」が伝票から読めなくなるためです（CLAUDE.md）。
+     */
+    private static int rejectStaffPrice(MenuItem item, Integer decidedPrice) {
+        if (decidedPrice != null) {
+            throw new OrderRejectedException(
+                    "「%s」は %,d 円の品です。この画面から金額は変更できません"
+                            .formatted(item.getName(), item.getPrice()));
+        }
+        return item.getPrice();
     }
 
     // ========================================================================

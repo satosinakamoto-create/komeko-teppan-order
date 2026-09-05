@@ -2,6 +2,7 @@ package jp.komeko.order.inventory;
 
 import jp.komeko.order.domain.DiningTable;
 import jp.komeko.order.domain.MenuItem;
+import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.repository.DiningTableRepository;
 import jp.komeko.order.repository.MenuItemRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -207,6 +208,36 @@ class AllScreensDumpTest {
         // 注文が入った状態の画面でないと、余白も行の詰まり具合も確かめられない。
         write("s03-hall", mockMvc.perform(get("/hall").with(user("店長").roles("ADMIN")))
                 .andReturn().getResponse().getContentAsString());
+
+        // ── スタッフが卓に代わって注文を入れる画面 ──
+        // 時価の品を選んだ状態（s03c）まで撮る。品を選ぶ段（s03b）だけだと、
+        // この画面の主役である「今日の金額」の欄が 1 枚も残らない。
+        Long billId = tableSessions.findAll().stream()
+                .filter(TableSession::isOrderable)
+                .map(TableSession::getId)
+                .findFirst().orElse(null);
+        if (billId != null) {
+            write("s03b-staff-order-pick",
+                    mockMvc.perform(get("/hall/bills/" + billId + "/orders/new")
+                                    .with(user("店長").roles("ADMIN")))
+                            .andReturn().getResponse().getContentAsString());
+
+            // 時価の品（価格 0）を 1 つ探す。無ければこの 1 枚は撮らない
+            menuItems.findAll().stream()
+                    .filter(i -> i.isVisible() && i.getPrice() <= 0)
+                    .findFirst()
+                    .ifPresent(marketPriced -> {
+                        try {
+                            write("s03c-staff-order-price",
+                                    mockMvc.perform(get("/hall/bills/" + billId
+                                                    + "/orders/new?itemId=" + marketPriced.getId())
+                                                    .with(user("店長").roles("ADMIN")))
+                                            .andReturn().getResponse().getContentAsString());
+                        } catch (Exception e) {
+                            throw new IllegalStateException("時価の品の画面を撮れませんでした", e);
+                        }
+                    });
+        }
 
         // ── 税理士側 ──
         // 月を指定せずに撮る。既定が前月になったので、これが
