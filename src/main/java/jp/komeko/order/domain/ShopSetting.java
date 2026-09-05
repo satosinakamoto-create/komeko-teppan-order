@@ -141,8 +141,24 @@ public class ShopSetting {
      * {@code PurchaseCategory} には入れず設定として 1 つ持ちます。
      * 仕入れに混ぜると、帳簿では雑費として扱われてしまいます。
      */
+    /*
+     * ★ columnDefinition に default を書くこと（84 行目の alwaysOpen と同じ理由）。
+     *
+     *   これを書かずに入れたところ、すでに店舗設定の行がある dev の DB が
+     *   起動しなくなりました（2026-09-05）。
+     *     NULL not allowed for column "MONTHLY_RENT"
+     *     Column "SS1_0.MONTHLY_RENT" not found
+     *   ddl-auto: update が ALTER TABLE ... ADD COLUMN monthly_rent INTEGER NOT NULL を
+     *   投げ、既存の 1 行に何を入れるか決められずに失敗し、
+     *   列が作られないまま SELECT に進んで 2 つ目のエラーになります。
+     *
+     *   テストでは絶対に再現しません。毎回まっさらな DB を作るので
+     *   「無いテーブルを作る」経路しか通らないからです。
+     *   本番（Flyway の V6）は DEFAULT 0 付きで足しているので影響はありません。
+     */
     @Min(0)
-    @Column(name = "monthly_rent", nullable = false)
+    @Column(name = "monthly_rent", nullable = false,
+            columnDefinition = "integer not null default 0")
     private int monthlyRent = 0;
 
     /** 深夜料金がかかり始める時刻。 */
