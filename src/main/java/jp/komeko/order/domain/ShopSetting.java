@@ -2,6 +2,8 @@ package jp.komeko.order.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Max;
@@ -160,6 +162,33 @@ public class ShopSetting {
     @Column(name = "monthly_rent", nullable = false,
             columnDefinition = "integer not null default 0")
     private int monthlyRent = 0;
+
+    /**
+     * 消費税を納める立場か。
+     *
+     * <p>税理士の画面が出す「控除できる税額」は課税事業者にしか意味がありません。
+     * 詳しくは {@link TaxStatus} を読んでください。
+     *
+     * <p>既定を {@code UNSET} にしているのは、未設定の店に
+     * 「免税事業者です」と表示させないためです（納税に関わる嘘になる）。
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tax_status", nullable = false, length = 20,
+            columnDefinition = "varchar(20) default 'UNSET' not null")
+    private TaxStatus taxStatus = TaxStatus.UNSET;
+
+    /**
+     * 自分の店のインボイス登録番号（{@code T} + 13 桁）。持っていなければ null。
+     *
+     * <p><b>仕入先の番号（{@code purchase.reg_number}）とは向きが逆です。</b>
+     * あちらは「受け取ったレシートに番号があるか」＝こちらが控除できるか。
+     * こちらは「こちらが出す領収書に番号を書けるか」＝相手が控除できるか。
+     *
+     * <p>桁数を 14 にそろえてあるのは、突き合わせるときに型が違うと困るためです。
+     * 検算と整形は {@code RegistrationNumber} に置いてあります（実装は 1 か所）。
+     */
+    @Column(name = "invoice_registration_number", length = 14)
+    private String invoiceRegistrationNumber;
 
     /** 深夜料金がかかり始める時刻。 */
     @Column(nullable = false)
@@ -456,6 +485,51 @@ public class ShopSetting {
 
     public void setMonthlyRent(int monthlyRent) {
         this.monthlyRent = monthlyRent;
+    }
+
+    public TaxStatus getTaxStatus() {
+        return taxStatus;
+    }
+
+    /** null が来たら未設定に倒す（「免税」に倒すと納税に関わる嘘になる）。 */
+    public void setTaxStatus(TaxStatus taxStatus) {
+        this.taxStatus = taxStatus == null ? TaxStatus.UNSET : taxStatus;
+    }
+
+    public String getInvoiceRegistrationNumber() {
+        return invoiceRegistrationNumber;
+    }
+
+    /**
+     * 登録番号を入れる。空白だけの入力は「持っていない」として null に揃える。
+     *
+     * <p>形の検査はここではしません。画面側で検査してエラーを出す
+     * （{@code AdminSettingController}）ほうが、どこが悪いか伝えられるためです。
+     */
+    public void setInvoiceRegistrationNumber(String invoiceRegistrationNumber) {
+        this.invoiceRegistrationNumber =
+                (invoiceRegistrationNumber == null || invoiceRegistrationNumber.isBlank())
+                        ? null : invoiceRegistrationNumber.trim();
+    }
+
+    /**
+     * 適格請求書（インボイス）を出せる店か。
+     *
+     * <p>お客さまが経費で落とすときに、こちらの登録番号が要ります。
+     * 番号を持っていなければ、相手はその支払いで仕入税額控除ができません。
+     */
+    public boolean isInvoiceRegistered() {
+        return invoiceRegistrationNumber != null && !invoiceRegistrationNumber.isBlank();
+    }
+
+    /**
+     * 税理士の画面で「控除できる税額」に意味があるか。
+     *
+     * <p>免税事業者は消費税の申告をしないので、仕入税額控除もしません。
+     * 数字を出しても読む意味が無いので、画面はこれを見て断りを出します。
+     */
+    public boolean usesTaxDeduction() {
+        return taxStatus.filesTaxReturn();
     }
 
     public LocalTime getLateNightStartTime() {

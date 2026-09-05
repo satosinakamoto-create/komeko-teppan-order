@@ -13,6 +13,16 @@
 
   <div class="section-title">
     <h1 class="section-title__text">今月のまとめ</h1>
+    <!--/* この店自身の立場。仕入先の登録番号（証憑の確認）と混ざらないよう、
+           ここでは「この店は」と明示している。
+           未設定のときは空欄にせず、設定を促す。空欄だと
+           「免税なのだろう」と読まれかねない */-->
+    <span class="section-title__count">
+      <span th:if="${shop.taxStatus.decided}" th:text="'この店は ' + ${shop.taxStatus.label}">この店は 課税事業者</span>
+      <span th:unless="${shop.taxStatus.decided}" class="faint">消費税の立場が未設定です</span>
+      <span th:if="${shop.invoiceRegistered}"
+            th:text="' ／ ' + ${shop.invoiceRegistrationNumber}"> ／ T1234567890123</span>
+    </span>
   </div>
 
   <!--/* 手当ての要る件数を最初に出す。ゼロなら「そのまま進めます」と言い切る */-->

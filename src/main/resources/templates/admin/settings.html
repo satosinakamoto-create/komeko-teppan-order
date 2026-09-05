@@ -430,6 +430,58 @@
       </div>
     </div>
 
+    <!--/* ===== 消費税とインボイス =====
+           注文・会計の動きには影響しません。税理士の画面の読み方が変わります。
+
+           ★ 「立場」と「登録番号」を分けて持つ理由
+             ひとつの真偽値では、課税事業者だがインボイスに登録していない、
+             という状態が表せません（納めるけれど、こちらが出す領収書では
+             相手が控除できない）。
+
+           ★ 既定を「未設定」にしている理由
+             免税を既定にすると、まだ何も設定していない店に
+             「消費税を納めなくてよい」と表示されます。納税に関わる嘘なので、
+             未設定は未設定のまま出して、選んでもらいます。
+    */-->
+    <div class="card mt-6">
+      <div class="card__head">消費税とインボイス</div>
+      <div class="card__body">
+
+        <div class="field">
+          <span class="label">消費税を納める立場</span>
+          <label class="choice" th:each="s : ${taxStatuses}">
+            <input type="radio" th:field="*{taxStatus}" th:value="${s}">
+            <span class="choice__name" th:text="${s.label}">課税事業者</span>
+          </label>
+          <p class="error" th:if="${#fields.hasErrors('taxStatus')}" th:errors="*{taxStatus}">エラー</p>
+          <p class="help">
+            <strong>どちらかは顧問税理士に確認してください。</strong>
+            売上の数字から自動で判定することはしていません。
+            立場が変わった年に、誰も気づけなくなるからです。<br>
+            <strong>免税事業者を選ぶと、税理士の画面の「控除できる税額」に
+            断りが出ます。</strong>免税事業者は消費税の申告をしないので、
+            仕入税額控除もしないためです。
+          </p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="invoiceRegistrationNumber">インボイスの登録番号</label>
+          <input class="input" type="text" id="invoiceRegistrationNumber"
+                 th:field="*{invoiceRegistrationNumber}" th:errorclass="is-error"
+                 maxlength="20" placeholder="T1234567890123">
+          <p class="error" th:if="${#fields.hasErrors('invoiceRegistrationNumber')}"
+             th:errors="*{invoiceRegistrationNumber}">エラー</p>
+          <p class="help">
+            T ではじまる 13 桁の数字です。ハイフンや空白は入れても構いません。<br>
+            <strong>持っていなければ空のままで大丈夫です。</strong>
+            その場合、お客さまがこの店の支払いを経費で落とすときに、
+            消費税ぶんを控除できません（食事代そのものは経費にできます）。
+          </p>
+        </div>
+
+      </div>
+    </div>
+
     <div class="row mt-6">
       <button type="submit" class="btn btn--primary btn--lg">保存する</button>
       <a class="btn btn--ghost" th:href="@{/admin/settings}">変更を破棄する</a>

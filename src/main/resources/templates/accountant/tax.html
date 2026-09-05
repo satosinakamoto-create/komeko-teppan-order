@@ -17,6 +17,30 @@
     <span class="section-title__count">課税仕入（税率 × 控除区分）</span>
   </div>
 
+  <!--/* ===== 立場が決まっていないと、この表の意味が決まらない =====
+         控除できる税額は、課税事業者にしか意味がありません。
+         免税事業者は消費税の申告をしないので、仕入税額控除もしません。
+
+         黙って数字だけ出すと、免税の店にも控除額が並び、
+         「これを申告書に写せばいい」と読めてしまいます。
+         数字そのものは正しく出しておいて、読み方のほうを断ります。 */-->
+  <div class="alert alert--warn" th:unless="${shop.taxStatus.decided}" role="status">
+    <p class="mb-0">
+      <strong>消費税の立場が設定されていません。</strong>
+      下の「控除できる税額」は、<strong>課税事業者のときだけ意味を持つ数字</strong>です。
+      免税事業者は消費税の申告をしないので、仕入税額控除もしません。
+      店舗設定で、顧問税理士に確認した立場を選んでください。
+    </p>
+  </div>
+  <div class="alert alert--warn"
+       th:if="${shop.taxStatus.decided and !shop.usesTaxDeduction()}" role="status">
+    <p class="mb-0">
+      <strong>この店は免税事業者として設定されています。</strong>
+      免税事業者は消費税の申告をしないため、<strong>下の「控除できる税額」は申告には使いません</strong>。
+      仕入れにいくら消費税が含まれていたか、という参考の数字です。
+    </p>
+  </div>
+
   <p th:if="${taxRows.isEmpty()}" class="help">この月の仕入れはまだ記録されていません。</p>
 
   <div th:unless="${taxRows.isEmpty()}" class="table-wrap">

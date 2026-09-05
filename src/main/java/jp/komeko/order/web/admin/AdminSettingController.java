@@ -2,6 +2,8 @@ package jp.komeko.order.web.admin;
 
 import jakarta.validation.Valid;
 import jp.komeko.order.domain.ShopSetting;
+import jp.komeko.order.domain.TaxStatus;
+import jp.komeko.order.inventory.domain.RegistrationNumber;
 import jp.komeko.order.service.ShopSettingService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -138,6 +140,20 @@ public class AdminSettingController {
      * 店舗名などが入った {@code shop} は {@code GlobalModelAttributes}
      * （{@code @ControllerAdvice}）が全画面に自動で入れてくれるので、ここでは不要です。
      */
+    /**
+     * 消費税の立場のラジオボタンの選択肢。
+     *
+     * <p><b>{@code @ModelAttribute} にしてあるのは、入力エラーで描き直すときのためです。</b>
+     * 保存メソッドの中で {@code model.addAttribute} していると、
+     * エラーで {@code return "admin/settings"} した経路にだけ入れ忘れが起きます。
+     * するとエラーを直そうとした画面からラジオボタンが消える、という
+     * 「エラーのときだけ壊れる」不具合になります。ここに置けば必ず入ります。
+     */
+    @ModelAttribute("taxStatuses")
+    TaxStatus[] taxStatuses() {
+        return TaxStatus.values();
+    }
+
     @GetMapping
     public String form(Model model) {
         model.addAttribute("form", shopSettingService.current());
@@ -183,6 +199,7 @@ public class AdminSettingController {
 
         // アノテーションだけでは表現しづらい「項目どうしの関係」はここで検査する
         validateTimes(form, bindingResult);
+        validateInvoice(form, bindingResult);
 
         if (bindingResult.hasErrors()) {
             // エラー時はリダイレクトせずに描き直す（入力値とエラー箇所を保つため）。
@@ -289,6 +306,46 @@ public class AdminSettingController {
                     "深夜料金の開始と終了を同じ時刻にはできません"
                             + "（一度も深夜料金がかからなくなります。"
                             + "かけたくない場合は割増率を 0 にしてください）");
+        }
+    }
+
+    /**
+     * インボイスの登録番号と、消費税の立場の組み合わせを検査する。
+     *
+     * <p><b>検算に落ちても弾きません。</b>
+     * 登録番号は法人なら「T + 法人番号」なので国税庁の計算式で検算できますが、
+     * <b>個人事業者の 13 桁にはこの式が当てはまりません</b>（別体系で、検算方法は非公開）。
+     * 弾いてしまうと、個人事業者の店が自分の正しい番号を入力できなくなります。
+     * 合格は加点、不合格は保留、という {@code RegistrationNumber} の方針に合わせています。
+     *
+     * <p>形が違う（T + 13 桁になっていない）ときだけは止めます。
+     * こちらは事業者の別に関係なく決まっている形なので、
+     * 通してしまうと相手が控除できない番号を領収書に刷ることになります。
+     */
+    private void validateInvoice(ShopSetting form, BindingResult bindingResult) {
+        String raw = form.getInvoiceRegistrationNumber();
+        boolean hasNumber = raw != null && !raw.isBlank();
+
+        if (hasNumber) {
+            String normalized = RegistrationNumber.normalize(raw);
+            if (normalized == null || !RegistrationNumber.hasValidFormat(normalized)) {
+                bindingResult.rejectValue("invoiceRegistrationNumber", "format",
+                        "登録番号は T ではじまる 13 桁の数字です（例 T1234567890123）。"
+                                + "ハイフンや空白は入れても構いません");
+                return;
+            }
+            // 形が合っていれば、そろえた形で保存する。
+            // 「T-1234-…」と「T1234…」が混ざっていると、あとで突き合わせができない
+            form.setInvoiceRegistrationNumber(normalized);
+
+            // 免税事業者は登録番号を持てない。登録すると、売上の規模にかかわらず
+            // 課税事業者になるため。どちらかの入力間違いなので、どちらかを直してもらう
+            if (form.getTaxStatus() == TaxStatus.EXEMPT) {
+                bindingResult.rejectValue("taxStatus", "conflict",
+                        "免税事業者は登録番号を持てません"
+                                + "（インボイスに登録すると課税事業者になります）。"
+                                + "登録番号があるなら「課税事業者」を選んでください");
+            }
         }
     }
 }
