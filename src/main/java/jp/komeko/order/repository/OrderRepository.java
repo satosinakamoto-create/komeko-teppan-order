@@ -94,6 +94,61 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("since") LocalDateTime since,
             @Param("statuses") Collection<OrderStatus> statuses);
 
+    /**
+     * 厨房ボードに出ている注文の<b>件数だけ</b>を数える。
+     *
+     * <p>店舗ヘッダーの「未提供 N 件」に使う。ヘッダーは全画面で描かれるので、
+     * {@link #findKitchenBoardOrders} を毎回呼ぶと明細・伝票・卓まで
+     * 読み込むことになり、数字 1 つのために重すぎる。
+     *
+     * <p><b>where 句は {@link #findKitchenBoardOrders} と一字一句そろえてある。</b>
+     * ここを楽に書こうとして {@link #countByBusinessDateAndStatusIn}（営業日の厳密一致）を
+     * 使うと、営業日をまたいだ注文がヘッダーからだけ消える。
+     * <b>ヘッダーが 0 件なのに厨房ボードには 3 件出ている</b>という状態は、
+     * どちらを信じればいいのか分からなくなるぶん、数字が無いより悪い。
+     * 上のクエリを直すときは、必ずこちらも一緒に直すこと。
+     */
+    @Query("""
+            select count(o) from Order o
+            where o.status in :statuses
+              and (o.businessDate = :businessDate or o.createdAt >= :since)
+            """)
+    long countKitchenBoardOrders(
+            @Param("businessDate") LocalDate businessDate,
+            @Param("since") LocalDateTime since,
+            @Param("statuses") Collection<OrderStatus> statuses);
+
+    /**
+     * 期間の商品別ランキング（売上の大きい順）。
+     *
+     * <p>日単位の {@code rankItems} の期間版。where 句を {@code between} にしただけで、
+     * 集計の中身も並び順も同じにしてある。
+     *
+     * <p>並べるキーが商品 id ではなく<b>注文時点の商品名</b>なのも同じ。
+     * 商品名を変えたら別の行として集計されるが、それは
+     * 「あのとき出していた品」の売れ行きを見たいという意図どおり。
+     */
+    @Query("""
+            select new jp.komeko.order.service.dto.ItemSales(l.menuItemName, sum(l.quantity), sum(l.lineTotal))
+            from OrderLine l join l.order o
+            where o.businessDate between :from and :to and o.status = :status
+            group by l.menuItemName
+            order by sum(l.lineTotal) desc, sum(l.quantity) desc
+            """)
+    List<jp.komeko.order.service.dto.ItemSales> rankItemsBetween(
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            @Param("status") OrderStatus status);
+
+    /** 期間の注文件数（指定した状態のもの）。 */
+    @Query("""
+            select count(o) from Order o
+            where o.businessDate between :from and :to and o.status = :status
+            """)
+    long countBetween(@Param("from") LocalDate from,
+                      @Param("to") LocalDate to,
+                      @Param("status") OrderStatus status);
+
     /** 待ち組数のカウント。 */
     long countByBusinessDateAndStatusIn(LocalDate businessDate, Collection<OrderStatus> statuses);
 

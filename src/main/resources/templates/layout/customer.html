@@ -23,59 +23,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#14110f" media="(prefers-color-scheme: dark)">
+  <!--/* 端末の上下の帯（時計やホームバーの背景）も画面と同じ黒にする。
+         ここが白いままだと、暗い画面の上下に白い縁が残って安っぽく見える */-->
+  <meta name="theme-color" content="#141414">
   <meta name="robots" content="noindex">
   <title th:text="${pageTitle} + ' | ' + ${shop.shopName}">米粉と鉄板</title>
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
-<!--/* theme-snow: SnowUI トンマナ（白基調・黒の透過階調）。
-       2026-08-18 にスタッフ側と統一した。和モダン版に戻したいときは
-       この class を外すだけで生成り／きつね色／明朝に戻る（トークンが両方残っているため） */-->
-<body class="theme-snow">
-<div class="page">
+<!--/* theme-night: お客さまの注文画面の配色（暗い地＋きつね色）。
+       2026-09-05 に白基調（theme-snow）から入れ替えた。
+       店の照明の下、片手のスマホで見る画面なので、地を落として料理の写真を浮かせる。
+       配色の実体は app.css の 21-2 節。 */-->
+<body class="theme-night" th:with="seated=${tableName != null}">
+<div class="page" th:classappend="${seated} ? 'page--seated'">
 
-  <header class="app-header">
+  <!--/* ============ 上の大分類タブ ============ 2026-09-05
+
+        卓に着いているときだけ出す。QR を読んでいない人には行き先が無い。
+
+        4 つに絞ったのは、親指の届く範囲に収まる数だから。
+        「お食事／ドリンク」で品を選び、「サービス」で取り皿やお冷やを頼み、
+        「伝票・会計」でいまいくらかを見る。注文の流れがこの並びで完結する。
+
+        現在地はきつね色。暗い地の上ではきつね色だけが押せる色なので、
+        ここを他の色にすると「いまどこにいるか」が読めなくなる。 */-->
+  <nav class="tabbar" th:if="${seated}" aria-label="メニューの大分類"
+       th:with="p=${currentPath} ?: ''">
+    <a class="tabbar__item" th:href="@{/menu}"
+       th:classappend="${p == '/' or p == '/menu' or #strings.startsWith(p, '/items')} ? 'is-active'">
+      <th:block th:replace="~{fragments/icons :: ic_fork_knife}"/><span>お食事</span>
+    </a>
+    <a class="tabbar__item" th:href="@{/menu(tab='ドリンク')}"
+       th:classappend="${#strings.contains(p, 'drink')} ? 'is-active'">
+      <th:block th:replace="~{fragments/icons :: ic_beer}"/><span>ドリンク</span>
+    </a>
+    <a class="tabbar__item" th:href="@{/menu(tab='サービス')}"
+       th:classappend="${#strings.contains(p, 'service')} ? 'is-active'">
+      <th:block th:replace="~{fragments/icons :: ic_bell}"/><span>サービス</span>
+    </a>
+    <a class="tabbar__item" th:href="@{/bill}"
+       th:classappend="${#strings.startsWith(p, '/bill')} ? 'is-active'">
+      <th:block th:replace="~{fragments/icons :: ic_receipt}"/><span>伝票・会計</span>
+    </a>
+  </nav>
+
+  <!--/* 卓に着いていない画面（QR を読む前）は、店名だけの静かな頭を出す */-->
+  <header class="app-header" th:unless="${seated}">
     <div class="container app-header__inner">
-      <!--/* 店のロゴ（公式サイトと同じもの）。丸くトリミングして「のれんの紋」として置く */-->
       <a th:href="@{/}" aria-hidden="true" tabindex="-1">
         <img class="brand-logo" th:src="@{/images/logo.jpg}" th:alt="${shop.shopName} + ' ロゴ'">
       </a>
       <div>
         <a class="app-header__title" th:href="@{/}" th:text="${shop.shopName}">米粉と鉄板</a>
-        <p class="app-header__sub" th:if="${tableName == null}" th:text="${shop.tagline}">
+        <p class="app-header__sub" th:text="${shop.tagline}">
           グルテンフリーの米粉生地で焼き上げる鉄板料理</p>
-        <p class="app-header__sub" th:if="${tableName != null}" th:text="${tableName}">3番テーブル</p>
       </div>
-      <nav class="app-header__nav">
-        <a th:href="@{/bill}" th:if="${bill != null}">
-          お席の伝票
-          <span class="badge badge--rec" style="margin-left:4px"
-                th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥0</span>
-        </a>
-        <!--/* 「カート」は通販の言葉なので使いません。飲食店なら「注文リスト」。
-               ここに出ているのは、まだ厨房に送っていない“これから頼むもの”です。 */-->
-        <a th:href="@{/cart}" th:if="${cartCount != null and cartCount > 0}">
-          注文リスト
-          <span class="badge badge--rec" style="margin-left:4px" th:text="${cartCount}">0</span>
-        </a>
-
-        <!--/*
-          未確定のお知らせ。
-          「追加した＝注文した」と思われたまま待たれるのが、実店舗でいちばん困ります。
-          注文リストに品が入っているあいだ、押すべき場所（右上の注文リスト）を
-          指し続ける吹き出しを出します。
-
-          注文リストの画面自体では出しません。そこには
-          「いちばん下のボタンを押してください」がすでに書いてあり、
-          同じことを二重に言うと、かえって読み飛ばされます。
-        */-->
-        <div class="pending-note" role="status"
-             th:if="${cartCount != null and cartCount > 0 and !#strings.contains(currentPath ?: '', '/cart')}">
-          まだ注文は確定していません
-        </div>
-      </nav>
     </div>
   </header>
 
@@ -84,7 +87,30 @@
     <div th:replace="${content}">ページ本文</div>
   </div>
 
-  <footer class="app-footer">
+  <!--/* ============ 下の固定カートバー ============ 2026-09-05
+
+        注文リストに品が入っているあいだ、画面のいちばん下に貼り付く。
+
+        ★ 「注文未確定」を金額と同じ場所に置く理由
+          実店舗でいちばん困るのは「追加した＝注文した」と思われたまま待たれること。
+          以前は右上に吹き出しを出していたが、スクロールすると消えるうえ、
+          押すべき場所（注文へ進む）から離れていた。
+          いまは<b>気づく場所と押す場所が同じ</b>になっている。
+
+        ★ 注文リストの画面では出さない
+          そこには「この内容で注文する」が本文の中にあり、二重になる。 */-->
+  <a class="cartbar" th:href="@{/cart}"
+     th:if="${seated and cartCount != null and cartCount > 0
+              and !#strings.contains(currentPath ?: '', '/cart')}">
+    <span class="cartbar__text">
+      <span class="cartbar__note" th:text="'注文未確定　' + ${cartCount} + '点'">注文未確定　4点</span>
+      <span class="cartbar__total"
+            th:text="'¥' + ${#numbers.formatInteger(cartTotal ?: 0, 1, 'COMMA')}">¥3,150</span>
+    </span>
+    <span class="cartbar__go">注文へ進む →</span>
+  </a>
+
+  <footer class="app-footer" th:unless="${seated}">
     <div class="container">
       <p class="mb-0" th:text="${shop.shopName}">米粉と鉄板</p>
       <p class="mb-0">お会計はご退店時にレジまでお願いします</p>

@@ -148,9 +148,61 @@ class StockManagementTest {
             assertThat(stockOf(limited)).isEqualTo(1);
         }
 
+        /**
+         * 「品はあるが数が足りない」ときは、勝手に減らさず注文全体を断る。
+         *
+         * <p>売り切れとは扱いが違います。何個にするかはお客さまが決めることなので、
+         * 2 個頼まれて 1 個しか無いときに黙って 1 個にはしません。
+         *
+         * <p><b>このテストの前身について</b><br>
+         * ここはもともと「後の品が在庫不足なら、先の品の在庫も巻き戻る」という名前でした。
+         * ただし実際には巻き戻りを見ていませんでした。
+         * 当時は品切れの時点で {@code refresh} が注文を差し戻していたので、
+         * <b>在庫を引く処理に入る前に止まっていた</b>だけです。
+         * 品切れを「落として続行」に変えたことで、その通り道が無くなりました。
+         *
+         * <p>先に引いた分の巻き戻しは {@code OrderService#place} の
+         * {@code @Transactional} が保証しますが、<b>このテストからは確認できません</b>。
+         * このクラス自身が {@code @Transactional} で、
+         * {@code place} はそのトランザクションに相乗りするためです
+         * （テストの中では巻き戻る前の値が見えてしまう）。
+         * 確認できないものを確認したことにしないため、ここでは断ることだけを見ています。
+         */
         @Test
-        @DisplayName("複数商品の注文で後の品が在庫不足なら、先の品の在庫も巻き戻る")
-        void rollbackRestoresEarlierDecrements() {
+        @DisplayName("数量が足りないときは、注文を作らずに聞き返す")
+        void rejectsWhenNotEnoughStock() {
+            MenuItem plenty = itemWithStock(5);
+            MenuItem scarce = itemWithStock(3);
+
+            Cart cart = new Cart();
+            cartService.addToCart(cart, plenty.getId(), List.of(), 2);
+            cartService.addToCart(cart, scarce.getId(), List.of(), 2);
+            menuService.tryConsumeStock(scarce.getId(), 2);   // 他の卓が 2 皿確保 → 残り 1
+
+            assertThatThrownBy(() -> orderService.placeOrder(cart, session.getId(), null))
+                    .isInstanceOf(OrderRejectedException.class)
+                    .hasMessageContaining("残り 1 点");
+
+            // 足りなかった品には手を付けていない（勝手に 1 個だけ確保したりしない）
+            assertThat(stockOf(scarce)).isEqualTo(1);
+        }
+
+        /**
+         * 「早い者勝ちで負けた人」の通り道。
+         *
+         * <p>洗い替えの時点では買えたのに、ボタンを押してから残数を引くまでの間に
+         * 別の卓が最後の 1 点を持っていった、という並びです。
+         *
+         * <p><b>以前はここで注文が丸ごと差し戻されていました。</b>
+         * 4 品頼んでいたら、売り切れた 1 品のせいで残り 3 品も通りません。
+         * しかもこれは誰も管理画面を触っていなくても起きます。他の卓が買っただけです。
+         * 混雑時に「注文が通らない」と呼ばれる原因でした。
+         *
+         * <p>いまは売り切れた品だけ落として、残りは通します。
+         */
+        @Test
+        @DisplayName("★ 押す直前に売り切れた品だけ落として、残りの注文は通る")
+        void soldOutLineIsDroppedAndTheRestGoesThrough() {
             MenuItem plenty = itemWithStock(5);
             MenuItem scarce = itemWithStock(1);
 
@@ -159,13 +211,35 @@ class StockManagementTest {
             cartService.addToCart(cart, scarce.getId(), List.of(), 1);
             menuService.tryConsumeStock(scarce.getId(), 1);   // 他の卓が最後の 1 皿を確保
 
-            assertThatThrownBy(() -> orderService.placeOrder(cart, session.getId(), null))
-                    .isInstanceOf(OrderRejectedException.class);
+            OrderService.Placed placed = orderService.place(cart, session.getId(), null);
 
-            // トランザクションのロールバックにより、先に引かれた plenty の 2 皿も戻っている。
-            // ここが崩れると「注文は失敗したのに在庫だけ減る」という最悪の状態になる。
-            assertThat(stockOf(plenty)).isEqualTo(5);
-            assertThat(stockOf(scarce)).isZero();
+            // 通った品は注文になっている
+            assertThat(placed.order().getLines())
+                    .as("売り切れた品を除いた 1 行だけが注文になる")
+                    .hasSize(1);
+            assertThat(placed.order().getLines().get(0).getMenuItemId()).isEqualTo(plenty.getId());
+            assertThat(stockOf(plenty)).isEqualTo(3);
+
+            // 落とした品は、お客さまに伝えるための案内として返る
+            assertThat(placed.soldOutNotices())
+                    .as("何が落ちたかを画面で伝えられること")
+                    .hasSize(1)
+                    .first().asString().contains(scarce.getName()).contains("売り切れ");
+        }
+
+        @Test
+        @DisplayName("全部売り切れていたら、これまでどおり断る")
+        void allSoldOutIsStillRejected() {
+            MenuItem scarce = itemWithStock(1);
+
+            Cart cart = new Cart();
+            cartService.addToCart(cart, scarce.getId(), List.of(), 1);
+            menuService.tryConsumeStock(scarce.getId(), 1);
+
+            // 1 品も通らないのに「承りました」と出しては嘘になる
+            assertThatThrownBy(() -> orderService.placeOrder(cart, session.getId(), null))
+                    .isInstanceOf(OrderRejectedException.class)
+                    .hasMessageContaining("売り切れ");
         }
 
         @Test

@@ -36,6 +36,25 @@
     <zxing.version>3.5.4</zxing.version>
   </properties>
 
+  <dependencyManagement>
+    <dependencies>
+      <!--
+        テストで起動する PostgreSQL のバージョンを本番に合わせる。
+
+        これを書かないと 14 系が使われます。動きはしますが、
+        「PostgreSQL で確認した」と言うなら本番と同じ系で確認しないと
+        意味が薄れます。本番を上げるときは、ここも一緒に上げること。
+      -->
+      <dependency>
+        <groupId>io.zonky.test.postgres</groupId>
+        <artifactId>embedded-postgres-binaries-bom</artifactId>
+        <version>16.2.0</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
 
     <!-- ▼ Web（Spring MVC / 組み込み Tomcat）。これだけで Web サーバが同梱される -->
@@ -81,6 +100,21 @@
       <version>${zxing.version}</version>
     </dependency>
 
+    <!-- ▼ Flyway : スキーマ変更の管理（マイグレーション）
+         本番は ddl-auto: validate なので、テーブルは自動では作られない。
+         「どの SQL をどの順で流したか」を DB 自身に記録させ、
+         同じ変更が二度流れないようにするのがマイグレーションツールの役割。
+         dev では従来どおり Hibernate の ddl-auto: update に任せる（application-dev.yml で無効化）。 -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <!-- PostgreSQL 用の方言。Flyway 10 以降は DB ごとに別 jar が要る -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+    </dependency>
+
     <!-- ▼ H2 : ファイル 1 つで動く組み込み DB。開発・小規模運用はこれで十分 -->
     <dependency>
       <groupId>com.h2database</groupId>
@@ -112,6 +146,25 @@
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      ▼ 本物の PostgreSQL をテストの中で起動するためのもの
+
+      本番は PostgreSQL ＋ ddl-auto: validate です。つまり
+      マイグレーション SQL が PostgreSQL で 1 文字でも通らなければ、
+      本番アプリは起動しません。しかも手元は H2 なので、
+      デプロイするまで気づけません。
+
+      Docker は不要で、テストのたびに PostgreSQL の実体を落としてきて
+      サブプロセスとして起動します（scope=test なので本番の jar には入りません）。
+      Testcontainers を使わないのは Docker を前提にしたくないためです。
+    -->
+    <dependency>
+      <groupId>io.zonky.test</groupId>
+      <artifactId>embedded-postgres</artifactId>
+      <version>2.0.7</version>
       <scope>test</scope>
     </dependency>
 

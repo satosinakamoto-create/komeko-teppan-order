@@ -54,9 +54,21 @@ public class CheckoutController {
         }
         try {
             TableSession session = tableService.requireOpenSession(tableContext.getTableId());
-            orderService.placeOrder(cart, session.getId(), note);
+            OrderService.Placed placed = orderService.place(cart, session.getId(), note);
             cart.clear();
-            redirectAttributes.addFlashAttribute("flashSuccess", "ご注文を承りました。お席までお持ちします。");
+
+            // 売り切れで落ちた品があっても、注文そのものは通っている。
+            // 「売り切れました」だけを出すと注文が失敗したように読めるので、
+            // 何が落ちて、何が通ったのかを続けて伝える。
+            if (placed.soldOutNotices().isEmpty()) {
+                redirectAttributes.addFlashAttribute("flashSuccess", "ご注文を承りました。お席までお持ちします。");
+            } else {
+                redirectAttributes.addFlashAttribute("flashErrors", placed.soldOutNotices());
+                // 単位は「点」。残数の案内（「残り 2 点です」）と言葉をそろえる
+                redirectAttributes.addFlashAttribute("flashSuccess",
+                        "残りの %d 点はご注文を承りました。お席までお持ちします。"
+                                .formatted(placed.order().getTotalQuantity()));
+            }
             return "redirect:/bill";
         } catch (OrderRejectedException e) {
             redirectAttributes.addFlashAttribute("flashErrors", e.getReasons());

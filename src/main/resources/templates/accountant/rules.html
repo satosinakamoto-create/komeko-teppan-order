@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<!--/*
+   勘定科目の対応表。店の言葉を会計の言葉に翻訳する設定。
+
+   ★ ここは税理士が書き換えてよい数少ない場所。
+     店の記録ではなく「会計ソフトへの翻訳の仕方」であり、
+     それを決めるのは税理士の仕事だから。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/accountant :: layout('勘定科目の対応表', ~{::main})}">
+<body>
+<main>
+
+  <div class="section-title">
+    <h1 class="section-title__text">勘定科目の対応表</h1>
+    <span class="section-title__count" th:text="${rules.size()} + ' 行'">0 行</span>
+  </div>
+
+  <p class="help">
+    店は「食材を 8% で買った、インボイスは無かった」と記録します。
+    会計ソフトが欲しいのは「仕入高 / 課対仕入(軽)8%・80%控除」という言葉です。
+    その翻訳をここで決めます。<br>
+    <strong>組み合わせが 3 つあるのには理由があります。</strong>
+    同じ食材の 8% でも、登録番号のある仕入れは全額控除、無い仕入れは経過措置で、
+    会計ソフト上はまったく別の税区分になるからです。
+  </p>
+
+  <div class="alert alert--info">
+    <p class="mb-0">
+      <strong>初期値はたたき台です。</strong>
+      とくに税区分は、弥生では<strong>事務所に登録されている名称と 1 文字でも違うと取り込めません</strong>。
+      実際にお使いの名称に直してください。
+    </p>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>費目</th>
+        <th class="right">税率</th>
+        <th>控除区分</th>
+        <th>勘定科目</th>
+        <th>税区分</th>
+        <th></th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="r : ${rules}">
+        <td th:text="${r.category.getLabel()}">食材</td>
+        <td class="right num" th:text="${r.taxRatePercent} + '%'">8%</td>
+        <td th:text="${r.deductionRatePercent == 100} ? '全額控除'
+                     : (${r.deductionRatePercent == 0} ? '控除なし' : ${r.deductionRatePercent} + '%控除')">全額控除</td>
+        <td colspan="3">
+          <form th:action="@{/accountant/rules/{id}(id=${r.id})}" method="post" class="row">
+            <input class="input" type="text" name="accountName" th:value="${r.accountName}"
+                   maxlength="24" required aria-label="勘定科目">
+            <input class="input" type="text" name="taxClassName" th:value="${r.taxClassName}"
+                   maxlength="32" required aria-label="税区分">
+            <button type="submit" class="btn btn--sm">直す</button>
+          </form>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="help">
+    経過措置の割合（80% → 70% → 50% → 30% → 0）は法律で決まっているので、
+    行はあらかじめ全部用意してあります。いま使わない行も、
+    <strong>その時期が来たら自動で使われます</strong>。
+  </p>
+
+</main>
+</body>
+</html>

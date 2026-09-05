@@ -103,7 +103,6 @@ public class AdminOrderController {
                 .map(o -> new OrderRow(o, o.getCreatedAt().format(TIME_FORMAT)))
                 .toList();
 
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("rows", rows);
 
         // 日付は表示用（日本語）と URL 用（ISO 文字列）を分けて渡す。

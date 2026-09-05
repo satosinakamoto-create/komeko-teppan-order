@@ -25,7 +25,6 @@
 <body>
 <main>
 
-  <div th:replace="~{fragments/admin-nav :: nav('tables')}"></div>
   <div th:replace="~{fragments/common :: flash}"></div>
 
   <div class="section-title">
@@ -184,14 +183,18 @@
             <button class="btn btn--primary" type="submit">更新</button>
           </form>
 
-          <!--/* QR の再発行。取り返しがつかないので confirm() を必ず通します。
-                 onsubmit は素の HTML 属性（th: を付けない固定文言）にしています。
-                 卓名を式で埋め込もうとすると引用符とエスケープが入り組み、
-                 かえって壊れやすくなるためです。 */-->
-          <form method="post" th:action="@{/admin/tables/{id}/regenerate(id=${t.id})}"
-                onsubmit="return confirm('この卓の QR コードを作り直します。\n\nいま席に貼ってある QR は読み取れなくなり、新しい QR を印刷して貼り替えるまで、この席からは注文できません。\n\n本当に再発行しますか？')">
-            <button class="btn btn--danger" type="submit">QR を再発行</button>
-          </form>
+          <!--/* QR の再発行ボタンは 2026-08-27 にこの画面から外しました。
+
+                 同じ POST /admin/tables/{id}/regenerate が、この画面と QRコード画面の
+                 両方に置かれていました。押すと席に貼ってある QR が読めなくなり、
+                 新しい QR を印刷して貼り替えるまでその席から注文できません。
+                 取り返しがつかないうえ、紙を貼り替えるという物理の作業まで発生します。
+                 そういう操作の入口を 2 つ持つ理由はありませんでした。
+
+                 残したのは QRコード画面のほうです。理由は「再発行したら必ず印刷する」から。
+                 印刷ボタンと画像が並んでいる場所に置いておけば、
+                 作り直したのに貼り替え忘れる、が起きにくくなります。
+                 この画面からは下の「QR を見る・印刷する」でそちらへ行けます。 */-->
 
           <!--/* 削除は別フォーム。フォームは入れ子にできません */-->
           <form method="post" th:action="@{/admin/tables/{id}/delete(id=${t.id})}"

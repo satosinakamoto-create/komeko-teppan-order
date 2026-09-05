@@ -230,7 +230,6 @@ public class KitchenController {
         // 卓名 → その卓のチケット枚数。テンプレートでは ${sameTableCount[order.tableName]} で引く
         model.addAttribute("sameTableCount", countByTableName(board));
         // レイアウト（layout/staff.html）のナビで、いまいる場所に色を付けるための目印
-        model.addAttribute("activeNav", "kitchen");
         return "kitchen/board";
     }
 
@@ -403,26 +402,41 @@ public class KitchenController {
         model.addAttribute("categoryGroups", categoryGroups);
         model.addAttribute("itemCount", items.size());
         model.addAttribute("soldOutCount", soldOutCount);
-        model.addAttribute("activeNav", "stock");
         return "kitchen/stock";
     }
 
     /**
-     * 残数（本日の数）を設定する。
+     * 残数（本日の数）を設定する。<b>欄を空にして送ると、数を数えない品に戻します。</b>
      *
      * <p>数量限定の品に「今日は 8 皿」と入れておくと、
      * 注文のたびに自動で減り、0 になった瞬間から各卓のメニューで売り切れ表示になります。
      * 減らす処理は条件付き UPDATE（{@code MenuService#tryConsumeStock}）なので、
      * 2 卓が同時に最後の 1 皿を頼んでも売り越えません。
+     *
+     * <p><b>「解除」の口をこちらへ寄せました（2026-08-27）。</b><br>
+     * もとは {@code POST /stock/{itemId}/stock/clear} という別のボタンがありましたが、
+     * 中身は同じ {@code setStock(id, null)} でした。行あたり 56px を使い、
+     * そのぶん右端の「操作」列（この画面の主役）を表示領域の外へ押し出していました。
+     *
+     * <p>空欄はもともとここへ届いていました。{@code <input type="number">} を空のまま送ると
+     * {@code stockCount=} という空文字が飛び、Spring が {@code Integer} へ変換する際に
+     * {@code null} になるためです。ところが下の書式に {@code %d} を使っていたので、
+     * 「残数を null に設定しました」と出ていました。
+     * 届いてはいたが、正しく答えていなかった、という状態です。
      */
     @PostMapping("/stock/{itemId}/stock")
     public String setStock(@PathVariable Long itemId,
-                           @RequestParam Integer stockCount,
+                           @RequestParam(required = false) Integer stockCount,
                            RedirectAttributes redirectAttributes) {
         try {
             String name = menuService.setStock(itemId, stockCount);
-            redirectAttributes.addFlashAttribute("flashSuccess",
-                    "「%s」の残数を %d に設定しました".formatted(name, stockCount));
+            if (stockCount == null) {
+                redirectAttributes.addFlashAttribute("flashInfo",
+                        "「%s」の残数管理を解除しました（無制限に戻ります）".formatted(name));
+            } else {
+                redirectAttributes.addFlashAttribute("flashSuccess",
+                        "「%s」の残数を %d に設定しました".formatted(name, stockCount));
+            }
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/kitchen/stock";
@@ -430,21 +444,7 @@ public class KitchenController {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/kitchen/stock";
         }
-        return redirectToCategoryOf(itemId);
-    }
-
-    /** 残数管理をやめる（数を数えない品に戻す）。 */
-    @PostMapping("/stock/{itemId}/stock/clear")
-    public String clearStock(@PathVariable Long itemId, RedirectAttributes redirectAttributes) {
-        try {
-            String name = menuService.setStock(itemId, null);
-            redirectAttributes.addFlashAttribute("flashInfo",
-                    "「%s」の残数管理を解除しました（無制限に戻ります）".formatted(name));
-        } catch (MenuService.MenuItemNotFoundException e) {
-            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
-            return "redirect:/kitchen/stock";
-        }
-        return redirectToCategoryOf(itemId);
+        return redirectToItem(itemId);
     }
 
     /**
@@ -453,10 +453,9 @@ public class KitchenController {
      * <p>戻り先は品切れパネルです。厨房ボードに飛ばすと、
      * 続けて何品も操作したいときに毎回パネルを開き直すことになるためです。
      *
-     * <p><b>成功したときは、操作した品のカテゴリまで戻します</b>（{@link #redirectToCategoryOf}）。
+     * <p><b>成功したときは、操作した行まで戻します</b>（{@link #redirectToItem}）。
      * この画面は 14 カテゴリ 94 行あるので、素の {@code /kitchen/stock} に戻すと
      * 毎回いちばん上に着地し、「続けて何品も」ができません。
-     * カテゴリのチップで飛んだ意味も、1 操作で消えてしまいます。
      */
     @PostMapping("/stock/{itemId}/toggle")
     public String toggleSoldOut(@PathVariable Long itemId, RedirectAttributes redirectAttributes) {
@@ -477,11 +476,11 @@ public class KitchenController {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/kitchen/stock";
         }
-        return redirectToCategoryOf(itemId);
+        return redirectToItem(itemId);
     }
 
     /**
-     * 品切れパネルの、その商品が属するカテゴリまで戻す。
+     * 品切れパネルの、<b>操作した行そのもの</b>へ戻す。
      *
      * <p><b>成功時だけ使います。</b>失敗したときは素の {@code /kitchen/stock} に戻して、
      * 画面上端のエラーを必ず読ませます。うまくいかなかったのに操作した場所へ戻すと、
@@ -491,17 +490,25 @@ public class KitchenController {
      * <b>操作した行そのものが「品切れ」の表示に変わる</b>ので、
      * 結果は押した場所で見えます。離れた場所の通知より、そちらのほうが速く伝わります。
      *
-     * <p>カテゴリが引けなかったときは素の URL に落とします。
+     * <p><b>カテゴリではなく行に戻すようにしました（2026-09-05）。</b><br>
+     * もとはカテゴリの先頭（{@code #cat-N}）に戻していましたが、
+     * この画面は 14 カテゴリ 94 行あり、カテゴリの中だけでも十数行あります。
+     * 続けて何品も品切れにするとき、押すたびにカテゴリの頭まで戻され、
+     * <b>さっき押した行をまた探す</b>ことになっていました。
+     *
+     * <p>行に戻すのは JS が動かないときの受け皿で、
+     * ふだんは {@code kitchen/stock.html} のスクリプトが
+     * 送信前の位置をそのまま復元します（そちらは画面が 1px も動きません）。
+     *
+     * <p>商品が引けなかったときは素の URL に落とします。
      * 戻り先を決めるためだけの読み直しで例外を投げて、
      * 成功した操作を失敗に見せてしまわないようにするためです。
      */
-    private String redirectToCategoryOf(Long itemId) {
-        try {
-            Long categoryId = menuService.itemWithOptions(itemId).getCategory().getId();
-            return "redirect:/kitchen/stock#cat-" + categoryId;
-        } catch (RuntimeException e) {
+    private String redirectToItem(Long itemId) {
+        if (itemId == null) {
             return "redirect:/kitchen/stock";
         }
+        return "redirect:/kitchen/stock#item-" + itemId;
     }
 
     // ========================================================================

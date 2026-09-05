@@ -82,7 +82,6 @@ public class AdminQrController {
         // 画面上で確認できたほうが、卓の登録漏れに気付きやすいため。
         List<DiningTable> tables = tableService.allTables();
 
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("tables", tables);
         model.addAttribute("tableUrls", buildTableUrls(tables));
         model.addAttribute("size", clampSize(size));

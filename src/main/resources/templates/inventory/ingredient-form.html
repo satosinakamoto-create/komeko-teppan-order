@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!--/*
+   食材の新規登録。
+
+   入力してもらうのは名前と単位だけでいい、という作りにしている。
+   警告残量も単価の固定も後から足せるので、
+   最初の 1 件を登録するときに考えることを増やさない。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('食材を追加', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">食材を追加</h1>
+    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/ingredients}">← 食材・在庫へ</a>
+  </div>
+
+  <form th:action="@{/inventory/ingredients}" method="post" th:object="${ingredientForm}" class="card">
+    <div class="card__body">
+
+      <div th:if="${#fields.hasErrors('*')}" class="alert alert--error">
+        <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
+      </div>
+
+      <div class="grid grid--2">
+        <div class="field">
+          <label class="label" for="name">食材名</label>
+          <input class="input" type="text" id="name" th:field="*{name}" placeholder="キャベツ">
+          <p class="help">店の中で通じる呼び方で構いません</p>
+        </div>
+        <div class="field">
+          <label class="label" for="unit">単位</label>
+          <select class="select" id="unit" th:field="*{unit}">
+            <option th:each="u : ${units}" th:value="${u}"
+                    th:text="${u.label} + '（' + ${u.symbol} + '）'">グラム（g）</option>
+          </select>
+          <p class="help">
+            グラム数が分かる食材は g、袋のまま数えるものは「パック」や「袋」を選んでください
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid--2">
+        <div class="field">
+          <label class="label" for="lowThresholdQty">警告残量（任意）</label>
+          <input class="input" type="number" step="0.001" min="0"
+                 id="lowThresholdQty" th:field="*{lowThresholdQty}" placeholder="500">
+          <p class="help">これを下回ったら一覧で赤くします。空欄なら警告しません</p>
+        </div>
+        <div class="field">
+          <label class="label" for="costOverride">単価を固定する（任意）</label>
+          <input class="input" type="number" step="0.0001" min="0"
+                 id="costOverride" th:field="*{costOverride}" placeholder="0.12">
+          <p class="help">
+            空欄でかまいません。ふだんは<strong>最新の仕入価格を自動で使います</strong>ので、
+            昨日の値上がりが今日の原価率にそのまま出ます
+          </p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="memo">メモ（任意）</label>
+        <input class="input" type="text" id="memo" th:field="*{memo}"
+               placeholder="冷蔵庫の下段 / ◯◯商店に発注 など">
+      </div>
+
+      <button type="submit" class="btn btn--primary">この内容で登録する</button>
+    </div>
+  </form>
+
+  <p class="help">
+    登録しただけでは在庫は 0 のままです。<strong>棚卸しで「いまいくつあるか」を 1 度入れる</strong>と、
+    そこを起点に仕入れと消費が積み上がっていきます。
+  </p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<!--/*
+   仕入れ 1 件の詳細。
+
+   税理士に見せることを想定して、消費税まわりの判断材料を隠さず出しています。
+   「登録番号をどこまで確かめたか」「何％引ける扱いにしたか」「紙を捨ててよいか」。
+   この 3 つが分かれば、税理士は迷わず仕訳にできます。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('仕入れの詳細', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text" th:text="${purchase.storeName}">店名</h1>
+    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/purchases}">← 一覧へ戻る</a>
+  </div>
+
+  <div th:if="${purchase.deleted}" class="alert alert--error">
+    <p class="mb-0">
+      この記録は取り消されています（<span th:text="${purchase.deletedAt}">日時</span>）。
+      記録自体は履歴として残しています。
+    </p>
+  </div>
+
+  <div th:if="${purchase.paperRetentionRequired}" class="alert alert--warn">
+    <p class="mb-0">
+      受領から入力期限を過ぎて登録されています。<strong>このレシートの紙の原本は保管してください。</strong>
+    </p>
+  </div>
+
+  <div class="grid grid--3">
+    <div class="stat">
+      <p class="stat__label">合計（税込）</p>
+      <p class="stat__value">
+        <span class="stat__unit">¥</span><span
+          th:text="${#numbers.formatInteger(purchase.totalAmount, 1, 'COMMA')}">0</span>
+      </p>
+      <p class="tiny faint mb-0"
+         th:text="'税抜 ¥' + ${#numbers.formatInteger(purchase.netTotal(), 1, 'COMMA')}
+                  + ' / 消費税 ¥' + ${#numbers.formatInteger(purchase.taxTotal(), 1, 'COMMA')}">税抜</p>
+    </div>
+    <div class="stat">
+      <p class="stat__label">取引日</p>
+      <p class="stat__value" th:text="${purchase.purchasedOn}">2026-08-30</p>
+      <p class="tiny faint mb-0" th:text="'受領 ' + ${purchase.receivedOn}">受領</p>
+    </div>
+    <div class="stat">
+      <p class="stat__label">控除できる割合</p>
+      <p class="stat__value">
+        <span th:text="${purchase.deductionRatePercent}">100</span><span class="stat__unit">%</span>
+      </p>
+      <p class="tiny faint mb-0" th:text="${purchase.evidenceType.getLabel()}">適格簡易請求書</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head">証憑としての状態</div>
+    <div class="table-wrap">
+      <table class="table">
+        <tbody>
+        <tr>
+          <th>登録番号</th>
+          <td>
+            <span th:if="${purchase.regNumber != null}" class="num"
+                  th:text="${T(jp.komeko.order.inventory.domain.RegistrationNumber).forDisplay(purchase.regNumber)}">T1234-5678-9012-3</span>
+            <span th:if="${purchase.regNumber == null}" class="faint">なし</span>
+            <span class="badge" th:text="${purchase.regVerifyStatus.getLabel()}">未確認</span>
+          </td>
+        </tr>
+        <tr th:if="${purchase.regNumberRaw != null}">
+          <th>読み取った文字</th>
+          <td class="tiny faint num" th:text="${purchase.regNumberRaw}">T-1234-5678-9012-3</td>
+        </tr>
+        <tr>
+          <th>支払い方法</th>
+          <td th:text="${purchase.paymentMethod.getLabel()}">現金</td>
+        </tr>
+        <tr>
+          <th>システムに保存した日時</th>
+          <td class="tiny" th:text="${purchase.storedAt}">日時</td>
+        </tr>
+        <tr>
+          <th>紙との同等確認</th>
+          <td>
+            <span th:if="${purchase.equivalenceCheckedAt != null}" class="badge badge--gf"
+                  th:text="'確認済み ' + ${purchase.equivalenceCheckedAt}">確認済み</span>
+            <span th:if="${purchase.equivalenceCheckedAt == null}" class="faint">まだ</span>
+          </td>
+        </tr>
+        <tr th:if="${purchase.memo != null}">
+          <th>メモ</th>
+          <td th:text="${purchase.memo}">メモ</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__head">明細</div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+        <tr>
+          <th>品名</th>
+          <th class="right">数量</th>
+          <th class="right">金額（税込）</th>
+          <th class="right">税抜</th>
+          <th class="right">税率</th>
+          <th>費目</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="line : ${purchase.lines}">
+          <td th:text="${line.itemText}">品名</td>
+          <td class="right num" th:text="${line.quantity} ?: '—'">1</td>
+          <td class="right num" th:text="'¥' + ${#numbers.formatInteger(line.amount, 1, 'COMMA')}">¥0</td>
+          <td class="right num faint" th:text="'¥' + ${#numbers.formatInteger(line.netAmount(), 1, 'COMMA')}">¥0</td>
+          <td class="right num">
+            <span th:text="${line.taxRatePercent} + '%'">8%</span>
+            <span th:if="${line.isReducedRate()}" class="badge">軽減</span>
+          </td>
+          <td class="tiny" th:text="${line.category.getLabel()}">食材</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card__foot" th:if="${purchase.lineTotalMismatch() != 0}">
+      <p class="tiny mb-0"
+         th:text="'レシートの合計と明細の合計が ¥'
+                  + ${#numbers.formatInteger(T(java.lang.Math).abs(purchase.lineTotalMismatch()), 1, 'COMMA')}
+                  + ' ずれています（値引き行や読み取り漏れの可能性）'">ずれ</p>
+    </div>
+  </div>
+
+  <div th:if="${purchase.imagePath != null}" class="card">
+    <div class="card__head">レシート画像</div>
+    <div class="card__body">
+      <img th:src="${purchase.imagePath}" alt="レシート"
+           style="max-width:100%; border-radius:8px;">
+    </div>
+  </div>
+
+  <!--/* 変更はすべて POST。GET で状態が変わる口は作らない（既存の規律）。 */-->
+  <div class="card" th:unless="${purchase.deleted}">
+    <div class="card__body">
+      <form th:if="${purchase.equivalenceCheckedAt == null}"
+            th:action="@{/inventory/purchases/{id}/checked(id=${purchase.id})}" method="post">
+        <button type="submit" class="btn btn--ok">紙と見比べて確認した</button>
+        <!--/* ★「破棄して構いません」は入力期限内のときだけ。
+               期限を過ぎた分は、確認しても紙原本の保管が必要（電帳法）。
+               以前ここが無条件だったため、同じ画面の上の警告と矛盾していた。 */-->
+        <p class="help" th:unless="${purchase.paperRetentionRequired}">
+          確認すると、この紙のレシートは破棄して構いません。
+        </p>
+        <p class="help" th:if="${purchase.paperRetentionRequired}">
+          確認の記録は残りますが、入力期限を過ぎているため
+          <strong>紙の原本はこのまま保管してください</strong>（破棄できません）。
+        </p>
+      </form>
+
+      <form th:action="@{/inventory/purchases/{id}/delete(id=${purchase.id})}" method="post">
+        <div class="field">
+          <label class="label" for="reason">取り消す理由</label>
+          <input class="input" type="text" id="reason" name="reason" placeholder="二重登録のため など">
+        </div>
+        <button type="submit" class="btn btn--danger btn--sm">この記録を取り消す</button>
+        <p class="help">
+          記録は消えません。取り消したという事実とあわせて残り、検索でも呼び出せます
+          （電子帳簿保存法の要件）。
+        </p>
+      </form>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

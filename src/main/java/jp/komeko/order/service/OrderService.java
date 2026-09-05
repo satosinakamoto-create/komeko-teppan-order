@@ -113,6 +113,31 @@ public class OrderService {
      */
     @Transactional
     public Order placeOrder(Cart cart, Long sessionId, String note) {
+        return place(cart, sessionId, note).order();
+    }
+
+    /**
+     * 注文の結果。
+     *
+     * @param order         できた注文
+     * @param soldOutNotices 売り切れで落とした品の案内（空なら全部そのまま通った）
+     */
+    public record Placed(Order order, List<String> soldOutNotices) {
+    }
+
+    /**
+     * {@link #placeOrder} と同じ処理で、<b>売り切れで落とした品も一緒に返す</b>。
+     *
+     * <p>お客さまの画面はこちらを使ってください。
+     * 「◯◯は売り切れました。他の 3 品は承りました」と伝えるために、
+     * 何が落ちたのかが要ります。
+     *
+     * <p>{@link #placeOrder} のほうを残してあるのは、
+     * 注文を 1 件作りたいだけの呼び出し（テストや他のサービス）が多数あるためです。
+     * そちらは案内を使わないので、戻り値を変えずに済ませています。
+     */
+    @Transactional
+    public Placed place(Cart cart, Long sessionId, String note) {
         if (cart.isEmpty()) {
             throw new OrderRejectedException("カートに商品が入っていません");
         }
@@ -137,16 +162,26 @@ public class OrderService {
         }
 
         // 値上げ・品切れが起きていないかを最終確認する。
-        // 変化があったら注文は通さず、更新後のカートを見せて再確認してもらう。
-        List<String> changes = cartService.refresh(cart);
-        if (!changes.isEmpty()) {
-            List<String> messages = new ArrayList<>(changes);
+        //
+        // ★ 「落とす」と「止める」を分けている（2026-09-04）★
+        //   もとは変化が 1 つでもあれば注文を丸ごと差し戻していた。
+        //   だが売り切れは、他の卓が最後の 1 点を買っただけで起こる。
+        //   誰も管理画面を触っていないのに、4 品のうち 1 品が売り切れただけで
+        //   残り 3 品も通らない——というのが混雑時に起きていた。
+        //
+        //   売り切れ・取り扱い終了は「その品が無い」だけなので、落として先へ進む。
+        //   価格やオプションの中身が変わったときは、これまでどおり止める。
+        //   黙って通すと、お客さまが画面で見ていない金額で確定してしまうため。
+        CartService.CartRefresh refreshed = cartService.refresh(cart);
+        if (!refreshed.needsConfirm().isEmpty()) {
+            List<String> messages = new ArrayList<>(refreshed.needsConfirm());
             messages.add("内容をご確認のうえ、もう一度ご注文ください");
             throw new OrderRejectedException(messages);
         }
         if (cart.isEmpty()) {
             throw new OrderRejectedException("ご注文の品がすべて売り切れました。申し訳ありません");
         }
+        List<String> soldOutNotices = new ArrayList<>(refreshed.removed());
 
         // ── 残数を引く（数量限定の品の売り越え防止） ──
         // 条件付き UPDATE なので、2 卓が同時に最後の 1 皿を頼んでも片方だけが通る。
@@ -154,17 +189,29 @@ public class OrderService {
         // → このメソッドは @Transactional なので、それまでに引いた分は自動で巻き戻る。
         // 番号の採番（別トランザクションで即確定＝巻き戻らない）より前にやるのは、
         // 在庫切れで断るたびに番号が飛ぶのを避けるため。
+        //
+        // ここが「早い者勝ちで負けた」人の通り道。洗い替えの時点では買えたのに、
+        // ボタンを押してから引くまでの間に、別の卓が最後の 1 点を持っていった場合。
+        // 売り切れたその品だけ落として、残りは通す。
+        //
+        // ただし「品はあるが数が足りない」（残り 1 点なのに 2 個）は落とさない。
+        // 何個にするかはお客さまが決めることなので、勝手に減らさず聞き返す。
+        List<CartLine> accepted = new ArrayList<>();
         for (CartLine line : cart.getLines()) {
-            if (!menuService.tryConsumeStock(line.getMenuItemId(), line.getQuantity())) {
-                Integer left = menuService.stockRemainingOf(line.getMenuItemId());
-                if (left != null && left > 0) {
-                    throw new OrderRejectedException(
-                            "「%s」は残り %d 点です。数量を変更してください"
-                                    .formatted(line.getMenuItemName(), left));
-                }
-                throw new OrderRejectedException(
-                        "「%s」は売り切れました".formatted(line.getMenuItemName()));
+            if (menuService.tryConsumeStock(line.getMenuItemId(), line.getQuantity())) {
+                accepted.add(line);
+                continue;
             }
+            Integer left = menuService.stockRemainingOf(line.getMenuItemId());
+            if (left != null && left > 0) {
+                throw new OrderRejectedException(
+                        "「%s」は残り %d 点です。数量を変更してください"
+                                .formatted(line.getMenuItemName(), left));
+            }
+            soldOutNotices.add("「%s」は売り切れました".formatted(line.getMenuItemName()));
+        }
+        if (accepted.isEmpty()) {
+            throw new OrderRejectedException("ご注文の品がすべて売り切れました。申し訳ありません");
         }
 
         // 営業日と税率は「伝票（＝来店）」の値に合わせる。
@@ -177,7 +224,8 @@ public class OrderService {
         order.setCustomerName(session.getDiningTable().getName());
         order.setNote(trimToNull(note, 200));
 
-        for (CartLine line : cart.getLines()) {
+        // cart ではなく accepted を回す。売り切れで落とした品を入れないため
+        for (CartLine line : accepted) {
             OrderLine orderLine = new OrderLine(
                     line.getMenuItemId(),
                     line.getMenuItemName(),
@@ -204,7 +252,7 @@ public class OrderService {
                 saved.getTotalAmount(), saved.getTotalQuantity());
 
         eventPublisher.publishOrderChanged(OrderEvent.created(saved.getId(), saved.getOrderNumber()));
-        return saved;
+        return new Placed(saved, List.copyOf(soldOutNotices));
     }
 
     // ========================================================================
@@ -241,6 +289,25 @@ public class OrderService {
                 orders.stream().filter(o -> o.getStatus() == OrderStatus.RECEIVED).toList(),
                 orders.stream().filter(o -> o.getStatus() == OrderStatus.COOKING).toList(),
                 orders.stream().filter(o -> o.getStatus() == OrderStatus.READY).toList());
+    }
+
+    /**
+     * まだ提供していない注文の件数（店舗ヘッダーの「未提供 N 件」）。
+     *
+     * <p>数えるのは {@link #kitchenBoard()} と<b>同じ母集合</b>——
+     * 受付・調理中・お渡し可の 3 レーンに出ている注文です。
+     * 厨房ボードの見出し「未処理 N 件」と必ず同じ数字になります。
+     *
+     * <p>ヘッダーは店側の全画面で描かれるので、
+     * {@code kitchenBoard()} を呼んで {@code activeCount()} を読む形にはしません。
+     * あちらは明細・伝票・卓まで読み込むので、数字 1 つには重すぎます。
+     */
+    @Transactional(readOnly = true)
+    public int pendingCount() {
+        return (int) orderRepository.countKitchenBoardOrders(
+                shopSettingService.currentBusinessDate(),
+                carryOverSince(),
+                List.of(OrderStatus.RECEIVED, OrderStatus.COOKING, OrderStatus.READY));
     }
 
     /** 当日の全注文（管理画面の一覧）。 */

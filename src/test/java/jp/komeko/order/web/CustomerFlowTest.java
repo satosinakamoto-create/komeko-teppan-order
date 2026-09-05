@@ -268,13 +268,73 @@ class CustomerFlowTest {
     @DisplayName("お客さん向けのその他の画面")
     class CustomerPages {
 
+        /** QR を読んだ状態のブラウザを作る。 */
+        private MockHttpSession seatedBrowser() throws Exception {
+            MockHttpSession browser = new MockHttpSession();
+            mockMvc.perform(get("/t/{token}", accessToken).session(browser));
+            return browser;
+        }
+
         @Test
         @DisplayName("GET /items/{id} で商品詳細が 200 で描画される")
         void itemPageRenders() throws Exception {
-            mockMvc.perform(get("/items/{id}", menuItemId))
+            mockMvc.perform(get("/items/{id}", menuItemId).session(seatedBrowser()))
                     .andExpect(status().isOk())
                     .andExpect(view().name("customer/item"))
                     .andExpect(model().attributeExists("item"));
+        }
+
+        @Test
+        @DisplayName("★ QR を読んでいなければ商品詳細も開けない（一覧と同じ扱い）")
+        void itemPageIsHiddenWithoutTable() throws Exception {
+            // 一覧（GET /）は卓の紐づけを見ているのに、詳細だけ素通りしていた。
+            // ブックマークや検索から直接来た人に、単品のページだけ見えている状態だった。
+            mockMvc.perform(get("/items/{id}", menuItemId))
+                    .andExpect(status().isOk())
+                    .andExpect(view().name("customer/no-table"));
+        }
+
+        /**
+         * 掲載停止にした商品が、URL の数字を変えるだけで読めてしまっていた件。
+         *
+         * <p>一覧は {@code where m.visible = true} で絞っているのに、
+         * 詳細の {@code findByIdWithOptions} は {@code where m.id = :id} しか見ておらず、
+         * <b>一覧から消えた商品が詳細では読めていました</b>。
+         * 店主から見ると「一覧から消えた＝隠せた」なので、気づけません。
+         *
+         * <p>これから「編集中（下書き）」を入れる予定があり、
+         * 下書きは定義上「まだ見せたくないもの」です。ここが開いたままだと
+         * 「編集中はお客さまに出ない」という前提が成り立ちません。
+         */
+        @Test
+        @DisplayName("★ 掲載停止にした商品は、URL を直接開いても見えない")
+        void hiddenItemIsNotReadableByUrl() throws Exception {
+            MenuItem hidden = menuItemRepository.findById(menuItemId).orElseThrow();
+            hidden.setVisible(false);
+            menuItemRepository.save(hidden);
+
+            String html = mockMvc.perform(get("/items/{id}", menuItemId).session(seatedBrowser()))
+                    .andExpect(status().isOk())
+                    .andExpect(view().name("customer/no-item"))
+                    .andReturn().getResponse().getContentAsString();
+
+            // 商品名すら出さない。隠した品の名前を出したら隠した意味がない
+            assertThat(html).doesNotContain("肉玉米粉そば");
+        }
+
+        @Test
+        @DisplayName("★ カテゴリごと非表示にした商品も、URL を直接開いても見えない")
+        void itemInHiddenCategoryIsNotReadableByUrl() throws Exception {
+            // item.getCategory() は遅延読み込みのプロキシで、
+            // このテストはトランザクションの外なので触ると LazyInitializationException になる。
+            // カテゴリは 1 件しか作っていないので、リポジトリから直接引く。
+            Category category = categoryRepository.findAll().get(0);
+            category.setVisible(false);
+            categoryRepository.save(category);
+
+            mockMvc.perform(get("/items/{id}", menuItemId).session(seatedBrowser()))
+                    .andExpect(status().isOk())
+                    .andExpect(view().name("customer/no-item"));
         }
 
         @Test

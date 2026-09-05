@@ -131,14 +131,15 @@ public class AdminSettingController {
     /**
      * 店舗設定フォームを表示する。
      *
-     * <p>{@code activeNav} はヘッダーのどのメニューを強調するかの目印で、
-     * {@code layout/staff.html} が参照しています。
+     * <p>現在地の強調は {@code layout/staff.html} が URL（{@code currentPath}）から
+     * 判定するので、コントローラから目印を渡す必要はありません。
+     * かつて渡していた {@code activeNav} は、どのテンプレートも読まないまま
+     * 17 か所に残っていたので 2026-08-27 に削除しました。
      * 店舗名などが入った {@code shop} は {@code GlobalModelAttributes}
      * （{@code @ControllerAdvice}）が全画面に自動で入れてくれるので、ここでは不要です。
      */
     @GetMapping
     public String form(Model model) {
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("form", shopSettingService.current());
         return "admin/settings";
     }
@@ -186,7 +187,6 @@ public class AdminSettingController {
         if (bindingResult.hasErrors()) {
             // エラー時はリダイレクトせずに描き直す（入力値とエラー箇所を保つため）。
             // form と BindingResult は Spring が自動でモデルに入れてくれるので追加不要。
-            model.addAttribute("activeNav", "admin");
             return "admin/settings";
         }
 

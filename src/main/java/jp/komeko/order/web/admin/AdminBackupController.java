@@ -35,7 +35,6 @@ public class AdminBackupController {
 
     @GetMapping
     public String view(Model model) {
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("backups", backupService.listBackups());
         model.addAttribute("backupDir", backupService.getBackupDirPath());
         model.addAttribute("supported", backupService.isBackupSupported());

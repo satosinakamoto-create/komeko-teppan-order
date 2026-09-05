@@ -47,7 +47,8 @@
         <h1 class="mb-0">品切れ・残数管理</h1>
         <p class="small muted mb-0">
           品切れにすると、卓の QR から開くメニューで注文できなくなります。
-          数量限定の品は「残数」に今日の数を入れると、自動で減って 0 で売り切れになります
+          数量限定の品は「残数」に今日の数を入れると、自動で減って 0 で売り切れになります。
+          <strong>数を数えるのをやめるときは、欄を空にして「設定」を押してください</strong>
         </p>
       </div>
       <div class="row row--wrap">
@@ -143,9 +144,19 @@
           </tr>
           </thead>
           <tbody>
-          <tr th:each="item : ${g.items()}">
+          <!--/* id は「押した行に戻る」ための目印（下のスクリプトと KitchenController の
+                 redirectToItem が使う）。JS が動かない環境ではこの目印だけが効き、
+                 押した行が画面の頭に来る。 */-->
+          <tr th:each="item : ${g.items()}" th:id="'item-' + ${item.id}">
 
-            <td>
+            <!--/* .wrap … この列だけ折り返しを許す。
+                   .table は既定で white-space:nowrap です（狭い端末で崩さないため）。
+                   ただし商品名は最長が「きのことチーズの鉄板オープンオムレツ」で、
+                   折り返せないと約 294px を占め、そのぶん右端の「操作」列が
+                   表示領域からはみ出します。この画面でいちばん押す列が
+                   横スクロールしないと届かない、という状態でした。
+                   名前は 2 行になってもよい情報なので、ここだけ折り返します。 */-->
+            <td class="wrap">
               <span class="bold" th:classappend="${!item.orderable} ? 'muted'"
                     th:text="${item.name}">ハムチーズガレット</span>
               <span class="badge badge--rec" th:if="${item.recommended}">おすすめ</span>
@@ -167,26 +178,26 @@
                    「残数」は数量限定の品のためのオプション機能です。
                    数字を入れる → 注文のたびに自動で減り、0 で売り切れ表示になる。
                    キャンセルされた分は自動で戻ります。
-                   「解除」→ 数を数えない品（無制限）に戻る。
-                   HTML のフォームは入れ子にできないため、設定と解除は別々の form です。
+
+                   ★「解除」ボタンは 2026-08-27 に外しました。
+                     数を数えない品に戻す方法が 2 つありました。
+                       欄を空にして「設定」を押す ／ 「解除」を押す
+                     どちらも MenuService#setStock(id, null) を呼ぶ同じ処理で、
+                     ボタンのほうは行あたり 56px を使っていました。
+                     その 56px が「操作」列を表示領域の外へ押し出していたので、
+                     欄を空にするほうに一本化しています（下の欄外に書き方を出しています）。
             */-->
             <td>
-              <div class="row" style="gap: 6px">
-                <form th:action="@{/kitchen/stock/{id}/stock(id=${item.id})}" method="post"
-                      class="row" style="gap: 6px">
-                  <input class="input" type="number" name="stockCount"
-                         min="0" max="999" inputmode="numeric"
-                         style="width: 90px"
-                         th:value="${item.stockRemaining}"
-                         th:placeholder="${item.stockTracked} ? '' : '—'"
-                         th:aria-label="${item.name} + ' の残数'">
-                  <button type="submit" class="btn btn--sm" style="min-height: 48px">設定</button>
-                </form>
-                <form th:if="${item.stockTracked}"
-                      th:action="@{/kitchen/stock/{id}/stock/clear(id=${item.id})}" method="post">
-                  <button type="submit" class="btn btn--sm btn--ghost" style="min-height: 48px">解除</button>
-                </form>
-              </div>
+              <form th:action="@{/kitchen/stock/{id}/stock(id=${item.id})}" method="post"
+                    class="row" style="gap: 6px">
+                <input class="input" type="number" name="stockCount"
+                       min="0" max="999" inputmode="numeric"
+                       style="width: 90px"
+                       th:value="${item.stockRemaining}"
+                       th:placeholder="${item.stockTracked} ? '' : '—'"
+                       th:aria-label="${item.name} + ' の残数（空にして設定を押すと数を数えなくなります）'">
+                <button type="submit" class="btn btn--sm" style="min-height: 48px">設定</button>
+              </form>
             </td>
 
             <!--/* トグルのフォーム。th:action で書くと CSRF トークンが自動で入ります
@@ -216,6 +227,53 @@
     すでに注文リストに入っている品は、注文確定のタイミングで自動的に取り除かれます。
     すでに受け付けた注文は自動では消えません。焼けない場合は厨房ボードからキャンセルしてください。
   </p>
+
+  <!--/* ====== 押した位置にとどまる ======
+
+        この画面は 14 カテゴリ 94 行あり、仕込みの前後に何品も続けて操作します。
+        POST → リダイレクト（PRG）で画面が作り直されるので、
+        何もしないと押すたびに頭へ戻り、さっき押した行をまた探すことになります。
+
+        送信の直前に縦の位置を控えて、戻ってきたら同じ位置へ戻します。
+        コントローラ側が #item-◯ を付けて返すので、
+        <b>この JS が動かない環境でも</b>押した行の高さには着きます。
+        JS が動くときは、そのアンカーによる移動も打ち消して 1px も動かしません。
+
+        ★ sessionStorage を使う理由
+          値はこのタブだけ・この画面だけのもので、残す価値がありません。
+          localStorage だと次に開いたときの位置まで復元してしまいます。
+
+        ★ 消してから使う理由
+          復元したら必ず消します。残したままにすると、
+          サイドバーからこの画面に入り直したときにも前の位置へ飛び、
+          「なぜか途中から始まる」画面になります。 */-->
+  <script>
+    (function () {
+      var KEY = 'kitchen-stock-scroll';
+
+      document.addEventListener('submit', function () {
+        sessionStorage.setItem(KEY, String(window.scrollY));
+      });
+
+      function restore() {
+        var y = sessionStorage.getItem(KEY);
+        if (y === null) { return; }
+        sessionStorage.removeItem(KEY);
+        // アンカー（#item-◯）による移動より後に効かせる必要があるので、
+        // 読み込み完了のあと 1 回だけ上書きする。
+        //
+        // ★ behavior:'instant' を外さないこと。
+        //   app.css は html に scroll-behavior:smooth を掛けているので、
+        //   既定のままだとアンカーの位置から保存位置まで画面が滑って動く。
+        //   「その場にとどまる」ためにやっているのに、
+        //   かえって長い移動を見せることになる。
+        window.scrollTo({ top: parseInt(y, 10), left: 0, behavior: 'instant' });
+      }
+
+      if (document.readyState === 'complete') { restore(); }
+      else { window.addEventListener('load', restore); }
+    })();
+  </script>
 
 </main>
 </body>

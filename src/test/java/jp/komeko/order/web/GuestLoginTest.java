@@ -129,7 +129,10 @@ class GuestLoginTest {
         @ValueSource(strings = {"/admin/tables/1/regenerate", "/admin/tables/1/delete",
                                 "/admin/orders/1/cancel", "/admin/settings",
                                 "/admin/settings/toggle-accepting",
-                                "/admin/items", "/admin/items/1/delete", "/admin/items/1/soldout",
+                                // "/admin/items/1/soldout" は 2026-08-27 にエンドポイントごと削除。
+                                // 存在しないパスに 403 を期待しても、守れていることの証明にならないため外した
+                                // （フィルタが先に弾くので、消しても 403 のまま緑になってしまう）。
+                                "/admin/items", "/admin/items/1/delete",
                                 "/admin/categories", "/admin/categories/1/delete",
                                 "/admin/staff", "/admin/staff/1/password", "/admin/staff/1/delete",
                                 "/admin/options/1/delete", "/admin/backups/run"})

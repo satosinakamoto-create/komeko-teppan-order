@@ -44,8 +44,23 @@ public class StaffZoneIpFilter extends OncePerRequestFilter {
      * お客さま用の URL（/ /items /cart /bill /t など）は対象外。
      */
     private static final String[] STAFF_PREFIXES = {
-            "/kitchen", "/hall", "/admin", "/api/stream", "/api/kitchen", "/h2-console"
+            "/kitchen", "/hall", "/admin", "/inventory", "/accountant",
+            "/api/stream", "/api/kitchen", "/h2-console"
     };
+
+    // ★ /accountant について（2026-09-01 追加）
+    //
+    //   税理士の画面も帳簿そのものなので、ここに入れて閉じています。
+    //   ただし他のスタッフ画面と事情がひとつ違います。
+    //   厨房もホールも店内から使いますが、<b>顧問税理士は事務所から見ます</b>。
+    //
+    //   いまは app.staff-access.allowed-ips が空（＝制限そのものが無効）なので
+    //   誰も締め出しません。実際に接続元を絞るときは、
+    //   税理士事務所の固定 IP を許可一覧に足す必要があります。
+    //   足し忘れると、税理士だけが理由の分からない拒否に遭います。
+    //
+    //   開けたままにする案もありましたが、閉じ忘れより開け忘れのほうが
+    //   気づきやすいので、閉じる側を既定にしています。
 
     private final boolean enabled;
     private final List<IpAddressMatcher> allowed = new ArrayList<>();

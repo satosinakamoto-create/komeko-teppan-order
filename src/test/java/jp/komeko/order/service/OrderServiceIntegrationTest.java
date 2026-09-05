@@ -269,6 +269,43 @@ class OrderServiceIntegrationTest {
             assertThat(cart.isEmpty()).isTrue();
         }
 
+        /**
+         * 品切れが 1 品あっても、残りの注文は通す。
+         *
+         * <p><b>なぜ 1 品のために全部を止めてはいけないか</b><br>
+         * 品切れは、店主が品切れボタンを押したときだけでなく、
+         * 数量限定の品を他の卓が買い切ったときにも起きます。
+         * つまり<b>誰も操作していなくても起きる、ごく普通のこと</b>です。
+         *
+         * <p>それで 4 品まとめて差し戻していたので、混雑時に
+         * 「注文が通らない」と呼ばれる原因になっていました。
+         * 押し直せば通るのに、お客さまには理由が分かりません。
+         *
+         * <p>値上げのときは、いまも止めます（次のテスト）。
+         * 品が無いのと、金額が変わるのは別の話だからです。
+         */
+        @Test
+        @DisplayName("★ 1 品が品切れでも、残りの品はそのまま注文が通る")
+        void soldOutItemIsDroppedAndTheRestGoesThrough() {
+            Cart cart = new Cart();
+            cartService.addToCart(cart, okonomiyaki.getId(), List.of(), 2);
+            cartService.addToCart(cart, sour.getId(), List.of(), 1);
+
+            sour.setSoldOut(true);   // 厨房が品切れにした、という想定
+
+            OrderService.Placed placed = orderService.place(cart, bill.getId(), null);
+
+            assertThat(placed.order().getLines())
+                    .as("品切れの 1 品を除いた残りが注文になる")
+                    .hasSize(1);
+            assertThat(placed.order().getLines().get(0).getMenuItemId())
+                    .isEqualTo(okonomiyaki.getId());
+            assertThat(placed.soldOutNotices())
+                    .as("何が落ちたかを画面で伝えられること")
+                    .hasSize(1)
+                    .first().asString().contains(sour.getName());
+        }
+
         @Test
         @DisplayName("値上げされていたら受け付けず、確認しなおしてもらう")
         void rejectsWhenPriceChanged() {

@@ -1,272 +1,225 @@
 <!DOCTYPE html>
 <!--/*
-   売上。
+   売上（月単位）。
 
-   この画面には性格の違う数字が 2 種類あります。混ぜないように見出しで分けています。
+   ── 日単位から月単位に変えた理由（2026-09-05）──
+   もとは「その営業日」の画面で、日付ナビ・直近7日の棒グラフ・時間帯別が並んでいました。
+   ところが店主がこの画面で決めたいのは
+     ・今月は先月より良いのか
+     ・売上のうち何にいくら出ていっているのか
+     ・どの品が売れているのか
+   の 3 つで、どれも 1 日だけ見ても答えが出ません。
+   日単位の数字は、ダッシュボード（今日の営業）が受け持ちます。
 
-     ① お会計（伝票）ベース … 実際にいただいた金額。
-                              小計＋テーブルチャージ＋深夜料金。会計済みの伝票だけ。
-                              モデル属性は ${billSummary}（record なので bills() のように括弧付きで呼ぶ）。
-                              ※ 伝票を "session" という名前で渡すことはできません。
-                                 Thymeleaf では ${session} が HttpSession を指す予約語のためです。
-     ② 注文ベース           … どの商品がどれだけ出たか。受渡済の注文だけ。
-                              モデル属性は ${summary} / ${ranking} / 各グラフ。
+   ── グラフを外部ライブラリなしで描く ──
+   店内の PC はインターネットに繋がっていないことがあるので、
+   CDN からグラフライブラリを読み込む作りにはしません。
+   折れ線は素の SVG で、座標はすべて Java 側で計算して渡してあります
+   （テンプレートに割り算を持ち込むと、0 除算やまるめが HTML に散らばって直せなくなる）。
+
+   使えるモデルの値：
+     ${sales}       … MonthlySales（sales/tax/bills/guests/orders/averagePerBill()）
+     ${salesDelta}  … 前月比（%）。前月が 0 なら null
+     ${chart}       … Chart（points/line/area/grid）
+     ${spans}       … [1,3,6,12]
+     ${breakdown}   … List<BreakdownRow>
+     ${ranking}     … List<RankingRow>
+     ${monthIso} ${prevMonthIso} ${nextMonthIso}
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('売上', ~{::main})}">
 <body>
-<main>
+<main class="sheet">
 
-  <div th:replace="~{fragments/admin-nav :: nav('sales')}"></div>
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">売上</h1>
-    <span class="section-title__count" th:text="${dateLabel}">2026年8月16日(日)</span>
+  <!--/* ====== 月を移る ====== */-->
+  <nav class="monthnav" aria-label="月の切り替え">
+    <span class="monthnav__label">対象の月</span>
+    <a class="monthnav__go" th:href="@{/admin/sales(month=${prevMonthIso}, span=${span})}">← 前月</a>
+    <span class="monthnav__value" th:text="${monthLabel}">2026-08</span>
+    <a class="monthnav__go" th:href="@{/admin/sales(month=${nextMonthIso}, span=${span})}">翌月 →</a>
+  </nav>
+
+  <div class="page-head page-head--bare">
+    <h1 class="page-head__title">売上</h1>
   </div>
 
-  <!--/* ===== 日付の切り替え =====
-         GET のフォームなので CSRF トークンは不要ですが、
-         URL の組み立てを Thymeleaf に任せるため th:action を使います。
-  */-->
-  <form th:action="@{/admin/sales}" method="get" class="row row--wrap">
-    <a class="btn btn--sm" th:href="@{/admin/sales(date=${prevDateIso})}">← 前日</a>
-    <input class="input" type="date" name="date" th:value="${dateIso}" style="max-width:12rem">
-    <button type="submit" class="btn btn--sm">この日を表示</button>
-    <a class="btn btn--sm" th:href="@{/admin/sales(date=${nextDateIso})}">翌日 →</a>
-    <span class="spacer"></span>
-    <a class="btn btn--sm btn--ghost" th:href="@{/admin/orders(date=${dateIso})}">この日の注文履歴</a>
-  </form>
-
-  <p class="help">
-    ここでいう日付は「営業日」です。深夜の注文は、店舗設定の「営業日の切り替え時刻」に従って
-    前日ぶんとして集計されます。<br>
-    伝票は<strong>ご案内した時刻</strong>の営業日に数えます。23 時にご案内して深夜 1 時にお会計した組も、
-    途中で日付が変わらず 1 つの営業日に収まります。
-  </p>
-
-  <!--/* ==========================================================
-         ① お会計（伝票）ベース
-         こちらが「実際にいただいた金額」。レジのお金と合わせるならこの数字を見る。
-     ========================================================== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">お会計（伝票）ベース</h2>
-    <span class="section-title__count">実際にいただいた金額</span>
+  <!--/* ====== 3 つの数字 ====== */-->
+  <div class="statrow">
+    <div class="statcard">
+      <p class="statcard__label">一か月の総売上</p>
+      <p class="statcard__value"
+         th:text="'¥' + ${#numbers.formatInteger(sales.sales(), 1, 'COMMA')}">¥1,284,600</p>
+      <p class="statcard__delta">
+        <span th:if="${salesDelta != null}"
+              th:classappend="${salesDelta.signum() >= 0} ? 'is-up' : 'is-down'"
+              th:text="(${salesDelta.signum() >= 0} ? '＋' : '') + ${salesDelta} + '%'">＋12.5%</span>
+        <span th:if="${salesDelta == null}" class="faint">—</span>
+        <span class="statcard__note">先月比</span>
+      </p>
+    </div>
+    <div class="statcard">
+      <p class="statcard__label">注文数</p>
+      <p class="statcard__value" th:text="${#numbers.formatInteger(sales.orders(), 1, 'COMMA')}">1,526</p>
+      <p class="statcard__delta">
+        <span th:if="${ordersDelta != null}"
+              th:classappend="${ordersDelta.signum() >= 0} ? 'is-up' : 'is-down'"
+              th:text="(${ordersDelta.signum() >= 0} ? '＋' : '') + ${ordersDelta} + '%'">＋8.2%</span>
+        <span th:if="${ordersDelta == null}" class="faint">—</span>
+        <span class="statcard__note">先月比</span>
+      </p>
+    </div>
+    <div class="statcard">
+      <p class="statcard__label">平均単価</p>
+      <p class="statcard__value"
+         th:text="'¥' + ${#numbers.formatInteger(sales.averagePerBill(), 1, 'COMMA')}">¥3,150</p>
+      <p class="statcard__delta">
+        <span th:if="${averageDelta != null}"
+              th:classappend="${averageDelta.signum() >= 0} ? 'is-up' : 'is-down'"
+              th:text="(${averageDelta.signum() >= 0} ? '＋' : '') + ${averageDelta} + '%'">＋4.0%</span>
+        <span th:if="${averageDelta == null}" class="faint">—</span>
+        <span class="statcard__note">1組あたり／先月比</span>
+      </p>
+    </div>
   </div>
 
-  <div class="grid grid--3">
-
-    <div class="stat">
-      <p class="stat__label">組数（会計済み）</p>
-      <p class="stat__value">
-        <span th:text="${#numbers.formatInteger(billSummary.bills(), 1, 'COMMA')}">18</span><span class="stat__unit">組</span>
-      </p>
-      <p class="tiny faint mb-0"
-         th:text="'1組あたり ¥' + ${#numbers.formatInteger(billSummary.averagePerBill(), 1, 'COMMA')}">1組あたり ¥0</p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">客数</p>
-      <p class="stat__value">
-        <span th:text="${#numbers.formatInteger(billSummary.guests(), 1, 'COMMA')}">46</span><span class="stat__unit">名</span>
-      </p>
-      <p class="tiny faint mb-0">ご案内時に入力した人数の合計</p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">客単価（お一人あたり）</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(billSummary.averagePerGuest(), 1, 'COMMA')}">3,980</span>
-      </p>
-      <p class="tiny faint mb-0">ご請求額の合計 ÷ 客数</p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">ご請求額の合計</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(billSummary.total(), 1, 'COMMA')}">183,200</span>
-      </p>
-      <p class="tiny faint mb-0"
-         th:text="'うち消費税 ¥' + ${#numbers.formatInteger(billSummary.tax(), 1, 'COMMA')}">うち消費税 ¥0</p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">テーブルチャージ計</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(billSummary.tableCharge(), 1, 'COMMA')}">20,700</span>
-      </p>
-      <p class="tiny faint mb-0">単価 × 人数を伝票ごとに加算</p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">深夜料金計</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(billSummary.lateNight(), 1, 'COMMA')}">7,400</span>
-      </p>
-      <p class="tiny faint mb-0">小計＋チャージへの割増ぶん</p>
-    </div>
-
-  </div>
-
-  <p class="help">
-    内訳は
-    小計 <strong th:text="'¥' + ${#numbers.formatInteger(billSummary.subtotal(), 1, 'COMMA')}">¥0</strong>
-    ＋ テーブルチャージ <strong th:text="'¥' + ${#numbers.formatInteger(billSummary.tableCharge(), 1, 'COMMA')}">¥0</strong>
-    ＋ 深夜料金 <strong th:text="'¥' + ${#numbers.formatInteger(billSummary.lateNight(), 1, 'COMMA')}">¥0</strong>
-    ＝ ご請求額 <strong th:text="'¥' + ${#numbers.formatInteger(billSummary.total(), 1, 'COMMA')}">¥0</strong>
-    です（消費税はこの中に含まれる内税）。
-    数えているのは<strong>お会計まで済んだ伝票だけ</strong>です。
-    <span th:if="${billSummary.openBills() > 0}"
-          th:text="'いまお会計がまだの伝票が ' + ${billSummary.openBills()} + ' 組あり、上の数字には入っていません。'">
-      いまお会計がまだの伝票が 2 組あり、上の数字には入っていません。
-    </span>
-  </p>
-
-  <!--/* ==========================================================
-         ② 注文ベース
-         「どの商品がどれだけ出たか」を見るための数字。会計の金額とは一致しない。
-     ========================================================== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">商品の売上（注文ベース）</h2>
-    <span class="section-title__count">受渡済の注文だけを集計</span>
-  </div>
-
-  <div class="grid grid--4">
-
-    <div class="stat">
-      <p class="stat__label">受渡済の件数</p>
-      <p class="stat__value">
-        <span th:text="${#numbers.formatInteger(summary.orders(), 1, 'COMMA')}">12</span><span class="stat__unit">件</span>
-      </p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">商品の売上（税込）</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(summary.total(), 1, 'COMMA')}">28,400</span>
-      </p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">うち消費税（内税）</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(summary.tax(), 1, 'COMMA')}">2,103</span>
-      </p>
-    </div>
-
-    <div class="stat">
-      <p class="stat__label">1注文あたりの平均</p>
-      <p class="stat__value">
-        <span class="stat__unit">¥</span><span th:text="${#numbers.formatInteger(summary.averagePerOrder(), 1, 'COMMA')}">2,366</span>
-      </p>
-    </div>
-
-  </div>
-
-  <!--/*
-    ここを曖昧にすると「どっちが本当の売上なの？」と必ず聞かれます。
-    ズレる理由をはっきり書いておきます。
-  */-->
-  <p class="help">
-    <strong>上の「お会計ベース」と、この「注文ベース」の金額は一致しません。</strong>
-    注文ベースにはテーブルチャージと深夜料金が入らず、また<strong>受渡済</strong>の注文だけを数えるため、
-    まだ厨房に残っている品やキャンセルぶんの扱いも違うからです。
-    レジのお金と合わせるときは<strong>お会計ベース</strong>、
-    商品の売れ行きを見るときは<strong>注文ベース</strong>を使ってください。<br>
-    注文ベースの税抜相当は
-    <strong th:text="'¥' + ${#numbers.formatInteger(summary.net(), 1, 'COMMA')}">¥26,297</strong>
-    です。商品の価格はすべて税込で登録されているため、消費税は合計から逆算した「内税」になります。
-  </p>
-
-  <!--/* ===== 直近の推移 ===== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">売上の推移</h2>
-    <span class="section-title__count"
-          th:text="'注文ベース ／ 直近 ' + ${recentDays} + ' 日（本日まで）'">注文ベース ／ 直近 7 日（本日まで）</span>
-  </div>
-
-  <div class="card">
-    <div class="card__body">
-      <div class="bars">
-        <!--/*
-          棒の高さは Java 側で「その期間の最大値に対する割合」として計算済みです。
-          テンプレートで割り算をすると、売上ゼロの日ばかりのときに 0 で割ってしまい
-          画面ごとエラーになります。計算は Java 側にまとめるのが安全です。
-        */-->
-        <div class="bars__item" th:each="b : ${dailyBars}">
-          <div class="bars__bar" th:style="'height:' + ${b.heightPercent()} + '%'"
-               th:title="${b.title()}"></div>
-          <div class="bars__label" th:text="${b.label()}">8/16</div>
-        </div>
+  <!--/* ====== 売上推移（折れ線） ====== */-->
+  <section class="panel">
+    <div class="panel__head">
+      <h2 class="panel__title">売上推移</h2>
+      <span class="panel__spacer"></span>
+      <div class="segmented" role="group" aria-label="期間">
+        <a th:each="s : ${spans}" class="segmented__item"
+           th:classappend="${s == span} ? 'is-active'"
+           th:href="@{/admin/sales(month=${monthIso}, span=${s})}"
+           th:text="${s == 12} ? '1年' : (${s} + 'か月')">6か月</a>
       </div>
-      <p class="help mt-4">
-        棒にマウスを載せると、その日の件数と金額が出ます。
-        いちばん高い棒がその期間の最高売上で、他の日はそれとの比で描かれます。
-      </p>
     </div>
-  </div>
 
-  <!--/* ===== 時間帯別 ===== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">時間帯別の売上</h2>
-    <span class="section-title__count" th:text="'注文ベース ／ ' + ${dateLabel}">注文ベース ／ 2026年8月16日(日)</span>
-  </div>
-
-  <div class="card">
-    <div class="card__body">
-      <div class="bars">
-        <div class="bars__item" th:each="b : ${hourlyBars}">
-          <div class="bars__bar" th:style="'height:' + ${b.heightPercent()} + '%'"
-               th:title="${b.title()}"></div>
-          <div class="bars__label" th:text="${b.label()}">11</div>
-        </div>
-      </div>
-      <p class="help mt-4">
-        横軸は「時」です（11 なら 11:00〜11:59）。営業時間帯を基本に、
-        その外側でも売上があった時間は自動で範囲に含めています。
-        山になっている時間の少し前から仕込みを始めると、待ち時間を短くできます。
-      </p>
+    <!--/* 点は SVG の外（HTML）に置く。
+           preserveAspectRatio="none" は横だけを伸ばすので、
+           SVG の中の円は画面幅に応じて楕円に潰れる。
+           線と面は伸びてよいが、点は形が意味なので伸ばせない。 */-->
+    <div class="linechart__wrap">
+      <svg class="linechart" viewBox="0 0 1000 300" preserveAspectRatio="none" role="img"
+           aria-label="月ごとの売上の推移">
+        <!--/* 横罫線と目盛り。y 座標は Java が計算済み */-->
+        <g class="linechart__grid">
+          <line th:each="g : ${chart.grid()}" x1="56" x2="992"
+                th:y1="${g.y()}" th:y2="${g.y()}"></line>
+        </g>
+        <!--/* 線の下の面。線だけより「量」が読み取りやすい */-->
+        <polygon class="linechart__area" th:attr="points=${chart.area()}"></polygon>
+        <polyline class="linechart__line" th:attr="points=${chart.line()}"></polyline>
+      </svg>
+      <span th:each="p : ${chart.points()}" class="linechart__dot"
+            th:classappend="${p.last()} ? 'is-last'"
+            th:style="'left:' + ${p.x()} / 10 + '%; top:' + ${p.y()} / 3 + '%'"></span>
     </div>
-  </div>
 
-  <!--/* ===== 商品別ランキング ===== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">商品別の売れ行き</h2>
-    <span class="section-title__count"
-          th:text="'注文ベース ／ ' + ${#lists.size(ranking)} + ' 品'">注文ベース ／ 6 品</span>
-  </div>
+    <!--/* 目盛りと月のラベルは SVG の外に HTML で置く。
+           viewBox で横に伸縮させているので、SVG の中の文字は
+           そのぶん横に引き伸ばされてしまう */-->
+    <div class="linechart__xaxis">
+      <span th:each="p : ${chart.points()}" th:classappend="${p.last()} ? 'is-last'">
+        <b th:text="${p.amountLabel()}">¥128万</b>
+        <i th:text="${p.label()}">8月</i>
+      </span>
+    </div>
+  </section>
 
-  <div th:if="${#lists.isEmpty(ranking)}">
-    <div th:replace="~{fragments/common :: empty('—', 'この日はまだ受け渡しが完了した注文がありません')}"></div>
-  </div>
+  <!--/* ====== 売上の配分 ====== */-->
+  <section class="panel">
+    <div class="panel__head">
+      <h2 class="panel__title">売上の配分</h2>
+      <span class="panel__sub"
+            th:text="'売上 ¥' + ${#numbers.formatInteger(sales.sales(), 1, 'COMMA')} + ' に対して'">売上に対して</span>
+    </div>
 
-  <div class="card" th:unless="${#lists.isEmpty(ranking)}">
-    <div class="table-wrap">
-      <table class="table">
+    <div class="breakdown">
+      <table class="table table--breakdown">
         <thead>
         <tr>
-          <th>順位</th>
-          <th>商品</th>
-          <th class="num">数量</th>
-          <th class="num">売上（税込）</th>
+          <th>費目</th>
+          <th class="num">目安</th>
+          <th class="num">実績</th>
+          <th class="num">金額</th>
         </tr>
         </thead>
         <tbody>
-        <tr th:each="i, stat : ${ranking}">
-          <td class="num" th:text="${stat.count}">1</td>
-          <td th:text="${i.menuItemName()}">コンプレット</td>
-          <td class="num" th:text="${#numbers.formatInteger(i.qty(), 1, 'COMMA')}">14</td>
-          <td class="num" th:text="'¥' + ${#numbers.formatInteger(i.sales(), 1, 'COMMA')}">¥12,320</td>
+        <tr th:each="b : ${breakdown}">
+          <td>
+            <span class="breakdown__chip" th:style="'background:' + ${b.color()}" aria-hidden="true"></span>
+            <span th:text="${b.label()}">F 食材・飲料</span>
+          </td>
+          <td class="num" th:text="${b.target()} + '%'">60%</td>
+          <td class="num">
+            <span th:if="${b.percent() != null}" th:text="${b.percent()} + '%'">58.4%</span>
+            <span th:unless="${b.percent() != null}" class="faint">—</span>
+          </td>
+          <td class="num">
+            <span th:if="${b.amount() != null}"
+                  th:text="'¥' + ${#numbers.formatInteger(b.amount(), 1, 'COMMA')}">¥750,000</span>
+            <span th:unless="${b.amount() != null}" class="faint">記録していません</span>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+
+      <!--/* 記録が無い費目があることを、画面に明示する。
+             ここを黙って 0 円にすると「家賃がかかっていない」という嘘になる */-->
+      <p class="alert alert--warn mb-0">
+        <strong>賃貸と人件費は、このアプリでは記録していません。</strong>
+        仕入れの費目は 食材／飲料・酒／消耗品／光熱費／その他 の 5 つで、
+        家賃や給与を入れる先がありません。
+        配分の全体像を見るには、この 2 つを別に足して考えてください。
+      </p>
+    </div>
+  </section>
+
+  <!--/* ====== 注文されている商品 ====== */-->
+  <section class="panel">
+    <div class="panel__head">
+      <h2 class="panel__title">注文されている商品</h2>
+      <span class="panel__sub">今月の売れ行き</span>
+    </div>
+
+    <div th:if="${#lists.isEmpty(ranking)}">
+      <div th:replace="~{fragments/common :: empty('—', 'この月はまだ受け渡しが完了した注文がありません')}"></div>
+    </div>
+
+    <div class="table-wrap" th:unless="${#lists.isEmpty(ranking)}">
+      <table class="table table--ranking">
+        <thead>
+        <tr>
+          <th>商品</th>
+          <th class="num">数量</th>
+          <th class="num">売上（税込）</th>
+          <th class="num">構成比</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${ranking}">
+          <td th:text="${r.name()}">肉玉米粉そば</td>
+          <td class="num" th:text="${#numbers.formatInteger(r.quantity(), 1, 'COMMA')}">284</td>
+          <td class="num"
+              th:text="'¥' + ${#numbers.formatInteger(r.amount(), 1, 'COMMA')}">¥335,120</td>
+          <td class="num">
+            <span th:if="${r.share() != null}" th:text="${r.share()} + '%'">26.1%</span>
+            <span th:unless="${r.share() != null}" class="faint">—</span>
+          </td>
         </tr>
         </tbody>
       </table>
     </div>
-  </div>
 
-  <p class="help">
-    商品名は「注文された時点の名前」で集計しています。あとから商品名を変更しても、
-    過去の集計が書き換わることはありません（そのかわり、名前を変えると別の商品として並びます）。
-  </p>
+    <!--/* 商品名は注文したときのスナップショット。名前を変えると別の行として集計される */-->
+    <p class="help mb-0">
+      商品名は注文した時点のものです。名前を変えた商品は、変更の前後で別の行に分かれます。
+      売上は<b>受渡済</b>の注文だけを数えています。
+    </p>
+  </section>
 
 </main>
 </body>

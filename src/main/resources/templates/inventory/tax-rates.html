@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<!--/*
+   税率・控除率マスタ。
+
+   使うのは数年に1回だが、使う日が来たときに無いと詰む画面。
+   税制改正が決まったら、ここに行を1本足すだけで済むようにしてある
+   （コードの修正もデプロイも要らない、というのが設計の約束）。
+
+   ★ 削除ボタンは意図的に置いていない。
+     過去の行は、その行を根拠に計算された仕入れの記録が既にある。
+     消すと去年の帳簿の答えが変わってしまう。
+     改定は「前の行に終了日を入れて、新しい行を足す」だけ。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('税率・控除率マスタ', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">税率・控除率マスタ</h1>
+    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/purchases}">← 仕入れ・経費へ</a>
+  </div>
+
+  <div th:if="${!warnings.isEmpty()}" class="alert alert--warn">
+    <p class="mb-0" th:each="w : ${warnings}" th:text="${w}">警告</p>
+  </div>
+
+  <p class="help">
+    消費税率も、免税事業者からの仕入れを何％引けるか（経過措置）も、
+    プログラムには書いていません。<strong>ここに並んでいる行がすべて</strong>です。
+    だから税制が変わってもコードを直す必要はなく、行を1本足すだけで済みます。<br>
+    施行日は<strong>未来の日付で構いません</strong>。むしろ先に登録しておくのが本来の使い方で、
+    そうすれば切り替わりの日に誰も何もしなくて済みます。
+  </p>
+
+  <!--/* ===== 税率 ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">消費税率</h2>
+    <span class="section-title__count" th:text="${today} + ' 時点'">今日</span>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>区分</th>
+        <th class="right">税率</th>
+        <th class="right">適用開始</th>
+        <th class="right">適用終了</th>
+        <th>メモ</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="r : ${taxRates}" th:classappend="${r.coversOn(today)} ? '' : 'faint'">
+        <td th:text="${r.rateClass}">標準</td>
+        <td class="right num" th:text="${r.ratePercent} + '%'">10%</td>
+        <td class="num" th:text="${r.validFrom}">2019-10-01</td>
+        <td class="num">
+          <span th:if="${r.validTo != null}" th:text="${r.validTo}">2027-03-31</span>
+          <span th:if="${r.validTo == null}" class="faint">（終わり未定）</span>
+        </td>
+        <td class="tiny">
+          <span th:if="${r.coversOn(today)}" class="badge badge--gf">いま有効</span>
+          <span th:text="${r.note}">メモ</span>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!--/* 登録は「前の行に終了日が入る」不可逆操作で、削除機能も意図的に無い。
+       打ち間違いをワンクリックで確定させないため、送信前に一度確認を挟む
+       （設計 6 章の「ADMIN限定+確認ダイアログ」の約束。既存の QR 画面と同じ流儀）。 */-->
+  <form th:action="@{/inventory/tax-rates/tax}" method="post" th:object="${taxRateForm}" class="card"
+        onsubmit="return confirm('この改定を登録します。同じ区分でいま有効な行には自動で終了日が入ります。施行日と率に間違いはありませんか？');">
+    <div class="card__head">税率の改定を登録する</div>
+    <div class="card__body">
+
+      <div th:if="${#fields.hasErrors('*')}" class="alert alert--error">
+        <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
+      </div>
+
+      <div class="grid grid--3">
+        <div class="field">
+          <label class="label" for="rateClass">区分</label>
+          <select class="select" id="rateClass" th:field="*{rateClass}">
+            <option th:each="c : ${rateClasses}" th:value="${c}" th:text="${c}">軽減_飲食料品</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label" for="ratePercent">新しい税率（%）</label>
+          <input class="input" type="number" id="ratePercent" th:field="*{ratePercent}" min="0" max="100">
+        </div>
+        <div class="field">
+          <label class="label" for="validFrom">施行日</label>
+          <input class="input" type="date" id="validFrom" th:field="*{validFrom}">
+          <p class="help">この日から新しい率になります</p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="note">メモ（何の改正か）</label>
+        <input class="input" type="text" id="note" th:field="*{note}"
+               placeholder="令和9年度改正 / 飲食料品の時限的な引き下げ など">
+      </div>
+
+      <p class="help">
+        登録すると、<strong>同じ区分でいま有効な行に自動で終了日（施行日の前日）が入ります</strong>。
+        古い行は消えません。過去の仕入れはその行を根拠に計算されているので、
+        消すと去年の帳簿の答えが変わってしまうからです。
+      </p>
+
+      <button type="submit" class="btn btn--primary">この内容で登録する</button>
+    </div>
+  </form>
+
+  <!--/* ===== 控除率 ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">経過措置の控除率</h2>
+    <span class="section-title__count">インボイスなしの仕入れ</span>
+  </div>
+
+  <p class="help">
+    登録番号のない事業者から仕入れた分の消費税を、何％まで引いてよいかの割合です。
+    段階的に下がって最後はゼロになることが法律で決まっているので、
+    <strong>2031年の終了分まで最初から入れてあります</strong>。
+  </p>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th class="right">控除率</th>
+        <th class="right">適用開始</th>
+        <th class="right">適用終了</th>
+        <th>メモ</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="d : ${deductionRates}" th:classappend="${d.coversOn(today)} ? '' : 'faint'">
+        <td class="right num" th:text="${d.ratePercent} + '%'">80%</td>
+        <td class="num" th:text="${d.validFrom}">2023-10-01</td>
+        <td class="num">
+          <span th:if="${d.validTo != null}" th:text="${d.validTo}">2026-09-30</span>
+          <span th:if="${d.validTo == null}" class="faint">（終わり未定）</span>
+        </td>
+        <td class="tiny">
+          <span th:if="${d.coversOn(today)}" class="badge badge--gf">いま有効</span>
+          <span th:text="${d.note}">メモ</span>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <form th:action="@{/inventory/tax-rates/deduction}" method="post" th:object="${deductionRateForm}" class="card"
+        onsubmit="return confirm('この改定を登録します。いま有効な控除率の行には自動で終了日が入ります。施行日と率に間違いはありませんか？');">
+    <div class="card__head">控除率の改定を登録する</div>
+    <div class="card__body">
+
+      <div th:if="${#fields.hasErrors('*')}" class="alert alert--error">
+        <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
+      </div>
+
+      <div class="grid grid--3">
+        <div class="field">
+          <label class="label" for="dRatePercent">新しい控除率（%）</label>
+          <input class="input" type="number" id="dRatePercent" th:field="*{ratePercent}" min="0" max="100">
+        </div>
+        <div class="field">
+          <label class="label" for="dValidFrom">施行日</label>
+          <input class="input" type="date" id="dValidFrom" th:field="*{validFrom}">
+        </div>
+        <div class="field">
+          <label class="label" for="dNote">メモ</label>
+          <input class="input" type="text" id="dNote" th:field="*{note}" placeholder="令和◯年度改正">
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn--primary">この内容で登録する</button>
+    </div>
+  </form>
+
+</main>
+</body>
+</html>

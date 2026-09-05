@@ -6,7 +6,7 @@
    2026-08-18 に横タブ方式から作り替えた。
    トンマナは SnowUI（Figma Community の Dashboard UI Kit）を参考にしている：
    白基調・黒の透過階調・角丸大きめ・Phosphor duotone アイコン。
-   スタイルの実体は app.css の「.theme-staff」ブロック。
+   スタイルの実体は app.css の「.theme-snow」ブロック（下の body のクラスと同じ名前）。
 
    ── ナビの分類（大カテゴリ＝権限の境界に一致させている） ──
      営業中につかう   … STAFF でも見える（厨房・ホール・品切れ）
@@ -31,19 +31,115 @@
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
-<body class="theme-snow">
-<div class="staff-shell" th:with="p=${currentPath} ?: ''">
+<!--/* theme-desk … 店側の画面の寸法とトンマナ（app.css の 30 節）。
+       文字を大きくし、余白を広げ、表の見出しを緑でベタ塗りにする。
+
+       ★ はじめ /admin と /inventory だけに付けていましたが、
+         厨房ボード・ホール・品切れ・残数だけ古い見た目で取り残され、
+         同じサイドバーの中で 2 種類の画面が混ざっていました。
+         店側は全部そろえます。
+
+         厨房ボードは 1 画面に入る注文の数が減ります。
+         それでも「画面ごとに別物」に見えるほうが実害が大きいと判断しました。
+         現場で足りなくなったら、.staff-shell--floor 側だけ
+         余白を戻す形（app.css 30-2）で調整してください。
+
+       お客さんの注文画面（layout/customer）には付けません。 */-->
+<body class="theme-snow theme-desk">
+<!--/* staff-shell--floor … サイドバーをアイコンだけの帯に畳む合図（app.css の「サイドバーシェル」）。
+
+       対象は営業中に立って使う画面（厨房ボード・ホール・会計・品切れ・残数）。
+       もとは画面幅 960px 以下という条件で畳んでいましたが、
+       厨房・ホールのタブレットは 1024px あるため一度も畳まれていませんでした。
+       幅ではなく「どの画面か」で判断します。
+
+       currentPath は null になり得ます。#strings.startsWith(null, …) は例外になるので、
+       この形（先に null を確かめる）で書いてください。下の見学モードの判定と同じ書き方です。 */-->
+<!--/* ============ 上の帯（ヘッダー） ============ 2026-09-04 に追加
+
+      営業中に「いま店がどうなっているか」を、画面を移らずに確かめられるようにする帯。
+      出すのは 3 つだけ ― 受付の状態・未提供の件数・営業日。
+      どれも「顔を上げた 1 秒で読めること」が仕事なので、それ以外は右端に小さく置く。
+
+      ★ 未提供の件数はボタンにしてある
+        件数を見て「多いな」と思ったとき、次にやりたいのは厨房ボードを開くこと。
+        数字と行き先が離れていると、サイドバーを探す一手間が毎回挟まる。
+        0 件のときは出さない。「0」と書いてあるより、無いほうが速く読める。
+
+      値は StaffHeaderModelAttributes が配っている（店側のパッケージだけに効く）。
+      お客さま側で無駄なクエリを増やさないための線引きなので、
+      ここで使う値を増やすときは、あちらの適用範囲も一緒に確かめること。 */-->
+<!--/* ★ 画面ごとにサイドバーを畳むのはやめた（2026-09-05）★
+
+       もとは厨房ボード・ホール・品切れ・残数のときだけ、
+       サイドバーを 64px のアイコンだけの帯に畳んでいた
+       （「営業中は立って使うので、文字より面積」という判断）。
+
+       だが設計（Figma）に畳んだ姿は無く、全画面 264px で描いてある。
+       実際に使うと、サイドバーから厨房ボードへ移った瞬間に
+       ナビが別物に変わるので、いまどこにいるのか読み直すことになる。
+       行き先の名前が消えるのも、慣れていない人には戻れない作りだった。
+
+       狭い画面（960px 以下）で畳むのは残してある。そちらは
+       「幅が足りない」という物理的な理由なので、画面ごとの判断とは別。 */-->
+<div class="staff-frame" th:with="p=${currentPath} ?: ''">
+
+  <header class="topbar">
+
+    <div class="topbar__brand">
+      <img class="topbar__logo" th:src="@{/images/logo.jpg}" alt="" aria-hidden="true">
+      <span class="topbar__brand-text">
+        <span class="topbar__brand-name" th:text="${shop.shopName}">米粉と鉄板</span>
+        <span class="topbar__brand-sub">店舗管理</span>
+      </span>
+      <span class="topbar__brand-caret" aria-hidden="true">⌄</span>
+    </div>
+
+    <!--/* 受付の状態。判定は headerAccepting（営業時間とラストオーダーまで見た結果）。
+           shop.acceptingOrders は店長が倒した非常ブレーキだけなので使わない。 */-->
+    <!--/* ★ 式の中に BEM の __ を書かないこと。
+           Thymeleaf は __...__ を前処理の記号として読むので、
+           'topbar__state--on' と書くと「__state--on' : 'topbar__」を
+           式として解釈しようとして、店側の全画面がテンプレート解析エラーになる。
+           修飾は is- 接頭辞（is-active / is-error と同じ流儀）で書く。 */-->
+    <span class="topbar__state" th:if="${headerAccepting != null}"
+          th:classappend="${headerAccepting} ? 'is-on' : 'is-off'">
+      <span class="topbar__dot" aria-hidden="true"></span>
+      <span th:text="${headerAccepting} ? '注文を受付中' : '注文を停止中'">注文を受付中</span>
+    </span>
+
+    <a class="topbar__pending" th:if="${headerPendingCount != null and headerPendingCount > 0}"
+       th:href="@{/kitchen}">
+      <th:block th:replace="~{fragments/icons :: ic_cooking_pot}"/>
+      <span class="topbar__pending-label">未提供</span>
+      <span class="topbar__pending-count" th:text="${headerPendingCount}">3</span>
+      <span class="topbar__pending-unit">件</span>
+      <span class="topbar__pending-go" aria-hidden="true">›</span>
+    </a>
+
+    <span class="topbar__spacer"></span>
+
+    <span class="topbar__day" th:if="${headerBusinessDate != null}">
+      <span class="topbar__day-label">営業日</span>
+      <span class="topbar__day-value"
+            th:text="${#temporals.format(headerBusinessDate, 'yyyy-MM-dd')}">2026-09-04</span>
+    </span>
+
+    <span class="topbar__divider" aria-hidden="true"></span>
+
+    <a class="topbar__help" th:href="@{/admin/settings}" title="店舗設定">
+      <span aria-hidden="true">?</span><span class="visually-hidden">店舗設定</span>
+    </a>
+
+    <span class="topbar__avatar" aria-hidden="true"
+          th:with="pr=${#authentication != null} ? ${#authentication.principal} : null"
+          th:text="${pr instanceof T(jp.komeko.order.security.StaffUserDetails)} ? ${#strings.substring(pr.displayName, 0, 1)} : '店'">店</span>
+  </header>
+
+<div class="staff-shell">
 
   <!--/* ============ サイドバー ============ */-->
   <aside class="sb">
-
-    <div class="sb__brand">
-      <img class="sb__brand-logo" th:src="@{/images/logo.jpg}" alt="" aria-hidden="true">
-      <span class="sb__brand-text">
-        <span class="sb__brand-name" th:text="${shop.shopName}">米粉と鉄板</span>
-        <span class="sb__brand-sub">店舗管理</span>
-      </span>
-    </div>
 
     <!--/*
       ダッシュボード（大カテゴリの外）。
@@ -75,6 +171,40 @@
       <a class="sb__item" th:href="@{/kitchen/stock}"
          th:classappend="${#strings.startsWith(p, '/kitchen/stock')} ? 'is-active'">
         <th:block th:replace="~{fragments/icons :: ic_package}"/><span>品切れ・残数</span>
+      </a>
+
+      <!--/* ── 原価と仕入れ ── 2026-09-05 に見出しを足した
+
+             この 3 つには見出しが無く、上の「営業中につかう」に吸われていた。
+             サイドバーが「厨房ボード〜レシピ・原価表」までひと続きに見え、
+             設計（Figma）の「厨房〜品切れ」で切れる形と食い違っていた。
+
+             見出しの有無は、ただの飾りではなく<b>どこまでが同じ仲間か</b>を決める。
+             営業中に立って使うもの（厨房・ホール・品切れ）と、
+             机で座って入力するもの（仕入れ・食材・レシピ）は、
+             使う時間も場所も違う。混ざっていると、
+             営業中にレシピ画面を開いてしまう導線になる。
+
+             app.inventory.enabled=false のときはコントローラが存在せず 404 になるので、
+             設定で切っている間はリンクも出さない。
+             ★ 見出しにも同じ条件を付けること。
+               付け忘れると、在庫を切ったときに「原価と仕入れ」だけが
+               中身の無い見出しとして残る。 */-->
+      <p class="sb__label" th:if="${inventoryEnabled}">原価と仕入れ</p>
+
+      <!--/* （${inventoryEnabled} は
+             InventoryModelAttributes が全画面に渡している）。 */-->
+      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/purchases}"
+         th:classappend="${#strings.startsWith(p, '/inventory/purchases')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_receipt}"/><span>仕入れ・経費</span>
+      </a>
+      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/ingredients}"
+         th:classappend="${#strings.startsWith(p, '/inventory/ingredients')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_package}"/><span>食材・在庫</span>
+      </a>
+      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/recipes}"
+         th:classappend="${#strings.startsWith(p, '/inventory/recipes')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_notebook}"/><span>レシピ・原価表</span>
       </a>
 
       <!--/* ── ここから下は店長（ADMIN）のみ ── */-->
@@ -116,6 +246,21 @@
         <a class="sb__item" th:href="@{/admin/orders}"
            th:classappend="${#strings.startsWith(p, '/admin/orders')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_clock_counter_clockwise}"/><span>注文履歴</span>
+        </a>
+        <!--/*
+          税理士の画面への入口。
+
+          ★ 画面を作っただけでは誰も辿り着けません。
+            /accountant は独立したレイアウトで、こちら側のサイドバーに
+            項目が無かったため、URL を直接打つ以外に行く方法がありませんでした。
+            向こうには「店舗管理へ戻る」があるのに、行きが無かった。
+
+          店長は ACCOUNTANT ではなく ADMIN ですが、SecurityConfig で
+          両方に開けてあるので押せます（自分の帳簿を見られないのは不自然なため）。
+        */-->
+        <a class="sb__item" th:href="@{/accountant}"
+           th:classappend="${#strings.startsWith(p, '/accountant')} ? 'is-active'">
+          <th:block th:replace="~{fragments/icons :: ic_notebook}"/><span>税理士の画面</span>
         </a>
 
         <p class="sb__label">システム</p>
@@ -245,7 +390,8 @@
             sec:authorize="!hasRole('GUEST')" で隠してあります。 */-->
     <div th:if="${guestLogin and currentPath != null
                   and (#strings.startsWith(currentPath, '/admin')
-                       or #strings.startsWith(currentPath, '/kitchen/stock'))}"
+                       or #strings.startsWith(currentPath, '/kitchen/stock')
+                       or #strings.startsWith(currentPath, '/inventory'))}"
          sec:authorize="!hasRole('ADMIN')"
          class="viewer-note" role="status">
       <strong>見学モードです。</strong>
@@ -255,6 +401,7 @@
     <div th:replace="${content}">ページ本文</div>
   </div>
 
+</div>
 </div>
 
 <!--/* 見学モードのとき、本文の中の「送信」だけを押せなくする。
@@ -272,9 +419,16 @@
         最初 p のまま書いていて、#strings.startsWith(null, …) で
         全画面がテンプレート解析エラーになりました。
         変数のスコープは、閉じタグの外まで持ち越せません。 */-->
+<!--/* ★ 在庫モジュール（/inventory）も対象に含めること。
+      2026-08-31 のUI監査で、ここに /inventory が無いせいで
+      ゲストに帯も出ず送信ボタンも生きたままになり、押すと 403 の
+      エラーページに飛ばされる（＝上のコメントで警戒しているとおりの事故）
+      ことが見つかった。スタッフゾーンに接頭辞を増やしたら、
+      StaffZoneIpFilter と同じく、ここにも足す。 */-->
 <script th:if="${guestLogin and currentPath != null
                  and (#strings.startsWith(currentPath, '/admin')
-                      or #strings.startsWith(currentPath, '/kitchen/stock'))}"
+                      or #strings.startsWith(currentPath, '/kitchen/stock')
+                      or #strings.startsWith(currentPath, '/inventory'))}"
         sec:authorize="!hasRole('ADMIN')">
   document.addEventListener('DOMContentLoaded', function () {
     var main = document.querySelector('.staff-main');

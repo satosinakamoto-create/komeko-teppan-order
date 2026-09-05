@@ -1,9 +1,13 @@
 package jp.komeko.order.service;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jp.komeko.order.cart.Cart;
 import jp.komeko.order.domain.Category;
 import jp.komeko.order.domain.DiningTable;
 import jp.komeko.order.domain.MenuItem;
+import jp.komeko.order.domain.Order;
+import jp.komeko.order.domain.OrderLine;
 import jp.komeko.order.domain.SessionStatus;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
@@ -11,6 +15,7 @@ import jp.komeko.order.repository.CategoryRepository;
 import jp.komeko.order.repository.DailyCounterRepository;
 import jp.komeko.order.repository.MenuItemRepository;
 import jp.komeko.order.repository.TableSessionRepository;
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -73,6 +78,13 @@ class TableServiceIntegrationTest {
     private DailyCounterRepository dailyCounterRepository;
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    /**
+     * 「読み込み済みかどうか」を試すために、いったん DB へ書き出して
+     * 持っている写しを捨てる（flush / clear）のに使う。
+     */
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private ShopSetting setting;
     private DiningTable table;
@@ -403,6 +415,47 @@ class TableServiceIntegrationTest {
             assertThat(tableService.openSessions())
                     .extracting(TableSession::getId)
                     .containsExactly(other.getId());
+        }
+
+        @Test
+        @DisplayName("明細とオプションまで読み終えて返す（ホール画面が中身を出せる前提）")
+        void readsLinesAndOptionsBeforeReturning() {
+            // ★ /hall の「卓ごとの注文」が丸ごと依存しているテスト ★
+            //
+            // このアプリは open-in-view: false なので、画面を描く時点では DB 接続がない。
+            // 読み終えていない関連にテンプレートから触ると LazyInitializationException になり、
+            // 「注文が 1 件も無いときは動くのに、注文が入った瞬間に /hall が真っ白になる」
+            // という、いちばん気づきにくい壊れ方をする。
+            //
+            // openSessions() は applyCurrentAmounts() 経由で hydrate() を呼び、
+            // 伝票 → 注文 → 明細 → オプション まで読み終えてから返している。
+            // 将来 EntityGraph や hydrate をいじったときに、ここで気づけるようにしておく。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            orderService.placeOrder(cartOf(okonomiyaki, 2), bill.getId(), null);
+
+            // 画面が「新しく読み込む」状況に合わせる。
+            // これをしないと、直前の placeOrder で読み込み済みになったインスタンスが
+            // そのまま返ってきてしまい、hydrate を消してもテストが通ってしまう。
+            entityManager.flush();
+            entityManager.clear();
+
+            TableSession listed = tableService.openSessions().get(0);
+
+            // Hibernate.isInitialized は「読み込み済みか」を、中身に触らずに調べる。
+            // 先に getLines() の中を覗くとその場で読み込まれてしまうので、判定を必ず先に行う。
+            assertThat(Hibernate.isInitialized(listed.getOrders()))
+                    .as("伝票にぶら下がる注文")
+                    .isTrue();
+
+            Order order = listed.getOrders().get(0);
+            assertThat(Hibernate.isInitialized(order.getLines()))
+                    .as("注文の明細（品名・数量・金額）")
+                    .isTrue();
+
+            OrderLine line = order.getLines().get(0);
+            assertThat(Hibernate.isInitialized(line.getOptions()))
+                    .as("明細に付いたオプション（トッピングなど）")
+                    .isTrue();
         }
     }
 }

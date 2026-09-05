@@ -1,117 +1,135 @@
 <!DOCTYPE html>
 <!--/*
-   商品一覧。カテゴリごとにまとめて表示します。
+   商品一覧。状態でタブを分けた 1 枚の表。
+
+   ── なぜカテゴリごとのカードをやめたか（2026-09-05）──
+   もとはカテゴリごとに見出しを立て、商品 1 つを 1 枚のカードで出していました。
+   94 品あるとカードが 94 枚縦に並び、「どれが止まっているか」を探すのに
+   画面を何度もスクロールすることになります。
+
+   店主がこの画面を開く理由は 2 つに絞れます。
+     ・特定の 1 品を直したい      → 探す（検索）
+     ・いま止まっている品を知りたい → 絞る（タブ）
+   どちらもカテゴリ順の並びでは答えられないので、表とタブに置き換えました。
+   カテゴリは列の 1 つとして残っています。
 
    使えるモデルの値：
-     ${categories}      … List<Category>（並び順どおり）
-     ${itemsByCategory} … Map<Long, List<MenuItem>>（カテゴリ id → 商品リスト）
-     ${optionCounts}    … Map<Long, Integer>（商品 id → オプショングループ数）
-     ${totalCount}      … 商品の総数
+     ${rows}          … List<MenuItem>（選ばれたタブで絞ったあと）
+     ${tabs}          … List<TabView>（key / label / count / active）
+     ${currentTab}    … いま選ばれているタブの key
+     ${categoryNames} … Map<Long, String>（カテゴリ id → 名前）
+     ${optionCounts}  … Map<Long, Integer>（商品 id → オプショングループ数）
+     ${totalCount}    … 商品の総数
+     ${visibleCount}  … 掲載中の数
 
-   注意：MenuItem.optionGroups は遅延読み込み（LAZY）で、
-   このアプリは画面描画中に DB 接続を持たない設定（open-in-view: false）です。
-   そのためテンプレートから item.optionGroups をたどってはいけません。
-   数だけをコントローラで数えて ${optionCounts} に入れてもらっています。
+   注意：MenuItem.optionGroups と category は遅延読み込み（LAZY）で、
+   このアプリは画面描画中に DB 接続を持ちません（open-in-view: false）。
+   テンプレートから item.optionGroups や item.category.name をたどってはいけません。
+   コントローラが数え／写し取ったものを使います。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('商品管理', ~{::main})}">
 <body>
 <main>
 
-  <div th:replace="~{fragments/admin-nav :: nav('items')}"></div>
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">商品</h1>
-    <span class="section-title__count" th:text="${totalCount} + ' 品'">12 品</span>
-  </div>
-
-  <div class="row row--wrap">
-    <a class="btn btn--primary" th:href="@{/admin/items/new}">商品を追加する</a>
-    <a class="btn" th:href="@{/admin/categories}">カテゴリを編集する</a>
+  <!--/* ====== 見出しと「商品を追加」 ====== */-->
+  <div class="page-head">
+    <h1 class="page-head__title">商品</h1>
+    <span class="page-head__sub" th:text="'掲載中 ' + ${visibleCount} + ' 品'">掲載中 94 品</span>
+    <span class="page-head__spacer"></span>
+    <a class="btn btn--primary" th:href="@{/admin/items/new}">＋商品を追加</a>
   </div>
 
   <!--/* カテゴリが 1 つも無いと商品を登録できない（商品は所属カテゴリが必須） */-->
-  <div class="alert alert--warn mt-6" th:if="${categories.isEmpty()}" role="alert">
+  <div class="alert alert--warn" th:if="${categories.isEmpty()}" role="alert">
     <p class="mb-0">
       カテゴリがまだありません。商品はかならずどれかのカテゴリに属するので、
       先に <a th:href="@{/admin/categories}">カテゴリ</a> を作ってください。
     </p>
   </div>
 
-  <!--/* ====== カテゴリごとの一覧 ====== */-->
-  <section th:each="c : ${categories}" th:with="list=${itemsByCategory.get(c.id)}">
+  <!--/* ====== 探す ======
+         絞り込みではなく検索。94 品あると、目的の 1 品まで
+         スクロールで辿り着くほうが遅い。
+         いまは画面内での絞り込み（JS なし）は用意していないので、
+         入力欄は名前で探すための送信フォームにしてある。 */-->
+  <form class="searchbox" method="get" th:action="@{/admin/items}" role="search">
+    <input type="hidden" name="tab" th:value="${currentTab}">
+    <span class="searchbox__icon" aria-hidden="true">
+      <th:block th:replace="~{fragments/icons :: ic_magnifying_glass}"/>
+    </span>
+    <input class="searchbox__input" type="search" name="q" placeholder="商品を探す"
+           aria-label="商品を探す">
+  </form>
 
-    <div class="section-title">
-      <h2 class="section-title__text" th:text="${c.name}">米粉ガレット</h2>
-      <span class="section-title__count" th:text="${list.size()} + ' 品'">4 品</span>
-      <span class="badge badge--soldout" th:unless="${c.visible}">カテゴリ非表示</span>
+  <!--/* ====== 状態のタブ ＋ 表 ======
+         タブと表の見出しのあいだに隙間を作らない。
+         選ばれたタブが表とひと続きの面に見えることで、
+         「この表はいまこの絞り込みの結果だ」が形で分かる。 */-->
+  <div class="tabtable">
+
+    <div class="tabtable__tabs" role="tablist">
+      <a th:each="t : ${tabs}" class="tab"
+         th:classappend="${t.active()} ? 'is-active'"
+         th:href="@{/admin/items(tab=${t.key()})}"
+         th:attr="aria-selected=${t.active()}" role="tab">
+        <span class="tab__label" th:text="${t.label()}">すべて</span>
+        <span class="tab__num">
+          <span class="tab__count" th:text="${t.count()}">94</span><span class="tab__unit">品</span>
+        </span>
+      </a>
     </div>
 
-    <p class="help" th:if="${list.isEmpty()}">このカテゴリにはまだ商品がありません。</p>
-
-    <ul class="stack" style="list-style:none;padding:0;margin:0">
-      <li class="card" th:each="item : ${list}">
-        <div class="card__body">
-          <div class="row row--wrap" style="align-items:flex-start">
-
-            <!--/* サムネイル。未登録なら焼き目模様のプレースホルダを出す */-->
-            <img class="menu-item__thumb" th:if="${item.imagePath != null}"
-                 th:src="@{${item.imagePath}}" th:alt="${item.name}" loading="lazy">
-            <div class="menu-item__thumb menu-item__thumb--empty" th:if="${item.imagePath == null}"
-                 aria-hidden="true" th:text="${#strings.substring(item.name, 0, 1)}">米</div>
-
-            <div style="flex:1 1 260px">
-              <h3 class="menu-item__name mb-0" th:text="${item.name}">コンプレット</h3>
-
-              <div class="menu-item__price">
-                <span th:replace="~{fragments/common :: price(${item})}">¥880</span>
-                <small>税込</small>
-              </div>
-
-              <!--/* 小麦不使用・おすすめ・売り切れ・アレルゲンのバッジ（共通部品） */-->
-              <div th:replace="~{fragments/common :: allergens(${item})}"></div>
-
-              <!--/* 「非表示」は共通部品に無いのでここで足す。
-                     品切れとの違いが分かるよう別のバッジにしています。 */-->
-              <div class="menu-item__badges" th:unless="${item.visible}">
-                <span class="badge badge--soldout">お客さんに非表示</span>
-              </div>
-
-              <p class="tiny faint mt-4 mb-0"
-                 th:text="'並び順 ' + ${item.sortOrder}
-                          + '　/　調理 ' + ${item.cookMinutes} + ' 分'
-                          + '　/　オプション ' + ${optionCounts.get(item.id)} + ' グループ'">
-                並び順 0 / 調理 8 分 / オプション 2 グループ
-              </p>
-            </div>
-
-            <!--/* 操作ボタン。フォームは入れ子にできないので 1 操作 1 フォームにする */-->
-            <div class="row row--wrap" style="flex:0 1 auto">
-              <a class="btn" th:href="@{/admin/items/{id}/edit(id=${item.id})}">編集</a>
-              <a class="btn" th:href="@{/admin/items/{id}/options(id=${item.id})}">オプション</a>
-
-              <form method="post" th:action="@{/admin/items/{id}/soldout(id=${item.id})}">
-                <button class="btn" type="submit"
-                        th:text="${item.soldOut} ? '販売を再開' : '品切れにする'">品切れにする</button>
-              </form>
-
-              <form method="post" th:action="@{/admin/items/{id}/delete(id=${item.id})}"
-                    onsubmit="return confirm('この商品を削除します。よろしいですか？（過去の伝票は残ります）')">
-                <button class="btn btn--danger" type="submit">削除</button>
-              </form>
-            </div>
-
-          </div>
-        </div>
-      </li>
-    </ul>
-
-  </section>
-
-  <p class="tiny faint mt-6 mb-0">
-    ※ 商品を削除しても、過去の注文明細には注文時の商品名と価格がコピーで保存されているため、売上や履歴は変わりません。
-  </p>
+    <div class="table-wrap">
+      <table class="table table--items">
+        <thead>
+        <tr>
+          <th>商品名</th>
+          <th>カテゴリ</th>
+          <th>価格（税込）</th>
+          <th>掲載</th>
+          <th>販売</th>
+          <th>並び</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="item : ${rows}">
+          <td>
+            <a th:href="@{/admin/items/{id}/edit(id=${item.id})}" th:text="${item.name}">肉玉米粉そば</a>
+          </td>
+          <td th:text="${categoryNames.get(item.category.id)}">広島風お好み焼き</td>
+          <!--/* 価格 0 は「時価」。共通フラグメントと同じ扱いにそろえる */-->
+          <td class="num">
+            <span th:if="${item.price > 0}"
+                  th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥1,180</span>
+            <span th:unless="${item.price > 0}">時価</span>
+          </td>
+          <td>
+            <span class="badge badge--gf" th:if="${item.visible}">掲載中</span>
+            <span class="badge" th:unless="${item.visible}">掲載停止</span>
+          </td>
+          <td>
+            <!--/* 掲載していない品の販売状態は意味を持たないので出さない。
+                   メニューに無いものが「販売中」でも「品切れ」でもない */-->
+            <th:block th:if="${item.visible}">
+              <span class="badge badge--stop" th:if="${item.soldOut or item.outOfStock}">品切れ</span>
+              <span class="badge badge--gf" th:unless="${item.soldOut or item.outOfStock}">販売中</span>
+            </th:block>
+            <span class="faint" th:unless="${item.visible}">—</span>
+          </td>
+          <td class="num" th:text="${item.sortOrder}">1</td>
+        </tr>
+        <tr th:if="${rows.isEmpty()}">
+          <td colspan="6" class="center faint">
+            このタブに当てはまる商品はありません。
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 
 </main>
 </body>

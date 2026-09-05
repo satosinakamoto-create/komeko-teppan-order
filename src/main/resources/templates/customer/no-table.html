@@ -26,6 +26,29 @@
       </div>
     </div>
 
+    <!--/* 見学用の入口。
+           実店舗では出ません（${guestLogin} が false のとき、
+           DemoEntryController という Bean そのものが作られず /demo は 404）。
+
+           なぜ要るか: このページは「卓が分からないので出せません」という
+           正しい行き止まりですが、見学のときは行き止まりのままだと
+           お客さま側の画面を一度も見られません。
+           実際、localhost を開いた人がここで詰まりました。
+           席の QR は毎回作り直されて URL が変わるので、
+           「変わらない入口」である /demo に橋渡しします。 */-->
+    <div class="card mt-4" th:if="${guestLogin}">
+      <div class="card__body stack">
+        <p class="mb-0">
+          <strong>見学用の入口</strong>
+        </p>
+        <p class="mb-0 muted small">
+          QR コードが手元にないときは、こちらから空いているお席に入れます。
+          実際のお店では、席の QR を読み取ったのと同じ状態になります。
+        </p>
+        <a class="btn btn--primary btn--block" th:href="@{/demo}">空いているお席で試す</a>
+      </div>
+    </div>
+
     <p class="tiny faint center mt-6">
       お会計はご退店時にレジまでお願いします
     </p>

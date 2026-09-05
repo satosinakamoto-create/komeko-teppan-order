@@ -223,7 +223,6 @@ public class AdminCategoryController {
             itemCounts.put(category.getId(), menuService.countItemsInCategory(category.getId()));
         }
 
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("categories", categories);
         model.addAttribute("itemCounts", itemCounts);
     }

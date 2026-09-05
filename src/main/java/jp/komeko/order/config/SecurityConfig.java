@@ -224,6 +224,16 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/kitchen/orders/*/cancel")
                             .access(new WebExpressionAuthorizationManager(
                                     "hasAnyRole('STAFF','ADMIN') and !hasRole('GUEST')"));
+
+                    // ── 仕入れ・在庫の書き込みも見学者に許さない ──
+                    //
+                    // 見学者に見せたいのは「レシートを撮ると帳簿になる」という流れなので、
+                    // 画面（GET）は開けたままにします。
+                    // 一方、登録・取り消しは<b>次に見に来た人に残る</b>操作です。
+                    // でたらめな仕入れを積まれると、原価率の数字が壊れたまま次の人に見えます。
+                    auth.requestMatchers(HttpMethod.POST, "/inventory/**")
+                            .access(new WebExpressionAuthorizationManager(
+                                    "hasAnyRole('STAFF','ADMIN') and !hasRole('GUEST')"));
                 }
 
                 auth
@@ -235,13 +245,43 @@ public class SecurityConfig {
                     .requestMatchers("/kitchen/**", "/hall/**",
                             "/api/kitchen/**", "/api/stream/**")
                         .hasAnyRole("STAFF", "ADMIN")
+                    // ── 仕入れ・在庫もスタッフ以上 ──
+                    //   買い出しに行くのは店長とは限らないので、STAFF でも登録できるようにする。
+                    //   app.inventory.enabled=false のときはコントローラ自体が存在しないため、
+                    //   ここを許可していても 404 になる（InventoryPurchaseController 参照）。
+                    .requestMatchers("/inventory/**").hasAnyRole("STAFF", "ADMIN")
+                    // ── 税理士の画面 ──
+                    //   顧問税理士（ACCOUNTANT）と店長（ADMIN）だけ。
+                    //   店長にも見せるのは、「税理士に何が見えているか」を
+                    //   店主が確認できないと、外部に渡す情報の責任が持てないため。
+                    //   スタッフには見せない（帳簿と原価が全部見えるので）。
+                    .requestMatchers("/accountant/**").hasAnyRole("ACCOUNTANT", "ADMIN")
                     // ── 上記以外はすべて要ログイン ──
                     .anyRequest().authenticated();
             })
             .formLogin(form -> form
                     .loginPage("/login")
                     .loginProcessingUrl("/login")
-                    .defaultSuccessUrl("/kitchen", true)
+                    // ── ログインしたあとの行き先は、役割で分ける ──
+                    //
+                    // ここは長らく defaultSuccessUrl("/kitchen", true) の一択でした。
+                    // ところが税理士（ACCOUNTANT）は /kitchen に入れません
+                    // （上の requestMatchers で STAFF と ADMIN だけに絞っているため）。
+                    // つまり税理士は、正しいパスワードでログインした直後に
+                    // 必ず 403 の画面を見て、自分でアドレス欄に /accountant と
+                    // 打ち直さないと仕事を始められませんでした。
+                    //
+                    // 権限の設定は正しく、行き先だけが間違っている状態だったので、
+                    // ここで役割を見て振り分けます。
+                    //
+                    // 第 2 引数 true と同じ挙動（元のリクエストに戻さず必ずここへ行く）を
+                    // 保つため、SavedRequest は見ずに素直にリダイレクトします。
+                    .successHandler((request, response, authentication) -> {
+                        boolean accountant = authentication.getAuthorities().stream()
+                                .anyMatch(a -> "ROLE_ACCOUNTANT".equals(a.getAuthority()));
+                        String target = accountant ? "/accountant" : "/kitchen";
+                        response.sendRedirect(request.getContextPath() + target);
+                    })
                     .failureUrl("/login?error")
                     .permitAll())
             .logout(logout -> logout

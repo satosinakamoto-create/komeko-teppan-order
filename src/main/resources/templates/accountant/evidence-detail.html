@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<!--/*
+   証憑 1 枚の確認。画像と入力値を並べて突き合わせる。
+
+   ★ 税理士がここで書けるのは「確認した」と申し送りだけ。
+     店の数字は直せない。外部の人が帳簿を書き換えられると、
+     誰が作った数字なのかが曖昧になるため。
+     直すべき点は申し送りで店に伝え、店が直す。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/accountant :: layout('証憑の確認', ~{::main})}">
+<body>
+<main>
+
+  <div class="section-title">
+    <h1 class="section-title__text" th:text="${purchase.storeName}">業務スーパー</h1>
+    <span class="section-title__count" th:text="${purchase.purchasedOn}">2026-09-01</span>
+    <a class="btn btn--sm btn--ghost"
+       th:href="@{/accountant/evidence(month=${month})}">← 一覧へ</a>
+  </div>
+
+  <div th:if="${purchase.deleted}" class="alert alert--warn">
+    <p class="mb-0">
+      <strong>この記録は取り消されています。</strong>
+      理由: <span th:text="${purchase.deleteReason} ?: '（記載なし）'">二重登録</span>。
+      帳簿には計上されません。
+    </p>
+  </div>
+
+  <div class="grid grid--2">
+
+    <!--/* ── 左: レシート画像 ── */-->
+    <div class="card">
+      <div class="card__head">レシートの画像</div>
+      <div class="card__body">
+        <img th:if="${purchase.imagePath != null}" th:src="${purchase.imagePath}"
+             alt="レシート" style="max-width:100%; border-radius:8px;">
+        <p th:if="${purchase.imagePath == null}" class="help mb-0">
+          画像はありません（手入力で登録された記録です）。
+          この場合、<strong>紙の原本は保管が必要</strong>です。
+        </p>
+      </div>
+    </div>
+
+    <!--/* ── 右: 入力された値 ── */-->
+    <div class="card">
+      <div class="card__head">記録されている内容</div>
+      <div class="card__body">
+        <table class="total-table">
+          <tr><th>取引年月日</th><td class="right num" th:text="${purchase.purchasedOn}">2026-09-01</td></tr>
+          <tr><th>受領日</th><td class="right num" th:text="${purchase.receivedOn}">2026-09-01</td></tr>
+          <tr><th>取引先</th><td class="right" th:text="${purchase.storeName}">業務スーパー</td></tr>
+          <tr><th>合計（税込）</th>
+              <td class="right num" th:text="'¥' + ${#numbers.formatInteger(purchase.totalAmount, 1, 'COMMA')}">¥0</td></tr>
+          <tr><th>うち消費税</th>
+              <td class="right num" th:text="'¥' + ${#numbers.formatInteger(purchase.taxTotal(), 1, 'COMMA')}">¥0</td></tr>
+          <tr><th>登録番号</th><td class="right num" th:text="${purchase.regNumber} ?: '印字なし'">—</td></tr>
+          <tr><th>証憑区分</th>
+              <td class="right" th:text="${purchase.evidenceType != null} ? ${purchase.evidenceType.getLabel()} : '—'">適格簡易請求書</td></tr>
+          <tr><th>控除率</th><td class="right num" th:text="${purchase.deductionRatePercent} + '%'">100%</td></tr>
+          <tr><th>支払方法</th>
+              <td class="right" th:text="${purchase.paymentMethod != null} ? ${purchase.paymentMethod.getLabel()} : '—'">現金</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!--/* ── 合計と明細のずれ ── */-->
+  <div th:if="${purchase.lineTotalMismatch() != 0}" class="alert alert--warn">
+    <p class="mb-0">
+      レシートの合計と明細の合計が
+      <strong th:text="'¥' + ${#numbers.formatInteger(T(java.lang.Math).abs(purchase.lineTotalMismatch()), 1, 'COMMA')}">¥0</strong>
+      ずれています。値引き行や、読み取れなかった行があるかもしれません。
+    </p>
+  </div>
+
+  <!--/* ── 明細 ── */-->
+  <div class="section-title">
+    <h2 class="section-title__text">明細</h2>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>品名</th>
+        <th class="right">金額（税込）</th>
+        <th class="right">税率</th>
+        <th class="right">税額</th>
+        <th>費目</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="line : ${purchase.lines}">
+        <td th:text="${line.itemText}">キャベツ</td>
+        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(line.amount, 1, 'COMMA')}">¥0</td>
+        <td class="right num" th:text="${line.taxRatePercent} + '%'">8%</td>
+        <td class="right num" th:text="'¥' + ${#numbers.formatInteger(line.effectiveTaxAmount(), 1, 'COMMA')}">¥0</td>
+        <td th:text="${line.category.getLabel()}">食材</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!--/* ── 電帳法の状態 ── */-->
+  <div class="card">
+    <div class="card__head">保存の状態（電子帳簿保存法）</div>
+    <div class="card__body">
+      <table class="total-table">
+        <tr>
+          <th>システムに格納した日時</th>
+          <td class="right num" th:text="${purchase.storedAt}">2026-09-01T21:00</td>
+        </tr>
+        <tr>
+          <th>店の同等確認（紙と見比べた）</th>
+          <td class="right">
+            <span th:if="${purchase.equivalenceCheckedAt != null}" th:text="${purchase.equivalenceCheckedAt}">済</span>
+            <span th:if="${purchase.equivalenceCheckedAt == null}">まだ</span>
+          </td>
+        </tr>
+        <tr>
+          <th>紙の原本</th>
+          <td class="right" th:text="${purchase.paperRetentionRequired} ? '保管が必要（入力期限超過）' : '破棄してよい'">破棄してよい</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!--/* ── 税理士の確認 ── */-->
+  <div class="card">
+    <div class="card__head">税理士の確認</div>
+    <div class="card__body">
+      <p th:if="${purchase.accountantCheckedAt != null}" class="help">
+        <strong>確認済みです</strong>（<span th:text="${purchase.accountantCheckedAt}">日時</span>）。
+        <span th:if="${purchase.accountantNote != null}"
+              th:text="'申し送り: ' + ${purchase.accountantNote}">申し送り</span>
+      </p>
+
+      <form th:action="@{/accountant/evidence/{id}/checked(id=${purchase.id})}" method="post">
+        <input type="hidden" name="month" th:value="${month}">
+        <div class="field">
+          <label class="label" for="note">申し送り（任意）</label>
+          <input class="input" type="text" id="note" name="note" maxlength="300"
+                 placeholder="この支出の内容を店主に確認 など">
+          <p class="help">
+            気になる点はここに書いて店に伝えます。
+            <strong>店の数字はこの画面からは直せません。</strong>
+            外部から帳簿を書き換えられると、誰が作った数字か分からなくなるためです。
+          </p>
+        </div>
+        <button type="submit" class="btn btn--primary">確認したことを記録する</button>
+      </form>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

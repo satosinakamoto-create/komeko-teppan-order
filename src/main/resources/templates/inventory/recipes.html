@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<!--/*
+   レシピ・原価表。
+
+   これは前職のエクセルの原価表そのもの。
+   商品名・材料・分量・原価・原価率が1枚に並ぶ。
+   違うのは、食材を仕入れ直すたびに原価が勝手に更新されることだけ。
+
+   ★ 原価は税込と税抜の両方を出す。用途が違うため。
+     税込 = 実際に出ていったお金（レシートとの突合）
+     税抜 = 経営の数字（税率が動いても連続する。目標管理・他店比較・帳簿）
+     保存は税込だけなので、両方出しても増えるコストはない。
+
+   ★ レシピ未登録の商品も行として出す。
+     一覧から消すと、登録し忘れていることに気づけない。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout/staff :: layout('レシピ・原価表', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">レシピ・原価表</h1>
+    <span class="section-title__count"
+          th:text="${registeredCount} + ' / ' + ${costs.size()} + ' 品 登録済み'">5 / 20 品</span>
+  </div>
+
+  <!--/* 登録漏れは黙って予測を甘くする。いちばん上に出す。 */-->
+  <div th:if="${!missing.isEmpty()}" class="alert alert--warn">
+    <p class="mb-0">
+      <strong th:text="${missing.size()} + ' 品'">7 品</strong>
+      のメニューにレシピが登録されていません。
+      その分は売れても在庫が減らないので、<strong>「あと◯営業日」が実際より長めに出ます</strong>。
+    </p>
+    <p class="mb-0 tiny">
+      米粉のように多くのメニューで使う食材ほど、この漏れは大きく効きます
+      （20 品中 15 品しか登録していなければ、消費の 25% が計上されません）。
+    </p>
+  </div>
+
+  <div th:if="${costs.isEmpty()}" class="empty-state">
+    <p class="lead">メニューがまだ登録されていません</p>
+    <p class="help">先にメニュー管理から商品を登録してください。</p>
+  </div>
+
+  <div th:unless="${costs.isEmpty()}" class="table-wrap">
+    <table class="table">
+      <thead>
+      <tr>
+        <th>商品</th>
+        <th class="right">売価<br><span class="tiny faint">税込</span></th>
+        <!--/* 原価と原価率は店長（ADMIN）と公開デモの見学者（GUEST）にだけ。
+               設計 6 章の初期案どおり。スタッフには分量の登録だけしてもらう。 */-->
+        <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
+        <th class="right">原価<br><span class="tiny faint">税込</span></th>
+        <th class="right">原価率<br><span class="tiny faint">税込</span></th>
+        <th class="right">原価<br><span class="tiny faint">税抜</span></th>
+        <th class="right">原価率<br><span class="tiny faint">税抜</span></th>
+        </th:block>
+        <th>材料</th>
+        <th></th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="c : ${costs}">
+        <td>
+          <a th:href="@{/inventory/recipes/{id}(id=${c.menuItem().id})}"
+             th:text="${c.menuItem().name}">米粉のお好み焼き</a>
+          <span th:unless="${c.menuItem().visible}" class="badge">非表示</span>
+        </td>
+
+        <td class="right num"
+            th:text="'¥' + ${#numbers.formatInteger(c.priceIncludingTax(), 1, 'COMMA')}">¥980</td>
+
+        <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
+        <td class="right num">
+          <span th:if="${c.costIncludingTax() != null}"
+                th:text="'¥' + ${#numbers.formatDecimal(c.costIncludingTax(), 1, 'COMMA', 0, 'POINT')}">¥294</span>
+          <span th:if="${c.costIncludingTax() == null}" class="faint">―</span>
+        </td>
+
+        <td class="right num bold">
+          <span th:if="${c.costRateIncludingTax() != null}"
+                th:text="${c.costRateIncludingTax()} + '%'">30.0%</span>
+          <span th:if="${c.costRateIncludingTax() == null}" class="faint">―</span>
+        </td>
+
+        <td class="right num">
+          <span th:if="${c.costNet() != null}"
+                th:text="'¥' + ${#numbers.formatDecimal(c.costNet(), 1, 'COMMA', 0, 'POINT')}">¥272</span>
+          <span th:if="${c.costNet() == null}" class="faint">―</span>
+        </td>
+
+        <td class="right num bold">
+          <span th:if="${c.costRateNet() != null}"
+                th:text="${c.costRateNet()} + '%'">30.5%</span>
+          <span th:if="${c.costRateNet() == null}" class="faint">―</span>
+        </td>
+        </th:block>
+
+        <td class="tiny">
+          <span th:if="${c.isEmpty()}" class="faint">未登録</span>
+          <span th:unless="${c.isEmpty()}" th:text="${c.lines().size()} + ' 種類'">4 種類</span>
+          <span th:if="${c.isIncomplete()}" class="badge badge--soldout"
+                th:text="'単価不明 ' + ${c.unknownCostCount()}">単価不明 1</span>
+        </td>
+
+        <td class="right">
+          <a class="btn btn--sm btn--ghost"
+             th:href="@{/inventory/recipes/{id}(id=${c.menuItem().id})}">
+            <span th:if="${c.isEmpty()}">登録する</span>
+            <span th:unless="${c.isEmpty()}">編集</span>
+          </a>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p th:unless="${costs.isEmpty()}" class="help" sec:authorize="hasAnyRole('ADMIN','GUEST')">
+    原価は<strong>最新の仕入価格から自動で計算</strong>しています。
+    昨日エリンギが値上がりしていれば、今日の原価率にもう反映されています。<br>
+    「単価不明」は、まだ一度も仕入れていない食材が混ざっている商品です。
+    その分の原価が抜けているので、<strong>表示されている原価率は実際より低く出ています</strong>。<br>
+    これは<strong>理論</strong>原価です。実際には打ち粉が飛び、まかないに回り、目分量でぶれます。
+    その差は棚卸しのたびに実測され、記録として積み上がっていきます。
+  </p>
+
+</main>
+</body>
+</html>

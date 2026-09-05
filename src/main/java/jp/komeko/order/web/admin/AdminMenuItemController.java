@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -75,27 +76,57 @@ public class AdminMenuItemController {
     // ========================================================================
 
     /**
-     * 商品一覧。カテゴリごとにまとめて表示する。
+     * 商品一覧のタブ。
+     *
+     * <p>「掲載」と「販売」は性質の違う軸です。
+     * 掲載はメニューに載せるかどうか（長い話）、販売は今夜出せるかどうか（その日の話）。
+     * 本来は 2 つの絞り込みですが、店主が探したいのは
+     * 「いま何かおかしい商品」なので、1 列のタブにまとめてあります。
+     *
+     * @param key   URL に出る値（?tab=）
+     * @param label 画面に出す名前
+     * @param 条件   その商品がこのタブに入るか
+     */
+    public record ItemTab(String key, String label, java.util.function.Predicate<MenuItem> 条件) {
+    }
+
+    /** タブの並び。左から「広い→狭い」。すべてが最初に来るのは、既定がそこだから。 */
+    private static final List<ItemTab> TABS = List.of(
+            new ItemTab("all", "すべて", item -> true),
+            new ItemTab("published", "掲載中", MenuItem::isVisible),
+            new ItemTab("soldout", "品切れ", item -> item.isSoldOut() || item.isOutOfStock()),
+            new ItemTab("hidden", "掲載停止", item -> !item.isVisible()));
+
+    /** 画面に渡すタブ 1 つぶん。 */
+    public record TabView(String key, String label, int count, boolean active) {
+    }
+
+    /**
+     * 商品一覧。状態でタブを分けた 1 枚の表で出す。
      *
      * <p>並び順は「カテゴリの並び順 → 商品の並び順 → id」です
      * （{@code MenuItemRepository#findAllForAdmin()} の JPQL で指定済み）。
      *
-     * <p>Map のキーをカテゴリの id にしているのは、
-     * エンティティをそのままキーにすると {@code equals} / {@code hashCode} の
-     * 実装に依存してしまい、思わぬところで別物扱いされることがあるためです。
+     * <p><b>件数は絞り込む前の全件から数えます。</b>
+     * 絞ったあとの母集合で数えると、品切れタブを開いている間は
+     * 品切れ以外の件数が 0 になり、タブが「行き先の看板」として働きません。
      */
     @GetMapping
     @Transactional(readOnly = true)
-    public String list(Model model) {
+    public String list(@RequestParam(required = false, defaultValue = "all") String tab, Model model) {
         List<Category> categories = categoryRepository.findAllByOrderBySortOrderAscIdAsc();
         List<MenuItem> items = menuItemRepository.findAllForAdmin();
 
-        // 先にカテゴリぶんの空リストを作っておくと、商品が 0 件のカテゴリも
-        // 正しい並び順のまま画面に出せる
-        Map<Long, List<MenuItem>> itemsByCategory = new LinkedHashMap<>();
-        for (Category category : categories) {
-            itemsByCategory.put(category.getId(), new ArrayList<>());
-        }
+        ItemTab selected = TABS.stream()
+                .filter(t -> t.key().equals(tab))
+                .findFirst()
+                .orElse(TABS.get(0));
+
+        List<TabView> tabs = TABS.stream()
+                .map(t -> new TabView(t.key(), t.label(),
+                        (int) items.stream().filter(t.条件()).count(),
+                        t.key().equals(selected.key())))
+                .toList();
 
         // オプションの数は画面に出したいが、optionGroups は LAZY。
         // 画面描画時には DB 接続が無いので、このトランザクションの中で数え切っておく。
@@ -103,17 +134,24 @@ public class AdminMenuItemController {
         //   商品 30 件でも SQL は数回で済む）
         Map<Long, Integer> optionCounts = new LinkedHashMap<>();
         for (MenuItem item : items) {
-            itemsByCategory
-                    .computeIfAbsent(item.getCategory().getId(), key -> new ArrayList<>())
-                    .add(item);
             optionCounts.put(item.getId(), item.getOptionGroups().size());
         }
 
-        model.addAttribute("activeNav", "admin");
+        // カテゴリ名は画面で使うが Category は LAZY 参照になり得るので、
+        // ここで id → 名前 に写し取っておく（描画時には DB 接続が無い）
+        Map<Long, String> categoryNames = new LinkedHashMap<>();
+        for (Category category : categories) {
+            categoryNames.put(category.getId(), category.getName());
+        }
+
         model.addAttribute("categories", categories);
-        model.addAttribute("itemsByCategory", itemsByCategory);
+        model.addAttribute("rows", items.stream().filter(selected.条件()).toList());
+        model.addAttribute("categoryNames", categoryNames);
         model.addAttribute("optionCounts", optionCounts);
+        model.addAttribute("tabs", tabs);
+        model.addAttribute("currentTab", selected.key());
         model.addAttribute("totalCount", items.size());
+        model.addAttribute("visibleCount", (int) items.stream().filter(MenuItem::isVisible).count());
         return "admin/items";
     }
 
@@ -280,19 +318,20 @@ public class AdminMenuItemController {
         return "redirect:/admin/items";
     }
 
-    /**
-     * 品切れの ON / OFF を切り替える。
-     *
-     * <p>この処理は厨房画面からも使うので、すでに {@link MenuService#toggleSoldOut(Long)} が
-     * 用意されています。同じルールを 2 か所に書かないよう、既存のものをそのまま呼びます。
-     */
-    @PostMapping("/{id}/soldout")
-    public String toggleSoldOut(@PathVariable("id") Long id, RedirectAttributes redirectAttributes) {
-        boolean soldOut = menuService.toggleSoldOut(id);
-        redirectAttributes.addFlashAttribute("flashSuccess",
-                soldOut ? "品切れにしました" : "品切れを解除しました");
-        return "redirect:/admin/items";
-    }
+    // 品切れを切り替える POST /{id}/soldout は 2026-08-27 に削除しました。
+    //
+    // 同じ soldOut を切り替える口が 3 つありました。
+    //   商品一覧のボタン ／ 編集フォームのチェック ／ 品切れ・残数（KitchenController）
+    // このメソッドが受けていた一覧のボタンだけは、他の 2 つでできることの
+    // 部分集合で、ここにしかできないことがありませんでした。
+    //
+    // 価格 0 円（時価）の品では危険でもありました。
+    // MenuItem#isOrderable は価格を見ないので、価格を入れないまま販売再開すると
+    // ¥0 で注文できてしまいます。編集フォームなら価格の入力欄が同じ画面にあり、
+    // 品切れ・残数は営業中に「今日は出せない」を伝えるための画面です。
+    //
+    // 切り替えのルール自体（MenuService#toggleSoldOut）は KitchenController が
+    // 使い続けているので、そちらは消していません。
 
     // ========================================================================
     //  内部ヘルパー
@@ -300,7 +339,6 @@ public class AdminMenuItemController {
 
     /** フォーム画面で使う選択肢（カテゴリ・アレルゲン）と見出しをモデルへ詰める。 */
     private void prepareForm(Model model, MenuItemForm form) {
-        model.addAttribute("activeNav", "admin");
         model.addAttribute("pageTitle", form.isNew() ? "商品を追加" : "商品を編集");
         model.addAttribute("categories", categoryRepository.findAllByOrderBySortOrderAscIdAsc());
 
