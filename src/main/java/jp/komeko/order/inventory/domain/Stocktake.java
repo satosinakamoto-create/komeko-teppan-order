@@ -45,7 +45,7 @@ public class Stocktake {
     private LocalDateTime recordedAt = LocalDateTime.now();
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private StocktakeType type;
 
     /**
@@ -55,7 +55,7 @@ public class Stocktake {
     private BigDecimal quantity;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private StocktakeReason reason = StocktakeReason.STOCKTAKE;
 
     @Column(length = 200)

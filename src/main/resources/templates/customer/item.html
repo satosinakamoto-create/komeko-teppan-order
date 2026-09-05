@@ -40,7 +40,10 @@
            th:if="${item.stockTracked and !item.outOfStock}"
            th:text="'数量限定 ― 残り ' + ${item.stockRemaining} + ' 点'">数量限定 ― 残り 3 点</p>
 
-        <p class="tiny faint mb-0" th:if="${item.cookMinutes > 0}"
+        <!--/* 飲み物には出さない。判断はコントローラ（showCookTime）。
+               生ビールにも「注ぐ時間」が入っているが、
+               お客さまに「焼き上がり」と書くと言葉が合わない */-->
+        <p class="tiny faint mb-0" th:if="${showCookTime}"
            th:text="'焼き上がりの目安：約 ' + ${item.cookMinutes} + ' 分'">焼き上がりの目安：約 8 分</p>
       </div>
     </article>

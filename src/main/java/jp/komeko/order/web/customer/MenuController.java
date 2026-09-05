@@ -164,6 +164,12 @@ public class MenuController {
 
         model.addAttribute("item", item);
         model.addAttribute("accepting", setting.isOrderAcceptable(LocalDateTime.now()));
+        // 「焼き上がりの目安」は飲み物には出さない。
+        // 生ビールにも調理時間（注ぐ時間）は入っていて、厨房の見積もりには使うが、
+        // お客さまに「焼き上がり」と書くと言葉が合わない。
+        // 出す・出さないの判断はここでやり、画面では真偽値を見るだけにする。
+        model.addAttribute("showCookTime",
+                item.getCookMinutes() > 0 && !DRINK_SECTION.equals(item.getCategory().getTabName()));
         return "customer/item";
     }
 }
