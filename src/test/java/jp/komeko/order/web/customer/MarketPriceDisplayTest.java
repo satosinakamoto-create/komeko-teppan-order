@@ -113,10 +113,17 @@ class MarketPriceDisplayTest {
     void detailExplainsWhy() throws Exception {
         // 「時価」とだけ書くと、値段を隠されたように受け取る人もいる。
         // なぜ金額が出ていないのかを、その場で説明する。
+        //
+        // ★ 文言は 2026-09-06 に設計（暗21 / 暗22）のものへ変えた。
+        //   もとは「スタッフにお尋ねください」。設計は
+        //   「価格が変わります」＋「スタッフがお席でご説明します」の 2 文で、
+        //   なぜ変わるのかと、誰が説明するのかを分けて書いている。
+        //   確かめているのは文字そのものではなく、この 2 つが伝わること。
         mockMvc.perform(get("/items/" + marketPrice.getId()).session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("時価")))
-                .andExpect(content().string(containsString("スタッフにお尋ねください")));
+                .andExpect(content().string(containsString("価格が変わります")))
+                .andExpect(content().string(containsString("スタッフがお席でご説明します")));
     }
 
     @Test

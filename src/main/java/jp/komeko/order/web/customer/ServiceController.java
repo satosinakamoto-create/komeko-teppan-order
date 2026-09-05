@@ -197,8 +197,19 @@ public class ServiceController {
             redirectAttributes.addFlashAttribute("flashErrors",
                     List.of("ただいまお受けできませんでした。スタッフへお声がけください。"));
         }
-        // 押したページへ戻す。伝票から押した人を、サービスの画面へ飛ばさない
-        return "bill".equals(from) ? "redirect:/bill" : "redirect:/service";
+        // 押したページへ戻す。押した場所から遠いところへ飛ばさない。
+        //
+        // menu は、時価・おまかせの品（設計 暗21 / 暗22）から呼んだとき。
+        // あそこは「値段を聞いてから決める」画面なので、呼んだあとは
+        // メニューに戻して、聞きながら他の品も見られるようにする。
+        // サービスの画面へ飛ばすと、見ていた品から離されてしまう。
+        if ("bill".equals(from)) {
+            return "redirect:/bill";
+        }
+        if ("menu".equals(from)) {
+            return "redirect:/menu";
+        }
+        return "redirect:/service";
     }
 
     /**

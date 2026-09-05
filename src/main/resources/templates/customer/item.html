@@ -11,7 +11,96 @@
 
     <div th:replace="~{fragments/common :: flash}"></div>
 
-    <article class="card mt-4">
+    <!--/* ================================================================
+           時価・おまかせの品（設計 暗21 / 暗22）
+           ================================================================
+           価格が決まっていない品は、ふつうの注文フォームを出しません。
+           金額の出ない「注文に追加」を、ほかの品と同じ形で並べると、
+           <b>いくらか分からないまま頼めてしまいます。</b>
+
+           設計はこの 2 つを 1 つの形で扱っています。
+             暗21 本日の日本酒（おまかせ）… その日の銘柄と価格が変わる
+             暗22 国産牛サーロインステーキ … 仕入れで価格が変わる
+           どちらも「スタッフに聞いてから決める」という同じ動きなので、
+           画面も 1 つにしてあります。
+
+           ★ 主な操作は「スタッフを呼ぶ」であって「注文に追加」ではありません。
+             設計でも、呼ぶほうがきつね色の主要ボタン、
+             注文に追加は枠線の控えめなボタンになっています。
+             値段を聞いてから決める、という順番をボタンの強さで表しています。
+    */-->
+    <article class="card mt-4 askstaff" th:if="${item.price <= 0}">
+      <div class="card__body">
+
+        <h1 class="askstaff__name mb-0" th:text="${item.name}">本日の日本酒（おまかせ）</h1>
+        <div th:replace="~{fragments/common :: allergens(${item})}"></div>
+
+        <p class="askstaff__desc" th:if="${item.description}"
+           th:text="${item.description}">鉄板焼きに合うものをご用意しています。</p>
+
+        <hr class="askstaff__rule">
+
+        <!--/* 注意書き（暗/注意書き）。押せるものと区別するため、
+               面を敷いてきつね色の枠で囲う */-->
+        <div class="askstaff__notice">
+          <p class="mb-0">その日のご用意によって価格が変わります。</p>
+          <p class="mb-0">スタッフがお席でご説明します。</p>
+        </div>
+
+        <!--/* 数量の行。金額は「—」。
+               ここに 0 円や「時価」と書くと、金額の欄に何か入っているように読めます。
+               決まっていないことを示すのは「—」のほうが正確です。 */-->
+        <div class="askstaff__qty">
+          <span class="askstaff__qty-label">数量</span>
+          <div class="askstaff__stepper">
+            <button type="button" class="askstaff__step" data-qty-step="-1"
+                    aria-label="1つ減らす">−</button>
+            <input class="askstaff__count" type="number" name="quantity" id="quantity"
+                   form="askstaff-add" value="1" min="1" max="20"
+                   inputmode="numeric" aria-label="個数">
+            <button type="button" class="askstaff__step askstaff__step--plus" data-qty-step="1"
+                    aria-label="1つ増やす">＋</button>
+          </div>
+          <span class="askstaff__amount" aria-label="金額は未定">—</span>
+        </div>
+
+        <!--/* 主な操作。押すとホール画面に「お呼びです」と出る。
+               from=menu を付けて、押した人をサービスの画面へ飛ばさずメニューへ戻す */-->
+        <form th:action="@{/service/call/STAFF(from='menu')}" method="post">
+          <button type="submit" class="btn btn--primary btn--lg btn--block">スタッフを呼ぶ</button>
+        </form>
+
+        <div class="askstaff__row">
+          <a class="btn btn--outline btn--lg askstaff__cancel"
+             th:href="@{/}" data-close-modal>やめる</a>
+
+          <!--/* 価格が入っていない品はふつう売り切れにしてあるので、
+                 その場合は押せません。理由は上の売り切れの案内に出ます。
+                 押せるときは、金額が決まらないまま伝票に載ることになるので、
+                 主要ではなく枠線のボタンにしてあります（設計どおり） */-->
+          <form id="askstaff-add" th:action="@{/cart/add}" method="post"
+                class="askstaff__add">
+            <input type="hidden" name="menuItemId" th:value="${item.id}">
+            <button type="submit" class="btn btn--outline btn--lg btn--block"
+                    th:disabled="${!item.orderable or !accepting}">注文に追加</button>
+          </form>
+        </div>
+
+        <!--/* 押せない理由は、押せないボタンのすぐ下に置く。
+               下の共通の売り切れ案内はこの画面では出していない（重複するうえ、
+               カードの外に取り残されて、設計の 1 枚の形が崩れるため）。 */-->
+        <p class="askstaff__why mb-0" th:if="${!item.orderable}">
+          本日は売り切れました。スタッフを呼んでいただければ、
+          ご用意できるものをお伝えします。
+        </p>
+        <p class="askstaff__why mb-0" th:if="${item.orderable and !accepting}">
+          ただいまご注文を受け付けておりません。
+        </p>
+
+      </div>
+    </article>
+
+    <article class="card mt-4" th:unless="${item.price <= 0}">
       <!--/* 寸法は CSS（.item-photo）に置く。
              style 属性に書くと、モーダルで比を変えたくても
              インラインが必ず勝つので上書きできない（実際 4:3 のまま 256px になった）。 */-->
@@ -50,15 +139,18 @@
 
     <!--/* ===== 売り切れ・受付停止のときは注文フォームを出さない =====
            「手動の品切れフラグ」と「残数ゼロ」はどちらも売り切れとして扱う */-->
-    <div class="alert alert--warn mt-6" th:if="${item.soldOut or item.outOfStock}" role="alert">
+    <div class="alert alert--warn mt-6" th:if="${(item.soldOut or item.outOfStock) and item.price > 0}" role="alert">
       <p class="mb-0">申し訳ありません。こちらの商品は売り切れました。</p>
     </div>
-    <div class="alert alert--warn mt-6" th:if="${item.orderable and !accepting}" role="alert">
+    <div class="alert alert--warn mt-6" th:if="${item.orderable and !accepting and item.price > 0}" role="alert">
       <p class="mb-0">ただいまご注文を受け付けておりません。</p>
     </div>
 
-    <!--/* ===== 注文フォーム ===== */-->
-    <form th:if="${item.orderable and accepting}"
+    <!--/* ===== 注文フォーム =====
+           時価・おまかせの品は上の askstaff で完結しているので、こちらは出さない。
+           両方出すと「注文に追加」が 2 つ並び、片方は金額入り、
+           片方は金額なし、というちぐはぐな画面になる */-->
+    <form th:if="${item.orderable and accepting and item.price > 0}"
           th:action="@{/cart/add}" method="post"
           id="add-form" class="mt-6"
           th:attr="data-base-price=${item.price}">
