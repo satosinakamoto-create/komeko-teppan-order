@@ -50,53 +50,60 @@
     <!--/* ===== カートの中身（暗/注文内容の行） ===== */-->
     <div th:unless="${cart.empty}">
 
+      <!--/* ★ <details> を行そのものにしていること。
+             最初は「変更」ボタンだけを <details> にしていたが、
+             開くと −／＋／削除 が右の列の中で場所を取り、
+             品名の幅が 250 → 110 に潰れた（長い品名が 4 行に折り返す）。
+             行ごと包めば、操作は行の下いっぱいを使える。
+
+             行のどこを押しても開くので、指の的も大きくなる。 */-->
       <div class="order-list">
-        <div class="order-row" th:each="line : ${cart.lines}">
+        <details class="order-row" th:each="line : ${cart.lines}">
 
-          <div class="order-row__main">
-            <div class="order-row__name">
-              <span th:text="${line.menuItemName}">肉玉米粉そば</span>
-              <span th:text="' ×' + ${line.quantity}"> ×1</span>
-            </div>
-            <div class="order-row__opts" th:if="${!line.options.isEmpty()}"
-                 th:text="${line.optionSummary}">チーズ ／ 餅</div>
-          </div>
-
-          <div class="order-row__side">
-            <div class="order-row__amount"
-                 th:text="'¥' + ${#numbers.formatInteger(line.subtotal, 1, 'COMMA')}">¥1,510</div>
-
-            <!--/* 開いている状態を保てるように、行ごとに name を分けない。
-                   1 つ開いたら他が閉じる（name を共有する）ほうが画面は静かだが、
-                   2 品まとめて直したい人が押し直すことになるので、独立させてある */-->
-            <details class="order-row__edit">
-              <summary class="order-row__editbtn">変更</summary>
-
-              <!--/* フォームは入れ子にできないので、操作ごとに分ける */-->
-              <div class="order-row__controls">
-                <form th:action="@{/cart/update}" method="post">
-                  <input type="hidden" name="key" th:value="${line.key}">
-                  <input type="hidden" name="quantity" th:value="${line.quantity - 1}">
-                  <button class="btn btn--sm" type="submit" aria-label="1つ減らす">−</button>
-                </form>
-
-                <span class="order-row__qty num" th:text="${line.quantity}">1</span>
-
-                <form th:action="@{/cart/update}" method="post">
-                  <input type="hidden" name="key" th:value="${line.key}">
-                  <input type="hidden" name="quantity" th:value="${line.quantity + 1}">
-                  <button class="btn btn--sm" type="submit" aria-label="1つ増やす">＋</button>
-                </form>
-
-                <form th:action="@{/cart/remove}" method="post">
-                  <input type="hidden" name="key" th:value="${line.key}">
-                  <button class="btn btn--sm btn--ghost" type="submit">削除</button>
-                </form>
+          <summary class="order-row__summary">
+            <div class="order-row__main">
+              <div class="order-row__name">
+                <span th:text="${line.menuItemName}">肉玉米粉そば</span>
+                <span th:text="' ×' + ${line.quantity}"> ×1</span>
               </div>
-            </details>
+              <div class="order-row__opts" th:if="${!line.options.isEmpty()}"
+                   th:text="${line.optionSummary}">チーズ ／ 餅</div>
+            </div>
+
+            <div class="order-row__side">
+              <div class="order-row__amount"
+                   th:text="'¥' + ${#numbers.formatInteger(line.subtotal, 1, 'COMMA')}">¥1,510</div>
+              <!--/* 設計の 56x28 の枠線ボタン。押せるのは行全体だが、
+                     どこを押せばいいかは、この形が言っている */-->
+              <span class="order-row__editbtn">変更</span>
+            </div>
+          </summary>
+
+          <!--/* フォームは入れ子にできないので、操作ごとに分ける */-->
+          <div class="order-row__controls">
+            <form th:action="@{/cart/update}" method="post">
+              <input type="hidden" name="key" th:value="${line.key}">
+              <input type="hidden" name="quantity" th:value="${line.quantity - 1}">
+              <button class="btn btn--sm" type="submit" aria-label="1つ減らす">−</button>
+            </form>
+
+            <span class="order-row__qty num" th:text="${line.quantity}">1</span>
+
+            <form th:action="@{/cart/update}" method="post">
+              <input type="hidden" name="key" th:value="${line.key}">
+              <input type="hidden" name="quantity" th:value="${line.quantity + 1}">
+              <button class="btn btn--sm" type="submit" aria-label="1つ増やす">＋</button>
+            </form>
+
+            <span class="spacer"></span>
+
+            <form th:action="@{/cart/remove}" method="post">
+              <input type="hidden" name="key" th:value="${line.key}">
+              <button class="btn btn--sm btn--ghost" type="submit">削除</button>
+            </form>
           </div>
 
-        </div>
+        </details>
       </div>
 
       <!--/* 小計（暗/合計行）。伝票の合計と同じ部品を使う。

@@ -3844,14 +3844,24 @@ body.is-sending .staff-main {
   margin-top: var(--sp-4);
 }
 
+/* 行そのものが <details>。開くと下に −／＋／削除 が出る。
+   ★ 「変更」だけを <details> にしてはいけない。
+     開いた操作が右の列の中に入り、品名の幅が 250 → 110 に潰れる
+     （長い品名が 4 行に折り返す）。2026-09-06 に実測して直した。 */
 .order-row {
+  background: var(--surface);
+}
+.order-row__summary {
   display: flex;
   gap: 12px;
   /* 上下は 16、左右は 20。伝票の行（12/16）より広いのは、
      ここが「押せる行」だから。指が触れる余白を持たせてある */
   padding: 16px 20px;
-  background: var(--surface);
+  cursor: pointer;
+  /* Safari が付ける三角を消す。list-style だけでは消えない */
+  list-style: none;
 }
+.order-row__summary::-webkit-details-marker { display: none; }
 /* 罫線は行と行のあいだにだけ。いちばん上と下には引かない
    （面の縁と二重になって、線が太く見える） */
 .order-row + .order-row { border-top: 1px solid var(--border); }
@@ -3896,11 +3906,13 @@ body.is-sending .staff-main {
 
 /* 「変更」。設計は 56x28 の枠線ボタン。
 
-   ★ <details> にしてあるのは、押した先が設計に無いから。
+   ★ 押した先が設計に無いので、その場で −／＋／削除 を開く形にした。
      商品ページへ飛ばすと、あちらは「カートに入れる」しか持っていないので
      同じ品がもう 1 行増える。直したいのに増えるのは、直せないより悪い。
-     その場で −／＋／削除 を開く形にして、JavaScript も足していない。 */
-.order-row__edit { position: relative; }
+     JavaScript は足していない（<details> だけで開閉する）。
+
+   ★ これ自体は押せる部品ではない（行全体が summary）。
+     見た目だけを設計に合わせ、「ここを押せばいい」と言わせている。 */
 .order-row__editbtn {
   display: flex;
   align-items: center;
@@ -3913,21 +3925,18 @@ body.is-sending .staff-main {
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
-  cursor: pointer;
-  /* Safari が付ける三角を消す。list-style だけでは消えない */
-  list-style: none;
 }
-.order-row__editbtn::-webkit-details-marker { display: none; }
-.order-row__edit[open] .order-row__editbtn {
+.order-row[open] .order-row__editbtn {
   background: var(--surface-2);
 }
-/* 開いたときの操作。行の中で右に寄せると 56px に潰れるので、
-   行の下いっぱいを使う。position は使わない（行の高さを変えて押し出す）*/
+
+/* 開いたときの操作。行の下いっぱいを使う。
+   上に余白を作らないのは、summary の下 16px がすでに空いているため */
 .order-row__controls {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
+  padding: 0 20px 16px;
 }
 .order-row__qty {
   min-width: 2.5em;
