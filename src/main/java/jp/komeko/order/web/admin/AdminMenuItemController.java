@@ -190,6 +190,13 @@ public class AdminMenuItemController {
         // 入力した語を画面に返す。返さないと、検索したあとに入力欄が空に戻り、
         // 何で絞った結果を見ているのか分からなくなる
         model.addAttribute("q", keyword);
+        // 並び替えのボタンを出してよいか。
+        //
+        // 絞り込んでいる最中は出しません。画面に見えている隣の行が、
+        // 本当の隣とは限らないからです。「上へ」を押すと隠れている品と
+        // 入れ替わり、画面上は何も起きていないように見えます。
+        // 並べ替えは全体が見えているときの作業なので、そのときだけ出します。
+        model.addAttribute("canReorder", keyword.isEmpty() && "all".equals(selected.key()));
         return "admin/items";
     }
 
@@ -265,6 +272,10 @@ public class AdminMenuItemController {
 
         MenuItem item = new MenuItem(category, form.getName().trim(), form.getPrice());
         applyForm(item, form);
+        // 並び順は新規フォームで聞いていないので、そのカテゴリの末尾に付ける。
+        // 既定の 0 のままだと、追加した品が看板メニューの上に割り込みます。
+        // 店主が気づいて直すまで、お客さまにはその並びで見えています。
+        item.setSortOrder(menuService.nextItemSortOrder(category.getId()));
         item.setImagePath(storedImagePath);
         menuItemRepository.save(item);
 
@@ -353,6 +364,31 @@ public class AdminMenuItemController {
 
         log.info("商品を削除しました: {}", name);
         redirectAttributes.addFlashAttribute("flashSuccess", "商品「%s」を削除しました".formatted(name));
+        return "redirect:/admin/items";
+    }
+
+    /**
+     * 商品をひとつ上（または下）へ動かす。
+     *
+     * <p>動くのは<b>同じカテゴリの中だけ</b>です。上下でカテゴリをまたげてしまうと、
+     * 並べ替えのつもりで商品の所属が変わります。
+     * カテゴリを移したいときは編集フォームから変更してください。
+     *
+     * <p>ボタンは絞り込みのかかっていない一覧にしか出していません
+     * （{@code canReorder}）。見えている隣の行が本当の隣とは限らない状態で
+     * 押せると、隠れた品と入れ替わって「押しても動かない」ように見えるためです。
+     * だから戻り先にタブや検索語を持ち帰る必要もありません。
+     */
+    @PostMapping("/{id}/move")
+    public String move(@PathVariable("id") Long id,
+                       @RequestParam boolean up,
+                       RedirectAttributes redirectAttributes) {
+        // 端まで来ていたら何も起きない。無反応に見えるのは不親切なので一言伝える。
+        if (!menuService.moveItem(id, up)) {
+            redirectAttributes.addFlashAttribute("flashInfo",
+                    up ? "このカテゴリの中では、すでにいちばん上です"
+                       : "このカテゴリの中では、すでにいちばん下です");
+        }
         return "redirect:/admin/items";
     }
 

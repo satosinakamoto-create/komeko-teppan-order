@@ -71,17 +71,11 @@
           <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
         </div>
 
-        <div class="field">
-          <label class="label" for="sortOrder">並び順</label>
-          <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
-                 inputmode="numeric"
-                 th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
-          <p class="help">
-            小さいほど先に表示されます。
-            タブの並びも、そのタブに入っているカテゴリのいちばん小さい並び順で決まります。
-          </p>
-          <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
-        </div>
+        <!--/* 追加フォームでは並び順を聞きません（2026-09-05）。
+               既定の 0 のままだと、追加したカテゴリがメニューの先頭に割り込みます。
+               ここは末尾に付けておいて、順番を変えたくなったら
+               下の一覧の上下ボタンで動かしてもらう形にしました。
+               数字での指定は各行の編集フォームに残してあります。 */-->
 
         <div class="field">
           <span class="label">お客さんへの表示</span>
@@ -167,6 +161,18 @@
             </label>
 
             <button class="btn btn--primary" type="submit">更新</button>
+          </form>
+
+          <!--/* 並び替え。数字を入れ直すより押した回数ぶん動くほうが速い。
+                 数字での指定は左の更新フォームに残してあります
+                 （まとめて並べ直すときはそちらのほうが速いため）。
+                 フォームは入れ子にできないので、更新フォームとは別に置きます。 */-->
+          <form method="post" th:action="@{/admin/categories/{id}/move(id=${c.id})}"
+                class="row" style="flex:0 1 auto">
+            <button type="submit" name="up" value="true" class="btn btn--ghost btn--sm"
+                    title="ひとつ上へ" aria-label="ひとつ上へ">↑</button>
+            <button type="submit" name="up" value="false" class="btn btn--ghost btn--sm"
+                    title="ひとつ下へ" aria-label="ひとつ下へ">↓</button>
           </form>
 
           <div style="flex:0 1 auto">

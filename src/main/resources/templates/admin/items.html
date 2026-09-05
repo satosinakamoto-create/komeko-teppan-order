@@ -121,7 +121,25 @@
             </th:block>
             <span class="faint" th:unless="${item.visible}">—</span>
           </td>
-          <td class="num" th:text="${item.sortOrder}">1</td>
+          <!--/* 並び替え。
+                 上下ボタンが動かすのは<b>同じカテゴリの中だけ</b>です。
+                 カテゴリをまたいで動かせてしまうと、並べ替えのつもりで
+                 商品の所属が変わります。
+
+                 絞り込んでいるとき（検索語あり・「すべて」以外のタブ）は出しません。
+                 隣の行が本当の隣とは限らないので、押しても動かないように見える
+                 ことがあり、そのほうが混乱するためです。 */-->
+          <td class="num">
+            <form th:if="${canReorder}" th:action="@{/admin/items/{id}/move(id=${item.id})}"
+                  method="post" class="row">
+              <button type="submit" name="up" value="true" class="btn btn--ghost btn--sm"
+                      title="ひとつ上へ" aria-label="ひとつ上へ">↑</button>
+              <button type="submit" name="up" value="false" class="btn btn--ghost btn--sm"
+                      title="ひとつ下へ" aria-label="ひとつ下へ">↓</button>
+              <span class="faint tiny" th:text="${item.sortOrder}">1</span>
+            </form>
+            <span th:unless="${canReorder}" class="faint" th:text="${item.sortOrder}">1</span>
+          </td>
         </tr>
         <!--/* 0 件の理由が「タブ」なのか「検索語」なのかを分けて出す。
                検索して 0 件のときに「このタブに当てはまる商品はありません」と出ると、

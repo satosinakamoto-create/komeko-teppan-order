@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.LinkedHashMap;
@@ -104,7 +105,10 @@ public class AdminCategoryController {
             return "admin/categories";
         }
 
-        Category category = new Category(form.getName().trim(), form.getSortOrder());
+        // 並び順は聞かずに末尾へ付ける。
+        // 既定の 0 のままだと、追加したカテゴリがメニューの先頭に割り込みます。
+        // 順番を変えたくなったら、一覧の上下ボタンで動かせます。
+        Category category = new Category(form.getName().trim(), menuService.nextCategorySortOrder());
         category.setGroupName(form.getGroupName());   // 空白だけなら setter 側で未設定に揃える
         category.setVisible(form.isVisible());
         categoryRepository.save(category);
@@ -200,6 +204,35 @@ public class AdminCategoryController {
         String name = category.getName();
         categoryRepository.delete(category);
         redirectAttributes.addFlashAttribute("flashSuccess", "カテゴリ「%s」を削除しました".formatted(name));
+        return "redirect:/admin/categories";
+    }
+
+    // ========================================================================
+    //  並び替え
+    // ========================================================================
+
+    /**
+     * カテゴリをひとつ上（または下）へ動かす。
+     *
+     * <p><b>数字を入れる欄より、上下のボタンのほうが速い。</b>
+     * 「お飲み物を鉄板料理の下に持ってきたい」と思ったとき、
+     * 数字での指定は、いまの数字を全部読んで、間に入る値を考えて、
+     * 入力して、並びを見て確かめる、という手順になります。
+     * 上下ボタンなら押した回数ぶんだけ動きます。
+     *
+     * <p>数字の欄は各行の編集フォームに残してあります。
+     * 「まとめて並べ直す」ときはそちらのほうが速いためです。
+     */
+    @PostMapping("/{id}/move")
+    public String move(@PathVariable("id") Long id,
+                       @RequestParam boolean up,
+                       RedirectAttributes redirectAttributes) {
+        // 端まで来ていたら何も起きない。押しても無反応に見えるのは不親切なので、
+        // 動かなかったことを一言伝える。
+        if (!menuService.moveCategory(id, up)) {
+            redirectAttributes.addFlashAttribute("flashInfo",
+                    up ? "すでにいちばん上です" : "すでにいちばん下です");
+        }
         return "redirect:/admin/categories";
     }
 

@@ -90,12 +90,22 @@
             <p class="error" th:if="${#fields.hasErrors('cookMinutes')}" th:errors="*{cookMinutes}">エラー内容</p>
           </div>
 
-          <div class="field">
+          <!--/* 並び順は編集のときだけ聞きます（2026-09-05）。
+                 新規登録では、そのカテゴリの末尾に自動で付きます。
+                 既定の 0 のままだと、追加した品が看板メニューの上に割り込み、
+                 店主が気づいて直すまで、お客さまにはその並びで見えていました。
+
+                 ひとつ動かすだけなら、商品一覧の上下ボタンのほうが速い。
+                 ここに数字を残しているのは「まとめて並べ直す」ときのためです。 */-->
+          <div class="field" th:if="${itemForm.id != null}">
             <label class="label" for="sortOrder">並び順<span class="req">必須</span></label>
             <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
                    inputmode="numeric"
                    th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
-            <p class="help">同じカテゴリの中で、小さいほど先に表示されます。</p>
+            <p class="help">
+              同じカテゴリの中で、小さいほど先に表示されます。
+              ひとつ動かすだけなら、<a th:href="@{/admin/items}">商品一覧</a>の上下ボタンのほうが速いです。
+            </p>
             <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
           </div>
         </div>

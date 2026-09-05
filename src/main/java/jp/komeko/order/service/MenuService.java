@@ -105,6 +105,132 @@ public class MenuService {
         return menuItemRepository.countByCategoryId(categoryId);
     }
 
+    // ========================================================================
+    //  並び順
+    // ========================================================================
+
+    /**
+     * 新しく足すものに付ける並び順（いまの最大 + 10）。
+     *
+     * <p><b>0 のままにしない理由</b><br>
+     * 既定値が 0 だと、追加した品がメニューの<b>先頭に割り込みます</b>。
+     * 看板の「肉玉米粉そば」の上に、試しに足した品が乗る。
+     * 店主が気づいて直すまで、お客さまにはその並びで見えています。
+     *
+     * <p>10 ずつ空けるのは、あとから手で数字を入れて割り込ませたくなったとき
+     * （「これは 3 番目に置きたい」）に、周りを詰め直さずに済むからです。
+     *
+     * @param used すでに使われている並び順。空なら 10 から始める
+     */
+    private static int nextSortOrder(List<Integer> used) {
+        int max = 0;
+        for (Integer v : used) {
+            if (v != null && v > max) {
+                max = v;
+            }
+        }
+        return max + 10;
+    }
+
+    /** 新しいカテゴリに付ける並び順。 */
+    @Transactional(readOnly = true)
+    public int nextCategorySortOrder() {
+        return nextSortOrder(categoryRepository.findAllByOrderBySortOrderAscIdAsc()
+                .stream().map(Category::getSortOrder).toList());
+    }
+
+    /** そのカテゴリに新しく足す商品に付ける並び順。 */
+    @Transactional(readOnly = true)
+    public int nextItemSortOrder(Long categoryId) {
+        if (categoryId == null) {
+            return 10;
+        }
+        return nextSortOrder(menuItemRepository.findByCategoryIdOrderBySortOrderAscIdAsc(categoryId)
+                .stream().map(MenuItem::getSortOrder).toList());
+    }
+
+    /**
+     * カテゴリをひとつ上（または下）へ動かす。
+     *
+     * <p><b>数字を入れ替えるのではなく、隣と席を交換します。</b>
+     * 「sortOrder を 1 減らす」だと、隣が 10 離れていれば何も起きず、
+     * 同じ数字が並んでいれば順番が変わらないまま数字だけ動きます。
+     * どちらも「押したのに動かない」に見えます。
+     *
+     * <p>並び替えたい人が見ているのは<b>画面に並んだ順</b>なので、
+     * その順で 1 つ手前（奥）にいる相手を見つけて、数字を交換します。
+     * 数字が同じで id 順で並んでいた場合も、交換したあと必ず差がつくように
+     * 「同じなら片方をずらす」を入れてあります。
+     *
+     * @return 動かせたら true。すでに端なら false（押しても何も起きない）
+     */
+    @Transactional
+    public boolean moveCategory(Long categoryId, boolean up) {
+        List<Category> all = categoryRepository.findAllByOrderBySortOrderAscIdAsc();
+        int index = indexOf(all, c -> c.getId().equals(categoryId));
+        int neighbour = up ? index - 1 : index + 1;
+        if (index < 0 || neighbour < 0 || neighbour >= all.size()) {
+            return false;
+        }
+        Category a = all.get(index);
+        Category b = all.get(neighbour);
+        swapSortOrder(a.getSortOrder(), b.getSortOrder(), up,
+                a::setSortOrder, b::setSortOrder);
+        return true;
+    }
+
+    /**
+     * 商品をひとつ上（または下）へ動かす。
+     *
+     * <p>並び替えるのは<b>同じカテゴリの中だけ</b>です。
+     * カテゴリをまたいで動かすと、商品の所属が変わってしまいます
+     * （カテゴリを変えたいときは編集フォームから変更してください）。
+     */
+    @Transactional
+    public boolean moveItem(Long menuItemId, boolean up) {
+        MenuItem item = menuItemRepository.findById(menuItemId)
+                .orElseThrow(() -> new MenuItemNotFoundException(menuItemId));
+        List<MenuItem> siblings = menuItemRepository
+                .findByCategoryIdOrderBySortOrderAscIdAsc(item.getCategory().getId());
+        int index = indexOf(siblings, m -> m.getId().equals(menuItemId));
+        int neighbour = up ? index - 1 : index + 1;
+        if (index < 0 || neighbour < 0 || neighbour >= siblings.size()) {
+            return false;
+        }
+        MenuItem a = siblings.get(index);
+        MenuItem b = siblings.get(neighbour);
+        swapSortOrder(a.getSortOrder(), b.getSortOrder(), up,
+                a::setSortOrder, b::setSortOrder);
+        return true;
+    }
+
+    private static <T> int indexOf(List<T> list, java.util.function.Predicate<T> match) {
+        for (int i = 0; i < list.size(); i++) {
+            if (match.test(list.get(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * 隣り合う 2 つの並び順を入れ替える。
+     *
+     * <p>数字が同じときは交換しても順番が変わらない（id 順のままになる）ので、
+     * 動かすほうを 1 だけずらして差をつけます。
+     * 上へ動かすなら小さく、下へ動かすなら大きく。
+     */
+    private static void swapSortOrder(int mine, int theirs, boolean up,
+                                      java.util.function.IntConsumer setMine,
+                                      java.util.function.IntConsumer setTheirs) {
+        if (mine == theirs) {
+            setMine.accept(up ? mine - 1 : mine + 1);
+            return;
+        }
+        setMine.accept(theirs);
+        setTheirs.accept(mine);
+    }
+
     /** 品切れトグル（厨房からもワンタップで叩ける）。 */
     @Transactional
     public boolean toggleSoldOut(Long menuItemId) {
