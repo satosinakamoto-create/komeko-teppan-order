@@ -196,8 +196,10 @@
                  th:attr="data-price=${c.extraPrice}, data-group=${g.id}, data-max=${g.maxSelect}">
 
           <span class="choice__name" th:text="${c.name}">レギュラー</span>
+          <!--/* ＋ は全角。設計（暗05）の表記に合わせてある。
+                 半角の + だと数字に近づきすぎて「+¥180」が一続きに読める */-->
           <span class="choice__price" th:if="${c.extraPrice > 0}"
-                th:text="'+¥' + ${#numbers.formatInteger(c.extraPrice, 1, 'COMMA')}">+¥200</span>
+                th:text="'＋¥' + ${#numbers.formatInteger(c.extraPrice, 1, 'COMMA')}">＋¥180</span>
           <span class="choice__price" th:if="${c.extraPrice < 0}"
                 th:text="'−¥' + ${#numbers.formatInteger(-c.extraPrice, 1, 'COMMA')}">−¥50</span>
           <span class="badge badge--soldout" th:if="${c.soldOut}">品切れ</span>
@@ -205,9 +207,13 @@
         </div>
       </section>
 
-      <!--/* ===== 個数 ===== */-->
+      <!--/* ===== 数量（設計「暗/数量の行」）=====
+             右端に、いま選んでいる内容での金額を出す。
+             下のボタンにも同じ金額が出るが、選択肢を選んでいる最中は
+             ボタンまで目が届かない。増減させた手のすぐ横で変わるほうが早い。
+             どちらも .js-add-total で、JavaScript が両方まとめて書き換える。 */-->
       <div class="row row--between mt-6">
-        <span class="label mb-0" style="margin:0">個数</span>
+        <span class="label mb-0" style="margin:0">数量</span>
         <div class="qty">
           <button type="button" class="qty__btn" data-qty-step="-1" aria-label="1つ減らす">−</button>
           <!--/* 数量限定の品は、残数より多い個数を最初から選べないようにする。
@@ -218,6 +224,10 @@
                  th:max="${item.stockTracked and item.stockRemaining < 20} ? ${item.stockRemaining} : 20">
           <button type="button" class="qty__btn" data-qty-step="1" aria-label="1つ増やす">＋</button>
         </div>
+        <span class="qty-amount js-add-total"
+              th:text="${item.price > 0}
+                       ? '¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}
+                       : '時価'">¥1,510</span>
       </div>
 
       <div class="cart-bar mt-6">
@@ -226,7 +236,7 @@
                  <span> で包まないのは、包むと最初の子が要素になり、
                  firstChild の差し替えで金額まで消えるため */-->
           <button type="submit" class="btn btn--primary btn--lg btn--block">注文に追加
-            <span id="add-total"
+            <span id="add-total" class="js-add-total"
                   th:text="${item.price > 0}
                            ? '¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}
                            : '時価'">¥880</span>

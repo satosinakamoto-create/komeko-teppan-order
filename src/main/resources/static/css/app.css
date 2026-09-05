@@ -3684,6 +3684,15 @@ body.is-sending .staff-main {
 
    max-height なので、選択肢が 2 つしかない「麺の変更」は
    そのまま全部出る（枠にも届かないので何も起きない）。 */
+/* --------------------------------------------------------------------------
+   トッピングを選ぶ（設計「暗05」）— 選択肢の行
+
+   ★ ここは 2026-09-06 に設計へ寄せ直しました。
+     それまでは 1 行ずつ枠で囲んだカード（.choice の既定）で、設計とは別物でした。
+       行の高さ 48（設計 56）／ 1px の枠と角丸あり（設計は枠なし・区切り線）
+       チェックは 20px のブラウザ既定（設計は 24px の四角）
+     「よく見ると全然違う」と言われたのはここです。
+   -------------------------------------------------------------------------- */
 .sheet-modal__body .choice-list {
   max-height: 190px;
   overflow-y: auto;
@@ -3693,6 +3702,74 @@ body.is-sending .staff-main {
   padding-right: 10px;
 }
 
+/* 行。枠で囲まず、区切り線だけで分ける（設計 170:3513） */
+.sheet-modal__body .choice {
+  min-height: 56px;
+  /* 左 24 ／ 右 26。左右で 2px 違うのは設計どおり。
+     右はスクロールバーのぶんだけ内側に寄っている */
+  padding: 12px 26px 12px 24px;
+  gap: 12px;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+}
+.sheet-modal__body .choice + .choice {
+  margin-top: 0;
+  border-top: 1px solid var(--border);
+}
+/* 選択中の行は、きつね色を 10% だけ敷く。
+   枠線で示すと、押せる的が増えたように見えて他の行と読み分けにくい */
+.sheet-modal__body .choice:has(input:checked) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.sheet-modal__body .choice:hover { border-color: transparent; }
+
+/* チェック。ブラウザ既定の見た目を捨てて、設計の 24px の四角にする。
+   ★ 印は白ではなく黒（#141414）。きつね色の上に置くので、
+     白だと沈む。書き出しの stroke がそうなっている。 */
+.sheet-modal__body .choice input {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+/* 1 つだけ選ぶ組は丸にする。設計に描かれているのは複数選べる
+   トッピングだけだが、四角のままだと「いくつでも選べる」に見える */
+.sheet-modal__body .choice input[type="radio"] { border-radius: 50%; }
+.sheet-modal__body .choice input:checked {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  /* 書き出し（14x14 / 線幅 1.86667 / 端は丸）をそのまま data URI に。
+     外部の読み込みを増やさず、店内にネットが無くても崩れない */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M2.33333 7.29167L5.54167 10.5L11.6667 4.08333' stroke='%23141414' stroke-width='1.86667' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.sheet-modal__body .choice__name {
+  flex: 1 0 0;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+/* 金額は右端でそろえる。幅を決め打ちにしているのは、
+   「＋¥180」と「＋¥1,200」で桁が動いても列がぶれないようにするため */
+.sheet-modal__body .choice__price {
+  flex: none;
+  width: 80px;
+  text-align: right;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
 /* WebKit（iOS Safari / Android Chrome）用。設計どおり 6px。
 
    ★ scrollbar-width / scrollbar-color を一緒に書かないこと。
@@ -3700,9 +3777,19 @@ body.is-sending .staff-main {
      ::-webkit-scrollbar の指定を丸ごと無視する。
      実際それでバーが 0px（浮いて出るだけ）になっていた。 */
 .sheet-modal__body .choice-list::-webkit-scrollbar { width: 6px; }
-.sheet-modal__body .choice-list::-webkit-scrollbar-track { background: transparent; }
+/* ★ 溝にも色を置くこと（設計 173:4130 は #3d3d3d）。
+     透明にすると「下にまだ続いている」ことが、つまみを見つけるまで分からない。
+     上下 8px 空けているのも設計どおりで、箱の角丸から浮かせるため。 */
+.sheet-modal__body .choice-list::-webkit-scrollbar-track {
+  background: #3d3d3d;
+  border-radius: 3px;
+  margin-block: 8px;
+}
+/* ★ つまみは明るい灰（#c9c9c9）。
+     --border-strong（#444）だと地の #232323 との差が小さく、
+     暗い店内では動かせるものだと気づけない。 */
 .sheet-modal__body .choice-list::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  background: #c9c9c9;
   border-radius: 3px;
 }
 
@@ -3711,8 +3798,59 @@ body.is-sending .staff-main {
 @supports not selector(::-webkit-scrollbar) {
   .sheet-modal__body .choice-list {
     scrollbar-width: thin;
-    scrollbar-color: var(--border-strong) transparent;
+    /* WebKit 側と同じ色（つまみ #c9c9c9 ／ 溝 #3d3d3d）。
+       ここだけ透明にしておくと、Firefox でだけ溝が見えなくなる */
+    scrollbar-color: #c9c9c9 #3d3d3d;
   }
+}
+
+/* 数量（設計「暗/数量の行」129:3927）。
+
+   ★ 既定の .qty（44px の連結した長丸）とは別物。
+     あちらは 1 つの枠の中に −／数／＋ が並ぶ形で、
+     設計は 32px の丸が 2 つ離れて置かれる。
+     ＋ だけきつね色なのは「増やすほうが主」だから。
+     31-10 節（時価の品）と同じ形なので、見た目もそろえてある。 */
+.sheet-modal__body .qty {
+  gap: 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.sheet-modal__body .qty__btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+/* 2 つ目のボタンが「増やす」。順番で決めているのは、
+   マークアップに印を足さずに済ませるため（−／数／＋ の並びは動かさない） */
+.sheet-modal__body .qty__btn:last-child {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sheet-modal__body .qty__btn:hover { background: var(--surface-2); }
+.sheet-modal__body .qty__value {
+  width: 24px;
+  min-width: 24px;
+  font-size: 16px;
+  font-weight: 700;
+}
+/* 数量の行の右端に出す金額（設計は幅 72・右そろえ）。
+   下のボタンにも同じ金額が出るが、選択肢を選んでいる最中は
+   ボタンまで目が届かない。増減させた手のすぐ横で変わるほうが早い */
+.qty-amount {
+  flex: none;
+  width: 72px;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 商品の写真。設計（暗05）の見出し写真は 342 : 213 */

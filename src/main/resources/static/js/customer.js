@@ -56,7 +56,11 @@
   var addForm = document.getElementById('add-form');
   if (addForm) {
     var qtyInput = document.getElementById('quantity');
-    var totalLabel = document.getElementById('add-total');
+    /* 金額を出す場所は 2 つある（設計 暗05）。
+       数量の行の右端と、いちばん下の「注文に追加　¥1,510」。
+       id ではなくクラスで拾っているのは、id は 1 ページに 1 つしか
+       置けないため。片方だけ更新すると、同じ画面に違う金額が並ぶ。 */
+    var totalLabels = document.querySelectorAll('.js-add-total');
     var basePrice = parseInt(addForm.dataset.basePrice || '0', 10);
 
     function selectedExtra() {
@@ -70,7 +74,8 @@
 
     function updateTotal() {
       var qty = Math.max(1, parseInt(qtyInput.value || '1', 10));
-      totalLabel.textContent = yen((basePrice + selectedExtra()) * qty);
+      var text = yen((basePrice + selectedExtra()) * qty);
+      totalLabels.forEach(function (el) { el.textContent = text; });
     }
 
     /* ＋ / − ボタン */
