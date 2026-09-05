@@ -78,6 +78,42 @@ class DevPhonePreviewTest {
         }
 
         @Test
+        @DisplayName("★ 窓に収まる大きさまで縮められる（ノート PC で枠がはみ出さない）")
+        void fitsIntoASmallWindow() throws Exception {
+            // 端末の枠は最大 440×956。ノート PC の窓は高さ 500〜700px しかないので、
+            // 実寸のまま置くと必ずはみ出す。
+            // 2026-09-06 に「スマホ確認しようとしても出来ない」と報告された状態がこれで、
+            // 枠の下半分が見えないうえ、下ろすと画面の切り替えまで上へ消えていた。
+            String html = mockMvc.perform(get("/dev/phone"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            // 縮小率を決めるのに要る 2 つの材料。どちらかが消えると
+            // 縮小は既定の 1 倍に落ち、はみ出す状態に戻る
+            assertThat(html).as("端末の幅を JavaScript に渡していない").contains("--phone-w:390");
+            assertThat(html).as("端末の高さを JavaScript に渡していない").contains("--phone-h:844");
+            // 既定は「窓に合わせる」。実寸を既定にすると、狭い窓では最初から見えない
+            assertThat(html).as("窓に合わせる選択肢が無い").contains("窓に合わせる");
+            // 切り替えを手元に残す（枠が長いので、無いと毎回ページ先頭へ戻ることになる）
+            assertThat(html).as("操作部分を貼り付けていない").contains("phone-bar");
+        }
+
+        @Test
+        @DisplayName("★ 縮めても中の版面は端末の幅のまま（見たいのは 390 のときの割り付け）")
+        void keepsTheLayoutWidthWhenScaled() throws Exception {
+            // 幅を小さくして縮めると、中の画面はその幅で組み直される。
+            // 300px にした枠は「300px の端末」であって、確かめたい 390 の見え方ではない。
+            // だから縮小は transform で行う。iframe に指定する寸法は実寸のまま残ること。
+            String html = mockMvc.perform(get("/dev/phone"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(html).as("iframe の幅が実寸でない").contains("width:390px");
+            assertThat(html).as("iframe の高さが実寸でない").contains("height:844px");
+            assertThat(html).as("縮小に transform を使っていない").contains("scale(var(--phone-scale");
+        }
+
+        @Test
         @DisplayName("端末を選び直せる")
         void canPickAnotherDevice() throws Exception {
             String html = mockMvc.perform(get("/dev/phone").param("w", "440"))

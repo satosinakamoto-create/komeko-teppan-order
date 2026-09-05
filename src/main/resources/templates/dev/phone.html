@@ -19,33 +19,48 @@
 <main>
   <div class="container">
 
-    <div class="section-title">
-      <h1 class="section-title__text">お客さまのスマホ画面</h1>
-      <span class="section-title__count">開発時のみ</span>
+    <!--/* ===== 操作部分 =====
+           ★ sticky で上に貼り付けている。
+             端末の枠は 956px あるので、ノート PC の窓では必ずスクロールが要る。
+             ふつうに流すと、枠まで下ろした時点で画面の切り替えが上へ消えてしまい、
+             「別の画面を見たいのに毎回いちばん上まで戻る」ことになる。
+
+           ★ 見出しを置いていないのは、そのぶん枠を大きく見せるため。
+             枠は「窓の高さ − ここの高さ」に収まる倍率まで縮めるので、
+             ここが 1cm 増えるたびに端末が小さくなる。
+             以前は見出しと説明文で 238px 使っていて、高さ 520px の窓では
+             端末が 30%（133×287）まで潰れ、文字が読めなかった。
+             このページが何かは、選んでいる画面と端末を見れば分かる。 */-->
+    <div class="phone-bar">
+      <form class="row row--wrap" method="get" th:action="@{/dev/phone}">
+        <label class="label mb-0" for="path">画面</label>
+        <select class="select" id="path" name="path" style="max-width:11rem" onchange="this.form.submit()">
+          <option th:each="p : ${paths}" th:value="${p}" th:text="${p}" th:selected="${p == path}">/menu</option>
+        </select>
+
+        <label class="label mb-0" for="w">端末</label>
+        <select class="select" id="w" name="w" style="max-width:15rem" onchange="this.form.submit()">
+          <option th:each="d : ${devices}" th:value="${d.width()}" th:text="${d.label()}"
+                  th:selected="${d.width() == device.width()}">iPhone 14 / 15（390×844）</option>
+        </select>
+
+        <!--/* 倍率。既定は「窓に合わせる」。
+               JavaScript が動かないときは実寸のままなので、選択肢としての実寸も残す。
+               この select だけは form の外側の値なので name を付けていない
+               （送信しても意味が無い＝画面を作り直さずに切り替わる） */-->
+        <label class="label mb-0" for="zoom">大きさ</label>
+        <select class="select" id="zoom" style="max-width:9rem">
+          <option value="fit" selected>窓に合わせる</option>
+          <option value="1">実寸（100%）</option>
+          <option value="0.75">75%</option>
+          <option value="0.5">50%</option>
+        </select>
+
+        <span class="help mb-0" id="zoom-note">実寸</span>
+
+        <noscript><button class="btn" type="submit">表示する</button></noscript>
+      </form>
     </div>
-
-    <p class="help">
-      実機と同じ大きさで表示しています。<strong>そのまま押して動かせます。</strong>
-      本番（実店舗の設定）ではこのページは出ません。
-    </p>
-
-    <!--/* どの画面を、どの端末で見るか。GET で選び直すだけなので JavaScript は要らない */-->
-    <form class="row row--wrap mt-4" method="get" th:action="@{/dev/phone}">
-      <label class="label mb-0" for="path">画面</label>
-      <select class="select" id="path" name="path" style="max-width:12rem" onchange="this.form.submit()">
-        <option th:each="p : ${paths}" th:value="${p}" th:text="${p}" th:selected="${p == path}">/menu</option>
-      </select>
-
-      <label class="label mb-0" for="w">端末</label>
-      <select class="select" id="w" name="w" style="max-width:18rem" onchange="this.form.submit()">
-        <option th:each="d : ${devices}" th:value="${d.width()}" th:text="${d.label()}"
-                th:selected="${d.width() == device.width()}">iPhone 14 / 15（390×844）</option>
-      </select>
-
-      <noscript><button class="btn" type="submit">表示する</button></noscript>
-    </form>
-
-    <p class="help mt-4" th:text="'いま ' + ${device.label()} + ' ／ ' + ${path}">いま iPhone 14 / 15（390×844） ／ /menu</p>
 
     <!--/* ===== 卓に入り直す =====
            卓の紐づけはメモリ上のセッションにあるので、アプリを再起動すると消える。
@@ -53,40 +68,74 @@
            「お席の QR をお読みください」に戻る。
            そのたびに卓のトークンを探すのは現実的ではないので、ここから 1 回で戻す。
 
-           押すと枠の中が /t/{トークン} になる。QR を読んだのとまったく同じ。 */-->
+           押すと枠の中が /t/{トークン} になる。QR を読んだのとまったく同じ。
+
+           ★ たたんである理由
+             枠を上に出すため。ここを開いたままにすると、窓の高さ 500px 前後の
+             ノート PC では説明文だけで一画面ぶんを使い、肝心の枠が見えない。 */-->
     <div class="alert alert--info mt-4" th:if="${#lists.isEmpty(seats)}">
       <p class="mb-0">卓が 1 つも登録されていません。管理画面 → 卓 から作ってください。</p>
     </div>
-    <div class="row row--wrap mt-4" th:unless="${#lists.isEmpty(seats)}">
-      <span class="label mb-0">卓に入り直す</span>
-      <a class="btn btn--sm" th:each="s : ${seats}"
-         th:href="@{/dev/phone(path='/t/' + ${s.accessToken}, w=${device.width()})}"
-         th:text="${s.name}">カウンター1</a>
-    </div>
-    <p class="help">
-      「お席の QR をお読みください」と出たら、ここから入り直してください。
-      <strong>アプリを再起動すると卓の紐づけが消えます</strong>（セッションはメモリ上にあるため）。
-    </p>
+    <details class="mt-2" th:unless="${#lists.isEmpty(seats)}">
+      <summary class="help">卓に入り直す／このページの使い方</summary>
+      <div class="row row--wrap mt-2">
+        <a class="btn btn--sm" th:each="s : ${seats}"
+           th:href="@{/dev/phone(path='/t/' + ${s.accessToken}, w=${device.width()})}"
+           th:text="${s.name}">カウンター1</a>
+      </div>
+      <p class="help mt-2">
+        枠の中は本物の画面です。<strong>そのまま押して動かせます。</strong>
+        「お席の QR をお読みください」と出たら、上のボタンから入り直してください
+        （<strong>アプリを再起動すると卓の紐づけが消えます</strong>。セッションがメモリ上にあるため）。
+        本番（実店舗の設定）ではこのページは出ません。
+      </p>
+    </details>
 
     <!--/* 端末の枠。角丸と縁だけの簡素なもの。
-           実機の見え方に影響しないよう、中身には一切かぶせない */-->
-    <div class="phone-shell mt-6"
-         th:style="'width:' + ${device.width()} + 'px'">
-      <iframe class="phone-shell__screen" id="screen" title="お客さまの画面"
-              th:src="@{${path}}"
-              th:style="'width:' + ${device.width()} + 'px;height:' + ${device.height()} + 'px'"></iframe>
-    </div>
+           実機の見え方に影響しないよう、中身には一切かぶせない。
 
-    <p class="help center mt-4">
-      枠の中で QR を読んでいない状態なら「お席の QR をお読みください」が出ます。<br>
-      卓に着いた状態で見たいときは、先に別のタブで <code>/t/{アクセストークン}</code> を開いてください。
-    </p>
+           stage が枠の場所取り役。縮めたぶんだけ高さも詰める
+           （transform は場所取りを変えないので、stage 側で高さを持つ）。 */-->
+    <div class="phone-stage mt-4" id="stage"
+         th:style="'--phone-w:' + ${device.width()} + ';--phone-h:' + ${device.height()}">
+      <div class="phone-shell" th:style="'width:' + ${device.width()} + 'px'">
+        <iframe class="phone-shell__screen" id="screen" title="お客さまの画面"
+                th:src="@{${path}}"
+                th:style="'width:' + ${device.width()} + 'px;height:' + ${device.height()} + 'px'"></iframe>
+      </div>
+    </div>
 
   </div>
 
   <style>
+    /* この確認用ページだけ紙面を広く使う。
+       操作を 1 行に収めるため。720px だと「画面／端末／大きさ」の 3 つが
+       2 行に折り返し、それだけで 133px（＝端末が 5% ぶん小さくなる）を使う。
+       枠自体は最大 440px なので、紙面を広げても枠の見え方は変わらない。 */
+    .container { max-width: 1120px; }
+
+    /* 切り替えの操作は常に手元に置く。枠が長いので、これが無いと
+       画面を変えるたびにページの先頭まで戻ることになる */
+    .phone-bar {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: var(--sp-3) 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* 枠の場所取り。高さは JavaScript が縮小率に合わせて入れる。
+       transform は場所取り（レイアウト上の大きさ）を変えないので、
+       ここで高さを持たないと縮めても下に余白だけが残る */
+    .phone-stage {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      overflow: hidden;
+    }
+
     .phone-shell {
-      margin-inline: auto;
       padding: 0;
       border: 1px solid var(--border-strong);
       border-radius: 24px;
@@ -99,17 +148,84 @@
          「実機と同じ 390」と言いながら 2px 狭い画面を見ることになる。
          枠線は外側に足す。 */
       box-sizing: content-box;
-      max-width: 100%;
+
+      /* ★ 縮めるのに transform を使っている（width を小さくするのではない）
+         width を縮めると、中の画面もその幅で組み直される。
+         440 の枠を 300 にしたら、それは 300 の端末を見ているのと同じで、
+         確かめたい「440 のときの見え方」が見られない。
+         transform なら中の版面は 440 のまま、画面に映る大きさだけが小さくなる。
+         つまり「実物大ではないが、割り付けは実機と同じ」状態になる。
+         いま何％で見ているかは必ず画面に出すこと（実寸だと誤解させないため）。 */
+      transform: scale(var(--phone-scale, 1));
+      transform-origin: top center;
     }
+
     .phone-shell__screen {
       display: block;
       border: 0;
-      /* 端末は横に倒れない前提。幅は inline style で指定している */
-      max-width: 100%;
+      /* max-width は付けない。窓が狭いときに縮むと、中の画面が
+         その幅で組み直されてしまう（上の説明と同じ理由）。
+         狭さへの対応は transform 側の役目 */
     }
   </style>
 
   <script>
+    /* ===== 窓に収める =====
+       端末の枠は最大 440×956。ノート PC の窓は高さ 500〜700px しかないので、
+       そのまま置くと必ずはみ出す。はみ出したぶんをスクロールで追うと、
+       上の切り替えが消えたり、枠の下半分が見えないまま作業することになる。
+       （2026-09-06 に「スマホ確認ができない」として報告された状態がこれ）
+
+       そこで既定を「窓に合わせる」にして、縦も横も入る倍率まで縮める。
+       拡大はしない（1 を上限にする）。実物より大きく見せると、
+       文字の詰まり具合を見誤るため。 */
+    (function () {
+      var stage = document.getElementById('stage');
+      var zoom = document.getElementById('zoom');
+      var note = document.getElementById('zoom-note');
+      var bar = document.querySelector('.phone-bar');
+      if (!stage) return;
+
+      var css = getComputedStyle(stage);
+      var deviceW = parseFloat(css.getPropertyValue('--phone-w')) || 390;
+      var deviceH = parseFloat(css.getPropertyValue('--phone-h')) || 844;
+
+      function apply() {
+        var scale;
+        if (!zoom || zoom.value === 'fit') {
+          /* 縦に使える高さ ＝ 窓の高さ − 貼り付けた操作部分。
+             ★ 枠の現在位置（getBoundingClientRect().top）から測ってはいけない。
+               操作部分は sticky なので、下へスクロールすると枠はその真下まで上がる。
+               スクロール前の位置で測ると、たたんである説明のぶんまで
+               「使えない高さ」に数えてしまい、必要以上に小さくなる。
+               貼り付いたときに収まる大きさ＝この式が正しい。 */
+          var barH = bar ? bar.getBoundingClientRect().height : 0;
+          var room = window.innerHeight - barH - 24;
+          /* 枠線 2px と影のぶんを引いておく。ぴったりだと縁が切れる */
+          scale = Math.min(1, room / (deviceH + 8), stage.clientWidth / (deviceW + 8));
+          /* 窓が極端に小さいときの下限。これ以下は読めないので、
+             縮め続けるより素直にスクロールさせたほうがまだ使える */
+          scale = Math.max(scale, 0.3);
+        } else {
+          scale = parseFloat(zoom.value);
+        }
+
+        stage.style.setProperty('--phone-scale', scale);
+        /* 縮めたぶん、場所取りの高さも詰める（transform は高さを変えないため） */
+        stage.style.height = Math.ceil(deviceH * scale) + 'px';
+
+        if (note) {
+          note.textContent = scale >= 0.999
+              ? '実寸（' + deviceW + '×' + deviceH + '）'
+              : '実寸の ' + Math.round(scale * 100) + '%（版面は ' + deviceW + '×' + deviceH + ' のまま）';
+        }
+      }
+
+      if (zoom) zoom.addEventListener('change', apply);
+      window.addEventListener('resize', apply);
+      apply();
+    })();
+
     /* PC のスクロールバー（23px）を消して、枠の幅と中身の幅をそろえる。
        ここを消さないと、390 の枠なのに中身は 367 になり、
        「実機と同じ」と言いながら 23px 狭い画面を見ることになる。
