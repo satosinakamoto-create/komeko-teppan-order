@@ -3409,57 +3409,62 @@ body.is-sending .staff-main {
      3 枚を 358 に押し込もうとすると、写真か間隔のどちらかを削ることになる。
      素直に横スクロールにする。
    -------------------------------------------------------------------------- */
+/* 2 品目から下は 2 列に並べ、そのまま下へ流す（設計 361:3809 / 2026-09-06）。
+
+   ★ 以前は横スクロールだった。やめた理由:
+     指を横に動かさないと 3 品目が見えないので、<b>そこに品があること自体</b>が
+     伝わらない。画面は縦に読むものなので、横に隠すと「これで全部」に見える。
+     設計も 2 列に置き直され、右端の縦スクロールバーだけが残っている。
+
+   ★ 幅は決め打ちにしない。
+     設計のカードは 152px だが、あれは 390 の画面でスクロールバーのぶんを
+     内側に空けた結果の数字。こちらは画面ごと縦に流れるので、
+     内側に空ける必要がない。2 列を等分して、端をきちんと合わせる。 */
 .thumb-row {
-  display: flex;
-  gap: 12px;
-  /* 上端でそろえる。stretch にすると 112x112 の写真の縦横比が崩れる */
-  align-items: flex-start;
-  overflow-x: auto;
-  scrollbar-width: none;
-  /* 親の 16px の余白をいったん打ち消し、自分で持ち直す。
-     こうすると左端は本文とそろい、右へはみ出したぶんだけ流れる */
-  margin-inline: calc(var(--sp-4) * -1);
-  padding-inline: var(--sp-4);
-  scroll-snap-type: x proximity;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 12px;
+  /* 上端でそろえる。stretch にすると写真の縦横比が崩れる */
+  align-items: start;
 }
-.thumb-row::-webkit-scrollbar { display: none; }
 
 .thumb {
-  flex: 0 0 112px;
-  width: 112px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
   color: inherit;
   text-decoration: none;
-  scroll-snap-align: start;
 }
 .thumb__img {
   display: block;
-  width: 112px;
-  height: 112px;
-  /* こちらは写真そのものに角丸が付く（写真カードとは作りが違う） */
-  border-radius: 8px;
+  width: 100%;
+  /* 設計のカードは 152 x 158（写真の部分）。幅を決め打ちにせず比で持つ。
+     こうしておくと 360 の端末でも 440 の端末でも、同じ形のまま伸び縮みする */
+  aspect-ratio: 152 / 158;
+  /* こちらは写真そのものに角丸が付く（写真カードとは作りが違う）。
+     16 は設計の値。横に小さく並べていた頃の 8 では、大きくなったぶん角が立つ */
+  border-radius: 16px;
   object-fit: cover;
 }
 .thumb__name {
   margin: 0;
-  font-size: 14px;
+  /* 2 列になって 1 枚が大きくなったぶん、文字も 14 → 16（設計どおり）。
+     14 のままだと写真に対して名前が痩せて見える */
+  font-size: 16px;
   font-weight: 400;
-  line-height: 22px;
+  line-height: 1.75;
   letter-spacing: 0;
-  /* 高さ 194 は「品名がちょうど 2 行」の前提。
-     3 行になると帯全体がガタつくので、2 行で切る */
-  height: 44px;
+  /* 2 行で切る。3 行になると隣の列と下端がそろわず、並びがガタつく */
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 .thumb__price {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 22px;
+  line-height: 1.6;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
