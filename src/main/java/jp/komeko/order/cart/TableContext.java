@@ -24,6 +24,28 @@ import java.io.Serializable;
 @SessionScope
 public class TableContext implements Serializable {
 
+    /*
+     * ★ 明示すること。書かないと、項目を 1 つ足しただけで
+     *   お客さま全員の卓の紐づけが切れます（2026-09-06 に実際に起こしました）。
+     *
+     *   Tomcat は再起動をまたいでセッションをファイルに保存し、起動時に読み戻します。
+     *   serialVersionUID を書いていないとコンパイラが中身から自動生成するので、
+     *   フィールドを 1 つ足すだけで値が変わり、読み戻しに失敗します。
+     *
+     *     InvalidClassException: local class incompatible:
+     *       stream classdesc serialVersionUID = 7968869593580997768,
+     *       local  class      serialVersionUID = -5112690952452925035
+     *
+     *   こうなると保存されていたセッションが<b>まるごと捨てられ</b>、
+     *   お客さまの画面は「お席の QR をお読みください」に戻ります。
+     *   店の営業中にアプリを入れ替えたら、その瞬間に全卓が飛ぶということです。
+     *
+     *   固定しておけば、あとから足した項目は既定値（null / 0）で読み戻せます。
+     *   逆に「型を変える」「意味を変える」ときは、古い値が入ってくることを
+     *   前提に書くか、番号を上げて切り捨てるかを意識して決めてください。
+     */
+    private static final long serialVersionUID = 1L;
+
     private Long tableId;
     private String tableName;
     private String accessToken;

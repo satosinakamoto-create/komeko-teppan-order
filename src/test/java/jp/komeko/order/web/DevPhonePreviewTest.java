@@ -40,6 +40,22 @@ class DevPhonePreviewTest {
         @Autowired
         private MockMvc mockMvc;
 
+        @Autowired
+        private jp.komeko.order.repository.DiningTableRepository tables;
+
+        private jp.komeko.order.domain.DiningTable seat;
+
+        @org.junit.jupiter.api.BeforeEach
+        void createSeat() {
+            tables.deleteAll();
+            seat = tables.save(new jp.komeko.order.domain.DiningTable("カウンター1", 1, 10));
+        }
+
+        @org.junit.jupiter.api.AfterEach
+        void removeSeat() {
+            tables.deleteAll();
+        }
+
         @Test
         @DisplayName("ログインなしで開ける（確認のたびにログインさせない）")
         void isOpenWithoutLogin() throws Exception {
@@ -82,6 +98,48 @@ class DevPhonePreviewTest {
 
             assertThat(html).as("外の URL をそのまま埋め込んでいる")
                     .doesNotContain("example.com");
+        }
+
+        @Test
+        @DisplayName("知らない卓のトークンも通さない")
+        void refusesUnknownTableTokens() throws Exception {
+            // 形（/t/…）が合っていても、実在する卓のものだけを通す。
+            // 文字列の形だけで判定すると /t/../../ のような細工が抜ける
+            String html = mockMvc.perform(get("/dev/phone")
+                            .param("path", "/t/00000000-0000-0000-0000-000000000000"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(html).as("知らないトークンを枠に入れている")
+                    .doesNotContain("00000000-0000-0000-0000-000000000000");
+        }
+
+        @Test
+        @DisplayName("★ 卓に入り直せる（再起動でセッションが消えても戻れる）")
+        void offersAWayBackToATable() throws Exception {
+            // アプリを再起動すると卓の紐づけが消え、確認中に
+            // 「お席の QR をお読みください」に戻る。
+            // そのたびにトークンを探させないための入口。
+            String html = mockMvc.perform(get("/dev/phone"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(html).as("入り直す口が無い").contains("卓に入り直す");
+            assertThat(html).as("卓の名前").contains("カウンター1");
+            // 押した先が本物の QR の飛び先になっていること。
+            // ここが違うと、押しても卓につかない見せかけのボタンになる
+            assertThat(html).as("QR と同じ飛び先").contains("/t/" + seat.getAccessToken());
+        }
+
+        @Test
+        @DisplayName("実在する卓のトークンは枠に入れる")
+        void acceptsRealTableTokens() throws Exception {
+            String html = mockMvc.perform(get("/dev/phone")
+                            .param("path", "/t/" + seat.getAccessToken()))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(html).contains("/t/" + seat.getAccessToken());
         }
     }
 

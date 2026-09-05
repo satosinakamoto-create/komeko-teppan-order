@@ -28,6 +28,10 @@ import java.util.Optional;
 @SessionScope
 public class Cart implements Serializable {
 
+    /* 明示する理由は TableContext と同じ。書かないと項目を足しただけで
+       保存されていたセッションが読めなくなり、カートの中身が全部消える。 */
+    private static final long serialVersionUID = 1L;
+
     /** カートに入れられる行数の上限。 */
     public static final int MAX_LINES = 30;
     /** 1 行あたりの個数の上限。 */

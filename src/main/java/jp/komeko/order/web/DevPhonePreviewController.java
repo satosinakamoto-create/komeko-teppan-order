@@ -1,5 +1,7 @@
 package jp.komeko.order.web;
 
+import jp.komeko.order.domain.DiningTable;
+import jp.komeko.order.repository.DiningTableRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -63,6 +65,12 @@ public class DevPhonePreviewController {
     private static final List<String> PATHS = List.of(
             "/menu", "/cart", "/bill", "/service", "/");
 
+    private final DiningTableRepository tables;
+
+    public DevPhonePreviewController(DiningTableRepository tables) {
+        this.tables = tables;
+    }
+
     @GetMapping("/dev/phone")
     public String phone(@RequestParam(defaultValue = "/menu") String path,
                         @RequestParam(defaultValue = "390") int w,
@@ -72,15 +80,42 @@ public class DevPhonePreviewController {
                 .findFirst()
                 .orElse(DEVICES.get(0));
 
+        // 卓に入り直すための入口。
+        //
+        // ★ なぜここに要るのか
+        //   卓の紐づけはメモリ上のセッションにあるので、アプリを再起動すると
+        //   全部消えます。開発中は保存のたびに再起動がかかるため、
+        //   確かめている最中に「お席の QR をお読みください」に戻ります。
+        //   そのたびに卓のトークンを探すのは現実的ではありません。
+        //   ここから 1 回押せば、QR を読んだのと同じ状態に戻せます。
+        List<DiningTable> seats = tables.findByActiveTrueOrderBySortOrderAscIdAsc();
+
         // 枠に入れてよいのは、このアプリのお客さま側だけ。
         // 受け取った文字列をそのまま iframe に渡すと、外のサイトを
         // 埋め込む踏み台にできてしまう（開発用でも開けておく理由がない）。
-        String target = PATHS.contains(path) ? path : "/menu";
+        //
+        // 卓の入口（/t/{トークン}）は、実在する卓のものだけ通す。
+        // 文字列の形で判定すると、/t/../../ のような細工を通してしまう。
+        String target = resolveTarget(path, seats);
 
         model.addAttribute("devices", DEVICES);
         model.addAttribute("device", device);
         model.addAttribute("paths", PATHS);
         model.addAttribute("path", target);
+        model.addAttribute("seats", seats);
         return "dev/phone";
+    }
+
+    /** 枠に入れてよい行き先か確かめて返す。だめなら既定のメニューに倒す。 */
+    private String resolveTarget(String path, List<DiningTable> seats) {
+        if (PATHS.contains(path)) {
+            return path;
+        }
+        for (DiningTable seat : seats) {
+            if (("/t/" + seat.getAccessToken()).equals(path)) {
+                return path;
+            }
+        }
+        return "/menu";
     }
 }

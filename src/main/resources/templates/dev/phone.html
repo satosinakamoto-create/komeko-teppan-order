@@ -47,6 +47,27 @@
 
     <p class="help mt-4" th:text="'いま ' + ${device.label()} + ' ／ ' + ${path}">いま iPhone 14 / 15（390×844） ／ /menu</p>
 
+    <!--/* ===== 卓に入り直す =====
+           卓の紐づけはメモリ上のセッションにあるので、アプリを再起動すると消える。
+           開発中は保存のたびに再起動がかかるため、確かめている最中に
+           「お席の QR をお読みください」に戻る。
+           そのたびに卓のトークンを探すのは現実的ではないので、ここから 1 回で戻す。
+
+           押すと枠の中が /t/{トークン} になる。QR を読んだのとまったく同じ。 */-->
+    <div class="alert alert--info mt-4" th:if="${#lists.isEmpty(seats)}">
+      <p class="mb-0">卓が 1 つも登録されていません。管理画面 → 卓 から作ってください。</p>
+    </div>
+    <div class="row row--wrap mt-4" th:unless="${#lists.isEmpty(seats)}">
+      <span class="label mb-0">卓に入り直す</span>
+      <a class="btn btn--sm" th:each="s : ${seats}"
+         th:href="@{/dev/phone(path='/t/' + ${s.accessToken}, w=${device.width()})}"
+         th:text="${s.name}">カウンター1</a>
+    </div>
+    <p class="help">
+      「お席の QR をお読みください」と出たら、ここから入り直してください。
+      <strong>アプリを再起動すると卓の紐づけが消えます</strong>（セッションはメモリ上にあるため）。
+    </p>
+
     <!--/* 端末の枠。角丸と縁だけの簡素なもの。
            実機の見え方に影響しないよう、中身には一切かぶせない */-->
     <div class="phone-shell mt-6"

@@ -17,6 +17,9 @@ public record CartOption(
         int extraPrice
 ) implements Serializable {
 
+    /* 明示する理由は TableContext と同じ（保存されたセッションを読み戻せるように）。 */
+    private static final long serialVersionUID = 1L;
+
     /** 「チーズ追加 +150円」のような表示文字列。 */
     public String display() {
         if (extraPrice == 0) {

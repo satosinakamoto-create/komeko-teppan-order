@@ -14,6 +14,9 @@ import java.util.stream.Collectors;
  */
 public class CartLine implements Serializable {
 
+    /* 明示する理由は TableContext と同じ（保存されたセッションを読み戻せるように）。 */
+    private static final long serialVersionUID = 1L;
+
     private final String key;
     private final Long menuItemId;
     private final String menuItemName;
