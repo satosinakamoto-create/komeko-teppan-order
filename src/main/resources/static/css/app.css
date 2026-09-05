@@ -2358,8 +2358,11 @@ body.theme-night { background-image: none; }
    ========================================================================== */
 
 :root {
-  /* 設計（Figma 暗/カテゴリチップ）は 390x56 */
-  --tabs-h: 56px;
+  /* 設計（暗/お食事のカテゴリ・暗/ドリンクのカテゴリ）は 390x72。
+     内訳は 上 16 ＋ チップ 40 ＋ 下 16。
+     部品シートの「暗/カテゴリチップ 390x56」は下 16px を含まない見本で、
+     画面に置かれているのはこちらの 72px のほう（暗01 / 暗02 で確認） */
+  --tabs-h: 72px;
 
   /* カテゴリの帯を貼り付ける位置＝上にいる帯の高さ。
      卓に着く前は店名だけのヘッダー（.app-header）が上にいる。 */
@@ -2407,11 +2410,9 @@ body.theme-night { background-image: none; }
      720px で止まる上の帯と幅が食い違っていた */
   max-width: var(--page-max);
   margin-inline: auto;
-  /* 設計（暗/カテゴリチップ 390x56）は 上 0 ／ 左右 16 ／ 下 16。
-     下の 16px が、チップと本文のあいだの唯一の余白になる */
-  padding: 0 16px 16px;
-  /* stretch にするとチップが 56px いっぱいに伸びて、下 16px の余白が消える。
-     設計のチップは 40px なので、上に寄せて 40 + 16 = 56 を成立させる */
+  /* 上下 16 ／ 左右 16。チップ 40 と合わせて 16 + 40 + 16 = 72 */
+  padding: 16px;
+  /* stretch にするとチップが帯いっぱいに伸びて、上下 16px の余白が消える */
   align-items: flex-start;
   gap: 16px;
   /* 地は本文と同じ #202020。選択中の大分類タブの面と地続きに見せるための色で、
@@ -3284,6 +3285,313 @@ body.is-sending .staff-main {
 .theme-desk.theme-ledger .total-table td { font-size: 16px; }
 .theme-desk.theme-ledger .total-table tr:last-child th,
 .theme-desk.theme-ledger .total-table tr:last-child td { font-size: 20px; font-weight: 700; }
+
+/* ==========================================================================
+   31. お客さまのスマホ画面の部品（2026-09-05）
+   --------------------------------------------------------------------------
+   設計: Figma「02 スマホ（お客さん）」暗01 お好み焼き / 暗02 ビール・サワー /
+         暗03 サービス / 暗04 伝票・会計 と、その素になっている 暗/ 部品。
+
+   ★ 行送りは全部 px で書き切ること。
+     この設計は「12 + 28 + 12 = 52」のように、行送りが高さを決めている。
+     line-height を省くとブラウザの既定（およそ 1.45〜1.5）で計算され、
+     箱の高さが数 px ずつずれて、縦のリズムが全部崩れる。
+
+   ★ 枠線は箱の内側に描かれている（Figma の仕様）。
+     border を素直に足すと箱がその分ふくらむので、
+     box-sizing: border-box を効かせるか、余白から 1px 返すこと。
+     この 2 つを外すと、いつも同じ壊れ方をする。
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   31-1. 写真カード（暗/写真カード 358x276）
+
+   その分類でいちばん見せたい 1 品。写真 358x210 ＋ 名前の帯 66。
+   -------------------------------------------------------------------------- */
+.photo-card {
+  display: block;
+  /* 売り切れ・残数のバッジを写真の上に重ねるための基準 */
+  position: relative;
+  border-radius: 8px;
+  /* 写真そのものには角丸を付けず、カード側で切る（設計の作りどおり）。
+     img に border-radius を付けると、下の帯との境目で角が二重に見える */
+  overflow: hidden;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+.photo-card__img {
+  display: block;
+  width: 100%;
+  /* 358 : 210。幅が変わっても写真の形が変わらないように比で持つ */
+  aspect-ratio: 358 / 210;
+  object-fit: cover;
+}
+/* 写真の上に重ねるバッジ。fragments/common :: allergens が .menu-item__badges を出す。
+   帯（66px）の中に入れると帯が伸びてカードの高さが 276 → 304 に崩れるので、
+   写真の側に逃がしている */
+.photo-card > .menu-item__badges {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  margin: 0;
+}
+
+.photo-card__bar {
+  display: flex;
+  align-items: baseline;
+  padding: 12px 16px;
+}
+.photo-card__name {
+  flex: 1;
+  /* これが無いと flex が縮まず、長い品名が価格を右へ押し出す */
+  min-width: 0;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+  letter-spacing: 0;
+  /* 帯の高さ 66 は「品名が 1 行」の前提。2 行になるとカードが 276 → 304 に伸びる */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.photo-card__price {
+  flex: none;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 42px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   31-2. おすすめ帯とサムネイル（暗/おすすめ帯 360x194 ／ 暗/サムネイル 112x194）
+
+   ★ 帯の幅は 360px で、同じ画面の写真カード（358）より 2px 広い。
+     これは間違いではなく「画面からはみ出して横に流れる」という設計の意思表示。
+     3 枚を 358 に押し込もうとすると、写真か間隔のどちらかを削ることになる。
+     素直に横スクロールにする。
+   -------------------------------------------------------------------------- */
+.thumb-row {
+  display: flex;
+  gap: 12px;
+  /* 上端でそろえる。stretch にすると 112x112 の写真の縦横比が崩れる */
+  align-items: flex-start;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* 親の 16px の余白をいったん打ち消し、自分で持ち直す。
+     こうすると左端は本文とそろい、右へはみ出したぶんだけ流れる */
+  margin-inline: calc(var(--sp-4) * -1);
+  padding-inline: var(--sp-4);
+  scroll-snap-type: x proximity;
+}
+.thumb-row::-webkit-scrollbar { display: none; }
+
+.thumb {
+  flex: 0 0 112px;
+  width: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: inherit;
+  text-decoration: none;
+  scroll-snap-align: start;
+}
+.thumb__img {
+  display: block;
+  width: 112px;
+  height: 112px;
+  /* こちらは写真そのものに角丸が付く（写真カードとは作りが違う） */
+  border-radius: 8px;
+  object-fit: cover;
+}
+.thumb__name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: 0;
+  /* 高さ 194 は「品名がちょうど 2 行」の前提。
+     3 行になると帯全体がガタつくので、2 行で切る */
+  height: 44px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.thumb__price {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   31-3. 品の行（暗/飲み物の行 358x96 / 78 / 52）
+
+   写真と補足の有無で高さが 3 段階に変わる。
+     写真あり・補足あり  12 + 72 + 12 = 96
+     写真なし・補足あり  12 + 54 + 12 = 78
+     写真なし・補足なし  12 + 28 + 12 = 52
+   高さを決めているのは写真（72px）で、余白ではない。
+   写真を消した瞬間に、高さの支配権が文字の側に移る。
+
+   ★ この行だけ左右の余白が 0。伝票の行（16）や合計行（8）と揃っていないので、
+     共通の「行」クラスにまとめると必ずどこかがずれる。
+   -------------------------------------------------------------------------- */
+.drink-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* 下線 1px は箱の内側。下の余白から 1px 返して 96 / 78 / 52 を守る */
+  padding: 12px 0 11px;
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  text-decoration: none;
+}
+.drink-row__img {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.drink-row__body {
+  flex: 1 0 0;
+  /* min-width: 0 が無いと、長い品名で行が縮まず価格が右へ押し出される */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.drink-row__name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 28px;
+  letter-spacing: 0;
+}
+.drink-row__note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text-muted);
+}
+.drink-row__price {
+  flex: none;
+  /* 桁が増えても左の文字が動かないように幅を決め打ちにする（設計どおり） */
+  width: 64px;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 28px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 売り切れの品は押せない。行ごと薄くして、価格の代わりに理由を出す */
+.drink-row.is-soldout { opacity: .45; pointer-events: none; }
+
+/* --------------------------------------------------------------------------
+   31-4. サービスのタイル（暗/サービスのタイル 112x112）
+
+   ★ 3 列に並べると 112×3 ＋ 間 12×2 = 360 で、本文の幅 342 に収まらない。
+     画面（暗03）側は 106x112 で置かれているので、幅はグリッドに決めさせる。
+     部品の 112 は「単体で置いたときの大きさ」であって、3 列のときの幅ではない。
+   -------------------------------------------------------------------------- */
+.svc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px 12px;
+}
+.svc-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  /* 中身は 32 + 8 + 28 = 68。112 との差 44 を上下 22 ずつで分ける */
+  height: 112px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 28px;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.svc-tile .ic { width: 32px; height: 32px; color: var(--accent); }
+.svc-tile:active { background: var(--bg-elevated); }
+
+/* --------------------------------------------------------------------------
+   31-5. 伝票（暗/伝票の行 342x52 ／ 暗/合計行 342x60）
+
+   ★ 金額の色が 3 か所で違う。設計どおりなので揃えないこと。
+       品の行     白      … 何を頼んだかを読む行
+       合計       きつね  … いちばん見たい数字
+       品の価格   きつね  … メニュー側（押せるものの値段）
+   -------------------------------------------------------------------------- */
+/* 伝票の画面だけ左右 24px。本文の幅が 390 − 48 = 342 になる（設計 暗04） */
+.bill-page { padding-inline: 24px; }
+
+.bill-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 28px;
+}
+.bill-row + .bill-row { border-top: 1px solid var(--border); }
+.bill-row__name { flex: 1 0 0; min-width: 0; }
+/* 選んだ内容と、いまの状態。行の高さ 52 を保つため、名前と同じ行に置く */
+.bill-row__note,
+.bill-row__state { font-size: 14px; color: var(--text-muted); }
+.bill-row__state { margin-left: 8px; }
+.bill-row__amount {
+  flex: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bill-total {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  /* 上線 1px は箱の内側。上の余白から 1px 返して 60 を守る */
+  padding: 15px 8px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 20px;
+  font-weight: 700;
+  /* ここだけ行送りが 1.4。20 × 1.4 = 28 で、上の品の行（16 × 1.75 = 28）と
+     実際の高さがそろうように合わせてある。1.75 のままにすると 35px になり、
+     行のリズムが 7px 崩れる */
+  line-height: 28px;
+}
+.bill-total__label { flex: 1 0 0; min-width: 0; }
+.bill-total__amount {
+  flex: none;
+  color: var(--accent);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 合計の下の但し書き。2 行に収まる長さで書くこと */
+.bill-note {
+  margin: 32px 0 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text-muted);
+}
 
 /* ==========================================================================
    32. 広い画面（1800px 以上）— 2026-09-05

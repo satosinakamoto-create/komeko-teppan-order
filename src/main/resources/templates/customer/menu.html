@@ -69,42 +69,101 @@
              th:attr="aria-labelledby='tab-' + ${ts.index}">
       <div class="container">
 
+        <!--/*
+          ===== 1 カテゴリぶんの並べ方 =====
+
+          設計（暗01 お好み焼き／暗02 ビール・サワー）は、
+          お食事とドリンクで見せ方そのものを変えている。
+
+            お食事   1 品目は大きな写真カード、2 品目からは横に流れるサムネイル
+            ドリンク 1 行ずつの一覧。写真があるときは行の中に小さく置く（72px）
+
+          料理は絵で選び、飲み物は名前で選ぶ。実際そうやって注文している。
+          写真の有無で切り替えるのではなく大分類で切り替えるのは、
+          暗02 の「オールフリー」が写真を持ちながら行として描かれているから。
+          飲み物の写真は、選ぶ手がかりであって主役ではない、という設計の意思。
+        */-->
         <div th:each="entry : ${tab.value}" th:id="'cat-' + ${entry.key.id}">
 
-          <!--/* タブ名とカテゴリ名が同じときは、同じ言葉が 2 段に重なるので見出しを省く */-->
-          <div class="section-title" th:unless="${entry.key.name == tab.key}">
-            <h2 class="section-title__text" th:text="${entry.key.name}">鉄板おつまみ</h2>
-            <span class="section-title__count"
-                  th:text="${entry.value.size()} + ' 品'">4 品</span>
-          </div>
-
-          <div class="stack">
-            <a th:each="item, s : ${entry.value}"
-               class="menu-item reveal"
+          <!--/* ===== ドリンク：行の一覧 ===== */-->
+          <th:block th:if="${drinkSection}">
+            <a th:each="item : ${entry.value}"
+               class="drink-row"
                th:classappend="${!item.orderable} ? 'is-soldout'"
-               th:href="@{/items/{id}(id=${item.id})}"
-               th:style="'animation-delay:' + ${s.index * 45} + 'ms'">
-
-              <img class="menu-item__thumb" th:if="${item.imagePath != null}"
+               th:href="@{/items/{id}(id=${item.id})}">
+              <img class="drink-row__img" th:if="${item.imagePath != null}"
                    th:src="@{${item.imagePath}}" th:alt="${item.name}" loading="lazy">
-              <div class="menu-item__thumb menu-item__thumb--empty" th:if="${item.imagePath == null}"
-                   aria-hidden="true"
-                   th:text="${#strings.substring(item.name, 0, 1)}">米</div>
+              <span class="drink-row__body">
+                <span class="drink-row__name" th:text="${item.name}">サッポロ赤星（中瓶）</span>
+                <span class="drink-row__note" th:if="${item.description}"
+                      th:text="${item.description}">お店のおすすめ。</span>
+                <span th:replace="~{fragments/common :: allergens(${item})}"></span>
+              </span>
+              <span class="drink-row__price"
+                    th:insert="~{fragments/common :: price(${item})}">¥700</span>
+            </a>
+          </th:block>
 
-              <div class="menu-item__body">
-                <h3 class="menu-item__name" th:text="${item.name}">コンプレット</h3>
-                <p class="menu-item__desc" th:if="${item.description}"
-                   th:text="${item.description}">説明</p>
-                <div class="menu-item__price">
-                  <span th:replace="~{fragments/common :: price(${item})}">¥880</span>
-                  <!--/* 時価のときは「税込」を出さない。
-                         金額が無いのに税の但し書きだけ残ると、意味が通らない */-->
-                  <small th:if="${item.price > 0}">税込</small>
-                </div>
-                <div th:replace="~{fragments/common :: allergens(${item})}"></div>
+          <!--/* ===== お食事：写真カード ＋ おすすめ帯 ===== */-->
+          <th:block th:unless="${drinkSection}"
+                    th:with="withPhoto=${#lists.toList(entry.value).?[imagePath != null]},
+                             withoutPhoto=${#lists.toList(entry.value).?[imagePath == null]}">
+
+            <!--/* いちばん見せたい 1 品。写真カード（358x276） */-->
+            <a th:if="${!withPhoto.isEmpty()}" class="photo-card mt-4"
+               th:with="hero=${withPhoto[0]}"
+               th:classappend="${!hero.orderable} ? 'is-soldout'"
+               th:href="@{/items/{id}(id=${hero.id})}">
+              <img class="photo-card__img" th:src="@{${hero.imagePath}}"
+                   th:alt="${hero.name}" loading="lazy">
+              <!--/* 売り切れ・残数・アレルギーは写真の上に重ねる。
+                     名前の帯（66px）に入れると帯が伸びてカードの高さが崩れる */-->
+              <span class="photo-card__badges"
+                    th:replace="~{fragments/common :: allergens(${hero})}"></span>
+              <div class="photo-card__bar">
+                <h3 class="photo-card__name" th:text="${hero.name}">肉玉米粉そば</h3>
+                <span class="photo-card__price"
+                      th:insert="~{fragments/common :: price(${hero})}">¥1,180</span>
               </div>
             </a>
-          </div>
+
+            <!--/* 節見出し。丸・見出し・品数の 3 つで 1 行 28px（暗/節見出し） */-->
+            <div class="section-title">
+              <h2 class="section-title__text" th:text="${entry.key.name}">お好み焼き</h2>
+              <span class="section-title__count"
+                    th:text="${entry.value.size()} + ' 品'">4 品</span>
+            </div>
+
+            <!--/* 2 品目から。3 枚で 360px あり画面に収まらないので、横に流れる（設計どおり） */-->
+            <div class="thumb-row" th:if="${withPhoto.size() > 1}">
+              <a th:each="item, s : ${withPhoto}" th:if="${!s.first}"
+                 class="thumb"
+                 th:classappend="${!item.orderable} ? 'is-soldout'"
+                 th:href="@{/items/{id}(id=${item.id})}">
+                <img class="thumb__img" th:src="@{${item.imagePath}}"
+                     th:alt="${item.name}" loading="lazy">
+                <span class="thumb__name" th:text="${item.name}">ねぎたっぷり米粉そば</span>
+                <span class="thumb__price"
+                      th:insert="~{fragments/common :: price(${item})}">¥1,380</span>
+                <span th:replace="~{fragments/common :: allergens(${item})}"></span>
+              </a>
+            </div>
+
+            <!--/* 写真の無い品は、お食事でも行で出す。並べる絵が無いので */-->
+            <a th:each="item : ${withoutPhoto}"
+               class="drink-row"
+               th:classappend="${!item.orderable} ? 'is-soldout'"
+               th:href="@{/items/{id}(id=${item.id})}">
+              <span class="drink-row__body">
+                <span class="drink-row__name" th:text="${item.name}">本日の特製サラダ</span>
+                <span class="drink-row__note" th:if="${item.description}"
+                      th:text="${item.description}">お店のおすすめ。</span>
+                <span th:replace="~{fragments/common :: allergens(${item})}"></span>
+              </span>
+              <span class="drink-row__price"
+                    th:insert="~{fragments/common :: price(${item})}">¥1,200</span>
+            </a>
+          </th:block>
 
         </div>
 

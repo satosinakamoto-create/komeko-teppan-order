@@ -3,7 +3,10 @@
       th:replace="~{layout/customer :: layout('お席の伝票', ~{::main})}">
 <body>
 <main>
-  <div class="container">
+  <!--/* 伝票だけ左右の余白が 24px（設計 暗04 は本文が 342px 幅）。
+         メニュー側の 16px より広いのは、金額を読む画面だから。
+         行が短くなるぶん、品名と金額の距離が縮んで目が迷わない。 */-->
+  <div class="container bill-page">
 
     <div th:replace="~{fragments/common :: flash}"></div>
 
@@ -13,9 +16,19 @@
             th:text="${bill.diningTable.name} + ' ／ ' + ${bill.guestCount} + '名'">3番テーブル ／ 4名</span>
     </div>
 
-    <!--/* ===== ご注文の状況 =====
-           data-* 属性は JavaScript が読むための値置き場。
-           customer.js がここを見て数秒ごとに状態を確認します。
+    <!--/* ===== 明細 ===== 設計: 暗04 伝票・会計
+
+      設計は「頼んだ品」と「テーブルチャージ」を<b>同じ形の行</b>で並べている。
+      注文ごとのカードに分けず、1 本の伝票として上から読ませる形。
+      レジで受け取る紙の伝票と同じ読み方になる。
+
+      ★ 状態（焼いています／お渡し済み）は行の中に入れてある。
+        設計の伝票には状態が描かれていないが、そこを落とすと
+        「頼んだのに来ない」ときにお客さまが確かめる手段が無くなる。
+        別の一覧をもう 1 つ作ると同じ品が 2 回並ぶので、行の中に置いた。
+
+      data-* 属性は JavaScript が読むための値置き場。
+      customer.js がここを見て数秒ごとに状態を確認します。
     */-->
     <section id="bill-status" th:attr="data-pending=${bill.hasPendingOrders()}">
 
@@ -23,114 +36,91 @@
         <div th:replace="~{fragments/common :: empty('膳', 'まだご注文がありません')}"></div>
       </div>
 
-      <article class="card mt-4" th:each="order : ${orders}">
-        <div class="card__head row row--between">
-          <span>
-            <span class="muted small">ご注文</span>
-            <b class="num" th:text="'#' + ${order.orderNumber}">#101</b>
-          </span>
-          <span class="status-chip"
-                th:style="'color:' + ${order.status.color}"
-                th:text="${order.status.customerLabel}">焼いています</span>
-        </div>
-
-        <div class="card__body">
-          <div class="cart-line" th:each="line : ${order.lines}">
-            <div>
-              <div class="cart-line__name">
-                <span th:text="${line.menuItemName}">たこ焼 8個</span>
-                <span class="muted" th:text="' × ' + ${line.quantity}"> × 1</span>
-              </div>
-              <div class="cart-line__opts" th:if="${!line.options.isEmpty()}"
-                   th:text="${line.optionSummary}">ソース / ねぎマヨ</div>
-            </div>
-            <div class="cart-line__price"
-                 th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥1,190</div>
+      <div class="mt-6" th:unless="${orders.isEmpty()}">
+        <th:block th:each="order : ${orders}">
+          <div class="bill-row" th:each="line : ${order.lines}">
+            <span class="bill-row__name">
+              <span th:text="${line.menuItemName}">肉玉米粉そば</span>
+              <span th:text="' ×' + ${line.quantity}"> ×2</span>
+              <span class="bill-row__note" th:if="${!line.options.isEmpty()}"
+                    th:text="${line.optionSummary}">ソース / ねぎマヨ</span>
+              <span class="bill-row__state" th:if="${order.status.name != 'COMPLETED'}"
+                    th:style="'color:' + ${order.status.color}"
+                    th:text="${order.status.customerLabel}">焼いています</span>
+            </span>
+            <span class="bill-row__amount"
+                  th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥2,360</span>
           </div>
+        </th:block>
 
-          <p class="small muted mt-4 mb-0" th:if="${order.note}"
-             th:text="'ご要望：' + ${order.note}">ご要望：ソース少なめ</p>
+        <!--/* 品の合計と席の料金。設計では品の行と同じ形で続く */-->
+        <div class="bill-row">
+          <span class="bill-row__name">お料理・お飲み物</span>
+          <span class="bill-row__amount"
+                th:text="'¥' + ${#numbers.formatInteger(bill.subtotalAmount, 1, 'COMMA')}">¥4,200</span>
         </div>
+        <div class="bill-row" th:if="${bill.tableChargeAmount > 0}">
+          <span class="bill-row__name"
+                th:text="'テーブルチャージ （¥' + ${#numbers.formatInteger(bill.tableChargePerGuest, 1, 'COMMA')}
+                         + ' × ' + ${bill.guestCount} + '名）'">テーブルチャージ （¥450 × 2名）</span>
+          <span class="bill-row__amount"
+                th:text="'¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')}">¥900</span>
+        </div>
+        <div class="bill-row" th:if="${bill.lateNightApplied}">
+          <span class="bill-row__name"
+                th:text="'深夜料金（' + ${bill.lateNightSurchargePercent} + '%）'">深夜料金（10%）</span>
+          <span class="bill-row__amount"
+                th:text="'¥' + ${#numbers.formatInteger(bill.lateNightAmount, 1, 'COMMA')}">¥1,004</span>
+        </div>
+      </div>
 
-        <!--/* 焼き始める前だけ、お客さま自身でキャンセルできる */-->
-        <div class="card__foot" th:if="${order.customerCancelable}">
-          <form th:action="@{/bill/orders/{t}/cancel(t=${order.publicToken})}" method="post">
-            <button type="submit" class="btn btn--sm btn--danger"
-                    onclick="return confirm('このご注文をキャンセルします。よろしいですか？');">
-              このご注文をキャンセル
-            </button>
-          </form>
-        </div>
-      </article>
+      <!--/* 合計。ここだけ 20px の太字ときつね色（暗/合計行 342x60） */-->
+      <div class="bill-total">
+        <span class="bill-total__label">合計</span>
+        <span class="bill-total__amount"
+              th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥5,100</span>
+      </div>
+
+      <!--/*
+        深夜料金は「注文した時刻」で決まります（会計時刻でも着席時刻でもありません）。
+        22:50 のお客さまが 23:00 を過ぎてから追加注文すると、
+        その注文にだけ割増がかかります。頼む前に知らせておく必要があるので、
+        まだ割増がかかっていないうちから出しています。
+        先に書いてあれば案内、黙っていて後から増えればクレームです。
+
+        「お会計には」と書くと、22:00 に頼んだ品にもかかると誤解されます。
+        開始時刻だけを書くと、終了時刻を設定している店で
+        「それ以降ずっと」と誤解されます。だから「範囲」と「ご注文」の両方を書きます。
+      */-->
+      <p class="bill-note">
+        <span th:text="'（内 消費税 ' + ${bill.taxRatePercent} + '% ¥'
+                       + ${#numbers.formatInteger(bill.taxAmount, 1, 'COMMA')} + '）'">（内 消費税 10% ¥463）</span>
+        <span th:if="${shop.lateNightSurchargePercent > 0}"
+              th:text="'　' + ${shop.lateNightStartTime} + '〜' + ${shop.lateNightEndTime}
+                       + ' のご注文には深夜料金 ' + ${shop.lateNightSurchargePercent} + '% を頂戴いたします'">
+          　23:00〜05:00 のご注文には深夜料金 10% を頂戴いたします</span>
+      </p>
+
+      <!--/* 焼き始める前だけ、お客さま自身でキャンセルできる。
+             設計には無いが、押せなくなると「頼み間違いを直せない」になる */-->
+      <th:block th:each="order : ${orders}">
+        <form th:if="${order.customerCancelable}" class="mt-4"
+              th:action="@{/bill/orders/{t}/cancel(t=${order.publicToken})}" method="post">
+          <button type="submit" class="btn btn--sm btn--danger"
+                  onclick="return confirm('このご注文をキャンセルします。よろしいですか？');"
+                  th:text="'ご注文 #' + ${order.orderNumber} + ' をキャンセル'">
+            ご注文 #101 をキャンセル
+          </button>
+        </form>
+      </th:block>
     </section>
 
-    <!--/* ===== お会計 ===== */-->
-    <div class="card mt-6">
-      <div class="card__head">現在のご請求額</div>
-      <div class="card__body">
-        <table class="total-table">
-          <tbody>
-          <tr>
-            <td class="muted">お料理・お飲み物</td>
-            <td th:text="'¥' + ${#numbers.formatInteger(bill.subtotalAmount, 1, 'COMMA')}">¥8,240</td>
-          </tr>
-          <tr th:if="${bill.tableChargeAmount > 0}">
-            <td class="muted">
-              テーブルチャージ
-              <span class="tiny faint"
-                    th:text="'（¥' + ${#numbers.formatInteger(bill.tableChargePerGuest, 1, 'COMMA')} + ' × ' + ${bill.guestCount} + '名）'">（¥450 × 4名）</span>
-            </td>
-            <td th:text="'¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')}">¥1,800</td>
-          </tr>
-          <tr th:if="${bill.lateNightApplied}">
-            <td class="muted"
-                th:text="'深夜料金（' + ${bill.lateNightSurchargePercent} + '%）'">深夜料金（10%）</td>
-            <td th:text="'¥' + ${#numbers.formatInteger(bill.lateNightAmount, 1, 'COMMA')}">¥1,004</td>
-          </tr>
-          <tr class="is-grand">
-            <td>合計</td>
-            <td th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥11,044</td>
-          </tr>
-          <tr>
-            <td class="tiny faint"
-                th:text="'（内 消費税 ' + ${bill.taxRatePercent} + '%）'">（内 消費税 10%）</td>
-            <td class="tiny faint"
-                th:text="'¥' + ${#numbers.formatInteger(bill.taxAmount, 1, 'COMMA')}">¥1,004</td>
-          </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="card__foot">
-        <!--/*
-          深夜料金は「注文した時刻」で決まります（会計時刻でも着席時刻でもありません）。
-          22:50 のお客さまが 23:00 を過ぎてから追加注文すると、
-          その注文にだけ割増がかかります。頼む前に知らせておく必要があるので、
-          まだ割増がかかっていないうちから出しています。
-          先に書いてあれば案内、黙っていて後から増えればクレームです。
-
-          「お会計には」と書くと、22:00 に頼んだ品にもかかると誤解されます。
-          開始時刻だけを書くと、終了時刻を設定している店で
-          「それ以降ずっと」と誤解されます。だから「範囲」と「ご注文」の両方を書きます。
-        */-->
-        <p class="tiny faint mb-0"
-           th:if="${shop.lateNightSurchargePercent > 0}"
-           th:text="${shop.lateNightStartTime} + '〜' + ${shop.lateNightEndTime}
-                    + ' のご注文には深夜料金 ' + ${shop.lateNightSurchargePercent} + '% を頂戴いたします'">
-          23:00〜05:00 のご注文には深夜料金 10% を頂戴いたします</p>
-        <p class="tiny faint mb-0">お会計はご退店時にレジまでお願いします</p>
-      </div>
-    </div>
-
-    <!--/* ===== 追加注文 ===== */-->
-    <div class="cart-bar mt-6">
-      <div class="cart-bar__inner">
-        <a class="btn btn--primary btn--lg btn--block" th:href="@{/}">追加でご注文する</a>
-      </div>
-    </div>
+    <!--/* ===== 追加注文 ===== 設計の「お会計をお願いする」は、
+           スタッフを呼ぶ仕組み（暗03 サービス）とセットなので、そちらと一緒に作る */-->
+    <a class="btn btn--primary btn--lg btn--block mt-6" th:href="@{/}">追加でご注文する</a>
 
     <p class="tiny faint center mt-6">
-      画面は自動で更新されます。お呼びの際はスタッフまでお声がけください。
+      画面は自動で更新されます。お会計はご退店時にレジまでお願いします。
     </p>
 
   </div>

@@ -48,8 +48,28 @@ public class MenuController {
      * 注文できないので、案内ページを出します。
      * ブックマークや検索から直接来た人がここに来ます。
      */
+    /**
+     * 飲み物の大分類の名前。
+     *
+     * <p>設計（暗01 / 暗02）では、上の帯が<b>お食事 / ドリンク</b>の 2 つに分かれ、
+     * その下の帯にカテゴリ（お好み焼き・たこ焼き・ビール・サワー…）が並びます。
+     * ところがカテゴリが持っている大カテゴリ名は
+     * 粉もの／鉄板料理／一品料理／ドリンク の 4 つで、1 段ずれています。
+     *
+     * <p>列を足して作り直すこともできますが、
+     * <b>お客さまから見た区別は「食べ物か、飲み物か」の 1 本だけ</b>なので、
+     * 「ドリンク」という大カテゴリかどうかで分ければ足ります。
+     * 実データもそう入っています（DataSeeder の groupNameFor）。
+     *
+     * <p>店長がこの名前を変えるとドリンクのタブが空になりますが、
+     * そのときは画面に「準備中です」と出るだけで、注文は止まりません。
+     */
+    private static final String DRINK_SECTION = "ドリンク";
+
     @GetMapping({"/", "/menu"})
-    public String menu(@RequestParam(required = false) String src, Model model) {
+    public String menu(@RequestParam(required = false) String src,
+                       @RequestParam(required = false) String tab,
+                       Model model) {
         if (!tableContext.isBound()) {
             return "customer/no-table";
         }
@@ -57,8 +77,10 @@ public class MenuController {
         ShopSetting setting = shopSettingService.currentReadOnly();
         LocalDateTime now = LocalDateTime.now();
 
+        boolean drink = DRINK_SECTION.equals(tab);
         model.addAttribute("menu", menu);
-        model.addAttribute("tabs", groupIntoTabs(menu));
+        model.addAttribute("tabs", categoriesOf(menu, drink));
+        model.addAttribute("drinkSection", drink);
         model.addAttribute("accepting", setting.isOrderAcceptable(now));
         model.addAttribute("rejectReason", setting.orderRejectReason(now));
         model.addAttribute("src", src);
@@ -66,31 +88,30 @@ public class MenuController {
     }
 
     /**
-     * カテゴリを大カテゴリ（タブ）ごとにまとめ直す。
+     * いま見ている大分類（お食事／ドリンク）のカテゴリだけを取り出す。
      *
-     * <p>このお店はカテゴリが 14 個あります。そのまま横一列のタブにすると
-     * 端まで探しに行けないので、{@code Category#getTabName()} が同じものを
-     * 1 つのタブにまとめ、タブの中では従来どおりカテゴリごとの見出しを出します。
+     * <p>戻り値の形は{@code groupIntoTabs} と同じ「タブ名 → カテゴリ → 商品」ですが、
+     * <b>タブ 1 つにつきカテゴリ 1 つ</b>にしてあります。
+     * 画面の帯に並ぶのがカテゴリそのものになり、
+     * 横に流れる面（パネル）もカテゴリ単位で切り替わります。
      *
-     * <p><b>{@link java.util.LinkedHashMap} を使う理由</b><br>
-     * ふつうの {@code HashMap} は<b>入れた順番を覚えていません</b>。
-     * それだとタブの並びが起動のたびに変わりかねず、
-     * 「昨日はここにあったのに」という混乱のもとになります。
-     * {@code LinkedHashMap} は入れた順を保つので、
-     * 渡された時点の並び（カテゴリの並び順）がそのままタブの並びになります。
-     *
-     * @param menu カテゴリ順に並んだメニュー（{@code MenuService} が並べ替え済み）
-     * @return タブ名 → そのタブに属するカテゴリとその商品
+     * <p>入れ物を変えずに中身の粒度だけ変えているのは、
+     * 面の切り替えとスクロール位置の記憶（customer/menu.html の script）が
+     * 「タブと面が 1 対 1」という前提で書かれているからです。
+     * その前提を保ったまま粒度だけ下げれば、あちらは 1 行も直らずに済みます。
      */
-    private Map<String, Map<Category, List<MenuItem>>> groupIntoTabs(
-            Map<Category, List<MenuItem>> menu) {
+    private Map<String, Map<Category, List<MenuItem>>> categoriesOf(
+            Map<Category, List<MenuItem>> menu, boolean drink) {
 
         Map<String, Map<Category, List<MenuItem>>> tabs = new LinkedHashMap<>();
         for (Map.Entry<Category, List<MenuItem>> entry : menu.entrySet()) {
-            // computeIfAbsent は「無ければ作って入れる、あればそれを返す」。
-            // if (get == null) { put } と書くのと同じことを 1 行で書ける
-            tabs.computeIfAbsent(entry.getKey().getTabName(), name -> new LinkedHashMap<>())
-                    .put(entry.getKey(), entry.getValue());
+            boolean isDrink = DRINK_SECTION.equals(entry.getKey().getTabName());
+            if (isDrink != drink) {
+                continue;
+            }
+            Map<Category, List<MenuItem>> one = new LinkedHashMap<>();
+            one.put(entry.getKey(), entry.getValue());
+            tabs.put(entry.getKey().getName(), one);
         }
         return tabs;
     }
