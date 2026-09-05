@@ -87,6 +87,7 @@ public class ShopSettingService {
         setting.setBusinessDayCutoverHour(form.getBusinessDayCutoverHour());
         setting.setGriddleCapacity(form.getGriddleCapacity());
         setting.setTableChargePerGuest(form.getTableChargePerGuest());
+        setting.setMonthlyRent(form.getMonthlyRent());
         setting.setLateNightStartTime(form.getLateNightStartTime());
         setting.setLateNightEndTime(form.getLateNightEndTime());
         setting.setLateNightSurchargePercent(form.getLateNightSurchargePercent());

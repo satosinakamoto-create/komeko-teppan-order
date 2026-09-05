@@ -395,6 +395,41 @@
       </div>
     </div>
 
+    <!--/* ===== 固定費 =====
+           売上画面の「売上の配分」でだけ使う数字です。
+           注文・会計の動きには一切影響しません。
+
+           ★ 仕入れ（PurchaseCategory）に入れない理由
+             家賃は「仕入れた」ものではなく、毎月同じ額が出ていく固定費です。
+             食材や消耗品と同じ箱に入れると、帳簿では雑費に混ざってしまい、
+             税理士に渡す仕訳が狂います。毎月入力する必要も無いので、設定として持ちます。
+    */-->
+    <div class="card mt-6">
+      <div class="card__head">固定費</div>
+      <div class="card__body">
+
+        <div class="field">
+          <label class="label" for="monthlyRent">家賃（月額・税込）</label>
+          <input class="input" type="number" id="monthlyRent" th:field="*{monthlyRent}"
+                 th:errorclass="is-error" min="0" step="1000" inputmode="numeric">
+          <p class="error" th:if="${#fields.hasErrors('monthlyRent')}" th:errors="*{monthlyRent}">エラー</p>
+          <p class="help">
+            売上画面の「売上の配分」で、賃貸の実績として使います。<br>
+            <strong>0 のままだと「記録していません」と表示されます。</strong>
+            0 円と出すと「家賃がかかっていない」という意味になってしまうので、
+            入力があるときだけ配分に載せています。
+          </p>
+        </div>
+
+        <p class="help mb-0">
+          <strong>人件費はまだ入れる場所がありません。</strong>
+          配分の全体像を見るには、この画面の家賃と、別に把握している人件費を
+          あわせて考えてください。
+        </p>
+
+      </div>
+    </div>
+
     <div class="row mt-6">
       <button type="submit" class="btn btn--primary btn--lg">保存する</button>
       <a class="btn btn--ghost" th:href="@{/admin/settings}">変更を破棄する</a>

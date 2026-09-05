@@ -159,7 +159,8 @@ public class AdminSalesController {
         model.addAttribute("spans", SPANS);
         model.addAttribute("span", months);
 
-        model.addAttribute("breakdown", breakdownOf(target, now.sales()));
+        model.addAttribute("breakdown",
+                breakdownOf(target, now.sales(), shopSettingService.currentReadOnly().getMonthlyRent()));
         model.addAttribute("ranking", SalesView.ranking(ranking, now.sales()));
 
         // 月は「表示用」と「URL 用」を分けて渡す。
@@ -209,23 +210,34 @@ public class AdminSalesController {
      * <p><b>目安（FL 60 / 光熱 10 / 雑費 10 / 賃貸 10 / 利益 10）と、実績を並べて出します。</b>
      * 目安は業種の一般論で、実績はこのアプリに記録された仕入れです。
      *
-     * <p><b>賃貸と人件費は、いまのアプリに記録する場所がありません。</b>
-     * {@code PurchaseCategory} は 食材／飲料・酒／消耗品／光熱費／その他 の 5 つで、
-     * 家賃も給与も入れる先がない（入れるなら「その他」＝帳簿では「雑費」になってしまう）。
+     * <p><b>賃貸は店舗設定の「家賃（月額）」から入れます（2026-09-05）。</b>
+     * 家賃は仕入れではなく毎月同じ額が出ていく固定費なので、
+     * {@code PurchaseCategory}（食材／飲料・酒／消耗品／光熱費／その他）には入れず、
+     * {@link ShopSetting#getMonthlyRent()} として 1 つ持っています。
+     * 仕入れに混ぜると帳簿では雑費になり、税理士に渡す仕訳が狂います。
+     *
+     * <p><b>家賃が 0 のときは「記録していない」のままにします。</b>
+     * 0 円と出すと「家賃がかかっていない」という嘘になるためで、
+     * 金額が入っているときだけ実績に載せます。
+     *
+     * <p><b>人件費は、いまも記録する場所がありません。</b>
      * <b>数字を決め打ちで書き込むことはしません。</b>
      * 画面には「記録していない」と出して、
      * 足りない費目があることが分かる状態にしておきます。
+     *
+     * @param monthlyRent 店舗設定の月額家賃（税込・円）。0 なら未記録として扱う
      */
-    private List<BreakdownRow> breakdownOf(YearMonth month, long sales) {
+    private List<BreakdownRow> breakdownOf(YearMonth month, long sales, int monthlyRent) {
         PurchaseService purchaseService = purchaseServiceProvider.getIfAvailable();
         if (purchaseService == null) {
             // 在庫モジュールを切っているときは仕入れの記録そのものが無い。
-            // 目安だけを出して、実績は「記録していない」にする
+            // 目安だけを出して、実績は「記録していない」にする。
+            // ただし家賃は在庫モジュールと無関係なので、設定があればここでも出す
             List<BreakdownRow> none = new ArrayList<>();
             none.add(new BreakdownRow("F 食材・飲料", null, null, 60, "var(--border)", false));
             none.add(new BreakdownRow("光熱費", null, null, 10, "var(--border)", false));
             none.add(new BreakdownRow("雑費（消耗品・その他）", null, null, 10, "var(--border)", false));
-            none.add(new BreakdownRow("賃貸", null, null, 10, "var(--border)", false));
+            none.add(rentRow(monthlyRent, sales));
             none.add(new BreakdownRow("L 人件費＋利益", null, null, 10, "var(--border)", false));
             return none;
         }
@@ -250,11 +262,25 @@ public class AdminSalesController {
         rows.add(row("F 食材・飲料", food + drink, sales, 60, "var(--green-700)"));
         rows.add(row("光熱費", utilities, sales, 10, "var(--green-600)"));
         rows.add(row("雑費（消耗品・その他）", supplies + other, sales, 10, "var(--green-100)"));
-        // 記録する場所が無いものは、0 円ではなく「記録していない」として出す。
-        // 0 と書くと「家賃がかかっていない」という嘘になる。
-        rows.add(new BreakdownRow("賃貸", null, null, 10, "var(--border)", false));
+        rows.add(rentRow(monthlyRent, sales));
+        // 人件費はまだ記録する場所が無い。0 円ではなく「記録していない」として出す。
+        // 0 と書くと「人を雇っていない」という嘘になる。
         rows.add(new BreakdownRow("L 人件費＋利益", null, null, 10, "var(--border)", false));
         return rows;
+    }
+
+    /**
+     * 賃貸の 1 行。
+     *
+     * <p>家賃が未設定（0）のときは、金額を書かずに「記録していない」として返します。
+     * 0 円と出すと「家賃がかかっていない」の意味になってしまうためで、
+     * これは人件費の行と同じ扱いです。
+     */
+    private static BreakdownRow rentRow(int monthlyRent, long sales) {
+        if (monthlyRent <= 0) {
+            return new BreakdownRow("賃貸", null, null, 10, "var(--border)", false);
+        }
+        return row("賃貸", monthlyRent, sales, 10, "var(--green-600)");
     }
 
     private static BreakdownRow row(String label, int amount, long sales, int target, String color) {

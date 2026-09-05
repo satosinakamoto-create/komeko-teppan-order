@@ -130,6 +130,21 @@ public class ShopSetting {
     @Column(nullable = false)
     private int tableChargePerGuest = 450;
 
+    /**
+     * 月額の家賃（税込・円）。売上画面の「売上の配分」で賃貸の実績として使います。
+     *
+     * <p><b>0 のときは「記録していない」として扱います。</b>
+     * 0 円と表示すると「家賃がかかっていない」という嘘になるためで、
+     * 金額を入れて初めて配分の実績に載ります。
+     *
+     * <p>家賃は仕入れではなく毎月同じ額が出ていく固定費なので、
+     * {@code PurchaseCategory} には入れず設定として 1 つ持ちます。
+     * 仕入れに混ぜると、帳簿では雑費として扱われてしまいます。
+     */
+    @Min(0)
+    @Column(name = "monthly_rent", nullable = false)
+    private int monthlyRent = 0;
+
     /** 深夜料金がかかり始める時刻。 */
     @Column(nullable = false)
     private LocalTime lateNightStartTime = LocalTime.of(23, 0);
@@ -417,6 +432,14 @@ public class ShopSetting {
 
     public void setTableChargePerGuest(int tableChargePerGuest) {
         this.tableChargePerGuest = tableChargePerGuest;
+    }
+
+    public int getMonthlyRent() {
+        return monthlyRent;
+    }
+
+    public void setMonthlyRent(int monthlyRent) {
+        this.monthlyRent = monthlyRent;
     }
 
     public LocalTime getLateNightStartTime() {
