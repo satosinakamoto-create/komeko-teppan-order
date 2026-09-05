@@ -74,7 +74,14 @@
                 th:text="'任意・' + ${g.maxSelect} + 'つまで'">任意</span>
         </div>
 
-        <!--/* 1つだけ選ぶ場合はラジオ、複数選べる場合はチェックボックス */-->
+        <!--/* 1つだけ選ぶ場合はラジオ、複数選べる場合はチェックボックス。
+
+               ★ 選択肢は専用の箱（.choice-list）で包むこと。
+                 設計（暗05）では、この箱<b>だけ</b>が高さ 190px で区切られて
+                 中がスクロールする。モーダル全体をスクロールさせると、
+                 品名も写真もボタンも一緒に流れて、いま何を選んでいるのか見失う。
+                 スクロールバーも右端いっぱいではなく、この箱の中に出る。 */-->
+        <div class="choice-list">
         <label class="choice" th:each="c : ${g.choices}"
                th:classappend="${c.soldOut} ? 'is-soldout'">
 
@@ -100,6 +107,7 @@
                 th:text="'−¥' + ${#numbers.formatInteger(-c.extraPrice, 1, 'COMMA')}">−¥50</span>
           <span class="badge badge--soldout" th:if="${c.soldOut}">品切れ</span>
         </label>
+        </div>
       </section>
 
       <!--/* ===== 個数 ===== */-->

@@ -3595,8 +3595,11 @@ body.is-sending .staff-main {
 }
 
 /* モーダルの中では、商品ページの「メニューに戻る」と外側の余白は要らない。
-   閉じるのは やめる ボタンと Esc と背面のタップ。 */
-.sheet-modal__body .container { padding-inline: 18px; }
+   閉じるのは やめる ボタンと Esc と背面のタップ。
+
+   下の 18px は設計どおり（本文 509 の中で、ボタンの列が 435 + 56 = 491 まで）。
+   これが無いとボタンが箱の底に貼り付いて、切れているように見える。 */
+.sheet-modal__body .container { padding: 0 18px 18px; }
 .sheet-modal__body .back-link { display: none; }
 
 /* ★ 写真はモーダルの上辺いっぱいに出す（設計は 342x213）。
@@ -3614,6 +3617,48 @@ body.is-sending .staff-main {
 .sheet-modal__body .item-photo { border-radius: 0; }
 /* 品名と価格は写真の下、左右 18px（設計の「品名と価格」は x=18） */
 .sheet-modal__body .card__body { padding: 18px; }
+
+/* ★ 選択肢の箱。設計（暗05）でスクロールするのは<b>ここだけ</b>。
+
+   設計の「トッピング」は 306x190 の枠で、中に 56px の行が 6 つ入っている。
+   3 行と少しだけ見えていて、下が切れていることで「まだ下にある」と伝えている。
+   スクロールバーもこの枠の中（右端 6px）に出る。
+
+   モーダル全体をスクロールさせると、品名も写真もボタンも一緒に流れて、
+   いま何を選んでいるのか見失う。選択肢だけが動くほうが迷わない。
+
+   max-height なので、選択肢が 2 つしかない「麺の変更」は
+   そのまま全部出る（枠にも届かないので何も起きない）。 */
+.sheet-modal__body .choice-list {
+  max-height: 190px;
+  overflow-y: auto;
+  /* 設計のバーは箱の右端 6px。中身とぶつからないよう、その幅を余白で空けておく。
+     スマホのバーは中身の上に浮いて出る（幅を取らない）ので、
+     これを入れないと選択肢の文字の上にバーが重なる */
+  padding-right: 10px;
+}
+
+/* WebKit（iOS Safari / Android Chrome）用。設計どおり 6px。
+
+   ★ scrollbar-width / scrollbar-color を一緒に書かないこと。
+     新しい Chrome は標準の指定があるとそちらを優先し、
+     ::-webkit-scrollbar の指定を丸ごと無視する。
+     実際それでバーが 0px（浮いて出るだけ）になっていた。 */
+.sheet-modal__body .choice-list::-webkit-scrollbar { width: 6px; }
+.sheet-modal__body .choice-list::-webkit-scrollbar-track { background: transparent; }
+.sheet-modal__body .choice-list::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+/* Firefox には ::-webkit-scrollbar が無いので、標準の指定で細くする。
+   @supports で囲って、WebKit 側には届かないようにしてある */
+@supports not selector(::-webkit-scrollbar) {
+  .sheet-modal__body .choice-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+}
 
 /* 商品の写真。設計（暗05）の見出し写真は 342 : 213 */
 .item-photo {
@@ -3637,6 +3682,10 @@ body.is-sending .staff-main {
   background: transparent;
   backdrop-filter: none;
   border-top: 0;
+  /* 貼り付かせない。設計ではボタンは本文の流れの中にあり、その下に 18px 空く。
+     sticky のままだと箱の底に貼り付いて、下の余白が生まれない。
+     選択肢の箱（.choice-list）が高さを持つので、本文全体は長くならない */
+  position: static;
 }
 .sheet-modal__foot {
   display: flex;
