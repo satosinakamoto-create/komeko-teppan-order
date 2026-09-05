@@ -117,6 +117,13 @@ app:
   # ログイン画面に「ゲストで参加する」を出す
   guest-login: true
 
+  # お客さまのスマホ画面を実寸で見る確認用ページ（/dev/phone）。
+  # 打ち合わせで「お客さまにはこう見えます」と出せるようにするため、demo でも有効。
+  #
+  # ★ 本番（application-prod.yml）には書かないこと。
+  #   書かなければ DevPhonePreviewController の Bean が作られず、URL は 404 になる。
+  dev-tools: true
+
   # 起動時に、いかにも営業中の状態を作る
   # （厨房ボードが埋まり、在庫の残数と売り切れも映る）
   demo-data: true
@@ -142,3 +149,4 @@ logging:
   level:
     jp.komeko.order: INFO
     org.hibernate.SQL: WARN
+

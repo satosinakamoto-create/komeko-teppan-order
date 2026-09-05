@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!--/*
+   お客さまのスマホ画面を、実寸で見るための確認用ページ（開発時のみ）。
+
+   ★ 中身は本物です。iframe に本物の URL を読ませているだけで、
+     写しでも作り置きでもありません。セッションも共有するので、
+     卓に着いた状態がそのまま引き継がれます。
+
+   ★ スクロールバーのぶんを消していること
+     PC の Chrome は縦スクロールバーが 23px の幅を食います。
+     何もしないと枠が 390 でも中身は 367 になり、
+     「実機と同じ」と言いながら 23px 狭い画面を見ることになります。
+     実機はオーバーレイ表示で幅を食わないので、そこをそろえます。
+     同じオリジンなので、読み込んだあとに中へ 1 行入れられます。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/plain :: layout('スマホ確認', ~{::main})}">
+<body>
+<main>
+  <div class="container">
+
+    <div class="section-title">
+      <h1 class="section-title__text">お客さまのスマホ画面</h1>
+      <span class="section-title__count">開発時のみ</span>
+    </div>
+
+    <p class="help">
+      実機と同じ大きさで表示しています。<strong>そのまま押して動かせます。</strong>
+      本番（実店舗の設定）ではこのページは出ません。
+    </p>
+
+    <!--/* どの画面を、どの端末で見るか。GET で選び直すだけなので JavaScript は要らない */-->
+    <form class="row row--wrap mt-4" method="get" th:action="@{/dev/phone}">
+      <label class="label mb-0" for="path">画面</label>
+      <select class="select" id="path" name="path" style="max-width:12rem" onchange="this.form.submit()">
+        <option th:each="p : ${paths}" th:value="${p}" th:text="${p}" th:selected="${p == path}">/menu</option>
+      </select>
+
+      <label class="label mb-0" for="w">端末</label>
+      <select class="select" id="w" name="w" style="max-width:18rem" onchange="this.form.submit()">
+        <option th:each="d : ${devices}" th:value="${d.width()}" th:text="${d.label()}"
+                th:selected="${d.width() == device.width()}">iPhone 14 / 15（390×844）</option>
+      </select>
+
+      <noscript><button class="btn" type="submit">表示する</button></noscript>
+    </form>
+
+    <p class="help mt-4" th:text="'いま ' + ${device.label()} + ' ／ ' + ${path}">いま iPhone 14 / 15（390×844） ／ /menu</p>
+
+    <!--/* 端末の枠。角丸と縁だけの簡素なもの。
+           実機の見え方に影響しないよう、中身には一切かぶせない */-->
+    <div class="phone-shell mt-6"
+         th:style="'width:' + ${device.width()} + 'px'">
+      <iframe class="phone-shell__screen" id="screen" title="お客さまの画面"
+              th:src="@{${path}}"
+              th:style="'width:' + ${device.width()} + 'px;height:' + ${device.height()} + 'px'"></iframe>
+    </div>
+
+    <p class="help center mt-4">
+      枠の中で QR を読んでいない状態なら「お席の QR をお読みください」が出ます。<br>
+      卓に着いた状態で見たいときは、先に別のタブで <code>/t/{アクセストークン}</code> を開いてください。
+    </p>
+
+  </div>
+
+  <style>
+    .phone-shell {
+      margin-inline: auto;
+      padding: 0;
+      border: 1px solid var(--border-strong);
+      border-radius: 24px;
+      overflow: hidden;
+      /* 枠そのものに影を付けて、後ろの紙面から浮かせる */
+      box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+      /* ★ content-box にすること。
+         このアプリは border-box が既定なので、指定した 390px に枠線 1px が
+         含まれてしまい、中身が 388px になる。
+         「実機と同じ 390」と言いながら 2px 狭い画面を見ることになる。
+         枠線は外側に足す。 */
+      box-sizing: content-box;
+      max-width: 100%;
+    }
+    .phone-shell__screen {
+      display: block;
+      border: 0;
+      /* 端末は横に倒れない前提。幅は inline style で指定している */
+      max-width: 100%;
+    }
+  </style>
+
+  <script>
+    /* PC のスクロールバー（23px）を消して、枠の幅と中身の幅をそろえる。
+       ここを消さないと、390 の枠なのに中身は 367 になり、
+       「実機と同じ」と言いながら 23px 狭い画面を見ることになる。
+
+       同じオリジンなので中へ入れる。読み込みのたびに入れ直すのは、
+       枠の中で画面を移動したときにも効かせるため。 */
+    (function () {
+      var f = document.getElementById('screen');
+      function hideScrollbar() {
+        try {
+          var d = f.contentDocument;
+          if (!d) return;
+          d.documentElement.style.scrollbarWidth = 'none';
+          var s = d.createElement('style');
+          s.textContent = '::-webkit-scrollbar{width:0;height:0}';
+          d.head.appendChild(s);
+        } catch (e) {
+          /* 別オリジンに移動したときは触れない。枠は出したままでよい */
+        }
+      }
+      f.addEventListener('load', hideScrollbar);
+      hideScrollbar();
+    })();
+  </script>
+</main>
+</body>
+</html>

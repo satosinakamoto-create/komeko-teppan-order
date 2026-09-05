@@ -60,10 +60,23 @@ public class SecurityConfig {
      */
     private final boolean guestLoginEnabled;
 
+    /**
+     * 開発用の確認ページ（{@code /dev/**}）を開けるか。
+     *
+     * <p><b>コントローラと同じスイッチを見ていること。</b>
+     * {@code DevPhonePreviewController} も {@code app.dev-tools} で作られます。
+     * プロファイル（dev かどうか）で切ると、片方だけが有効な状態を作れてしまい、
+     * 「画面はあるのにログインを求められる」「認可は開いているのに 404」の
+     * どちらも起こせます。1 つの値で両方を決めます。
+     */
+    private final boolean devToolsEnabled;
+
     public SecurityConfig(Environment environment,
-                          @Value("${app.guest-login:false}") boolean guestLoginEnabled) {
+                          @Value("${app.guest-login:false}") boolean guestLoginEnabled,
+                          @Value("${app.dev-tools:false}") boolean devToolsEnabled) {
         this.environment = environment;
         this.guestLoginEnabled = guestLoginEnabled;
+        this.devToolsEnabled = devToolsEnabled;
     }
 
     /**
@@ -163,6 +176,15 @@ public class SecurityConfig {
                     // PathRequest.toH2Console() は application.yml で設定した
                     // コンソールのパスを自動で拾ってくれる（パスを二重管理しなくて済む）。
                     auth.requestMatchers(PathRequest.toH2Console()).permitAll();
+                }
+
+                if (devToolsEnabled) {
+                    // お客さまのスマホ画面を実寸で見る確認用ページ（/dev/phone）。
+                    //
+                    // ★ ここを開けても本番には影響しない。
+                    //   DevPhonePreviewController は同じ app.dev-tools で作られるので、
+                    //   実店舗ではコントローラ自体が無く、この行も通らない。
+                    auth.requestMatchers("/dev/**").permitAll();
                 }
 
                 if (guestLoginEnabled) {

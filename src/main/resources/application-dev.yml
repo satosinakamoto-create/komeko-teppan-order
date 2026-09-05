@@ -65,3 +65,14 @@ server:
 logging:
   level:
     jp.komeko.order: DEBUG
+
+# お客さまのスマホ画面を、PC で実寸のまま見るための確認用ページ（/dev/phone）。
+#
+# PC のブラウザでお客さま側を開くと窓の幅いっぱいに広がり、実機とは違う形になる。
+# Chrome の端末モード（F12 のあと Ctrl+Shift+M）でも同じことはできるが、
+# F12 だけでは切り替わらず、端末の選び直しや倍率でも見え方が変わる。
+#
+# ★ 本番（application-prod.yml）には書かないこと。
+#   書かなければ DevPhonePreviewController の Bean が作られず、URL は 404 になる。
+app:
+  dev-tools: true
