@@ -228,6 +228,19 @@ public class CartService {
     /**
      * 選択肢がこの商品のものか、必須・上限を満たしているかを検証し、
      * 問題なければカート用のオプションリストに変換する。
+     *
+     * <p><b>★ 同じ選択肢を複数選べるようにするときは、ここから直すこと（2026-09-05）</b><br>
+     * 保存の側は用意してあります（{@link jp.komeko.order.domain.OrderLineOption#getQuantity()}、
+     * {@link OptionGroup#isAllowDuplicate()}）。
+     * <b>ただし入口が {@code Set<Long>} なので、そもそも同じ id を 2 つ渡せません。</b>
+     * 「ソース 3 つ」を通すには、ここを id → 個数 の形で受け取るように変える必要があります。
+     *
+     * <p>あわせて数え方も変わります。いまの {@code chosen.size()} は<b>何種類選んだか</b>で、
+     * {@code allowDuplicate} が立つグループでは<b>合計で何個選んだか</b>を見るべきです。
+     * 「4 種類」と「4 個」は、複数選べるようになった時点で別の意味になります。
+     *
+     * <p>いまは {@code allowDuplicate} を true にする手段が無いので、この経路は動きません。
+     * 画面を作るときに、ここと {@code CartOption} を一緒に直してください。
      */
     private List<CartOption> validateAndBuildOptions(MenuItem item, Set<Long> selectedIds) {
         List<CartOption> result = new ArrayList<>();

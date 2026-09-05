@@ -79,7 +79,10 @@ public class OrderLine {
 
     /** オプション代を反映して単価と小計を計算し直す。 */
     public void recalculate() {
-        int extra = options.stream().mapToInt(OrderLineOption::getExtraPrice).sum();
+        // getExtraPrice ではなく getSubtotal（1 個あたり × 個数）を足すこと。
+        // 同じ選択肢を複数選べるグループでは個数が 2 以上になり得るので、
+        // 単価をそのまま足すと足りなくなる。個数 1 のときは同じ値。
+        int extra = options.stream().mapToInt(OrderLineOption::getSubtotal).sum();
         this.unitPrice = basePrice + extra;
         this.lineTotal = this.unitPrice * quantity;
     }
@@ -89,8 +92,12 @@ public class OrderLine {
         if (options.isEmpty()) {
             return "";
         }
+        // 個数が 2 以上のものだけ「ソース ×3」と出す。
+        // 1 個のときに ×1 と書くと、いまある注文の見え方まで変わってしまう
         return options.stream()
-                .map(OrderLineOption::getChoiceName)
+                .map(o -> o.getQuantity() > 1
+                        ? o.getChoiceName() + " ×" + o.getQuantity()
+                        : o.getChoiceName())
                 .collect(Collectors.joining(" / "));
     }
 

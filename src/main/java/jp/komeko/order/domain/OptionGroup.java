@@ -52,6 +52,31 @@ public class OptionGroup {
     private int sortOrder = 0;
 
     /**
+     * 同じ選択肢を複数選べるグループか。<b>既定は false（これまでどおり 1 回だけ）。</b>
+     *
+     * <p>たこ焼きの「4 種類お選びください」は、いま違う味を 4 つ選ぶ設定です。
+     * 「ソース 3 つ・ごま油 1 つ」のような頼まれ方があるなら true にします。
+     *
+     * <p><b>true にしたときの数え方が変わります。</b>
+     * {@link #getMinSelect()} / {@link #getMaxSelect()} は、
+     * false なら<b>何種類選んだか</b>、true なら<b>合計で何個選んだか</b>を見ます。
+     * 「4 種類」と「4 個」は、複数選べるようになった時点で別の意味になるためです。
+     * 画面の文言も「4 種類お選びください」のままにしないこと。
+     *
+     * <p><b>2026-09-05 時点では、これを true にする手段がありません。</b>
+     * 実際にそういう頼まれ方をするのか店主に確認中で、
+     * 保存の形（{@link OrderLineOption#getQuantity()}）だけ先に整えてあります。
+     * 使うときは、お客さま側のモーダルをチェックボックスから個数の増減に変える作業が要ります。
+     *
+     * <p>{@code columnDefinition} に既定値を書いてあるのは、
+     * データの入った DB に NOT NULL の列を足せるようにするためです
+     * （{@code ShopSetting.monthlyRent} のコメント参照）。
+     */
+    @Column(name = "allow_duplicate", nullable = false,
+            columnDefinition = "boolean not null default false")
+    private boolean allowDuplicate = false;
+
+    /**
      * 選択肢。
      * {@code @BatchSize} は「LAZY な関連を読むとき、まとめて N 件分の SQL 1 回で読む」設定。
      * 商品一覧のように親が複数ある場面で N+1 問題を大幅に減らせます。
@@ -79,6 +104,15 @@ public class OptionGroup {
     /** 単一選択（ラジオ）か。false ならチェックボックス。 */
     public boolean isSingleChoice() {
         return maxSelect <= 1;
+    }
+
+    /** 同じ選択肢を複数選べるか。 */
+    public boolean isAllowDuplicate() {
+        return allowDuplicate;
+    }
+
+    public void setAllowDuplicate(boolean allowDuplicate) {
+        this.allowDuplicate = allowDuplicate;
     }
 
     public void addChoice(OptionChoice choice) {
