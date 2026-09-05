@@ -1,27 +1,45 @@
 <!DOCTYPE html>
+<!--/*
+   ご注文内容の確認（設計「暗06 注文内容の確認」）
+
+   ★ この画面はまだ「頼む前」です。
+     いちばん下のボタンを押して初めて厨房に届きます。
+     押し忘れたまま待たれるのがいちばん困るので、
+     設計の節見出しにも「まだ注文は未確定です。」と書いてあります。
+
+   ★ 設計の行には「変更」ボタンが 1 つあるだけで、
+     −／＋／削除 は描かれていません。
+     ただし押した先が設計に無いので、こちらで決めました。
+
+       変更 → その行の −／＋／削除 がその場で開く（<details>）
+
+     商品ページへ飛ばす案もありましたが、あちらは「カートに入れる」しか
+     持っていないので、押すと同じ品がもう 1 行増えます。
+     直したいのに増えるのは、直せないより悪い。
+     JavaScript を足さずに開閉できる <details> にしてあります。
+*/-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{layout/customer :: layout('ご注文リスト', ~{::main})}">
+      th:replace="~{layout/customer :: layout('ご注文内容の確認', ~{::main})}">
 <body>
 <main>
-  <div class="container">
+  <!--/* 左右 16px（.container の既定）。設計 暗06 の本文は px-16 で、
+         中身の幅は 390 − 32 = 358 になる。
+         伝票（暗04）だけが 24px なので、そこと同じにしないこと。
+
+         下の余白は固定バーのぶん（.submitbar-room）。
+         これが無いと最後の行がボタンの下に隠れる。 */-->
+  <div class="container submitbar-room">
 
     <p class="small"><a th:href="@{/}">← メニューに戻る</a></p>
 
     <div th:replace="~{fragments/common :: flash}"></div>
 
+    <!--/* 節見出し（暗/節見出し）。左のきつね色の丸は .theme-night が ::before で描く。
+           設計では品数を出していないので、右側は空にしてある */-->
     <div class="section-title">
-      <h1 class="section-title__text">ご注文リスト</h1>
-      <span class="section-title__count" th:text="${cart.totalQuantity} + ' 点'">3 点</span>
+      <h1 class="section-title__text" th:if="${!cart.empty}">まだ注文は未確定です。</h1>
+      <h1 class="section-title__text" th:if="${cart.empty}">ご注文内容の確認</h1>
     </div>
-
-    <!--/*
-      この画面はまだ「頼む前」です。いちばん下のボタンを押して初めて厨房に届きます。
-      押し忘れたまま待たれるのがいちばん困るので、中身があるときは必ず書きます。
-    */-->
-    <p class="lead" th:unless="${cart.empty}">
-      内容をご確認のうえ、<strong>いちばん下の「この内容で注文する」</strong>を押してください。
-      押すまで厨房には届きません。
-    </p>
 
     <!--/* ===== まだ何も選ばれていない ===== */-->
     <div th:if="${cart.empty}">
@@ -29,63 +47,69 @@
       <a class="btn btn--primary btn--block" th:href="@{/menu}">メニューを見る</a>
     </div>
 
-    <!--/* ===== 明細 ===== */-->
+    <!--/* ===== カートの中身（暗/注文内容の行） ===== */-->
     <div th:unless="${cart.empty}">
-      <div class="card">
-        <div class="card__body">
-          <div class="cart-line" th:each="line : ${cart.lines}">
-            <div>
-              <div class="cart-line__name" th:text="${line.menuItemName}">コンプレット</div>
-              <div class="cart-line__opts" th:if="${!line.options.isEmpty()}"
-                   th:text="${line.optionSummary}">チーズ増量 / 目玉焼き追加</div>
-              <div class="tiny faint"
-                   th:text="'単価 ¥' + ${#numbers.formatInteger(line.unitPrice, 1, 'COMMA')}">単価 ¥880</div>
+
+      <div class="order-list">
+        <div class="order-row" th:each="line : ${cart.lines}">
+
+          <div class="order-row__main">
+            <div class="order-row__name">
+              <span th:text="${line.menuItemName}">肉玉米粉そば</span>
+              <span th:text="' ×' + ${line.quantity}"> ×1</span>
             </div>
-
-            <div class="cart-line__price"
-                 th:text="'¥' + ${#numbers.formatInteger(line.subtotal, 1, 'COMMA')}">¥1,760</div>
-
-            <!--/* 個数変更と削除。フォームは入れ子にできないので、行ごとに独立させる */-->
-            <div class="row" style="grid-column:1 / -1">
-              <form th:action="@{/cart/update}" method="post" class="row" style="gap:6px">
-                <input type="hidden" name="key" th:value="${line.key}">
-                <input type="hidden" name="quantity" th:value="${line.quantity - 1}">
-                <button class="btn btn--sm" type="submit" aria-label="1つ減らす">−</button>
-              </form>
-
-              <span class="bold num" style="min-width:2.5em;text-align:center"
-                    th:text="${line.quantity}">2</span>
-
-              <form th:action="@{/cart/update}" method="post" class="row" style="gap:6px">
-                <input type="hidden" name="key" th:value="${line.key}">
-                <input type="hidden" name="quantity" th:value="${line.quantity + 1}">
-                <button class="btn btn--sm" type="submit" aria-label="1つ増やす">＋</button>
-              </form>
-
-              <span class="spacer"></span>
-
-              <form th:action="@{/cart/remove}" method="post">
-                <input type="hidden" name="key" th:value="${line.key}">
-                <button class="btn btn--sm btn--ghost" type="submit">削除</button>
-              </form>
-            </div>
+            <div class="order-row__opts" th:if="${!line.options.isEmpty()}"
+                 th:text="${line.optionSummary}">チーズ ／ 餅</div>
           </div>
-        </div>
 
-        <div class="card__foot">
-          <table class="total-table">
-            <tbody>
-            <tr class="is-grand">
-              <td>今回のご注文</td>
-              <td th:text="'¥' + ${#numbers.formatInteger(cart.totalAmount, 1, 'COMMA')}">¥2,540</td>
-            </tr>
-            </tbody>
-          </table>
-          <p class="tiny faint mb-0 mt-4">
-            消費税・テーブルチャージを含むご請求額は、お席の伝票にまとめて計算されます。
-          </p>
+          <div class="order-row__side">
+            <div class="order-row__amount"
+                 th:text="'¥' + ${#numbers.formatInteger(line.subtotal, 1, 'COMMA')}">¥1,510</div>
+
+            <!--/* 開いている状態を保てるように、行ごとに name を分けない。
+                   1 つ開いたら他が閉じる（name を共有する）ほうが画面は静かだが、
+                   2 品まとめて直したい人が押し直すことになるので、独立させてある */-->
+            <details class="order-row__edit">
+              <summary class="order-row__editbtn">変更</summary>
+
+              <!--/* フォームは入れ子にできないので、操作ごとに分ける */-->
+              <div class="order-row__controls">
+                <form th:action="@{/cart/update}" method="post">
+                  <input type="hidden" name="key" th:value="${line.key}">
+                  <input type="hidden" name="quantity" th:value="${line.quantity - 1}">
+                  <button class="btn btn--sm" type="submit" aria-label="1つ減らす">−</button>
+                </form>
+
+                <span class="order-row__qty num" th:text="${line.quantity}">1</span>
+
+                <form th:action="@{/cart/update}" method="post">
+                  <input type="hidden" name="key" th:value="${line.key}">
+                  <input type="hidden" name="quantity" th:value="${line.quantity + 1}">
+                  <button class="btn btn--sm" type="submit" aria-label="1つ増やす">＋</button>
+                </form>
+
+                <form th:action="@{/cart/remove}" method="post">
+                  <input type="hidden" name="key" th:value="${line.key}">
+                  <button class="btn btn--sm btn--ghost" type="submit">削除</button>
+                </form>
+              </div>
+            </details>
+          </div>
+
         </div>
       </div>
+
+      <!--/* 小計（暗/合計行）。伝票の合計と同じ部品を使う。
+             ★ ここは「小計」であって「ご請求額」ではない。
+               消費税・テーブルチャージ・深夜料金は伝票にまとめて計算される */-->
+      <div class="bill-total bill-total--boxed">
+        <span class="bill-total__label">小計</span>
+        <span class="bill-total__amount"
+              th:text="'¥' + ${#numbers.formatInteger(cart.totalAmount, 1, 'COMMA')}">¥3,150</span>
+      </div>
+      <p class="bill-note">
+        消費税・テーブルチャージを含むご請求額は、お席の伝票にまとめて計算されます。
+      </p>
 
       <!--/* ===== 受付停止中のお知らせ ===== */-->
       <div class="alert alert--warn mt-6" th:unless="${accepting}" role="alert">
@@ -108,20 +132,14 @@
           </p>
         </div>
 
-        <div class="cart-bar mt-6">
-          <div class="cart-bar__inner">
-            <div class="cart-bar__summary">
-              <div class="cart-bar__count" th:text="${cart.totalQuantity} + ' 点'">3 点</div>
-              <div class="cart-bar__total"
-                   th:text="'¥' + ${#numbers.formatInteger(cart.totalAmount, 1, 'COMMA')}">¥2,540</div>
-            </div>
-            <!--/* 押してから厨房に届くまでが、この画面でいちばん待たされる。
-                   反応が無いともう一度押されて、同じ品が二重に入る。
-                   customer.js が文字を差し替え、二重送信も止める。 */-->
-            <button type="submit" class="btn btn--primary btn--lg spacer"
-                    th:disabled="${!accepting}"
-                    data-sending-label="送信中">この内容で注文する</button>
-          </div>
+        <!--/* 送信ボタン（下に固定）。設計 暗06 は画面の下辺に貼り付いた 124px の帯。
+               押してから厨房に届くまでが、この画面でいちばん待たされる。
+               反応が無いともう一度押されて、同じ品が二重に入る。
+               customer.js が文字を差し替え、二重送信も止める。 */-->
+        <div class="submitbar">
+          <button type="submit" class="btn btn--primary btn--lg btn--block"
+                  th:disabled="${!accepting}"
+                  data-sending-label="送信中">この内容で注文する</button>
         </div>
       </form>
 

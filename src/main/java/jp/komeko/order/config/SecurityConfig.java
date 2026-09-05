@@ -120,6 +120,11 @@ public class SecurityConfig {
                     //   本人確認の材料にしている（ケイパビリティ URL）。
                     .requestMatchers("/", "/menu", "/items/**", "/cart/**",
                             "/checkout", "/t/**", "/bill/**", "/o/**",
+                            // 注文した直後の「承りました」（暗07）。
+                            // /ordered/{publicToken} で、いま通った注文だけを出す。
+                            // トークンは UUID なので、番号をずらして他の卓の注文を
+                            // のぞくことはできない（キャンセルの口と同じ考え方）
+                            "/ordered/**",
                             // サービスの画面（暗03）。卓に着いているかは
                             // ServiceController が TableContext で見る。
                             // スタッフゾーンではないので接続元 IP の制限もかけない

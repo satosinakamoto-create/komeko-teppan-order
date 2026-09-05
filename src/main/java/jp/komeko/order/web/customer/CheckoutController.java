@@ -2,6 +2,7 @@ package jp.komeko.order.web.customer;
 
 import jp.komeko.order.cart.Cart;
 import jp.komeko.order.cart.TableContext;
+import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.service.OrderRejectedException;
 import jp.komeko.order.service.OrderService;
@@ -60,16 +61,17 @@ public class CheckoutController {
             // 売り切れで落ちた品があっても、注文そのものは通っている。
             // 「売り切れました」だけを出すと注文が失敗したように読めるので、
             // 何が落ちて、何が通ったのかを続けて伝える。
-            if (placed.soldOutNotices().isEmpty()) {
-                redirectAttributes.addFlashAttribute("flashSuccess", "ご注文を承りました。お席までお持ちします。");
-            } else {
+            if (!placed.soldOutNotices().isEmpty()) {
                 redirectAttributes.addFlashAttribute("flashErrors", placed.soldOutNotices());
-                // 単位は「点」。残数の案内（「残り 2 点です」）と言葉をそろえる
-                redirectAttributes.addFlashAttribute("flashSuccess",
-                        "残りの %d 点はご注文を承りました。お席までお持ちします。"
-                                .formatted(placed.order().getTotalQuantity()));
             }
-            return "redirect:/bill";
+            // 「承りました」は画面そのものが言うので、フラッシュには書かない。
+            // 両方に出すと同じ文が 2 回並ぶ。
+            //
+            // 遷移先を伝票から専用の画面に変えた（設計 暗07 / 2026-09-06）。
+            // 伝票へ飛ばすと、いま頼んだぶんがこれまでの注文に紛れる。
+            // 3 杯目のビールを頼んだのに 3 行ビールが並ぶ画面では、
+            // 頼み間違いにその場で気づけない。
+            return "redirect:/ordered/" + placed.order().getPublicToken();
         } catch (OrderRejectedException e) {
             redirectAttributes.addFlashAttribute("flashErrors", e.getReasons());
             return "redirect:/cart";
@@ -94,6 +96,34 @@ public class CheckoutController {
         model.addAttribute("bill", session);
         model.addAttribute("orders", session.getBillableOrders());
         return "customer/bill";
+    }
+
+    /**
+     * ご注文を承りました（設計 暗07）。いま通った注文<b>だけ</b>を出す。
+     *
+     * <p><b>なぜ伝票ではなく専用の画面なのか</b><br>
+     * 以前は注文のあと伝票へ飛ばしていましたが、そこには
+     * これまでのご注文が全部並びます。3 杯目のビールを頼んだ人の画面には
+     * ビールが 3 行。<b>どれがいま頼んだぶんか分かりません。</b>
+     * 頼み間違いに気づけるのは注文した直後がいちばん早いので、
+     * その一瞬だけを見せる画面を分けました。
+     *
+     * <p><b>連番の ID ではなくトークンで指すこと。</b>
+     * 番号を 1 つずらすだけで他の卓の注文が読めてしまいます
+     * （キャンセルの口が {@code publicToken} を使っているのと同じ理由）。
+     *
+     * <p>再読み込みしても同じ画面が出ます（PRG）。
+     * 注文が見つからないときは伝票へ戻します。トークンが古いだけで、
+     * お客さまにとっては「さっき頼んだもの」が伝票にあるはずだからです。
+     */
+    @GetMapping("/ordered/{token}")
+    public String ordered(@PathVariable String token, Model model) {
+        Order order = orderService.findByToken(token).orElse(null);
+        if (order == null) {
+            return "redirect:/bill";
+        }
+        model.addAttribute("order", order);
+        return "customer/order-placed";
     }
 
     /**

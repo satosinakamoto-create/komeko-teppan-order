@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!--/*
+   ご注文を承りました（設計「暗07 注文を承りました」）
+
+   ★ この画面ができる前は、注文したあと伝票（暗04）へ飛ばし、
+     上に「ご注文を承りました」と 1 行出していただけでした。
+
+     それだと「いま頼んだぶん」が、これまでの注文に紛れます。
+     3 杯目のビールを頼んだのに、伝票には 3 行ビールが並ぶ。
+     どれが今の注文なのか、お客さまには分かりません。
+
+     この画面は<b>いま通った注文だけ</b>を出します。
+     頼み間違いに気づけるのは、この瞬間がいちばん早い。
+
+   ★ 伝票へのリンクは置いていません。
+     設計のボタンは「メニューに戻る」1 つだけです。
+     ここで伝票も見せると、次にすることが 2 つになります。
+     合計を見たい人は、メニューの下のカートから伝票へ行けます。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout('ご注文を承りました', ~{::main})}">
+<body>
+<main>
+  <div class="container bill-page">
+
+    <!--/* 売り切れで落ちた品がある場合の断りは、ここに出る。
+           注文そのものは通っているので、下の「承りました」と同時に出て良い */-->
+    <div th:replace="~{fragments/common :: flash}"></div>
+
+    <div class="placed">
+
+      <div class="placed__mark">
+        <th:block th:replace="~{fragments/icons :: ic_check}"/>
+      </div>
+
+      <h1 class="placed__title">ご注文を承りました</h1>
+      <p class="placed__lead">お席でお待ちください。</p>
+
+      <!--/* 承った内容。伝票の行（暗/伝票の行）をそのまま使う。
+             ここは「読むだけ」の行なので、確認画面の押せる行とは形が違う */-->
+      <div class="placed__slip">
+        <div class="bill-row" th:each="line : ${order.lines}">
+          <span class="bill-row__name">
+            <span th:text="${line.menuItemName}">肉玉米粉そば</span>
+            <span th:text="' ×' + ${line.quantity}"> ×1</span>
+            <span class="bill-row__note" th:if="${!line.options.isEmpty()}"
+                  th:text="'（' + ${line.optionSummary} + '）'">（チーズ ／ 餅）</span>
+          </span>
+          <span class="bill-row__amount"
+                th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥1,510</span>
+        </div>
+      </div>
+
+      <a class="btn btn--primary btn--lg btn--block" th:href="@{/menu}">メニューに戻る</a>
+
+    </div>
+
+  </div>
+</main>
+</body>
+</html>

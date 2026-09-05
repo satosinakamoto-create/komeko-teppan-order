@@ -50,8 +50,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @DisplayName("全画面の書き出し")
 class AllScreensDumpTest {
 
-    private static final Path OUT = Path.of("C:\\Users\\zaki\\AppData\\Local\\Temp\\claude"
-            + "\\C--Users-zaki\\9065e85f-beb5-40d5-ba39-25977407c716\\scratchpad\\allscreens");
+    /*
+     * 書き出し先。target の下なので git には入らず、mvn clean で消える。
+     *
+     * ★ 以前は特定のセッションの一時フォルダを絶対パスで書いていた
+     *   （...\9065e85f-...\scratchpad\allscreens）。そのフォルダは
+     *   別の作業の残りもので、次に走らせた人には存在しません。
+     *   書き出しても誰も見つけられない状態だったので、プロジェクトの中に移しました。
+     */
+    private static final Path OUT = Path.of("target", "allscreens");
 
     @Autowired
     private MockMvc mockMvc;
@@ -145,7 +152,14 @@ class AllScreensDumpTest {
             write("c03-cart", mockMvc.perform(get("/cart").session(session))
                     .andReturn().getResponse().getContentAsString());
 
-            mockMvc.perform(post("/checkout").session(session).with(csrf()));
+            // 注文すると「ご注文を承りました」（設計 暗07）へ飛ぶ。
+            // リダイレクト先をそのまま辿って撮る。行き先を決め打ちで書くと、
+            // 遷移先を変えたときに古い画面を撮り続けることになる。
+            String placedUrl = mockMvc.perform(post("/checkout").session(session).with(csrf()))
+                    .andReturn().getResponse().getRedirectedUrl();
+            write("c03b-order-placed", mockMvc.perform(get(placedUrl).session(session))
+                    .andReturn().getResponse().getContentAsString());
+
             write("c04-bill", mockMvc.perform(get("/bill").session(session))
                     .andReturn().getResponse().getContentAsString());
 

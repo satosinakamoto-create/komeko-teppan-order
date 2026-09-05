@@ -3828,6 +3828,208 @@ body.is-sending .staff-main {
   color: var(--text-muted);
 }
 
+/* --------------------------------------------------------------------------
+   31-8. 注文内容の確認（設計「暗06 注文内容の確認」）
+
+   ★ 伝票（暗04）とは行の形が違う。揃えないこと。
+       伝票   … 1 行 1 品。金額を読むだけ。罫線で区切る
+       確認   … まだ直せる画面。面（#232323）を敷いて「触れるもの」に見せ、
+                行ごとに「変更」を持つ
+
+     同じ「品名と金額の行」でも、読む画面と直す画面で役目が違う。
+   -------------------------------------------------------------------------- */
+.order-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--sp-4);
+}
+
+.order-row {
+  display: flex;
+  gap: 12px;
+  /* 上下は 16、左右は 20。伝票の行（12/16）より広いのは、
+     ここが「押せる行」だから。指が触れる余白を持たせてある */
+  padding: 16px 20px;
+  background: var(--surface);
+}
+/* 罫線は行と行のあいだにだけ。いちばん上と下には引かない
+   （面の縁と二重になって、線が太く見える） */
+.order-row + .order-row { border-top: 1px solid var(--border); }
+.order-row:first-child { border-radius: 8px 8px 0 0; }
+.order-row:last-child { border-radius: 0 0 8px 8px; }
+
+.order-row__main {
+  flex: 1 0 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.order-row__name {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  /* 長い品名で折り返しても、右の金額に食い込まないようにする */
+  overflow-wrap: anywhere;
+}
+.order-row__opts {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.order-row__side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.order-row__amount {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 「変更」。設計は 56x28 の枠線ボタン。
+
+   ★ <details> にしてあるのは、押した先が設計に無いから。
+     商品ページへ飛ばすと、あちらは「カートに入れる」しか持っていないので
+     同じ品がもう 1 行増える。直したいのに増えるのは、直せないより悪い。
+     その場で −／＋／削除 を開く形にして、JavaScript も足していない。 */
+.order-row__edit { position: relative; }
+.order-row__editbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  /* Safari が付ける三角を消す。list-style だけでは消えない */
+  list-style: none;
+}
+.order-row__editbtn::-webkit-details-marker { display: none; }
+.order-row__edit[open] .order-row__editbtn {
+  background: var(--surface-2);
+}
+/* 開いたときの操作。行の中で右に寄せると 56px に潰れるので、
+   行の下いっぱいを使う。position は使わない（行の高さを変えて押し出す）*/
+.order-row__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.order-row__qty {
+  min-width: 2.5em;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 送信ボタン（設計「暗06」の下に固定された帯 390x124）。
+
+   ★ .cart-bar（本文の中に置く帯）ではなく、画面の幅いっぱいに置くこと。
+     本文の中に入れると、container の左右 16px の内側にもう 16px 入って
+     ボタンが 32px 細くなる。設計より痩せて見えるうえ、
+     同じ画面のカードと右端がそろわない。
+     レイアウトの .cartbar（注文へ進む）と同じ置き方にそろえてある。
+
+   ★ この帯とレイアウトの .cartbar は同時に出ない。
+     注文リストの画面では .cartbar を出さないようにしてある
+     （layout/customer.html）。両方出ると「注文へ進む」と
+     「この内容で注文する」が縦に並び、どちらを押すのか分からなくなる。 */
+.submitbar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  max-width: var(--page-max);
+  margin-inline: auto;
+  z-index: 30;
+  /* 下 32px は設計どおり。端末の下端のくぼみぶんを足す */
+  padding: 24px 16px calc(32px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+/* 帯のぶん、本文の下に逃げ場を作る。
+   これが無いと最後の行がボタンの下に隠れ、金額が読めないまま押すことになる */
+.submitbar-room { padding-bottom: 140px; }
+
+/* 確認画面の合計は、伝票と違って面を敷いた箱（設計 109:3766）。
+   罫線ではなく面で区切るのは、上のカードと地続きに見せないため */
+.bill-total--boxed {
+  margin-top: var(--sp-4);
+  padding: 16px 10px;
+  border-top: 0;
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+/* --------------------------------------------------------------------------
+   31-9. ご注文を承りました（設計「暗07 注文を承りました」）
+
+   ★ 画面の真ん中に置く。上から積まない。
+     ここは読んで終わりの画面で、次の操作は 1 つだけ（メニューに戻る）。
+     上詰めにすると、下に何か続くように見えて指が下を探す。
+   -------------------------------------------------------------------------- */
+.placed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  /* ヘッダーぶんを引いた高さで中央に置く。100dvh にすると
+     アドレスバーの出入りで位置が動く端末がある */
+  min-height: calc(100dvh - 160px);
+  padding-block: var(--sp-6);
+  text-align: center;
+}
+
+/* 完了マーク（88px の丸に 2px のきつね色、中に 40px のチェック） */
+.placed__mark {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  color: var(--accent);
+}
+.placed__mark .ic { width: 40px; height: 40px; }
+
+.placed__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.placed__lead {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+/* 承った内容。伝票の行（.bill-row）をそのまま入れる箱 */
+.placed__slip {
+  width: 100%;
+  padding: 12px 8px;
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+}
+.placed__slip .bill-row { line-height: 1.75; }
+
 /* ==========================================================================
    32. 広い画面（1800px 以上）— 2026-09-05
    --------------------------------------------------------------------------

@@ -79,5 +79,18 @@
        「閉じる」は押せるものだが、面ではなく記号として読ませたい */-->
 <svg th:fragment="ic_x" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" class="ic"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
 
+<!--/* 承りました、のチェック（設計「暗07 注文を承りました」の完了マーク）。
+
+       ★ これだけ Phosphor ではありません。
+         この画面のチェックは設計側で描かれた字形で、
+         Figma の書き出し（40x40 / 線幅 4.16667 / 端は丸）をそのまま写しています。
+         Phosphor の check に差し替えると線の太さと角度が変わり、
+         88px の丸の中での見え方が設計と違ってしまうので、書き出しのほうを使います。
+
+       ★ stroke を currentColor にしてあります。
+         書き出しは #DD9A4E 決め打ちでしたが、それは --accent と同じ値です。
+         色を字形に焼き付けると、テーマを変えたときにここだけ取り残されます。 */-->
+<svg th:fragment="ic_check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" aria-hidden="true" class="ic"><path d="M6.66667 20.8333L15.8333 30L33.3333 11.6667" stroke="currentColor" stroke-width="4.16667" stroke-linecap="round" stroke-linejoin="round"/></svg>
+
 </body>
 </html>
