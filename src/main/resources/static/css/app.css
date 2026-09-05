@@ -3511,7 +3511,12 @@ body.is-sending .staff-main {
    -------------------------------------------------------------------------- */
 .svc-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* ★ minmax(0, 1fr) と書くこと。repeat(3, 1fr) だと各マスの最小幅が
+     「中身の幅」になり、いちばん長い札（スタッフを呼ぶ）のマスだけ広がる。
+     実際 124 / 97 / 97 と不揃いになった。
+     設計は 3 つとも 106px なので、札のほうがはみ出すのが正しい
+     （タイルに枠が無いので、少しはみ出しても見た目は破綻しない）。 */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px 12px;
 }
 .svc-tile {

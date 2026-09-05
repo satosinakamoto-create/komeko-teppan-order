@@ -12,20 +12,39 @@
     <div th:replace="~{fragments/common :: flash}"></div>
 
     <!--/*
-      ===== 持っていく物 =====
-      押すと注文リストに入る。<b>ここではまだ送らない。</b>
-      商品とまったく同じで、確定するのは「注文へ進む」のあと。
+      ===== タイル 7 つ =====
+      設計（暗03）の並びは 3 列でこの順。
 
-      1 回押しただけで送る作りにしていたが、店主から
-      「確定させるまで送信しましたと出したくない。商品注文と同じ処理にしてほしい」。
-      押した瞬間に送る口がここだけ違うと、お客さまは
-      「押したら出てくるのか、まだなのか」を画面ごとに覚え直すことになる。
+        スタッフを呼ぶ ／ お水 ／ おしぼり
+        取り皿 ／ 灰皿 ／ 領収書
+        塩コショウ
+
+      ★ 見た目は同じだが、先頭の「スタッフを呼ぶ」だけ動きが違う。
+        お水から先は注文リストに入るだけ（確定は「注文へ進む」）。
+        スタッフを呼ぶは、押した時点でホール画面に飛ぶ。
+        物は運ぶ仕事、呼びかけは人が向かう用事で、性質が違うため。
+        設計もこの 2 つを同じ形で並べているので、見た目は分けない。
+
+      ★ 「お会計をお願いする」はこの画面に置かない。
+        設計では伝票の画面（暗04）の主要ボタンになっている。
+        いま会計したい人は金額を見てから押すので、そこにあるのが正しい。
 
       form を 1 タイルにつき 1 つ置いている。button を form の外に出して
       form 属性で結ぶ手もあるが、入れ子にできない form を並べるほうが素直で、
       JavaScript が無くても確実に動く。
     */-->
     <div class="svc-grid mt-6">
+
+      <!--/* 先頭はスタッフ呼び出し。用件が決まっていないときの逃げ道なので、
+             探さずに押せる位置に置く。押した瞬間に人が動くので確認を 1 枚挟む */-->
+      <form th:action="@{/service/call/STAFF}" method="post">
+        <button type="submit" class="svc-tile"
+                onclick="return confirm('スタッフを呼ぶ。よろしいですか？');">
+          <th:block th:replace="~{fragments/icons :: ic_bell}"/>
+          <span>スタッフを呼ぶ</span>
+        </button>
+      </form>
+
       <form th:each="item : ${items}" th:action="@{/service/items/{id}(id=${item.id})}" method="post">
         <button type="submit" class="svc-tile">
           <!--/* 設計で画像として置かれているアイコン。ベクタが無いので画像のまま使う */-->
@@ -46,38 +65,9 @@
       </form>
     </div>
 
-    <!--/*
-      ===== 呼びかけ =====
-      物が伴わないのでホール画面に出る（厨房ボードには出さない）。
-      売上にも注文数にも混ざらない。理由は ServiceCallType のコメント。
-
-      「スタッフを呼ぶ」だけ枠を広く取ってある。用件が決まっていないときの
-      いちばん頼りになる逃げ道なので、探さずに押せる大きさにしておく。
-
-      ★ こちらは注文リストに入らない。物が伴わないので、確定する対象が無い。
-        代わりに 1 枚確認を挟む。上の物と違って押した瞬間に人が動くので、
-        指が当たっただけで呼んでしまうのを止めたい。
-        取り消す手段がお客さま側に無いぶん、押す前に止めるほうが確実。
-    */-->
-    <div class="svc-grid svc-grid--calls mt-4">
-      <form th:each="type : ${calls}" th:action="@{/service/call/{t}(t=${type})}" method="post">
-        <button type="submit" class="svc-tile svc-tile--call"
-                th:onclick="'return confirm('' + ${type.customerLabel} + '。よろしいですか？')'">
-          <!--/* ここも同じ。条件を同じタグに書くと両方とも描かれ、
-                 1 つのタイルにベルと領収書が並ぶ */-->
-          <th:block th:if="${type.name() == 'STAFF'}">
-            <th:block th:replace="~{fragments/icons :: ic_bell}"/>
-          </th:block>
-          <th:block th:unless="${type.name() == 'STAFF'}">
-            <th:block th:replace="~{fragments/icons :: ic_receipt}"/>
-          </th:block>
-          <span th:text="${type.customerLabel}">スタッフを呼ぶ</span>
-        </button>
-      </form>
-    </div>
-
     <p class="tiny faint center mt-6">
-      押すとスタッフに届きます。何度も押さなくて大丈夫です。
+      お水から下は「注文へ進む」で確定すると届きます。
+      スタッフを呼ぶは、押すとすぐお席へ伺います。
     </p>
 
   </div>
