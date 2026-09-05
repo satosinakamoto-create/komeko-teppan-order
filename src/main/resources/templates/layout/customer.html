@@ -126,6 +126,18 @@
         Esc で閉じる動きが、ブラウザ側に最初から入っているため。
         自前で作ると、背面のスクロールが動く・Esc が効かない、を必ず踏む。 */-->
   <dialog class="sheet-modal" id="item-modal" aria-label="ご注文の内容">
+    <!--/* ★ 閉じるボタンは器の側に置く（中身と一緒に差し替えない）。
+
+           設計（暗05）には無い。設計のモーダルは中身が収まっていて、
+           下の「やめる」がいつでも見えているから要らなかった。
+           実装は説明文や焼き上がりの目安が入るぶん背が高く、
+           「やめる」がスクロールしないと出てこない品がある。
+           閉じる手段がいつでも目に入る場所に無いと、行き止まりに見える。
+
+           写真の上に重なるので、丸い面を敷いて字を浮かせている。 */-->
+    <button type="button" class="sheet-modal__close" data-close-modal aria-label="閉じる">
+      <th:block th:replace="~{fragments/icons :: ic_x}"/>
+    </button>
     <div class="sheet-modal__body" id="item-modal-body"></div>
   </dialog>
 

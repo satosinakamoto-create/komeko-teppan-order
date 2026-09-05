@@ -165,7 +165,7 @@
       bar.classList.add('sheet-modal__foot');
       var cancel = document.createElement('button');
       cancel.type = 'button';
-      cancel.className = 'btn btn--ghost btn--lg';
+      cancel.className = 'btn btn--outline btn--lg';
       cancel.textContent = 'やめる';
       cancel.setAttribute('data-close-modal', '');
       bar.insertBefore(cancel, bar.firstChild);

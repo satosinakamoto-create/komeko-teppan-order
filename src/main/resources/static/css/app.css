@@ -449,6 +449,13 @@ hr {
 .btn--ghost { --btn-bg: transparent; --btn-bd: transparent; --btn-fg: var(--text-muted); }
 .btn--ghost:hover { --btn-bg: var(--surface-2); --btn-fg: var(--text); }
 
+/* 枠線だけのボタン（設計「暗/ボタン 種類=枠線」）。
+   塗りは無し、枠は 1px の線、文字は補足の色。
+   .btn--ghost は枠まで透明なので、押せる範囲が見えない。
+   「やめる」のように、押しても何も起きないほうが安全なボタンに使う。 */
+.btn--outline { --btn-bg: transparent; --btn-bd: var(--border); --btn-fg: var(--text-muted); }
+.btn--outline:hover { --btn-bg: var(--surface-2); --btn-fg: var(--text); }
+
 .btn--block { width: 100%; }
 .btn--lg { min-height: 56px; font-size: 1.0625rem; padding-inline: var(--sp-5); }
 .btn--sm { min-height: 36px; font-size: .8125rem; padding-inline: var(--sp-3); }
@@ -3587,6 +3594,33 @@ body.is-sending .staff-main {
   backdrop-filter: blur(4px);
 }
 
+/* 閉じる（×）。写真の上に重なるので、丸い面を敷いて字を浮かせる。
+
+   44px あるのは、指で押す的の大きさ（--tap は 48 だが、
+   ここは写真を隠したくないので少し小さくしてある）。
+   position: absolute の基準は .sheet-modal（dialog）そのもの。 */
+.sheet-modal { position: relative; }
+.sheet-modal__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  /* 写真は明るいものも暗いものもある。どちらでも読めるよう、地は必ず敷く */
+  background: rgba(20, 20, 20, .6);
+  color: #ffffff;
+  cursor: pointer;
+}
+.sheet-modal__close .ic { width: 22px; height: 22px; }
+.sheet-modal__close:active { background: rgba(20, 20, 20, .8); }
+
 /* 中身は商品ページをそのまま入れているので、縦に長くなればここがスクロールする */
 .sheet-modal__body {
   max-height: calc(100dvh - 96px);
@@ -3700,7 +3734,7 @@ body.is-sending .staff-main {
   width: auto;
   padding-inline: 12px;
 }
-.sheet-modal__foot .btn--ghost { flex: 0 0 100px; }
+.sheet-modal__foot .btn--outline { flex: 0 0 100px; }
 
 /* 呼びかけのタイルは 2 つしかないので、3 列だと右が空いて据わりが悪い */
 .svc-grid--calls { grid-template-columns: repeat(2, 1fr); }
