@@ -527,7 +527,7 @@ public class InventoryDemoDataSeeder implements ApplicationRunner {
 
             // 会計まで済ませて閉じる。開いたままだと、既存のデモデータ投入が
             // 「開いている伝票がある」と判断して見送ってしまう。
-            session.close(businessDate.atTime(23, 30), LateNightPolicy.NONE, "デモ", null);
+            session.close(businessDate.atTime(23, 30), LateNightPolicy.NONE, "デモ", null, SettlementMethod.CASH);
             sessions.save(session);
         }
         return days;

@@ -4,6 +4,7 @@ import jp.komeko.order.cart.Cart;
 import jp.komeko.order.domain.Category;
 import jp.komeko.order.domain.DiningTable;
 import jp.komeko.order.domain.MenuItem;
+import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.repository.CategoryRepository;
@@ -196,7 +197,7 @@ class HallBillPageTest {
 
         // スタッフが深夜料金を外して会計 → 誤会計に気づいて開け直す。
         // この経路を通った伝票だけが lateNightWaived = true のまま OPEN になる
-        tableService.closeSession(bill.getId(), false, "テスト店員", null);
+        tableService.closeSession(bill.getId(), false, "テスト店員", null, SettlementMethod.CASH);
         tableService.reopenSession(bill.getId(), "テスト店員");
         assertThat(tableService.getSession(bill.getId()).isLateNightWaived())
                 .as("この経路で免除フラグが立っていること（立っていないとテストの意味が無い）")

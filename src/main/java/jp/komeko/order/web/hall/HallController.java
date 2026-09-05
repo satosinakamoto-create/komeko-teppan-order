@@ -4,6 +4,7 @@ import jp.komeko.order.domain.DiningTable;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
 import jp.komeko.order.domain.SessionStatus;
+import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.security.StaffUserDetails;
@@ -235,7 +236,7 @@ public class HallController {
             return "redirect:/hall";
         }
 
-        if (bill.isOpen()) {
+        if (bill.isActive()) {
             // 深夜料金は時刻で決まるので、23 時をまたぐと金額が変わります。
             // 画面を開いた「いま」の金額を出すために計算し直します。
             //
@@ -283,7 +284,7 @@ public class HallController {
         // ここで受け取っている伝票は detached（表示専用。上のコメント参照）なので、
         // 免除を一時的に外して計算しても DB には書き戻らない。
         int totalIfLateNightApplied = bill.getTotalWithLateNight();
-        if (bill.isOpen() && bill.isLateNightWaived()) {
+        if (bill.isActive() && bill.isLateNightWaived()) {
             ShopSetting current = shopSettingService.currentReadOnly();
             bill.setLateNightWaived(false);
             bill.recalculate(current::isLateNight);
@@ -297,6 +298,10 @@ public class HallController {
         // 現在値より小さい範囲で切らないようにしておく
         model.addAttribute("guestOptions",
                 guestOptions(Math.max(MAX_GUEST_CHOICE, bill.getGuestCount())));
+        // チャージ除外は 0 名（＝除外なし）から、来店人数まで。
+        // 人数を超える選択肢を出すと「6 名中 8 名を除外」が画面上は選べてしまい、
+        // 保存時に黙って丸められる（＝押した数と違う結果になる）ので、ここで閉じる。
+        model.addAttribute("exemptOptions", countOptions(bill.getGuestCount()));
         return "hall/bill";
     }
 
@@ -318,6 +323,97 @@ public class HallController {
 
         } catch (IllegalStateException e) {
             // 会計済みの伝票を直そうとした、など
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+
+        } catch (TableService.SessionNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/hall";
+        }
+        return "redirect:/hall/bills/" + id;
+    }
+
+    /**
+     * テーブルチャージをいただかない人数を変更する。
+     *
+     * <p><b>人数を減らして調整しないこと。</b>
+     * 未就学のお子さま連れの 4 名を「2 名」にしてしまうと、
+     * チャージは合いますが<b>売上の客数が 2 名になります</b>。
+     * 客単価も席の回転も、そこから全部ずれていきます。
+     * 来た人数は来た人数のまま置いて、チャージの対象だけをここで外します。
+     *
+     * <p>人数と同じく {@code select} で受けるので、値の範囲は画面側でも
+     * 絞られていますが、{@link TableService#changeChargeExemptCount} が
+     * 0〜人数の範囲に丸め直します（URL を直接叩かれても壊れないように）。
+     */
+    @PostMapping("/bills/{id}/charge-exempt")
+    public String changeChargeExempt(@PathVariable Long id,
+                                     @RequestParam(defaultValue = "0") int chargeExemptCount,
+                                     RedirectAttributes redirectAttributes) {
+        try {
+            TableSession bill = tableService.changeChargeExemptCount(id, chargeExemptCount);
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    bill.getChargeExemptCount() == 0
+                            ? "チャージ除外を解除しました（%d 名ぶん ¥%,d）"
+                                    .formatted(bill.getChargeableGuestCount(), bill.getTableChargeAmount())
+                            : "%d 名をチャージ対象外にしました（%d 名ぶん ¥%,d）"
+                                    .formatted(bill.getChargeExemptCount(),
+                                            bill.getChargeableGuestCount(), bill.getTableChargeAmount()));
+
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+
+        } catch (TableService.SessionNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/hall";
+        }
+        return "redirect:/hall/bills/" + id;
+    }
+
+    /**
+     * お会計をはじめる（追加注文を止める）。
+     *
+     * <p>レジで金額を読み上げている最中に、お客さまの手元から
+     * 追加のご注文が入ると、<b>読み上げた金額と請求額が食い違います</b>。
+     * この操作で伝票を「お会計待ち」にすると、その卓からの注文が止まります。
+     *
+     * <p>締めるわけではないので、売上はまだ確定しません。
+     * 「やっぱりもう一杯」と言われたら {@link #resumeOrdering} で戻せます。
+     */
+    @PostMapping("/bills/{id}/checkout")
+    public String startCheckout(@PathVariable Long id,
+                                RedirectAttributes redirectAttributes) {
+        try {
+            TableSession bill = tableService.startCheckout(id);
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    "「%s」をお会計待ちにしました。この卓からの追加注文は止まっています"
+                            .formatted(bill.getDiningTable().getName()));
+
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+
+        } catch (TableService.SessionNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+            return "redirect:/hall";
+        }
+        return "redirect:/hall/bills/" + id;
+    }
+
+    /**
+     * 注文を再開する（お会計待ちをやめる）。
+     *
+     * <p>「お会計おねがいします」のあとで追加のご注文をいただいたときに使います。
+     * 会計を取り消す（{@code reopen}）のとは別物で、こちらは<b>まだ締めていない</b>
+     * 伝票を注文できる状態に戻すだけです。売上は動きません。
+     */
+    @PostMapping("/bills/{id}/resume")
+    public String resumeOrdering(@PathVariable Long id,
+                                 RedirectAttributes redirectAttributes) {
+        try {
+            TableSession bill = tableService.resumeOrdering(id);
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    "「%s」のご注文を再開しました".formatted(bill.getDiningTable().getName()));
+
+        } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
 
         } catch (TableService.SessionNotFoundException e) {
@@ -366,19 +462,35 @@ public class HallController {
      * <p>締めたあとは伝票の詳細に戻します。一覧（{@code /hall}）は開いている伝票しか
      * 並ばないので、そちらへ戻すと<b>直前に締めた伝票にたどり着けなくなり</b>、
      * 誤会計に気づいたときの取り消しができなくなるためです。
+     *
+     * <p><b>{@code paymentMethod} に既定値を置いていない理由</b><br>
+     * 現金かカードかは<b>毎回お客さまに聞いて決まること</b>で、
+     * 推測できる既定値がありません。「未選択なら現金」にすると、
+     * 押し忘れたぶんが現金売上に化けて、閉店後のレジ締めで
+     * <b>金庫の中身が足りない</b>ように見えます（実際にはカードで受け取っている）。
+     * どちらか選ぶまで締められないほうが安全なので、
+     * 未選択（＝ラジオが送られてこない）は {@code null} で受けて
+     * {@code TableService} 側で突き返します。
      */
     @PostMapping("/bills/{id}/close")
     public String close(@PathVariable Long id,
                         @RequestParam(defaultValue = "false") boolean applyLateNight,
                         @RequestParam(required = false) String note,
+                        @RequestParam(required = false) SettlementMethod paymentMethod,
                         @AuthenticationPrincipal StaffUserDetails user,
                         RedirectAttributes redirectAttributes) {
         try {
-            TableSession bill = tableService.closeSession(id, applyLateNight, staffNameOf(user), noteOf(note));
+            TableSession bill = tableService.closeSession(
+                    id, applyLateNight, staffNameOf(user), noteOf(note), paymentMethod);
             redirectAttributes.addFlashAttribute("flashSuccess",
-                    "「%s」のお会計を締めました。ご請求額 ¥%,d（内消費税 ¥%,d）"
+                    "「%s」のお会計を締めました。ご請求額 ¥%,d（内消費税 ¥%,d）／%s"
                             .formatted(bill.getDiningTable().getName(),
-                                    bill.getTotalAmount(), bill.getTaxAmount()));
+                                    bill.getTotalAmount(), bill.getTaxAmount(),
+                                    bill.getPaymentMethod().getLabel()));
+
+        } catch (IllegalArgumentException e) {
+            // お支払い方法が選ばれていない。伝票はまだ開いたままなので、選び直せば済む。
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
 
         } catch (IllegalStateException e) {
             // すでに会計済み。二人が同時に締めようとしたときなどに起こる。
@@ -554,6 +666,21 @@ public class HallController {
     private static List<Integer> guestOptions(int upTo) {
         List<Integer> options = new ArrayList<>();
         for (int n = 1; n <= upTo; n++) {
+            options.add(n);
+        }
+        return options;
+    }
+
+    /**
+     * 0 から始まる選択肢（チャージ除外人数用）。
+     *
+     * <p>{@link #guestOptions} と分けてあるのは、始まりが 1 か 0 かの違いが
+     * <b>意味の違い</b>だからです。来店人数に 0 名はありませんが、
+     * チャージ除外は 0 名（＝全員からいただく）が既定の状態です。
+     */
+    private static List<Integer> countOptions(int upTo) {
+        List<Integer> options = new ArrayList<>();
+        for (int n = 0; n <= upTo; n++) {
             options.add(n);
         }
         return options;

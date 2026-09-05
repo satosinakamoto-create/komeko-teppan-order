@@ -161,6 +161,10 @@ public class AdminSalesController {
 
         model.addAttribute("breakdown",
                 breakdownOf(target, now.sales(), shopSettingService.currentReadOnly().getMonthlyRent()));
+        // レジ締め用の内訳。名前を settlement にしているのは、上の breakdown
+        // （原価・人件費などの費用の内訳）と混ざらないようにするため。
+        model.addAttribute("settlement",
+                salesReportService.settlementBreakdown(target.atDay(1), target.atEndOfMonth()));
         model.addAttribute("ranking", SalesView.ranking(ranking, now.sales()));
 
         // 月は「表示用」と「URL 用」を分けて渡す。

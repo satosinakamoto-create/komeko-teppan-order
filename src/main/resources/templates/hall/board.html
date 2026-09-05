@@ -110,9 +110,17 @@
 
       <div class="card__head row row--between row--wrap">
         <span th:text="${bill.diningTable.name}">3番テーブル</span>
-        <!--/* 未提供（受付・調理中）の品が残っている卓は、ひと目で分かるようにする。
-               会計してしまう前に気づけることが大事なので、一覧の段階から出します。 */-->
-        <span class="badge badge--rec" th:if="${bill.hasPendingOrders()}">調理中あり</span>
+        <span>
+          <!--/* お会計待ちの卓は、レジに向かう前に一覧で分かる必要があります。
+                 この卓のスマホからは注文できない状態なので、
+                 気づかないまま放っておくと、お客さまが注文できずに待ちます。 */-->
+          <!--/* badge--stop は「止まっている」ことを表す既存のしるし（品切れと同じ）。
+                 新しいクラスを足さずに済むうえ、意味も合っています。 */-->
+          <span class="badge badge--stop" th:if="${bill.closing}">お会計待ち</span>
+          <!--/* 未提供（受付・調理中）の品が残っている卓は、ひと目で分かるようにする。
+                 会計してしまう前に気づけることが大事なので、一覧の段階から出します。 */-->
+          <span class="badge badge--rec" th:if="${bill.hasPendingOrders()}">調理中あり</span>
+        </span>
       </div>
 
       <div class="card__body">

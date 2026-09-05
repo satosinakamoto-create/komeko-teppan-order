@@ -6,6 +6,7 @@ import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderLine;
 import jp.komeko.order.domain.OrderStatus;
+import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.inventory.domain.PaymentMethod;
@@ -398,8 +399,21 @@ public class SalesHistoryDemoSeeder implements ApplicationRunner {
                 continue;
             }
             // 閉店（翌 1:30）に会計。深夜料金は本番と同じ判定（注文ごとに注文時刻で決まる）
+            //
+            // 支払いは現金とカードを混ぜる。全部同じにすると、売上画面の
+            // 「現金／カードの内訳」が動いているのか止まっているのか分からない。
+            // 居酒屋の実感に近い 6:4 にしてある（正確な比率に意味は無い）。
+            //
+            // 乱数ではなく伝票 ID から決めるのは、このクラスの約束
+            // （何度走らせても同じ帳簿になる）を守るためです。
+            // 10 と互いに素な 7 を掛けてから剰余を取ると、
+            // 連番の ID が 0,7,4,1,8,5,… と散るので、
+            // 特定の日だけ全部現金、という偏りになりません。
+            SettlementMethod paid = (id * 7) % 10 < 6
+                    ? SettlementMethod.CASH
+                    : SettlementMethod.CARD;
             session.close(session.getBusinessDate().plusDays(1).atTime(1, 30),
-                    setting::isLateNight, "デモ", null);
+                    setting::isLateNight, "デモ", null, paid);
             sessions.save(session);
             sales += session.getTotalAmount();
         }

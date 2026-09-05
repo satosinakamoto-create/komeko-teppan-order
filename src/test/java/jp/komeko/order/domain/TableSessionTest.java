@@ -389,7 +389,7 @@ class TableSessionTest {
             TableSession bill = openBill(2);
             addOrder(bill, 101, "肉玉米粉そば", 1180, 1);
 
-            bill.close(AT, LateNightPolicy.NONE, "店長", "常連さん");
+            bill.close(AT, LateNightPolicy.NONE, "店長", "常連さん", SettlementMethod.CASH);
 
             assertThat(bill.getStatus()).isEqualTo(SessionStatus.CLOSED);
             assertThat(bill.isOpen()).isFalse();
@@ -408,7 +408,7 @@ class TableSessionTest {
             bill.recalculate(LateNightPolicy.NONE);
 
             addOrder(bill, 102, "自家製レモンサワー", 850, 1);   // recalculate はあえて呼ばない
-            bill.close(AT, LateNightPolicy.NONE, "店長", null);
+            bill.close(AT, LateNightPolicy.NONE, "店長", null, SettlementMethod.CASH);
 
             assertThat(bill.getSubtotalAmount()).isEqualTo(2030);
             assertThat(bill.getTotalAmount()).isEqualTo(2030 + 900);
@@ -421,7 +421,7 @@ class TableSessionTest {
             TableSession bill = openBill(2);
             assertThat(bill.isOrderable()).isTrue();
 
-            bill.close(AT, LateNightPolicy.NONE, "店長", null);
+            bill.close(AT, LateNightPolicy.NONE, "店長", null, SettlementMethod.CASH);
 
             assertThat(bill.isOrderable()).isFalse();
         }
@@ -432,7 +432,7 @@ class TableSessionTest {
             // 誤って別の卓を会計してしまったときのリカバリ手段。
             // 記録が残ったままだと「会計済みなのに OPEN」というちぐはぐな状態になる。
             TableSession bill = openBill(2);
-            bill.close(AT, LateNightPolicy.NONE, "店長", null);
+            bill.close(AT, LateNightPolicy.NONE, "店長", null, SettlementMethod.CASH);
 
             bill.reopen();
 
@@ -441,6 +441,203 @@ class TableSessionTest {
             assertThat(bill.isOrderable()).isTrue();
             assertThat(bill.getClosedAt()).isNull();
             assertThat(bill.getClosedBy()).isNull();
+        }
+
+        @Test
+        @DisplayName("close するとお支払い方法が記録される")
+        void closeRecordsPaymentMethod() {
+            // 閉店後のレジ締めで「金庫にあるべき現金」を出すための記録。
+            // ここが残らないと、売上の合計しか分からず、現金を数えても照合できない。
+            TableSession bill = openBill(2);
+
+            bill.close(AT, LateNightPolicy.NONE, "店長", null, SettlementMethod.CARD);
+
+            assertThat(bill.getPaymentMethod()).isEqualTo(SettlementMethod.CARD);
+        }
+
+        @Test
+        @DisplayName("reopen するとお支払い方法も消える（カードで払ったことになったまま残さない）")
+        void reopenClearsPaymentMethod() {
+            // 誤会計を取り消したのに支払い方法だけ残ると、
+            // 締め直したときに現金なのにカードのまま記録される。
+            // レジ締めで現金が多く出てきて、原因が分からなくなる。
+            TableSession bill = openBill(2);
+            bill.close(AT, LateNightPolicy.NONE, "店長", null, SettlementMethod.CARD);
+
+            bill.reopen();
+
+            assertThat(bill.getPaymentMethod()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("お会計待ち（CLOSING）")
+    class Closing {
+
+        @Test
+        @DisplayName("お会計待ちにすると注文は止まるが、席は埋まったままになる")
+        void closingStopsOrdersButKeepsSeatOccupied() {
+            // レジで金額を読み上げている最中に追加注文が入ると、
+            // 読み上げた額と請求額が食い違う。だから注文だけ止める。
+            //
+            // 一方で席はまだ埋まっている。ここで「空席」に見えてしまうと、
+            // ホール画面が次のお客さまを同じ卓へ案内できてしまう。
+            TableSession bill = openBill(2);
+
+            bill.startCheckout();
+
+            assertThat(bill.getStatus()).isEqualTo(SessionStatus.CLOSING);
+            assertThat(bill.isOrderable()).isFalse();   // 注文は止まる
+            assertThat(bill.isActive()).isTrue();       // 席は埋まったまま
+            assertThat(bill.isClosed()).isFalse();      // まだ売上は立っていない
+            assertThat(bill.isOpen()).isFalse();
+        }
+
+        @Test
+        @DisplayName("お会計待ちからご注文を再開できる（「やっぱりもう一杯」に会計取消を使わせない）")
+        void canResumeOrdering() {
+            // 締めてしまってから戻すと、売上がいったん立って取り消される。
+            // まだ締めていない状態で行き来できることに意味がある。
+            TableSession bill = openBill(2);
+            bill.startCheckout();
+
+            bill.resumeOrdering();
+
+            assertThat(bill.getStatus()).isEqualTo(SessionStatus.OPEN);
+            assertThat(bill.isOrderable()).isTrue();
+        }
+
+        @Test
+        @DisplayName("同じ卓で二度押しても壊れない（二人が同時に押すことがある）")
+        void startCheckoutIsIdempotent() {
+            TableSession bill = openBill(2);
+            bill.startCheckout();
+
+            bill.startCheckout();
+
+            assertThat(bill.getStatus()).isEqualTo(SessionStatus.CLOSING);
+        }
+
+        @Test
+        @DisplayName("会計済みの伝票は、お会計待ちにも注文再開にも動かない（売上を巻き戻さない）")
+        void closedBillNeverMovesBack() {
+            // ここが素通りすると、締めた伝票が「注文できる」状態に戻り、
+            // 売上が立ったあとに金額が動く。
+            // 人に見せるお断りの文言は TableService の役目なので、
+            // ドメインは黙って動かないことだけを守る（二重押しでも壊れないのと同じ理屈）。
+            TableSession bill = openBill(2);
+            bill.close(AT, LateNightPolicy.NONE, "店長", null, SettlementMethod.CASH);
+
+            bill.startCheckout();
+            bill.resumeOrdering();
+
+            assertThat(bill.getStatus()).isEqualTo(SessionStatus.CLOSED);
+            assertThat(bill.isOrderable()).isFalse();
+        }
+
+        @Test
+        @DisplayName("お会計待ちのまま締められる（この動線がふつうの流れ）")
+        void closingBillCanBeClosed() {
+            TableSession bill = openBill(2);
+            addOrder(bill, 101, "肉玉米粉そば", 1180, 1);
+            bill.startCheckout();
+
+            bill.close(AT, LateNightPolicy.NONE, "店長", null, SettlementMethod.CASH);
+
+            assertThat(bill.getStatus()).isEqualTo(SessionStatus.CLOSED);
+            assertThat(bill.getTotalAmount()).isEqualTo(1180 + 900);
+        }
+    }
+
+    @Nested
+    @DisplayName("チャージをいただかない人数")
+    class ChargeExempt {
+
+        @Test
+        @DisplayName("除外した人数ぶんだけチャージが減る（客数は減らない）")
+        void exemptReducesChargeButNotGuestCount() {
+            // 未就学のお子さま連れの 4 名。人数を 2 名に書き換えれば
+            // チャージは合うが、売上の客数まで 2 名になり、客単価も回転も狂う。
+            // 来た人数はそのまま置いて、チャージの対象だけを外す。
+            TableSession bill = openBill(4);
+
+            bill.setChargeExemptCount(2);
+            bill.recalculate(LateNightPolicy.NONE);
+
+            assertThat(bill.getGuestCount()).isEqualTo(4);              // 売上の客数は 4 名のまま
+            assertThat(bill.getChargeableGuestCount()).isEqualTo(2);
+            assertThat(bill.getTableChargeAmount()).isEqualTo(900);     // 450 × 2
+        }
+
+        @Test
+        @DisplayName("全員を除外するとチャージは 0 円（マイナスにはならない）")
+        void allExemptMeansZeroCharge() {
+            TableSession bill = openBill(3);
+
+            bill.setChargeExemptCount(3);
+            bill.recalculate(LateNightPolicy.NONE);
+
+            assertThat(bill.getTableChargeAmount()).isZero();
+            assertThat(bill.getTotalAmount()).isZero();
+        }
+
+        @Test
+        @DisplayName("人数より多い除外は人数までに丸める（チャージがマイナスにならない）")
+        void exemptIsClampedToGuestCount() {
+            // URL を直接叩かれても壊れないように、ドメイン側で閉じておく。
+            // ここが素通りすると、チャージがマイナスになって
+            // その卓の小計から他の品の代金が引かれる。
+            TableSession bill = openBill(2);
+
+            bill.setChargeExemptCount(9);
+            bill.recalculate(LateNightPolicy.NONE);
+
+            assertThat(bill.getChargeExemptCount()).isEqualTo(2);
+            assertThat(bill.getTableChargeAmount()).isZero();
+        }
+
+        @Test
+        @DisplayName("マイナスの除外は 0 に丸める（チャージを水増ししない）")
+        void negativeExemptIsClampedToZero() {
+            TableSession bill = openBill(2);
+
+            bill.setChargeExemptCount(-3);
+            bill.recalculate(LateNightPolicy.NONE);
+
+            assertThat(bill.getChargeExemptCount()).isZero();
+            assertThat(bill.getTableChargeAmount()).isEqualTo(900);
+        }
+
+        @Test
+        @DisplayName("深夜料金は「除外後」のチャージにかかる（除外した人のぶんに割増を乗せない）")
+        void lateNightAppliesToChargeAfterExemption() {
+            // 深夜料金の対象額にはテーブルチャージが含まれる。
+            // 除外前の金額に割増を掛けてしまうと、
+            // チャージをいただかない人のぶんまで 10% を請求することになる。
+            TableSession bill = openBill(4);
+            bill.setChargeExemptCount(2);
+
+            bill.recalculate(ALWAYS_LATE_NIGHT);
+
+            assertThat(bill.getTableChargeAmount()).isEqualTo(900);   // 450 × 2
+            assertThat(bill.getLateNightAmount()).isEqualTo(90);      // 900 の 10%（1800 の 10% ではない）
+            assertThat(bill.getTotalAmount()).isEqualTo(990);
+        }
+
+        @Test
+        @DisplayName("人数を減らすと、除外人数もその人数まで下がる")
+        void exemptFollowsWhenGuestCountShrinks() {
+            // 4 名中 3 名を除外したあとで「やっぱり 2 名だった」と直すと、
+            // 除外 3 名が残ったままではチャージがマイナスになる。
+            TableSession bill = openBill(4);
+            bill.setChargeExemptCount(3);
+
+            bill.setGuestCount(2);
+            bill.setChargeExemptCount(bill.getChargeExemptCount());   // TableService と同じ再クランプ
+            bill.recalculate(LateNightPolicy.NONE);
+
+            assertThat(bill.getChargeExemptCount()).isEqualTo(2);
+            assertThat(bill.getTableChargeAmount()).isZero();
         }
     }
 
@@ -600,7 +797,7 @@ class TableSessionTest {
             addOrderAt(bill, 101, "締めの一品", 1500, 1, 23, 30);
 
             bill.setLateNightWaived(true);
-            bill.close(AT, AFTER_23, "店長", "常連さんのためサービス");
+            bill.close(AT, AFTER_23, "店長", "常連さんのためサービス", SettlementMethod.CASH);
             assertThat(bill.getLateNightAmount()).isZero();
             int closedTotal = bill.getTotalAmount();
 

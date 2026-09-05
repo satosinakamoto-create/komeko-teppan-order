@@ -2,6 +2,7 @@ package jp.komeko.order.repository;
 
 import jakarta.persistence.LockModeType;
 import jp.komeko.order.domain.SessionStatus;
+import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.domain.TableSession;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,23 +19,19 @@ import java.util.Optional;
  */
 public interface TableSessionRepository extends JpaRepository<TableSession, Long> {
 
-    /**
-     * その卓で「いま開いている伝票」を 1 件取る。
+    /*
+     * 2026-09-05 に findFirstByDiningTableIdAndStatusOrderByOpenedAtDesc を消しました。
      *
-     * <p>本来 1 卓につき開いている伝票は 1 つだけのはずですが、
-     * 万一 2 つできてしまっても落ちないよう
-     * {@code findFirst...OrderByOpenedAtDesc}（新しいほうを 1 件）にしています。
+     * 「状態をひとつ渡して、その卓の伝票を 1 件取る」という形が、
+     * CLOSING（お会計待ち）を足した時点で罠になったからです。
+     * OPEN を渡すと、お会計待ちの卓が「伝票なし」に見えます。
+     * そのまま QR を読み直されると 2 枚目の伝票ができ、
+     * テーブルチャージを二重にいただくことになります。
      *
-     * <p><b>ここで {@code orders} を fetch しない理由</b><br>
-     * 「1 件だけ取る」と「コレクションをまとめて読む」を同時に指定すると、
-     * Hibernate は SQL で件数を絞れず<b>全件読んでからメモリ上で 1 件目を取る</b>
-     * 動きになります（警告 HHH90003004）。
-     * 注文は {@code TableService} のトランザクションの中で読み込むので、
-     * ここでは卓だけ一緒に読みます。
+     * 呼ぶ側は下の findOpenSessionIds（OPEN と CLOSING の両方を見る）を使ってください。
+     * countByStatus も同じ日に消しています（呼び出しが 1 つも無く、
+     * 「開いている卓の数」を数える用途で復活させると同じ穴を踏むため）。
      */
-    @EntityGraph(attributePaths = {"diningTable"})
-    Optional<TableSession> findFirstByDiningTableIdAndStatusOrderByOpenedAtDesc(
-            Long diningTableId, SessionStatus status);
 
     /**
      * その卓で「いま開いている伝票」の <b>ID だけ</b>を取る。
@@ -58,7 +55,8 @@ public interface TableSessionRepository extends JpaRepository<TableSession, Long
     @Query("""
             select s.id from TableSession s
             where s.diningTable.id = :tableId
-              and s.status = jp.komeko.order.domain.SessionStatus.OPEN
+              and s.status in (jp.komeko.order.domain.SessionStatus.OPEN,
+                               jp.komeko.order.domain.SessionStatus.CLOSING)
             order by s.openedAt desc, s.id desc
             """)
     List<Long> findOpenSessionIds(@Param("tableId") Long tableId);
@@ -96,6 +94,22 @@ public interface TableSessionRepository extends JpaRepository<TableSession, Long
     /** ホール画面用：いま開いている伝票の一覧。 */
     @EntityGraph(attributePaths = {"diningTable", "orders"})
     List<TableSession> findByStatusOrderByOpenedAtAsc(SessionStatus status);
+
+    /**
+     * ホール画面用：<b>まだ会計が済んでいない</b>伝票の一覧（ご案内中＋お会計待ち）。
+     *
+     * <p>お会計待ちの卓も席は埋まっているので、在席の一覧と空席の判定には
+     * こちらを使います。{@code findByStatusOrderByOpenedAtAsc(OPEN)} のままだと、
+     * お会計待ちに入った瞬間に卓が空席として現れ、<b>次のお客さまを案内できてしまいます</b>。
+     */
+    @EntityGraph(attributePaths = {"diningTable", "orders"})
+    @Query("""
+            select s from TableSession s
+            where s.status in (jp.komeko.order.domain.SessionStatus.OPEN,
+                               jp.komeko.order.domain.SessionStatus.CLOSING)
+            order by s.openedAt asc
+            """)
+    List<TableSession> findActiveOrderByOpenedAtAsc();
 
     /** 管理画面用：その営業日の伝票（新しい順）。 */
     @EntityGraph(attributePaths = {"diningTable"})
@@ -178,5 +192,40 @@ public interface TableSessionRepository extends JpaRepository<TableSession, Long
             """)
     ClosedTotal summarizeClosedBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
-    long countByStatus(SessionStatus status);
+    /**
+     * お支払い方法ごとの、会計済み伝票の合計（レジ締め用）。
+     *
+     * <p>閉店後に金庫を数えるとき、「今日 ¥183,200」だけでは
+     * <b>あるべき現金の額が出せません</b>。うちカードがいくらか分からないからです。
+     * ここで分けておくと、現金のぶんだけを数えて突き合わせられます。
+     *
+     * <p><b>{@code getMethod()} が null の行が出ます。</b>
+     * 支払い方法を記録し始めたのは 2026-09-05（V9）で、
+     * それ以前に締めた伝票には記録がありません。
+     * この行を現金に足してはいけません。<b>数えた現金が合わなくなります</b>。
+     * 画面には「記録していません」としてそのまま出してください。
+     *
+     * <p>集計の対象は {@code CLOSED} だけです。お会計待ち（{@code CLOSING}）は
+     * まだ受け取っていないので、金庫にも端末にも入っていません。
+     */
+    interface SettlementTotal {
+        /** 支払い方法。記録が無い（V9 より前に締めた）伝票では null。 */
+        SettlementMethod getMethod();
+        /** ご請求額の合計（税込）。 */
+        Long getAmount();
+        /** 会計した組数。 */
+        Long getBills();
+    }
+
+    @Query("""
+            select s.paymentMethod as method,
+                   coalesce(sum(s.totalAmount), 0) as amount,
+                   count(s) as bills
+            from TableSession s
+            where s.businessDate between :from and :to
+              and s.status = jp.komeko.order.domain.SessionStatus.CLOSED
+            group by s.paymentMethod
+            """)
+    List<SettlementTotal> summarizeSettlementBetween(@Param("from") LocalDate from,
+                                                     @Param("to") LocalDate to);
 }

@@ -140,7 +140,7 @@ public class InventoryTestFixture {
         orders.save(order);
         session.getOrders().add(order);
 
-        session.close(businessDate.atTime(22, 0), LateNightPolicy.NONE, "テスト", null);
+        session.close(businessDate.atTime(22, 0), LateNightPolicy.NONE, "テスト", null, SettlementMethod.CASH);
         return sessions.save(session);
     }
 

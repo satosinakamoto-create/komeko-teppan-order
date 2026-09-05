@@ -9,6 +9,7 @@ import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderLine;
 import jp.komeko.order.domain.SessionStatus;
+import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.repository.CategoryRepository;
@@ -245,7 +246,7 @@ class TableServiceIntegrationTest {
             // ここが空にならないと、次のお客さんが前の組の伝票に注文を足してしまう。
             TableSession bill = tableService.openSession(table.getId(), 2);
 
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             assertThat(tableService.currentSession(table.getId())).isEmpty();
             assertThat(tableService.getSession(bill.getId()).getStatus())
@@ -258,7 +259,7 @@ class TableServiceIntegrationTest {
             TableSession bill = tableService.openSession(table.getId(), 2);
             orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
 
-            TableSession closed = tableService.closeSession(bill.getId(), false, "店長", "現金");
+            TableSession closed = tableService.closeSession(bill.getId(), false, "店長", "現金", SettlementMethod.CASH);
 
             assertThat(closed.getSubtotalAmount()).isEqualTo(1180);
             assertThat(closed.getTableChargeAmount()).isEqualTo(900);      // 450 × 2名
@@ -274,7 +275,7 @@ class TableServiceIntegrationTest {
             // 「お会計しました → まだスマホの画面が残っていて注文ボタンを押した」は起きる。
             // ここを通してしまうと、誰にも請求されない注文が厨房に流れる。
             TableSession bill = tableService.openSession(table.getId(), 2);
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             Cart cart = cartOf(okonomiyaki, 1);
             assertThatThrownBy(() -> orderService.placeOrder(cart, bill.getId(), null))
@@ -287,9 +288,9 @@ class TableServiceIntegrationTest {
         void cannotCloseTwice() {
             // 会計ボタンの二度押しで金額が二重計上されないようにする。
             TableSession bill = tableService.openSession(table.getId(), 2);
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
-            assertThatThrownBy(() -> tableService.closeSession(bill.getId(), false, "店長", null))
+            assertThatThrownBy(() -> tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("すでに会計済み");
         }
@@ -300,7 +301,7 @@ class TableServiceIntegrationTest {
             // 別の卓を会計してしまった、というのは実際にある操作ミス。
             // 取り消せないと、お客さんを待たせたまま手作業で復旧することになる。
             TableSession bill = tableService.openSession(table.getId(), 2);
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             tableService.reopenSession(bill.getId(), "店長");
 
@@ -308,6 +309,123 @@ class TableServiceIntegrationTest {
             // 「空だった」ときも NoSuchElementException ではなく素直な失敗メッセージになる。
             assertThat(tableService.currentSession(table.getId()).map(TableSession::getId))
                     .contains(bill.getId());
+        }
+
+        @Test
+        @DisplayName("お支払い方法を選ばないと締められない")
+        void paymentMethodIsRequired() {
+            // 「未選択なら現金」にすると、押し忘れたぶんが現金売上に化ける。
+            // 閉店後に金庫を数えたとき、実際にはカードで受け取っているのに
+            // 現金が足りないように見え、原因の分からない差額として残る。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+
+            assertThatThrownBy(() -> tableService.closeSession(bill.getId(), false, "店長", null, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("お支払い方法");
+
+            // 弾いたあとも伝票は開いたまま。選び直せば締められる。
+            assertThat(tableService.getSession(bill.getId()).getStatus())
+                    .isEqualTo(SessionStatus.OPEN);
+        }
+    }
+
+    @Nested
+    @DisplayName("お会計待ち（追加注文を止める）")
+    class Checkout {
+
+        @Test
+        @DisplayName("お会計待ちの卓は空席にならない（次のお客さまを二重に案内しない）")
+        void closingTableIsStillOccupied() {
+            // ここが空席に見えると、同じ卓に次の組を案内できてしまう。
+            // 伝票が 2 つ立ち、テーブルチャージも二重にかかる。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+
+            tableService.startCheckout(bill.getId());
+
+            assertThat(tableService.currentSession(table.getId()).map(TableSession::getId))
+                    .contains(bill.getId());
+            assertThat(tableService.openSessions())
+                    .extracting(TableSession::getId)
+                    .contains(bill.getId());
+        }
+
+        @Test
+        @DisplayName("お会計待ちの卓では追加注文が止まる（案内の文言も会計済みとは分ける）")
+        void closingTableRejectsOrders() {
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            tableService.startCheckout(bill.getId());
+
+            Cart cart = cartOf(okonomiyaki, 1);
+            assertThatThrownBy(() -> orderService.placeOrder(cart, bill.getId(), null))
+                    .isInstanceOf(OrderRejectedException.class)
+                    .hasMessageContaining("お会計の準備中");
+        }
+
+        @Test
+        @DisplayName("お会計待ちの卓を QR で読み直しても、伝票は増えない")
+        void rescanDoesNotCreateSecondBill() {
+            // お客さまが待っている間にスマホを触るのはふつうのこと。
+            // ここで新しい伝票ができると、テーブルチャージを二重にいただくことになる。
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            tableService.startCheckout(bill.getId());
+
+            TableSession again = tableService.openSession(table.getId(), 2);
+
+            assertThat(again.getId()).isEqualTo(bill.getId());
+        }
+
+        @Test
+        @DisplayName("再開すると、また注文できるようになる")
+        void resumeMakesTableOrderableAgain() {
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            tableService.startCheckout(bill.getId());
+
+            tableService.resumeOrdering(bill.getId());
+
+            orderService.placeOrder(cartOf(okonomiyaki, 1), bill.getId(), null);
+            assertThat(tableService.getSession(bill.getId()).getSubtotalAmount()).isEqualTo(1180);
+        }
+
+        @Test
+        @DisplayName("会計済みの伝票は、お会計待ちに戻せない")
+        void closedBillCannotStartCheckout() {
+            TableSession bill = tableService.openSession(table.getId(), 2);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
+
+            assertThatThrownBy(() -> tableService.startCheckout(bill.getId()))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("すでに会計済み");
+        }
+    }
+
+    @Nested
+    @DisplayName("チャージをいただかない人数")
+    class ChargeExempt {
+
+        @Test
+        @DisplayName("除外してもお客さまの人数は減らない（売上の客数を守る）")
+        void exemptKeepsGuestCount() {
+            // 人数を減らして帳尻を合わせると、客単価も席の回転も狂う。
+            TableSession bill = tableService.openSession(table.getId(), 4);
+
+            TableSession updated = tableService.changeChargeExemptCount(bill.getId(), 2);
+
+            assertThat(updated.getGuestCount()).isEqualTo(4);
+            assertThat(updated.getTableChargeAmount()).isEqualTo(900);   // 450 × 2
+        }
+
+        @Test
+        @DisplayName("人数を減らすと、除外人数もその人数まで下がる")
+        void exemptFollowsGuestCount() {
+            // 4 名中 3 名を除外したあと「やっぱり 2 名だった」と直したとき、
+            // 除外が 3 名のまま残るとチャージがマイナスになる。
+            TableSession bill = tableService.openSession(table.getId(), 4);
+            tableService.changeChargeExemptCount(bill.getId(), 3);
+
+            TableSession updated = tableService.changeGuestCount(bill.getId(), 2);
+
+            assertThat(updated.getChargeExemptCount()).isEqualTo(2);
+            assertThat(updated.getTableChargeAmount()).isZero();
         }
     }
 
@@ -336,7 +454,7 @@ class TableServiceIntegrationTest {
         void cannotChangeGuestCountAfterClosing() {
             // 締めたあとに金額が動くと、レジの現金と記録が合わなくなる。
             TableSession bill = tableService.openSession(table.getId(), 2);
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             assertThatThrownBy(() -> tableService.changeGuestCount(bill.getId(), 4))
                     .isInstanceOf(IllegalStateException.class);
@@ -410,7 +528,7 @@ class TableServiceIntegrationTest {
                     .extracting(TableSession::getId)
                     .containsExactlyInAnyOrder(first.getId(), other.getId());
 
-            tableService.closeSession(first.getId(), false, "店長", null);
+            tableService.closeSession(first.getId(), false, "店長", null, SettlementMethod.CASH);
 
             assertThat(tableService.openSessions())
                     .extracting(TableSession::getId)

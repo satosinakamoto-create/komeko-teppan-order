@@ -4,6 +4,7 @@ import jp.komeko.order.cart.Cart;
 import jp.komeko.order.domain.DiningTable;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
+import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.domain.OrderStatus;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.repository.DiningTableRepository;
@@ -561,7 +562,7 @@ public class DemoDataSeeder implements ApplicationRunner {
             for (Order order : session.getOrders()) {
                 completeOrder(order);
             }
-            tableService.closeSession(session.getId(), true, "デモ", "前の営業日の片付け");
+            tableService.closeSession(session.getId(), true, "デモ", "前の営業日の片付け", SettlementMethod.CASH);
             cleaned++;
         }
         return cleaned;
@@ -671,7 +672,7 @@ public class DemoDataSeeder implements ApplicationRunner {
     private int closeEarlierGuests() {
         var today = shopSettingService.currentBusinessDate();
         boolean alreadyClosed = tableService.sessionsOf(today).stream()
-                .anyMatch(s -> !s.isOpen());
+                .anyMatch(s -> s.isClosed());
         if (alreadyClosed) {
             return 0;
         }
@@ -699,7 +700,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 }
                 dish += 3;
             }
-            tableService.closeSession(session.getId(), true, "デモ", null);
+            tableService.closeSession(session.getId(), true, "デモ", null, SettlementMethod.CARD);
             closed++;
         }
         return closed;

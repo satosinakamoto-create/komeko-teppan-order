@@ -179,6 +179,57 @@
     </div>
   </section>
 
+  <!--/* ====== お支払いの内訳 ======
+         レジ締めのための表です。「今月 ¥1,832,000」だけでは、
+         金庫にあるべき現金の額が出せません。うちカードがいくらか分からないからです。
+
+         記録の無い伝票（支払い方法を持たせる前に締めたもの）は、
+         現金にもカードにも足さず、別の行に出します。
+         現金に混ぜると、数えた現金と合わなくなってレジ締めが止まります。 */-->
+  <section class="panel">
+    <div class="panel__head">
+      <h2 class="panel__title">お支払いの内訳</h2>
+      <span class="panel__sub">レジ締め・入金の確認用</span>
+    </div>
+
+    <table class="table">
+      <thead>
+      <tr>
+        <th>お支払い</th>
+        <th class="num">組数</th>
+        <th class="num">金額</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td>現金</td>
+        <td class="num" th:text="${settlement.cashBills()} + ' 組'">62 組</td>
+        <td class="num" th:text="'¥' + ${#numbers.formatInteger(settlement.cash(), 1, 'COMMA')}">¥1,102,400</td>
+      </tr>
+      <tr>
+        <td>カード</td>
+        <td class="num" th:text="${settlement.cardBills()} + ' 組'">41 組</td>
+        <td class="num" th:text="'¥' + ${#numbers.formatInteger(settlement.card(), 1, 'COMMA')}">¥729,600</td>
+      </tr>
+      <tr th:if="${settlement.hasUnrecorded()}">
+        <td class="faint">記録していません</td>
+        <td class="num faint" th:text="${settlement.unrecordedBills()} + ' 組'">8 組</td>
+        <td class="num faint" th:text="'¥' + ${#numbers.formatInteger(settlement.unrecorded(), 1, 'COMMA')}">¥96,300</td>
+      </tr>
+      </tbody>
+    </table>
+
+    <p class="alert alert--warn mb-0" th:if="${settlement.hasUnrecorded()}">
+      <strong>お支払い方法を記録していない伝票があります。</strong>
+      記録を始めたのは 2026-09-05 で、それより前に締めた伝票には残っていません。
+      現金に足すと、数えた現金と合わなくなるので、別の行にしてあります。
+    </p>
+
+    <p class="help mb-0" th:unless="${settlement.hasUnrecorded()}">
+      カードは月末締め・翌月払いで入金の時期が違います。金庫を数えるときは現金の行だけを見てください。
+    </p>
+  </section>
+
   <!--/* ====== 注文されている商品 ====== */-->
   <section class="panel">
     <div class="panel__head">

@@ -26,8 +26,9 @@
 
   <div class="section-title">
     <h1 class="section-title__text" th:text="${bill.diningTable.name}">3番テーブル</h1>
-    <span class="section-title__count"
-          th:text="${bill.open} ? 'お会計まえ' : '会計済み'">お会計まえ</span>
+    <!--/* 3 つの状態をそのまま出す。「お会計まえ／会計済み」の 2 つに畳むと、
+           お会計待ち（注文が止まっている）が「お会計まえ」に紛れて見えなくなります。 */-->
+    <span class="section-title__count" th:text="${bill.status.label}">お会計まえ</span>
   </div>
 
   <p class="small">
@@ -55,13 +56,31 @@
     </div>
   </section>
 
-  <!--/* ===== 会計済みのときのお知らせ ===== */-->
-  <div class="alert alert--info mt-4" th:unless="${bill.open}" role="status">
+  <!--/* ===== 会計済みのときのお知らせ =====
+         条件は bill.closed。「開いていない（!bill.open）」で書くと、
+         お会計待ちの伝票にまで「会計済みです」と出ます。まだ締めていないのに。 */-->
+  <div class="alert alert--info mt-4" th:if="${bill.closed}" role="status">
     <p class="mb-0">
       この伝票は会計済みです（<span th:text="${closedAtLabel}">21:30</span> ／
       担当 <span th:text="${bill.closedBy} ?: '―'">やまだ</span>）。
       追加の注文はできません。
     </p>
+  </div>
+
+  <!--/* ===== お会計待ちのお知らせ =====
+         注文が止まっていることは、画面のどこかに小さく出すのでは足りません。
+         「お客さまのスマホから注文できない」状態を店員が知らないまま卓を離れると、
+         お客さまは注文できずに待ち続けることになります。 */-->
+  <div class="alert alert--warn mt-4" th:if="${bill.closing}" role="status"
+       sec:authorize="!hasRole('GUEST')">
+    <p>この伝票は<strong>お会計待ち</strong>です。この卓のスマホからは注文できません。</p>
+    <form th:action="@{/hall/bills/{id}/resume(id=${bill.id})}" method="post" class="mb-0">
+      <button type="submit" class="btn btn--sm">ご注文を再開する</button>
+    </form>
+  </div>
+  <div class="alert alert--warn mt-4" th:if="${bill.closing}" role="status"
+       sec:authorize="hasRole('GUEST')">
+    <p class="mb-0">この伝票は<strong>お会計待ち</strong>です。この卓のスマホからは注文できません。</p>
   </div>
 
   <!--/* ===== 未提供の警告 =====
@@ -73,7 +92,7 @@
          焼き上がり済み（お渡し可）でまだ運んでいない品は含まれないので、
          最終確認は厨房ボードとあわせて行ってください。
   */-->
-  <div class="alert alert--warn mt-4" th:if="${bill.open and bill.hasPendingOrders()}" role="alert">
+  <div class="alert alert--warn mt-4" th:if="${bill.active and bill.hasPendingOrders()}" role="alert">
     <p class="mb-0">まだ提供していない品があります。お客さまにご確認のうえお会計してください。</p>
   </div>
 
@@ -125,7 +144,7 @@
         会計が済んだ伝票では出しません。締めたあとに金額が動くと証跡が壊れるためです。
         深夜料金を取らない設定（割増率 0）のときも出しません。
       */-->
-      <form th:if="${bill.open and bill.lateNightSurchargePercent > 0}"
+      <form th:if="${bill.active and bill.lateNightSurchargePercent > 0}"
             th:action="@{/hall/bills/{id}/orders/{orderId}/late-night(id=${bill.id},orderId=${order.id})}"
             sec:authorize="!hasRole('GUEST')"
             method="post" class="mt-4">
@@ -161,7 +180,11 @@
         <tr>
           <td class="muted">
             テーブルチャージ
-            <span class="tiny faint" th:text="'（¥' + ${#numbers.formatInteger(bill.tableChargePerGuest, 1, 'COMMA')} + ' × ' + ${bill.guestCount} + '名）'">（¥450 × 4名）</span>
+            <!--/* 掛ける相手は来店人数ではなく「チャージ対象の人数」。
+                   除外があるのに 4名 と書くと、内訳の掛け算が合わなくなります。 */-->
+            <span class="tiny faint" th:text="'（¥' + ${#numbers.formatInteger(bill.tableChargePerGuest, 1, 'COMMA')} + ' × ' + ${bill.chargeableGuestCount} + '名）'">（¥450 × 4名）</span>
+            <span class="tiny faint" th:if="${bill.chargeExemptCount > 0}"
+                  th:text="'／' + ${bill.guestCount} + '名中 ' + ${bill.chargeExemptCount} + '名は対象外'">／4名中 1名は対象外</span>
           </td>
           <td th:text="'¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')}">¥1,800</td>
         </tr>
@@ -190,7 +213,7 @@
   </div>
 
   <!--/* ===== 開いている伝票のときだけ出す操作 ===== */-->
-  <th:block th:if="${bill.open}">
+  <th:block th:if="${bill.active}">
 
     <!--/* --- 人数の変更 ---
            HTML のフォームは入れ子にできないので、操作ごとにフォームを分けます。 */-->
@@ -217,6 +240,57 @@
         <p class="help" th:text="'人数を変えるとテーブルチャージ（¥' + ${#numbers.formatInteger(bill.tableChargePerGuest, 1, 'COMMA')} + ' × 人数）が変わり、ご請求額も変わります。'">
           人数を変えるとテーブルチャージ（¥450 × 人数）が変わり、ご請求額も変わります。
         </p>
+
+        <!--/* --- チャージをいただかない人数 ---
+               人数を減らして帳尻を合わせないための入力欄です。
+               未就学のお子さま連れの 4 名を「2 名」にすればチャージは合いますが、
+               売上の客数が 2 名になり、客単価も席の回転もそこからずれます。
+               来た人数はそのまま置いて、チャージの対象だけをここで外します。 */-->
+        <hr class="mt-6">
+        <form th:action="@{/hall/bills/{id}/charge-exempt(id=${bill.id})}" method="post"
+              class="row row--wrap mt-6">
+          <label class="label mb-0" for="chargeExemptCount">チャージをいただかない人数</label>
+          <select class="select" id="chargeExemptCount" name="chargeExemptCount" style="max-width:7rem">
+            <option th:each="n : ${exemptOptions}"
+                    th:value="${n}"
+                    th:text="${n} + ' 名'"
+                    th:selected="${n == bill.chargeExemptCount}">0 名</option>
+          </select>
+          <button type="submit" class="btn">変更する</button>
+        </form>
+        <p class="help mb-0">
+          未就学のお子さま、常連さんへのサービスなど、
+          <strong>お席にはいらっしゃるけれどチャージはいただかない方</strong>の人数です。
+          上の「人数」は減らさないでください。売上の客数がその数になってしまいます。
+        </p>
+      </div>
+    </div>
+
+    <!--/* --- お会計待ちにする ---
+           締める前の一手間です。レジで金額を読み上げている最中に
+           お客さまの手元から追加注文が入ると、読み上げた額と請求額が食い違います。
+           締めてしまえば注文は止まりますが、それだと
+           「やっぱりもう一杯」に会計取消で戻すことになり、売上が上下します。
+
+           まだ OPEN のときだけ出します（お会計待ちの卓には、上の警告に
+           「ご注文を再開する」が出ています）。 */-->
+    <div class="card mt-6" th:if="${bill.orderable}" sec:authorize="!hasRole('GUEST')">
+      <div class="card__head">お会計待ちにする</div>
+      <div class="card__body">
+        <p class="help mb-0">
+          この卓のスマホからの<strong>追加注文を止めます</strong>。まだ締めません。
+          金額を読み上げている最中に注文が増えるのを防ぐための操作です。
+        </p>
+      </div>
+      <div class="card__foot">
+        <form th:action="@{/hall/bills/{id}/checkout(id=${bill.id})}" method="post">
+          <button type="submit" class="btn"
+                  th:data-table="${bill.diningTable.name}"
+                  th:data-total="${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}"
+                  onclick="return confirm(this.dataset.table + ' をお会計待ちにします。\n現在のご請求額 ¥' + this.dataset.total + '\n\nこの卓からの追加注文が止まります。よろしいですか？');">
+            お会計待ちにする
+          </button>
+        </form>
       </div>
     </div>
 
@@ -257,6 +331,27 @@
               （テーブルチャージは、その時間帯にご案内した卓のぶんだけ対象です）。<br>
               対象のご注文があるときは自動でチェックが入ります。
               <strong>チェックを外すと深夜料金なしで締めます</strong>（上の内訳より安くなります）。
+            </p>
+          </div>
+
+          <!--/* --- お支払い方法 ---
+                 既定で選んでおかないのは、押し忘れたぶんが現金売上に化けるのを
+                 防ぐためです。閉店後のレジ締めで金庫を数えたときに
+                 「足りない」ように見える（実際はカードで受け取っている）のが、
+                 いちばん時間を溶かす事故です。選ぶまで締められません。 */-->
+          <div class="field">
+            <span class="label">お支払い方法</span>
+            <label class="choice">
+              <input type="radio" name="paymentMethod" value="CASH">
+              <span class="choice__name">現金</span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="paymentMethod" value="CARD">
+              <span class="choice__name">カード</span>
+            </label>
+            <p class="help">
+              閉店後、金庫の現金と突き合わせるために記録します。
+              どちらか選ばないと締められません。
             </p>
           </div>
 
@@ -303,8 +398,17 @@
             var applied = checkbox ? checkbox.checked : false;
             var total = applied ? button.dataset.totalWith : button.dataset.totalWithout;
             var suffix = applied ? '（深夜料金 込み）' : '（深夜料金 なし）';
+            // 支払い方法はサーバ側でも必須にしてあるが、送ってから
+            // 「選んでください」と返されるより、押した場所で気づけたほうが速い。
+            var paid = button.form.querySelector('input[name="paymentMethod"]:checked');
+            if (!paid) {
+              alert('お支払い方法（現金／カード）を選んでください。');
+              return false;
+            }
+            var paidLabel = paid.value === 'CARD' ? 'カード' : '現金';
             return confirm(button.dataset.table + ' のお会計を締めます。\n'
-              + 'ご請求額 ¥' + total + ' ' + suffix + '\n\nよろしいですか？');
+              + 'ご請求額 ¥' + total + ' ' + suffix + '\n'
+              + 'お支払い ' + paidLabel + '\n\nよろしいですか？');
           }
         </script>
       </form>
@@ -313,7 +417,7 @@
   </th:block>
 
   <!--/* ===== 会計済みの伝票のときだけ出す操作 ===== */-->
-  <th:block th:unless="${bill.open}">
+  <th:block th:if="${bill.closed}">
 
     <div class="card mt-6">
       <div class="card__head">会計の記録</div>
@@ -327,6 +431,13 @@
           <tr>
             <td class="muted">担当</td>
             <td th:text="${bill.closedBy} ?: '―'">やまだ</td>
+          </tr>
+          <tr>
+            <td class="muted">お支払い</td>
+            <!--/* 記録を始める前に締めた伝票は null。「現金」と書いてしまうと
+                   決めつけになるので、記録が無いことをそのまま出します。 */-->
+            <td th:if="${bill.paymentMethod != null}" th:text="${bill.paymentMethod.label}">現金</td>
+            <td th:if="${bill.paymentMethod == null}" class="faint">記録していません</td>
           </tr>
           <tr>
             <td class="muted">深夜料金</td>

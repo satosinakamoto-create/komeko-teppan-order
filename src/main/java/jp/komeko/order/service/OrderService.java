@@ -157,8 +157,12 @@ public class OrderService {
         tableService.lockSession(sessionId);
         TableSession session = tableService.getSession(sessionId);
         if (!session.isOrderable()) {
-            throw new OrderRejectedException(
-                    "このお席のお会計はすでに済んでいます。追加のご注文はスタッフにお声がけください");
+            // 「締まっている」と「お会計待ち」を言い分ける。
+            // どちらも注文は通せないが、お客さまにできることが違う。
+            // 会計待ちは声をかければ再開してもらえるので、そう伝える。
+            throw new OrderRejectedException(session.isClosing()
+                    ? "ただいまお会計の準備中です。追加のご注文はスタッフにお声がけください"
+                    : "このお席のお会計はすでに済んでいます。追加のご注文はスタッフにお声がけください");
         }
 
         // 値上げ・品切れが起きていないかを最終確認する。
@@ -451,7 +455,7 @@ public class OrderService {
         // 届くので、サーバ側でも塞ぐ。ここを通すと、あとで開け直したときの
         // 再計算で確定済みの請求額が変わり、証跡が壊れる
         TableSession billOfOrder = order.getSession();
-        if (billOfOrder != null && !billOfOrder.isOpen()) {
+        if (billOfOrder != null && !billOfOrder.isActive()) {
             throw new IllegalStateException(
                     "会計済みの伝票では変更できません。先に会計を取り消して伝票を開け直してください");
         }
@@ -503,7 +507,7 @@ public class OrderService {
         // 会計済みの伝票は金額が確定している。ここからの取り消しは通さない
         // （スタッフ側と同じ理由。文言だけお客さま向けにしている）
         TableSession billOfOrder = order.getSession();
-        if (billOfOrder != null && !billOfOrder.isOpen()) {
+        if (billOfOrder != null && !billOfOrder.isActive()) {
             throw new OrderRejectedException(
                     "お会計がお済みのため、この画面からは取り消せません。お手数ですが店頭スタッフへお声がけください");
         }
@@ -566,7 +570,7 @@ public class OrderService {
      */
     private void requireBillStillOpenForCancel(Order order) {
         TableSession session = order.getSession();
-        if (session != null && !session.isOpen()) {
+        if (session != null && !session.isActive()) {
             throw new IllegalStateException(
                     "会計済みの伝票の注文は取り消せません。先に会計を取り消して伝票を開け直してください");
         }
@@ -623,7 +627,7 @@ public class OrderService {
      */
     private void refreshSessionOf(Order order) {
         TableSession session = order.getSession();
-        if (session != null && session.isOpen()) {
+        if (session != null && session.isActive()) {
             tableService.refresh(session);
         }
     }

@@ -2,6 +2,7 @@ package jp.komeko.order.service;
 
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
+import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.repository.OrderRepository;
 import jp.komeko.order.repository.TableSessionRepository;
 import jp.komeko.order.service.dto.DailySales;
@@ -88,6 +89,52 @@ public class SalesReportService {
             return guests == 0 ? 0 : sales / guests;
         }
 
+    }
+
+    /**
+     * お支払い方法ごとの内訳（レジ締め用）。
+     *
+     * <p>金庫を数えるときに使う数字なので、<b>足して丸めない</b>形にしてあります。
+     * 記録の無い伝票（V9 より前に締めたもの）は現金にも カードにも入れず、
+     * {@code unrecorded} として別に置きます。現金に混ぜると、
+     * 数えた現金と合わなくなり、レジ締めが止まります。
+     */
+    public record SettlementBreakdown(long cash, long cashBills,
+                                      long card, long cardBills,
+                                      long unrecorded, long unrecordedBills) {
+
+        /** 記録のある伝票の合計。カード端末の当日合計と突き合わせるときの分母。 */
+        public long recorded() {
+            return cash + card;
+        }
+
+        /** 記録の無い伝票があるか。画面に断り書きを出すかどうかの判定に使う。 */
+        public boolean hasUnrecorded() {
+            return unrecordedBills > 0;
+        }
+    }
+
+    /** その期間の、お支払い方法ごとの内訳。 */
+    @Transactional(readOnly = true)
+    public SettlementBreakdown settlementBreakdown(LocalDate from, LocalDate to) {
+        long cash = 0, cashBills = 0, card = 0, cardBills = 0, unrecorded = 0, unrecordedBills = 0;
+        for (TableSessionRepository.SettlementTotal row
+                : tableSessionRepository.summarizeSettlementBetween(from, to)) {
+            long amount = zero(row.getAmount());
+            long bills = zero(row.getBills());
+            // null（記録なし）の行が必ず 1 本混ざりうる。switch では受けられないので if で分ける。
+            if (row.getMethod() == SettlementMethod.CASH) {
+                cash += amount;
+                cashBills += bills;
+            } else if (row.getMethod() == SettlementMethod.CARD) {
+                card += amount;
+                cardBills += bills;
+            } else {
+                unrecorded += amount;
+                unrecordedBills += bills;
+            }
+        }
+        return new SettlementBreakdown(cash, cashBills, card, cardBills, unrecorded, unrecordedBills);
     }
 
     /** ひと月ぶん。 */

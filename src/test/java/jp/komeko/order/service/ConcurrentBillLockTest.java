@@ -7,6 +7,7 @@ import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
 import jp.komeko.order.domain.SessionStatus;
+import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.repository.CategoryRepository;
@@ -255,7 +256,7 @@ class ConcurrentBillLockTest {
     /** 「お会計を締めたがまだコミットしていない」状態にぶつける。 */
     private void runAgainstUncommittedClose(Runnable second, AtomicReference<RuntimeException> failure) {
         runAgainstUncommitted(
-                () -> tableService.closeSession(billId, false, "店長", null),
+                () -> tableService.closeSession(billId, false, "店長", null, SettlementMethod.CASH),
                 second,
                 failure);
     }

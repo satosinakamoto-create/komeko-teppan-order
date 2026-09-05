@@ -6,6 +6,7 @@ import jp.komeko.order.domain.DiningTable;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
+import jp.komeko.order.domain.SettlementMethod;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.repository.CategoryRepository;
@@ -239,7 +240,7 @@ class BillingFixesIntegrationTest {
 
             // チェックボックスは対象が無いので初期状態から外れている。
             // その状態のまま締める＝ applyLateNight=false で届く（HallController#close）
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             assertThat(reloadBill().isLateNightWaived())
                     .as("誰も免除の判断をしていないのに waived が立つと、"
@@ -251,7 +252,7 @@ class BillingFixesIntegrationTest {
         @DisplayName("会計取消→深夜帯の追加注文には、ちゃんと割増が付く")
         void surchargeAppliesToNightOrdersAfterReopen() {
             order(okonomiyaki, 1);
-            tableService.closeSession(bill.getId(), false, "店長", null);   // 昼の通常会計
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);   // 昼の通常会計
             tableService.reopenSession(bill.getId(), "店長");               // 誤会計に気づいた
 
             // ここからは深夜帯（判定は注文時刻なので、窓をいまに合わせれば必ず対象になる）
@@ -271,7 +272,7 @@ class BillingFixesIntegrationTest {
             order(okonomiyaki, 1);   // 深夜帯の注文
 
             // スタッフが意図してチェックを外した（常連さんへのサービスなど）
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             TableSession closed = reloadBill();
             assertThat(closed.isLateNightWaived()).isTrue();
@@ -291,7 +292,7 @@ class BillingFixesIntegrationTest {
         @DisplayName("会計済み伝票の注文は、スタッフでもキャンセルできない")
         void staffCannotCancelOrdersOnAClosedBill() {
             Order placed = order(okonomiyaki, 1);
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             assertThatThrownBy(() -> orderService.cancelByStaff(placed.getId(), "材料切れ", "店長"))
                     .isInstanceOf(IllegalStateException.class)
@@ -307,7 +308,7 @@ class BillingFixesIntegrationTest {
         @DisplayName("お客さま自身のキャンセルも、お客さま向けの文言で断られる")
         void customerCancelIsRejectedWithACustomerFacingMessage() {
             Order placed = order(okonomiyaki, 1);
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             assertThatThrownBy(() -> orderService.cancelByCustomer(placed.getPublicToken()))
                     .isInstanceOf(OrderRejectedException.class)
@@ -318,7 +319,7 @@ class BillingFixesIntegrationTest {
         @DisplayName("深夜料金の対象外トグルも、会計済みなら拒否される")
         void lateNightExemptToggleIsRejectedOnAClosedBill() {
             Order placed = order(okonomiyaki, 1);
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             // 画面はボタンを出していないが、古いタブや直接 POST からは届く。
             // ここを通すと、開け直したときの再計算で確定済みの請求額が変わる
@@ -331,7 +332,7 @@ class BillingFixesIntegrationTest {
         @DisplayName("調理の進行（焼きはじめ・焼き上がり）は会計後でも許される")
         void cookingProgressIsStillAllowedAfterClose() {
             Order placed = order(okonomiyaki, 1);
-            tableService.closeSession(bill.getId(), false, "店長", null);
+            tableService.closeSession(bill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             // 会計とキッチンの進行は独立。先にレジを済ませて料理を待つ卓は普通にある
             Order cooking = orderService.changeStatus(placed.getId(), OrderStatus.COOKING, "焼き場");
@@ -378,7 +379,7 @@ class BillingFixesIntegrationTest {
             LocalDate previousBusinessDay = LocalDate.now().minusDays(1);
             TableSession crossoverBill = openBillOn("朝まで卓（会計済み）", previousBusinessDay, 21);
             Order placed = orderOn(crossoverBill, okonomiyaki, 1);
-            tableService.closeSession(crossoverBill.getId(), false, "店長", null);
+            tableService.closeSession(crossoverBill.getId(), false, "店長", null, SettlementMethod.CASH);
             backdate(placed, Duration.ofHours(2));   // 切替から 2 時間後に厨房が見ている
 
             assertThat(placed.getStatus()).isEqualTo(OrderStatus.RECEIVED);
@@ -398,7 +399,7 @@ class BillingFixesIntegrationTest {
 
             orderService.changeStatus(placed.getId(), OrderStatus.READY, "焼き場");
             orderService.changeStatus(placed.getId(), OrderStatus.COMPLETED, "ホール");
-            tableService.closeSession(crossoverBill.getId(), false, "店長", null);
+            tableService.closeSession(crossoverBill.getId(), false, "店長", null, SettlementMethod.CASH);
 
             assertThat(allIdsOnBoard())
                     .as("持ち越しを拾う条件を広げたせいで、お渡し済みの品まで復活しては困る")
@@ -425,7 +426,7 @@ class BillingFixesIntegrationTest {
             LocalDate previousBusinessDay = LocalDate.now().minusDays(1);
             TableSession crossoverBill = openBillOn("朝まで卓（またぎ）", previousBusinessDay, 24);
             Order crossover = orderOn(crossoverBill, okonomiyaki, 1);
-            tableService.closeSession(crossoverBill.getId(), false, "店長", null);
+            tableService.closeSession(crossoverBill.getId(), false, "店長", null, SettlementMethod.CASH);
             backdate(crossover, Duration.ofMinutes(30));
 
             // 切替後、新しい営業日に入った注文

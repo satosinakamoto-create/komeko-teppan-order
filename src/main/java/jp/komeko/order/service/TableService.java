@@ -123,12 +123,21 @@ public class TableService {
     //  伝票（来店）
     // ========================================================================
 
-    /** その卓で開いている伝票を返す（無ければ空）。 */
+    /**
+     * その卓で<b>まだ会計が済んでいない</b>伝票を返す（無ければ空）。
+     *
+     * <p>お会計待ちの伝票も返します。ここを OPEN だけにすると、
+     * お会計待ちの卓の QR をお客さまが読み直したときに
+     * 「伝票が無い」と判定され、<b>人数選択の画面から新しい伝票が作られます</b>
+     * （テーブルチャージが二重になる）。
+     */
     @Transactional(readOnly = true)
     public Optional<TableSession> currentSession(Long tableId) {
-        return sessionRepository
-                .findFirstByDiningTableIdAndStatusOrderByOpenedAtDesc(tableId, SessionStatus.OPEN)
-                .map(this::applyCurrentAmounts);
+        List<Long> ids = sessionRepository.findOpenSessionIds(tableId);
+        if (ids.isEmpty()) {
+            return Optional.empty();
+        }
+        return sessionRepository.findWithOrdersById(ids.get(0)).map(this::applyCurrentAmounts);
     }
 
     /**
@@ -189,7 +198,7 @@ public class TableService {
             // ロックを待っている間にお会計が締まっていることがある。
             // その場合はこの伝票には触らず、新しい来店として開き直す
             // （締めた伝票を開け直すのはスタッフの判断＝reopenSession の仕事）。
-            if (locked.isPresent() && locked.get().isOpen()) {
+            if (locked.isPresent() && locked.get().isActive()) {
                 TableSession session = locked.get();
                 applyRequestedGuestCount(session, guestCount, source);
                 return refresh(session);
@@ -297,7 +306,9 @@ public class TableService {
      */
     @Transactional(readOnly = true)
     public List<TableSession> openSessions() {
-        List<TableSession> sessions = sessionRepository.findByStatusOrderByOpenedAtAsc(SessionStatus.OPEN);
+        // お会計待ちの卓も含める。含めないと、お会計待ちに入った瞬間に
+        // その卓が空席として現れ、次のお客さまを案内できてしまう
+        List<TableSession> sessions = sessionRepository.findActiveOrderByOpenedAtAsc();
         sessions.forEach(this::applyCurrentAmounts);
         return sessions;
     }
@@ -322,10 +333,36 @@ public class TableService {
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
         TableSession session = sessionRepository.findWithOrdersById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
-        if (!session.isOpen()) {
+        if (!session.isActive()) {
             throw new IllegalStateException("会計済みの伝票は変更できません");
         }
         session.setGuestCount(guestCount);
+        // 人数を減らしたとき、除外人数が来店人数を上回ったままにしない
+        // （チャージが負になり、小計から他の品の代金が引かれる）
+        session.setChargeExemptCount(session.getChargeExemptCount());
+        return refresh(session);
+    }
+
+    /**
+     * テーブルチャージを取らない人数を変える。
+     *
+     * <p>未就学児からお通し代を取らない、常連さんにサービスする、といった場面用です。
+     *
+     * <p><b>来店人数のほうを減らして辻褄を合わせないこと。</b>
+     * 人数は売上の客数と客単価にも使われているので、
+     * 6 名を 4 名に書き換えると、実際には 6 名ご来店しているのに
+     * 客数が 4 名として集計されます。
+     */
+    @Transactional
+    public TableSession changeChargeExemptCount(Long sessionId, int exemptCount) {
+        sessionRepository.findWithLockById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+        TableSession session = sessionRepository.findWithOrdersById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+        if (!session.isActive()) {
+            throw new IllegalStateException("会計済みの伝票は変更できません");
+        }
+        session.setChargeExemptCount(exemptCount);
         return refresh(session);
     }
 
@@ -341,7 +378,13 @@ public class TableService {
      * @param applyLateNight false ならスタッフが深夜料金を免除したという意味
      */
     @Transactional
-    public TableSession closeSession(Long sessionId, boolean applyLateNight, String staffName, String note) {
+    public TableSession closeSession(Long sessionId, boolean applyLateNight, String staffName, String note,
+                                     SettlementMethod paymentMethod) {
+        if (paymentMethod == null) {
+            // 既定を現金にすると、カードの選び忘れが黙って現金に化けて
+            // レジ締めの数字が静かに狂う。選ばせるほうが安全
+            throw new IllegalArgumentException("お支払い方法（現金／カード）を選んでください");
+        }
         // 追加注文（placeOrder）との同時実行を直列化する。
         // 先にロックを取らないと、両方が自分のチェックを通過してから互いの結果を
         // 知らずにコミットし、「締めた伝票に注文がぶら下がる」（＝お客さまには
@@ -351,7 +394,7 @@ public class TableService {
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
         TableSession session = sessionRepository.findWithOrdersById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
-        if (!session.isOpen()) {
+        if (!session.isActive()) {
             throw new IllegalStateException("この伝票はすでに会計済みです");
         }
         hydrate(session);
@@ -375,10 +418,57 @@ public class TableService {
         boolean wouldApply = session.isLateNightApplied();
         session.setLateNightWaived(wouldApply && !applyLateNight);
 
-        session.close(LocalDateTime.now(), setting::isLateNight, staffName, note);
-        log.info("会計しました: 卓={} 人数={} 合計={}円",
-                session.getDiningTable().getName(), session.getGuestCount(), session.getTotalAmount());
+        session.close(LocalDateTime.now(), setting::isLateNight, staffName, note, paymentMethod);
+        log.info("会計しました: 卓={} 人数={} 合計={}円 支払={}",
+                session.getDiningTable().getName(), session.getGuestCount(),
+                session.getTotalAmount(), paymentMethod.getLabel());
         return session;
+    }
+
+    /**
+     * お会計待ちにする。<b>この間、その卓からは誰も注文できない。</b>
+     *
+     * <p>お客さまの「お会計おねがいします」でも、ホール画面の操作でも、ここへ来ます。
+     *
+     * <p>ロックを取るのは締めるときと同じ理由です。状態を変えるのも
+     * 「読む → 確かめる → 書く」なので、注文の確定と交差します。
+     * ここを直列化しておけば、「お会計待ちに入る直前に滑り込んだ注文」は
+     * ちゃんと伝票に乗り、そのあとの注文は断られます。
+     *
+     * <p>すでにお会計待ちなら何もしません（連打・二重送信で壊れないように）。
+     */
+    @Transactional
+    public TableSession startCheckout(Long sessionId) {
+        sessionRepository.findWithLockById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+        TableSession session = sessionRepository.findWithOrdersById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+        if (session.isClosed()) {
+            throw new IllegalStateException("この伝票はすでに会計済みです");
+        }
+        session.startCheckout();
+        log.info("お会計待ちにしました: 卓={}", session.getDiningTable().getName());
+        return refresh(session);
+    }
+
+    /**
+     * お会計待ちをやめて、また注文を受け付ける（「やっぱりもう一杯」）。
+     *
+     * <p><b>同じ伝票のまま戻します。</b>新しい伝票を開き直すと
+     * テーブルチャージがもう一度かかってしまうためです。
+     */
+    @Transactional
+    public TableSession resumeOrdering(Long sessionId) {
+        sessionRepository.findWithLockById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+        TableSession session = sessionRepository.findWithOrdersById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+        if (session.isClosed()) {
+            throw new IllegalStateException("会計済みの伝票です。開け直すには会計の取り消しを使ってください");
+        }
+        session.resumeOrdering();
+        log.info("注文の受付を再開しました: 卓={}", session.getDiningTable().getName());
+        return refresh(session);
     }
 
     /**
@@ -432,7 +522,7 @@ public class TableService {
      */
     private TableSession applyCurrentAmounts(TableSession session) {
         hydrate(session);
-        if (session.isOpen()) {
+        if (session.isActive()) {
             ShopSetting setting = shopSettingService.currentReadOnly();
             session.recalculate(setting::isLateNight);
         }
