@@ -124,7 +124,8 @@
 
            from=bill を付けて、押した人をサービスの画面へ飛ばさずここへ戻す。 */-->
     <form th:action="@{/service/call/CHECKOUT(from='bill')}" method="post" class="mt-6">
-      <button type="submit" class="btn btn--primary btn--lg btn--block">お会計をお願いする</button>
+      <button type="submit" class="btn btn--primary btn--lg btn--block"
+              onclick="return confirm('お会計をお願いする。よろしいですか？');">お会計をお願いする</button>
     </form>
 
     <a class="btn btn--ghost btn--lg btn--block mt-4" th:href="@{/}">追加でご注文する</a>

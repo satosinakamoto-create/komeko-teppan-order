@@ -13,8 +13,13 @@
 
     <!--/*
       ===== 持っていく物 =====
-      押すと ¥0 の注文として厨房ボードに飛ぶ。カートには入らない。
-      「カートに入れて注文へ進んで確定」では、手を挙げて呼ぶより手間がかかる。
+      押すと注文リストに入る。<b>ここではまだ送らない。</b>
+      商品とまったく同じで、確定するのは「注文へ進む」のあと。
+
+      1 回押しただけで送る作りにしていたが、店主から
+      「確定させるまで送信しましたと出したくない。商品注文と同じ処理にしてほしい」。
+      押した瞬間に送る口がここだけ違うと、お客さまは
+      「押したら出てくるのか、まだなのか」を画面ごとに覚え直すことになる。
 
       form を 1 タイルにつき 1 つ置いている。button を form の外に出して
       form 属性で結ぶ手もあるが、入れ子にできない form を並べるほうが素直で、
@@ -37,10 +42,16 @@
 
       「スタッフを呼ぶ」だけ枠を広く取ってある。用件が決まっていないときの
       いちばん頼りになる逃げ道なので、探さずに押せる大きさにしておく。
+
+      ★ こちらは注文リストに入らない。物が伴わないので、確定する対象が無い。
+        代わりに 1 枚確認を挟む。上の物と違って押した瞬間に人が動くので、
+        指が当たっただけで呼んでしまうのを止めたい。
+        取り消す手段がお客さま側に無いぶん、押す前に止めるほうが確実。
     */-->
     <div class="svc-grid svc-grid--calls mt-4">
       <form th:each="type : ${calls}" th:action="@{/service/call/{t}(t=${type})}" method="post">
-        <button type="submit" class="svc-tile svc-tile--call">
+        <button type="submit" class="svc-tile svc-tile--call"
+                th:onclick="'return confirm('' + ${type.customerLabel} + '。よろしいですか？')'">
           <th:block th:replace="~{fragments/icons :: ic_bell}"
                     th:if="${type.name() == 'STAFF'}"/>
           <th:block th:replace="~{fragments/icons :: ic_receipt}"

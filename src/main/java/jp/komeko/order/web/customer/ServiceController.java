@@ -8,7 +8,6 @@ import jp.komeko.order.domain.ServiceCallType;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.service.CartService;
 import jp.komeko.order.service.MenuService;
-import jp.komeko.order.service.OrderService;
 import jp.komeko.order.service.ServiceCallService;
 import jp.komeko.order.service.TableService;
 import org.slf4j.Logger;
@@ -27,9 +26,15 @@ import java.util.Map;
 /**
  * サービスの画面（設計「暗03 サービス」）。
  *
- * <p>タイルを 1 回押すだけで用が済む画面です。カートには入りません。
- * 「お水を 1 つカートに入れて、注文へ進んで、確定する」では、
- * 手を挙げてスタッフを呼ぶより手間がかかってしまいます。
+ * <p><b>持っていく物は、商品の注文とまったく同じ道を通ります。</b>
+ * タイルを押すと注文リスト（カート）に入るだけで、まだ送られません。
+ * 「注文へ進む」で確定して、はじめて厨房に飛びます。
+ *
+ * <p>はじめは 1 回押しただけで送っていましたが、店主から
+ * 「確定させるまで送信しましたと出したくない。商品注文と同じ処理にしてほしい」。
+ * もっともで、押した瞬間に送る口がここだけ違うと、
+ * <b>お客さまは「押したら出てくるのか、まだなのか」を画面ごとに覚え直す</b>ことになります。
+ * 同じ形をしたものは同じように動くほうが、説明の要らない画面になります。
  *
  * <p><b>タイルは 2 種類あり、通り道が違います。</b>（2026-09-05 に店主と決めた）
  * <table>
@@ -78,21 +83,29 @@ public class ServiceController {
     private final MenuService menuService;
     private final TableService tableService;
     private final TableContext tableContext;
+
+    /**
+     * そのお客さまの注文リスト。
+     *
+     * <p>{@code @SessionScope} なので、シングルトンとして受け取っても
+     * 実際に触った瞬間に「その人のカート」へ転送されます（{@code Cart} のコメント）。
+     * ここで {@code new Cart()} を作ると、入れたそばから捨てられる別物になります。
+     */
+    private final Cart cart;
     private final CartService cartService;
-    private final OrderService orderService;
     private final ServiceCallService serviceCallService;
 
     public ServiceController(MenuService menuService,
                              TableService tableService,
                              TableContext tableContext,
+                             Cart cart,
                              CartService cartService,
-                             OrderService orderService,
                              ServiceCallService serviceCallService) {
         this.menuService = menuService;
         this.tableService = tableService;
         this.tableContext = tableContext;
+        this.cart = cart;
         this.cartService = cartService;
-        this.orderService = orderService;
         this.serviceCallService = serviceCallService;
     }
 
@@ -108,11 +121,17 @@ public class ServiceController {
     }
 
     /**
-     * 物を 1 つ頼む。¥0 の注文として厨房ボードへ飛ぶ。
+     * 物を 1 つ、注文リストに入れる。
      *
-     * <p>本番と同じ道（カートに入れて注文する）を通します。
-     * ここだけ直接 INSERT すると、伝票の再計算も在庫の引き当ても通らず、
-     * 「画面では動いたのに実際は違う」がいちばん起きやすい形になります。
+     * <p><b>ここでは送りません。</b>商品と同じく、確定するのは「注文へ進む」のあとです。
+     * 文言も商品のときとそろえてあります。
+     * 同じ言葉で同じことが起きる、が画面をまたいで守られていないと、
+     * お客さまは画面ごとに覚え直すことになります。
+     *
+     * <p>押したあとは、このサービスの画面に戻します
+     * （商品は {@code /cart/add} がメニューへ戻す）。
+     * 取り皿とおしぼりを続けて頼むのはよくあることなので、
+     * そのたびにメニューへ連れて行かれると戻る操作が要ります。
      */
     @PostMapping("/items/{id}")
     public String request(@PathVariable Long id, RedirectAttributes redirectAttributes) {
@@ -131,14 +150,11 @@ public class ServiceController {
         }
 
         try {
-            TableSession session = tableService.requireOpenSession(tableContext.getTableId());
-            Cart cart = new Cart();
             cartService.addToCart(cart, item.getId(), List.of(), 1);
-            orderService.place(cart, session.getId(), null);
             redirectAttributes.addFlashAttribute("flashSuccess",
-                    item.getName() + " を承りました。少々お待ちください。");
+                    "注文リストに追加しました（まだ注文は確定していません）");
         } catch (RuntimeException e) {
-            log.warn("サービスのご依頼を受け付けられませんでした: {}", e.toString());
+            log.warn("サービスのご依頼を注文リストに入れられませんでした: {}", e.toString());
             redirectAttributes.addFlashAttribute("flashErrors",
                     List.of("ただいまお受けできませんでした。スタッフへお声がけください。"));
         }
