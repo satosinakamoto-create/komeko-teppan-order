@@ -30,6 +30,36 @@
     <span class="section-title__count">卓ごとの伝票とお会計</span>
   </div>
 
+  <!--/* ===== お客さまからの呼び出し =====
+
+         いちばん上に置く。呼ばれてから向かうまでの時間が、
+         ホールでいちばん短くしたい時間だから。
+         下に置くとスクロールしないと気づけない。
+
+         ここに出るのは「人が向かう」用件だけ。
+         お水・おしぼり・取り皿などの持っていく物は ¥0 の注文として
+         厨房ボードに出る（2026-09-05 に店主と決めた振り分け）。
+
+         1 件も無いときは、枠ごと出さない。
+         「呼び出しはありません」という空の箱を常に置くと、
+         本当に呼ばれたときの変化が目に入りにくくなる。 */-->
+  <div class="callbar" th:if="${!calls.isEmpty()}">
+    <div class="callbar__row" th:each="c : ${calls}">
+      <span class="callbar__mark" aria-hidden="true">
+        <th:block th:replace="~{fragments/icons :: ic_bell}"/>
+      </span>
+      <span class="callbar__text">
+        <b th:text="${c.session.diningTable.name}">カウンター3</b>
+        <span th:text="${c.type.staffLabel}">お呼びです</span>
+      </span>
+      <span class="callbar__waited"
+            th:text="${c.waitedMinutes} + ' 分前'">2 分前</span>
+      <form th:action="@{/hall/calls/{id}/handle(id=${c.id})}" method="post">
+        <button type="submit" class="btn btn--sm btn--primary">対応した</button>
+      </form>
+    </div>
+  </div>
+
   <!--/* ===== 上段：いまの状況のまとめ ===== */-->
   <div class="grid grid--3">
 

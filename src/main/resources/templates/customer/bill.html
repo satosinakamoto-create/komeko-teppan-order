@@ -115,9 +115,19 @@
       </th:block>
     </section>
 
-    <!--/* ===== 追加注文 ===== 設計の「お会計をお願いする」は、
-           スタッフを呼ぶ仕組み（暗03 サービス）とセットなので、そちらと一緒に作る */-->
-    <a class="btn btn--primary btn--lg btn--block mt-6" th:href="@{/}">追加でご注文する</a>
+    <!--/* ===== お会計をお願いする ===== 設計 暗04 の主要ボタン
+
+           押すとホール画面に「お会計をご希望です」と出る。
+           サービスの画面（暗03）の呼び出しと同じ仕組みで、
+           ¥0 の注文にはしていない。金額も個数も無いものを注文に混ぜると、
+           売上と客単価の意味が濁るため（ServiceCallType のコメント）。
+
+           from=bill を付けて、押した人をサービスの画面へ飛ばさずここへ戻す。 */-->
+    <form th:action="@{/service/call/CHECKOUT(from='bill')}" method="post" class="mt-6">
+      <button type="submit" class="btn btn--primary btn--lg btn--block">お会計をお願いする</button>
+    </form>
+
+    <a class="btn btn--ghost btn--lg btn--block mt-4" th:href="@{/}">追加でご注文する</a>
 
     <p class="tiny faint center mt-6">
       画面は自動で更新されます。お会計はご退店時にレジまでお願いします。

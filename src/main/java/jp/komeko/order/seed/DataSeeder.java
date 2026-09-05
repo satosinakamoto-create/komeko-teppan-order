@@ -137,6 +137,7 @@ public class DataSeeder implements ApplicationRunner {
 
         if (categoryRepository.count() > 0) {
             backfillGroupNames();
+            backfillServiceItems();
             log.info("メニューは登録済みのため、サンプル投入をスキップしました");
             return;
         }
@@ -172,6 +173,31 @@ public class DataSeeder implements ApplicationRunner {
         categoryRepository.saveAll(targets);
         log.info("既存カテゴリ {} 件に大カテゴリ（メニュー画面のタブ名）を設定しました。"
                 + "変更したいときは 管理画面 → カテゴリ から", targets.size());
+    }
+
+    /**
+     * すでに動いている店に、サービスの品を一度だけ足す。
+     *
+     * <p>サービスの画面（設計「暗03」）は 2026-09-05 に足したものです。
+     * それ以前からメニューが入っている DB は
+     * {@code seedMenu()} をまるごと飛ばすので、
+     * <b>お水もおしぼりも無いままサービスの画面だけが空で開きます</b>。
+     *
+     * <p>{@code backfillGroupNames} と同じ「一度きり・やり直しても結果が変わらない」形です。
+     * すでにサービスのカテゴリがあれば何もしません。
+     * 店長が品を消したあとに勝手に生やす、ということも起きません
+     * （カテゴリさえ残っていれば触らないため）。
+     */
+    private void backfillServiceItems() {
+        boolean exists = categoryRepository.findAll().stream()
+                .anyMatch(c -> "サービス".equals(c.getName()));
+        if (exists) {
+            return;
+        }
+        seedServiceItems();
+        menuItemRepository.saveAll(created);
+        created.clear();
+        log.info("サービスの品（お水・おしぼり・取り皿・灰皿・塩コショウ・領収書）を追加しました");
     }
 
     /**
@@ -357,6 +383,7 @@ public class DataSeeder implements ApplicationRunner {
         seedMocktail();
         seedSoftDrink();
         seedSakeAndWine();
+        seedServiceItems();
 
         menuItemRepository.saveAll(created);
 
@@ -522,6 +549,40 @@ public class DataSeeder implements ApplicationRunner {
     private void seedDessert() {
         Menu m = new Menu(category("甘味", 70), 3);
         m.add("本日のおすすめアイス", 480, null);
+    }
+
+    /**
+     * サービスの品（設計「暗03 サービス」）。
+     *
+     * <p><b>すべて ¥0 です。</b>お水やおしぼりは売り物ではありません。
+     * それでも商品として登録するのは、「持っていく」という仕事に
+     * 受付 → 提供済み という進行があり、
+     * 厨房ボードの仕組みがそのまま使えるからです。
+     * 伝票には ¥0 の行として残るので、何を頼んだかも後から分かります。
+     *
+     * <p>物が伴わない「スタッフを呼ぶ」「お会計をお願いする」はここに入りません。
+     * あちらは呼び出し（{@code ServiceCall}）として別の道を通り、
+     * ホール画面に出ます。売上にも注文数にも混ざりません。
+     * 2026-09-05 に店主と決めた振り分けです。
+     *
+     * <p><b>大カテゴリを「サービス」にしてあるのが要点です。</b>
+     * こうしておくと、お食事にもドリンクにも出てきません
+     * （{@code MenuController} が大カテゴリで振り分けている）。
+     * ここを空にすると、お水がお好み焼きの隣に ¥0 で並びます。
+     *
+     * <p>灰皿を置かない店、領収書を手書きする店もあります。
+     * 品ぞろえは管理画面から足し引きできるので、ここはあくまで初期値です。
+     */
+    private void seedServiceItems() {
+        Category c = category("サービス", 200);
+        c.setGroupName("サービス");
+        Menu m = new Menu(c, 0);
+        m.add("お水", 0, null);
+        m.add("おしぼり", 0, null);
+        m.add("取り皿", 0, null);
+        m.add("灰皿", 0, null);
+        m.add("塩コショウ", 0, null);
+        m.add("領収書", 0, null);
     }
 
     private void seedBeerAndSour() {

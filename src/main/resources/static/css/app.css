@@ -3514,6 +3514,11 @@ body.is-sending .staff-main {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  /* ★ button は「中身の幅」に縮む。block や flex にしても伸びない。
+     タイルは 1 つずつ form で包んであり（form は入れ子にできないため）、
+     マス目を取っているのは form のほう。width: 100% を書かないと、
+     3 列の枠は 106px なのにボタンだけ 44px という見た目になる。 */
+  width: 100%;
   /* 中身は 32 + 8 + 28 = 68。112 との差 44 を上下 22 ずつで分ける */
   height: 112px;
   border: 0;
@@ -3541,6 +3546,47 @@ body.is-sending .staff-main {
    -------------------------------------------------------------------------- */
 /* 伝票の画面だけ左右 24px。本文の幅が 390 − 48 = 342 になる（設計 暗04） */
 .bill-page { padding-inline: 24px; }
+
+/* 呼びかけのタイルは 2 つしかないので、3 列だと右が空いて据わりが悪い */
+.svc-grid--calls { grid-template-columns: repeat(2, 1fr); }
+.svc-tile--call { background: var(--bg-elevated); }
+
+/* --------------------------------------------------------------------------
+   31-6. ホール画面に出る「お客さまからの呼び出し」
+
+   ★ ここは .theme-night ではなく .theme-snow（白基調）の上に乗る。
+     ホールは店員がスマホや卓上端末で見る画面で、お客さまの画面とは配色が違う。
+     色は変数経由でしか触らないこと。直接 #dd9a4e と書くと、
+     白い地の上でだけコントラストが足りなくなる。
+   -------------------------------------------------------------------------- */
+.callbar {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: var(--sp-5);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--border);
+  overflow: hidden;
+}
+.callbar__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--accent-soft);
+}
+.callbar__mark { display: inline-flex; color: var(--accent); flex: none; }
+.callbar__mark .ic { width: 24px; height: 24px; }
+.callbar__text { flex: 1; min-width: 0; }
+.callbar__text b { margin-right: 6px; }
+/* 待たせている時間。数字が伸び縮みしても右の並びが動かないよう桁を揃える */
+.callbar__waited {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
 
 .bill-row {
   display: flex;

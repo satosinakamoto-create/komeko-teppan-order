@@ -8,6 +8,7 @@ import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.security.StaffUserDetails;
 import jp.komeko.order.service.OrderService;
+import jp.komeko.order.service.ServiceCallService;
 import jp.komeko.order.service.ShopSettingService;
 import jp.komeko.order.service.TableService;
 import org.slf4j.Logger;
@@ -89,6 +90,15 @@ public class HallController {
     private final OrderService orderService;
 
     /**
+     * お客さまからの呼び出し。
+     *
+     * <p>ホールが受け持つのは「人が向かう」用件だけです。
+     * お水やおしぼりのような<b>持っていく物</b>は ¥0 の注文として
+     * 厨房ボードに出るので、ここには来ません。
+     */
+    private final ServiceCallService serviceCallService;
+
+    /**
      * コンストラクタインジェクション。
      *
      * <p>Spring が「このクラスを作るにはこれらが要る」と判断して自動で渡してくれます。
@@ -97,10 +107,12 @@ public class HallController {
      */
     public HallController(TableService tableService,
                           ShopSettingService shopSettingService,
-                          OrderService orderService) {
+                          OrderService orderService,
+                          ServiceCallService serviceCallService) {
         this.tableService = tableService;
         this.shopSettingService = shopSettingService;
         this.orderService = orderService;
+        this.serviceCallService = serviceCallService;
     }
 
     // ========================================================================
@@ -193,6 +205,9 @@ public class HallController {
         model.addAttribute("guestOptions", guestOptions(MAX_GUEST_CHOICE));
         model.addAttribute("defaultGuestCount", DEFAULT_GUEST_COUNT);
         model.addAttribute("closedBills", closedBillsOfToday());
+        // お客さまからの呼び出し（スタッフを呼ぶ／お会計をお願いする）。
+        // 持っていく物は厨房ボードに出るので、ここには来ない
+        model.addAttribute("calls", serviceCallService.pending());
         // レイアウト（layout/staff.html）のナビで、いまいる場所に色を付けるための目印
         return "hall/board";
     }
@@ -384,6 +399,25 @@ public class HallController {
      * 売上に直結する操作なので、誰が取り消したかをログに残します
      * （記録は {@link TableService#reopenSession(Long, String)} の中）。
      */
+    /**
+     * お客さまからの呼び出しに「対応した」を付ける。
+     *
+     * <p>行は消しません。何回呼ばれたか・どれくらい待たせたかは、
+     * あとから店の動きを見直すときの材料になります。
+     *
+     * <p>二人が同時に押すことは普通に起こります（画面は数秒ごとに描き直される）。
+     * あとから押した人の名前で上書きすると、先に向かった人の記録が消えるので、
+     * すでに対応済みなら何もしません（{@code ServiceCall#handle}）。
+     */
+    @PostMapping("/calls/{id}/handle")
+    public String handleCall(@PathVariable Long id,
+                             @AuthenticationPrincipal StaffUserDetails user,
+                             RedirectAttributes redirectAttributes) {
+        serviceCallService.handle(id, staffNameOf(user));
+        redirectAttributes.addFlashAttribute("flashInfo", "呼び出しに対応しました");
+        return "redirect:/hall";
+    }
+
     @PostMapping("/bills/{id}/reopen")
     public String reopen(@PathVariable Long id,
                          @AuthenticationPrincipal StaffUserDetails user,

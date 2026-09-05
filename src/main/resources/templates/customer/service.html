@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout('サービス', ~{::main})}">
+<body>
+<main>
+  <!--/* 設計「暗03 サービス」。本文の左右は 24px、タイルは 3 列。
+
+         この画面にはカテゴリの帯が無い（設計どおり）。
+         タイルが 7 つしかないので、さらに分ける必要がない。 */-->
+  <div class="container bill-page">
+
+    <div th:replace="~{fragments/common :: flash}"></div>
+
+    <!--/*
+      ===== 持っていく物 =====
+      押すと ¥0 の注文として厨房ボードに飛ぶ。カートには入らない。
+      「カートに入れて注文へ進んで確定」では、手を挙げて呼ぶより手間がかかる。
+
+      form を 1 タイルにつき 1 つ置いている。button を form の外に出して
+      form 属性で結ぶ手もあるが、入れ子にできない form を並べるほうが素直で、
+      JavaScript が無くても確実に動く。
+    */-->
+    <div class="svc-grid mt-6">
+      <form th:each="item : ${items}" th:action="@{/service/items/{id}(id=${item.id})}" method="post">
+        <button type="submit" class="svc-tile">
+          <th:block th:if="${icons.containsKey(item.name)}"
+                    th:replace="~{fragments/icons :: __${icons.get(item.name)}__}"/>
+          <span th:text="${item.name}">お水</span>
+        </button>
+      </form>
+    </div>
+
+    <!--/*
+      ===== 呼びかけ =====
+      物が伴わないのでホール画面に出る（厨房ボードには出さない）。
+      売上にも注文数にも混ざらない。理由は ServiceCallType のコメント。
+
+      「スタッフを呼ぶ」だけ枠を広く取ってある。用件が決まっていないときの
+      いちばん頼りになる逃げ道なので、探さずに押せる大きさにしておく。
+    */-->
+    <div class="svc-grid svc-grid--calls mt-4">
+      <form th:each="type : ${calls}" th:action="@{/service/call/{t}(t=${type})}" method="post">
+        <button type="submit" class="svc-tile svc-tile--call">
+          <th:block th:replace="~{fragments/icons :: ic_bell}"
+                    th:if="${type.name() == 'STAFF'}"/>
+          <th:block th:replace="~{fragments/icons :: ic_receipt}"
+                    th:unless="${type.name() == 'STAFF'}"/>
+          <span th:text="${type.customerLabel}">スタッフを呼ぶ</span>
+        </button>
+      </form>
+    </div>
+
+    <p class="tiny faint center mt-6">
+      押すとスタッフに届きます。何度も押さなくて大丈夫です。
+    </p>
+
+  </div>
+</main>
+</body>
+</html>

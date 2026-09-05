@@ -120,6 +120,10 @@ public class SecurityConfig {
                     //   本人確認の材料にしている（ケイパビリティ URL）。
                     .requestMatchers("/", "/menu", "/items/**", "/cart/**",
                             "/checkout", "/t/**", "/bill/**", "/o/**",
+                            // サービスの画面（暗03）。卓に着いているかは
+                            // ServiceController が TableContext で見る。
+                            // スタッフゾーンではないので接続元 IP の制限もかけない
+                            "/service", "/service/**",
                             "/api/public/**").permitAll()
 
                     // ── 公開デモの QR 用の、変わらない入口 ──

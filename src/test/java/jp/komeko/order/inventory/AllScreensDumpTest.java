@@ -149,6 +149,15 @@ class AllScreensDumpTest {
             write("c04-bill", mockMvc.perform(get("/bill").session(session))
                     .andReturn().getResponse().getContentAsString());
 
+            // ★ サービスの画面（設計 暗03）。
+            //   タイルを 1 つ押してから撮る。押した結果どうなるかまで見ないと、
+            //   「押せそうに見えるだけ」の画面かどうかが分からない。
+            //   お水は ¥0 の注文として厨房ボードへ、
+            //   スタッフを呼ぶは呼び出しとしてホール画面へ飛ぶ（通り道が違う）。
+            mockMvc.perform(post("/service/call/STAFF").session(session).with(csrf()));
+            write("c05-service", mockMvc.perform(get("/service").session(session))
+                    .andReturn().getResponse().getContentAsString());
+
             System.out.println("  お客側: カートに " + orderable.size() + " 品入れて注文を 1 件作った");
         }
 

@@ -51,15 +51,16 @@
   <nav class="tabbar" th:if="${seated}" aria-label="メニューの大分類"
        th:with="p=${currentPath} ?: ''">
     <a class="tabbar__item" th:href="@{/menu}"
-       th:classappend="${p == '/' or p == '/menu' or #strings.startsWith(p, '/items')} ? 'is-active'">
+       th:classappend="${(p == '/' or p == '/menu' or #strings.startsWith(p, '/items'))
+                         and drinkSection != true} ? 'is-active'">
       <th:block th:replace="~{fragments/icons :: ic_fork_knife}"/><span>お食事</span>
     </a>
     <a class="tabbar__item" th:href="@{/menu(tab='ドリンク')}"
-       th:classappend="${#strings.contains(p, 'drink')} ? 'is-active'">
+       th:classappend="${drinkSection} ? 'is-active'">
       <th:block th:replace="~{fragments/icons :: ic_beer}"/><span>ドリンク</span>
     </a>
-    <a class="tabbar__item" th:href="@{/menu(tab='サービス')}"
-       th:classappend="${#strings.contains(p, 'service')} ? 'is-active'">
+    <a class="tabbar__item" th:href="@{/service}"
+       th:classappend="${#strings.startsWith(p, '/service')} ? 'is-active'">
       <th:block th:replace="~{fragments/icons :: ic_bell}"/><span>サービス</span>
     </a>
     <a class="tabbar__item" th:href="@{/bill}"

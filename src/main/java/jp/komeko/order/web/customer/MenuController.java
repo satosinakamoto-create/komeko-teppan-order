@@ -66,6 +66,15 @@ public class MenuController {
      */
     private static final String DRINK_SECTION = "ドリンク";
 
+    /**
+     * サービスの大分類の名前。
+     *
+     * <p>お水・おしぼり・取り皿などは ¥0 の商品として登録してありますが、
+     * <b>メニューには出しません</b>。専用の画面（{@code /service}）があるからです。
+     * ここで外さないと、お水がお好み焼きの隣に ¥0 で並びます。
+     */
+    private static final String SERVICE_SECTION = ServiceController.SERVICE_CATEGORY;
+
     @GetMapping({"/", "/menu"})
     public String menu(@RequestParam(required = false) String src,
                        @RequestParam(required = false) String tab,
@@ -105,8 +114,11 @@ public class MenuController {
 
         Map<String, Map<Category, List<MenuItem>>> tabs = new LinkedHashMap<>();
         for (Map.Entry<Category, List<MenuItem>> entry : menu.entrySet()) {
-            boolean isDrink = DRINK_SECTION.equals(entry.getKey().getTabName());
-            if (isDrink != drink) {
+            String section = entry.getKey().getTabName();
+            if (SERVICE_SECTION.equals(section)) {
+                continue;
+            }
+            if (DRINK_SECTION.equals(section) != drink) {
                 continue;
             }
             Map<Category, List<MenuItem>> one = new LinkedHashMap<>();
