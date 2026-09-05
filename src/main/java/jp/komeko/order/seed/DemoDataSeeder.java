@@ -184,6 +184,7 @@ public class DemoDataSeeder implements ApplicationRunner {
     void seed() {
         openTheShop();
         setUpStock();
+        openMarketPriceItems();
         setUpDemoPhotos();
 
         int cleaned = closeLeftoverSessions();
@@ -197,6 +198,10 @@ public class DemoDataSeeder implements ApplicationRunner {
                    ・前の営業日の伝票を片付け: {} 卓
                    ・営業中の伝票を追加: {} 卓（厨房ボードの 3 列が埋まります）
                    ・会計済みの組を追加: {} 組（本日の売上に数字が出ます）
+                   ・時価の品を 3 通りの状態にしました
+                       サーロイン ¥3,800 … 当日価格を入れて販売再開（正しい運用）
+                       本日の日本酒        … 0 円のまま販売再開（入れ忘れた状態）
+                       ワイン類・赤身      … 売り切れのまま（出荷時の状態）
                    ・{} は空けてあります ← ここで QR を読んで注文を試せます
 
                  片付けたいときは ホール画面（/hall）から会計してください。
@@ -246,6 +251,53 @@ public class DemoDataSeeder implements ApplicationRunner {
                 .findFirst()
                 .ifPresent(i -> {
                     i.setSoldOut(true);
+                    menuItemRepository.save(i);
+                });
+    }
+
+    /**
+     * 「時価」の品を、動きを確かめられる状態にする。
+     *
+     * <p>時価の品（牛ステーキ 2 種・本日の日本酒・グラスワイン・ボトルワイン）は
+     * {@code DataSeeder} が<b>全部 売り切れ</b>で登録します。
+     * 価格 0 円のまま注文できると、伝票に ¥0 の行が残って金銭事故になるためです。
+     * 実店舗の運用は「朝、当日の価格を入れて販売再開する」。
+     *
+     * <p>ところがそのままだと、店主が動きを確かめようとしても
+     * <b>全部売り切れていて 1 つも試せません</b>。
+     * そこでデモでは、3 つの状態を並べて置きます。
+     * <ul>
+     *   <li><b>当日価格を入れて販売再開</b>（国産牛サーロインステーキ ¥3,800）
+     *       … 実店舗の正しい運用。ふつうの商品として注文できる</li>
+     *   <li><b>0 円のまま販売再開</b>（本日の日本酒（おまかせ））
+     *       … 価格を入れ忘れた状態。画面には「時価」と出て、注文もできてしまう。
+     *       伝票に ¥0 で載るところまで、実際に見て確かめられる</li>
+     *   <li><b>売り切れのまま</b>（グラスワイン・ボトルワイン・赤身ステーキ）
+     *       … 出荷時の状態。時価の品が売り切れとして出る見た目</li>
+     * </ul>
+     *
+     * <p>2 つ目をわざと残してあるのは、これが<b>いまのアプリの弱点</b>だからです。
+     * 隠して見えなくするより、実物を見てから直すか決めるほうが早い。
+     */
+    private void openMarketPriceItems() {
+        List<MenuItem> items = menuItemRepository.findAll();
+
+        // 当日の価格を入れて販売再開（実店舗が毎朝やる操作そのもの）
+        withItem(items, "国産牛サーロインステーキ", i -> {
+            i.setPrice(3800);
+            i.setSoldOut(false);
+        });
+
+        // 価格を入れないまま販売再開。「時価」と出たまま注文できる
+        withItem(items, "本日の日本酒（おまかせ）", i -> i.setSoldOut(false));
+    }
+
+    private void withItem(List<MenuItem> items, String name, java.util.function.Consumer<MenuItem> change) {
+        items.stream()
+                .filter(i -> i.getName().equals(name))
+                .findFirst()
+                .ifPresent(i -> {
+                    change.accept(i);
                     menuItemRepository.save(i);
                 });
     }
