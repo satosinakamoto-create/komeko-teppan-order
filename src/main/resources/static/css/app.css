@@ -1430,6 +1430,52 @@ body.theme-night { background-image: none; }
 .theme-night .section-title__text { letter-spacing: 0; }
 .theme-night .section-title::after { display: none; }
 
+/* 節見出し（設計「暗/節見出し」358x28）
+
+   左にきつね色の丸 10px、間 8px、16px の太字、右端に品数を 14px の灰色で。
+   丸は ::before で描く。同じ場所に ::after で罫線を引いていたものを
+   上で消してあるので、片方を出して片方を消す形になる。 */
+.theme-night .section-title {
+  align-items: center;
+  gap: 8px;
+}
+.theme-night .section-title::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.theme-night .section-title__text {
+  font-size: 16px;
+  font-weight: 700;
+  /* 16 × 1.75 = 28。行高 28px が設計の見出しの高さそのものなので、
+     既定の line-height に任せると崩れる */
+  line-height: 1.75;
+}
+.theme-night .section-title__count {
+  /* 品数は右端へ。間の余白は丸と見出しの 8px ではなく、余った幅ぜんぶ */
+  margin-left: auto;
+  font-size: 14px;
+  line-height: 22px;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+
+/* 価格はきつね色。設計では写真カード・飲み物の行・サムネイルのいずれも
+   価格がきつね色で、白のままだと品名と同じ重みに見えて値段が探せない。
+   （伝票の行だけは白。あちらは金額を読む画面なので別の部品） */
+.theme-night .menu-item__price {
+  color: var(--accent);
+  /* 数字専用の書体をやめる。Helvetica だと「¥」と桁区切りだけ和文と別書体になる。
+     桁の縦ぞろえは tabular-nums で担保する（.price と同じ手当て） */
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.theme-night .menu-item__name { letter-spacing: 0; }
+
 /* カードは枠線ではなく面の色で区切る */
 .theme-night .card,
 .theme-night .stat { border-color: transparent; box-shadow: none; background: var(--surface); }
@@ -1450,6 +1496,15 @@ body.theme-night { background-image: none; }
    これはスマホの画面なので、PC で開いたときに帯だけ画面いっぱいに伸びると、
    720px の本文の上に 2000px の帯が乗った形になって縮尺が壊れる。
    本文が中央の 1 列にいるのだから、帯もその列の中にいる。 */
+:root {
+  /* 大分類タブの寸法。設計（Figma 暗/大分類タブ）は 390x70。
+     ★ ここを直接 px で書き散らさないこと。
+       カテゴリの帯（.tabs）はこの帯の下に固定するので、
+       高さの出どころが 2 か所あると必ずずれる（実際ずれた。26 節を見ること）。 */
+  --tabbar-item-h: 70px;
+  --tabbar-top: 32px;
+}
+
 .tabbar {
   position: sticky;
   top: 0;
@@ -1460,9 +1515,14 @@ body.theme-night { background-image: none; }
   width: 100%;
   max-width: var(--page-max);
   margin-inline: auto;
-  padding: calc(32px + env(safe-area-inset-top, 0px)) 8px 0;
+  padding: calc(var(--tabbar-top) + env(safe-area-inset-top, 0px)) 0 0;
   background: var(--bg);
-  border-bottom: 1px solid var(--border);
+  /* ★ 下の罫線は border ではなく内側の影で描く。
+     border だと箱の外に 1px 足されるので、この帯の高さが
+     「32 + 70 + 1」になり、下に固定するカテゴリの帯（--sticky-top）と
+     端数でずれる（実測で 0.5px 重なった）。
+     Figma の線はもともと箱の内側に描かれるので、内側の影のほうが設計にも忠実。 */
+  box-shadow: inset 0 -1px 0 var(--border);
 }
 .tabbar__item {
   flex: 1;
@@ -1471,12 +1531,18 @@ body.theme-night { background-image: none; }
   align-items: center;
   justify-content: center;
   gap: 4px;
-  height: 70px;
-  padding: 10px 8px;
-  border-radius: 8px 8px 0 0;
+  height: var(--tabbar-item-h);
+  /* 左右は 0。子は flex:1 なので 390 ÷ 4 = 97.5px を自分で取る（設計どおり） */
+  padding: 10px 0;
+  /* 角は丸めない。選択中の面（#202020）が下のカテゴリ帯と地続きに見えるのが
+     設計の意図で、上角を丸めるとその繋がりが切れる */
+  border-radius: 0;
   color: var(--text);
   text-decoration: none;
   font-size: 14px;
+  /* 行送りを決め打ちにする。既定のままだと 14 × 1.6 = 22.4 になり、
+     10 + 24 + 4 + 22 + 10 = 70 の積み上げが 0.4px ずつずれる */
+  line-height: 22px;
   white-space: nowrap;
 }
 .tabbar__item .ic { width: 24px; height: 24px; }
@@ -2269,10 +2335,9 @@ body.theme-night { background-image: none; }
   height: var(--header-h);
 }
 
-.tabs {
-  /* +1px はヘッダーの下罫線のぶん。これが無いと罫線1本ぶん隙間になる */
-  top: calc(var(--header-h) + 1px);
-}
+/* タブを貼り付ける位置は 26 節の --sticky-top が 1 か所で持つ。
+   ここにも top を書いていたが、上にいる帯が .app-header か .tabbar かで
+   高さが違うため、2 か所に散らすと必ず片方が取り残される（実際そうなった）。 */
 
 /* ==========================================================================
    26. 大カテゴリのタブを画面に固定する（2026-08-19）
@@ -2293,34 +2358,110 @@ body.theme-night { background-image: none; }
    ========================================================================== */
 
 :root {
-  --tabs-h: 46px;
+  /* 設計（Figma 暗/カテゴリチップ）は 390x56 */
+  --tabs-h: 56px;
+
+  /* カテゴリの帯を貼り付ける位置＝上にいる帯の高さ。
+     卓に着く前は店名だけのヘッダー（.app-header）が上にいる。 */
+  --sticky-top: calc(var(--header-h) + 1px);
+}
+
+/* ★ 卓に着いている画面では、上にいるのは .app-header ではなく .tabbar。
+     ここを更新し忘れて、カテゴリの帯が大分類タブの下半分を覆っていた
+     （2026-09-05 に発覚。お食事／ドリンク／サービス／伝票・会計 の文字が
+      帯の裏に隠れて読めず、しかも帯のほうが z-index で勝っていた）。
+
+     高さを直接書かず --tabbar-item-h から組み立てるのは、
+     タブの高さを変えたときにここが取り残されないようにするため。
+     取り残されても画面は落ちない。ただ黙って重なるだけなので、たちが悪い。 */
+.page--seated {
+  /* 罫線を内側の影で描いているので、+1px は要らない（.tabbar のコメント参照） */
+  --sticky-top: calc(var(--tabbar-top) + env(safe-area-inset-top, 0px)
+                     + var(--tabbar-item-h));
 }
 
 .tabs-slot {
   height: var(--tabs-h);
 }
 
+/* ★ 場所取りの箱（.tabs-slot）と、固定した帯（.tabs）の位置を合わせる。
+
+   .theme-night .page__body は上に 16px 空けている。ところが .tabs-slot は
+   その本文の先頭にあるので、スロットだけ 16px 下から始まり、
+   帯は --sticky-top（大分類タブの直下）に固定される。
+   16px ぶんの死に幅ができ、帯の下 16px と合わせて余白が 2 本になる。
+
+   :has() で「カテゴリの帯がある画面だけ」に絞る。
+   .page--seated だけで書くと、伝票やカートの画面まで上の余白が消える。
+   :has() が使えないブラウザではこの行ごと無視され、いままでどおり 16px 空く。 */
+.page__body:has(.tabs-slot) { padding-top: 0; }
+
 .tabs {
   position: fixed;
-  /* +1px はヘッダーの下罫線のぶん。無いとタブが罫線を 1px 覆ってしまう */
-  top: calc(var(--header-h) + 1px);
+  top: var(--sticky-top);
   left: 0;
   right: 0;
   height: var(--tabs-h);
-  margin-inline: 0;
-  padding-block: 0;
-  align-items: stretch;
-  /* 中身は本文と同じ幅で中央に。画面が広いときだけ左右の余白が増える */
-  padding-inline: max(var(--sp-4), calc((100vw - var(--page-max)) / 2));
-  /* 背景が透けるとメニューの文字が裏に見えてしまうので、しっかり塗る */
-  background: var(--bg);
+  /* 帯も本文と同じ幅に収めて中央へ。大分類タブ（.tabbar）と同じ扱いにする。
+     以前は左右 0 の全幅で、広い画面では帯の地色だけが画面いっぱいに伸び、
+     720px で止まる上の帯と幅が食い違っていた */
+  max-width: var(--page-max);
+  margin-inline: auto;
+  /* 設計（暗/カテゴリチップ 390x56）は 上 0 ／ 左右 16 ／ 下 16。
+     下の 16px が、チップと本文のあいだの唯一の余白になる */
+  padding: 0 16px 16px;
+  /* stretch にするとチップが 56px いっぱいに伸びて、下 16px の余白が消える。
+     設計のチップは 40px なので、上に寄せて 40 + 16 = 56 を成立させる */
+  align-items: flex-start;
+  gap: 16px;
+  /* 地は本文と同じ #202020。選択中の大分類タブの面と地続きに見せるための色で、
+     ここを #141414（いちばん外の地）にすると帯だけ浮いて画面が 2 段に割れる */
+  background: var(--bg-elevated);
+  /* 10 節の名残り。設計に帯の枠線は無く、border-box なので 56px の中身が 55px に潰れる */
+  border-bottom: 0;
+  /* 同じく 10 節の名残り。上で不透明色を敷いたので効果が無く、合成レイヤーだけ増える */
+  backdrop-filter: none;
+}
+
+/* 横スクロールの末尾で padding-right が効かないブラウザがあるため、
+   実体のある箱で右端の余白を作る（29 節に同じ手当ての先例がある） */
+.tabs::after {
+  content: "";
+  flex: 0 0 16px;
 }
 
 .tab {
   display: inline-flex;
   align-items: center;
-  padding: 0 16px;
+  /* ★ button は font を継承しない。ここが無いと、カテゴリのチップだけ
+     OS のフォーム既定書体（iOS は system-ui / Android は Roboto）で描かれ、
+     同じ 14px でも字幅と行の乗り方が他の部品と揃わない。
+     font 一括はあとの指定を消すので、必ずこの順で書くこと */
+  font: inherit;
+  /* 設計（暗/チップ1つ）は 高さ 40 ／ 14px ／ 行送り 22 ／ 字間 0。
+     上下は (40 - 22) / 2 = 9 */
+  padding: 9px 12px;
   min-height: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: 0;
+}
+
+/* 選択中はきつね色。暗い地では、きつね色だけが「いまここ」を言える。
+   下線だけ色を変えて文字を白のままにすると、選択が弱く見える */
+.tab.is-active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* 下線は設計どおり 2px・角丸なし。左右はチップの余白と同じ 12px にして、
+   文字の幅にちょうど収まるようにする */
+.tab::after {
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  border-radius: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -2828,7 +2969,21 @@ body.is-sending .staff-main {
 /* タブつきの表 */
 .tabtable__tabs { display: flex; gap: 8px; }
 
-.tab {
+/* ★ 必ず .theme-desk で囲うこと（2026-09-05 に事故を直した）。
+
+   ここは「机で見る表の上に乗るタブ」で、幅 136px・高さ 56px・明るい地。
+   ところが .tab というクラス名は、お客さまのスマホのメニューで
+   カテゴリの切り替え（粉もの／たこ焼き／…）にも使われている。
+
+   囲わずに書いたせいで、この定義が app.css のいちばん後ろにあることから
+   お客さま側の定義（10 節・24 節）を全部打ち消していた。結果、
+   暗い帯の中に明るい箱が 136px ずつ並び、幅 390px の画面に 2 つ半しか入らず、
+   高さ 46px の帯から 10px はみ出していた。
+
+   CLAUDE.md の「管理画面だけ変えたいときは .theme-desk 配下に書く」は
+   このためのルール。.theme-desk .tab（詳細度 0,2,0）は .tab（0,1,0）に勝ち、
+   .theme-desk が付かないお客さま側には届かない。 */
+.theme-desk .tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2849,8 +3004,8 @@ body.is-sending .staff-main {
   text-decoration: none;
   white-space: nowrap;
 }
-.tab:hover { background: var(--green-100, #ddf0ec); }
-.tab.is-active {
+.theme-desk .tab:hover { background: var(--green-100, #ddf0ec); }
+.theme-desk .tab.is-active {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
@@ -2859,8 +3014,8 @@ body.is-sending .staff-main {
 .tab__num   { display: inline-flex; align-items: baseline; gap: 1px; }
 .tab__count { font-size: 13px; font-weight: 700; color: var(--text-muted); font-family: var(--font-num); }
 .tab__unit  { font-size: 12px; color: var(--text-muted); }
-.tab.is-active .tab__count,
-.tab.is-active .tab__unit { color: var(--green-100, #ddf0ec); }
+.theme-desk .tab.is-active .tab__count,
+.theme-desk .tab.is-active .tab__unit { color: var(--green-100, #ddf0ec); }
 
 /* 商品の表。
    見出しの余白 16、行の余白 20 は設計どおり。
