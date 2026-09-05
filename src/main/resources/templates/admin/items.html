@@ -123,9 +123,14 @@
           </td>
           <td class="num" th:text="${item.sortOrder}">1</td>
         </tr>
+        <!--/* 0 件の理由が「タブ」なのか「検索語」なのかを分けて出す。
+               検索して 0 件のときに「このタブに当てはまる商品はありません」と出ると、
+               タブのせいに見えて、打った語のほうを疑えない */-->
         <tr th:if="${rows.isEmpty()}">
           <td colspan="6" class="center faint">
-            このタブに当てはまる商品はありません。
+            <span th:if="${#strings.isEmpty(q)}">このタブに当てはまる商品はありません。</span>
+            <span th:unless="${#strings.isEmpty(q)}"
+                  th:text="'「' + ${q} + '」に当てはまる商品はありません。'">「◯◯」に当てはまる商品はありません。</span>
           </td>
         </tr>
         </tbody>

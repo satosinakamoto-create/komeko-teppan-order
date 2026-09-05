@@ -149,9 +149,16 @@ public class AdminMenuItemController {
                 .findFirst()
                 .orElse(TABS.get(0));
 
+        // ★ 件数は all（絞り込む前）から数えること。items（絞ったあと）ではない。
+        //
+        //   検索を足したとき、いったん items から数えるようにしてしまった。
+        //   「タブは検索結果を分けたものだから」という理屈だったが、実際に出る絵は
+        //     「たこ」で 5 件 → すべて 5 ／ 掲載中 5 ／ 品切れ 0 ／ 掲載停止 0
+        //   になり、タブが「そこに何件あるか」の看板として働かなくなる。
+        //   タブの役目は行き先を示すことなので、母集合は常に全件で固定する。
         List<TabView> tabs = TABS.stream()
                 .map(t -> new TabView(t.key(), t.label(),
-                        (int) items.stream().filter(t.条件()).count(),
+                        (int) all.stream().filter(t.条件()).count(),
                         t.key().equals(selected.key())))
                 .toList();
 
@@ -177,9 +184,7 @@ public class AdminMenuItemController {
         model.addAttribute("optionCounts", optionCounts);
         model.addAttribute("tabs", tabs);
         model.addAttribute("currentTab", selected.key());
-        // 見出しの「掲載中 94 品」は店の全体像なので、検索で絞る前の数を出す。
-        // タブの件数のほうは検索の結果を分けたものなので、絞ったあとから数える
-        // （そうしないと「すべて 94」と出ているのに 5 行しか並ばない）
+        // 見出しの「掲載中 94 品」も、タブの件数と同じく店の全体像を出す
         model.addAttribute("totalCount", all.size());
         model.addAttribute("visibleCount", (int) all.stream().filter(MenuItem::isVisible).count());
         // 入力した語を画面に返す。返さないと、検索したあとに入力欄が空に戻り、
