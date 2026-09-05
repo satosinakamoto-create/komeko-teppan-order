@@ -1,9 +1,28 @@
 <!DOCTYPE html>
+<!--/*
+   ご来店ありがとうございました（会計が済んだあとの画面）
+
+   ★ この画面だけ設計がまだありません。
+     形は「暗04 伝票・会計」に合わせてあります。読むものが同じ（明細と合計）で、
+     違うのは<b>もう触れないこと</b>だけなので、別の見た目を作る理由がありません。
+     設計ができたら、そちらに寄せてください。
+
+   ★ 金額を残すこと。
+     以前はここに「ありがとうございました」しか出していませんでした。
+     締めた瞬間に、お客さまの手元から金額も明細も消えます。
+     割り勘の計算も、経費で落とすときの控えも取れません。
+     レジで紙をもらえるとはいえ、手元に残るほうが親切です。
+
+   ★ 出すのは<b>自分がついていた伝票</b>だけ（TableContext#sessionId）。
+     「その卓の最後に締まった伝票」を出すと、同じ席の次の組が会計を
+     済ませたとき、前の組のスマホに次の組の伝票が出ます。
+*/-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/customer :: layout('ご来店ありがとうございました', ~{::main})}">
 <body>
 <main>
-  <div class="container">
+  <!--/* 伝票と同じ左右 24px。金額を読む画面だから（暗04 と同じ扱い） */-->
+  <div class="container bill-page">
 
     <div class="empty-state mt-6">
       <div class="empty-state__mark">礼</div>
@@ -14,7 +33,69 @@
       </p>
     </div>
 
-    <div class="card">
+    <!--/* ===== お会計の内容 =====
+           暗04 と同じ部品（節見出し・伝票の行・合計行・但し書き）で組む。
+           違うのは、押せるものが 1 つも無いことだけ。 */-->
+    <th:block th:if="${closedBill != null}">
+
+      <div class="section-title">
+        <h2 class="section-title__text">お会計の内容</h2>
+        <span class="section-title__count"
+              th:text="${closedBill.diningTable.name} + ' ／ ' + ${closedBill.guestCount} + '名'">カウンター1 ／ 2名</span>
+      </div>
+
+      <div class="mt-6">
+        <th:block th:each="order : ${closedBill.billableOrders}">
+          <div class="bill-row" th:each="line : ${order.lines}">
+            <span class="bill-row__name">
+              <span th:text="${line.menuItemName}">肉玉米粉そば</span>
+              <span th:text="' ×' + ${line.quantity}"> ×2</span>
+              <span class="bill-row__note" th:if="${!line.options.isEmpty()}"
+                    th:text="${line.optionSummary}">ソース / ねぎマヨ</span>
+            </span>
+            <span class="bill-row__amount"
+                  th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥2,360</span>
+          </div>
+        </th:block>
+
+        <div class="bill-row">
+          <span class="bill-row__name">お料理・お飲み物</span>
+          <span class="bill-row__amount"
+                th:text="'¥' + ${#numbers.formatInteger(closedBill.subtotalAmount, 1, 'COMMA')}">¥4,200</span>
+        </div>
+        <div class="bill-row" th:if="${closedBill.tableChargeAmount > 0}">
+          <span class="bill-row__name"
+                th:text="'テーブルチャージ （¥' + ${#numbers.formatInteger(closedBill.tableChargePerGuest, 1, 'COMMA')}
+                         + ' × ' + ${closedBill.chargeableGuestCount} + '名）'">テーブルチャージ （¥450 × 2名）</span>
+          <span class="bill-row__amount"
+                th:text="'¥' + ${#numbers.formatInteger(closedBill.tableChargeAmount, 1, 'COMMA')}">¥900</span>
+        </div>
+        <div class="bill-row" th:if="${closedBill.lateNightAmount > 0}">
+          <span class="bill-row__name"
+                th:text="'深夜料金（' + ${closedBill.lateNightSurchargePercent} + '%）'">深夜料金（10%）</span>
+          <span class="bill-row__amount"
+                th:text="'¥' + ${#numbers.formatInteger(closedBill.lateNightAmount, 1, 'COMMA')}">¥1,004</span>
+        </div>
+      </div>
+
+      <!--/* 合計。暗/合計行と同じ 20px の太字＋きつね色 */-->
+      <div class="bill-total">
+        <span class="bill-total__label">合計</span>
+        <span class="bill-total__amount"
+              th:text="'¥' + ${#numbers.formatInteger(closedBill.totalAmount, 1, 'COMMA')}">¥5,100</span>
+      </div>
+
+      <p class="bill-note">
+        <span th:text="'（内 消費税 ' + ${closedBill.taxRatePercent} + '% ¥'
+                       + ${#numbers.formatInteger(closedBill.taxAmount, 1, 'COMMA')} + '）'">（内 消費税 10% ¥463）</span>
+        <!--/* お支払い方法は記録していないこともある（記録を始める前に締めた伝票）。
+               そのとき「現金」と書くのは嘘になるので、黙って出さない */-->
+        <span th:if="${closedBill.paymentMethod != null}"
+              th:text="'　お支払い ' + ${closedBill.paymentMethod.label}">　お支払い 現金</span>
+      </p>
+    </th:block>
+
+    <div class="card mt-6">
       <div class="card__body">
         <p class="mb-0 small muted">
           追加でご注文される場合は、お手数ですがテーブルの QR コードをもう一度お読みください。

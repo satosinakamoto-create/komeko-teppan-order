@@ -69,6 +69,13 @@ class AllScreensDumpTest {
     @Autowired
     private MenuItemRepository menuItems;
 
+    /** 会計後の画面（c04b）を撮るために、伝票を一時的に締める。 */
+    @Autowired
+    private jp.komeko.order.repository.TableSessionRepository tableSessions;
+
+    @Autowired
+    private jp.komeko.order.service.TableService tableService;
+
     @Test
     @DisplayName("店舗側とお客側の画面を全部 HTML に落とす")
     void dumpAll() throws Exception {
@@ -162,6 +169,25 @@ class AllScreensDumpTest {
 
             write("c04-bill", mockMvc.perform(get("/bill").session(session))
                     .andReturn().getResponse().getContentAsString());
+
+            // ★ 会計後の「ご来店ありがとうございました」。
+            //   締めてから同じ /bill を開くと、この画面に切り替わる。
+            //   ここを撮っておかないと、会計後にお客さまの手元へ何が残るのかを
+            //   誰も見ないまま進むことになる（実際その状態だった）。
+            //   撮り終えたら会計を取り消して、他の画面の前提を壊さない。
+            // ★ この画面を見ているブラウザがついている卓を締めること。
+            //   「最初に見つかった開いている伝票」だと、デモは 6 卓が同時に開いて
+            //   いるので別の卓を締めることになり、/bill は伝票のまま返ってくる。
+            //   同じバイト数のファイルが 2 つできて気づいた。
+            Long closedId = tableSessions.findOpenSessionIds(table.getId()).stream()
+                    .findFirst().orElse(null);
+            if (closedId != null) {
+                tableService.closeSession(closedId, false, "撮影", null,
+                        jp.komeko.order.domain.SettlementMethod.CASH);
+                write("c04b-thanks", mockMvc.perform(get("/bill").session(session))
+                        .andReturn().getResponse().getContentAsString());
+                tableService.reopenSession(closedId, "撮影");
+            }
 
             // ★ サービスの画面（設計 暗03）。
             //   タイルを 1 つ押してから撮る。押した結果どうなるかまで見ないと、

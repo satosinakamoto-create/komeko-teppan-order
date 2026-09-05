@@ -128,6 +128,10 @@ public class TableEntryController {
         TableSession bill = tableService.openSession(
                 table.getId(), requested, TableService.GuestCountSource.CUSTOMER);
 
+        // どの伝票についたかを覚えておく。会計が済むと卓からは辿れなくなるので、
+        // ここで控えておかないと「いくら払ったか」を出せない（TableContext 参照）
+        tableContext.rememberSession(bill.getId());
+
         // 申告と実際の人数が食い違っていたら、黙って捨てずにご案内を出す。
         // 「押したのに変わらない」を無言でやると、お客さまは何度も送信するか、
         // 人数が直ったものと思い込んだまま会計で驚くことになる。

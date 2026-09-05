@@ -28,6 +28,22 @@ public class TableContext implements Serializable {
     private String tableName;
     private String accessToken;
 
+    /**
+     * このブラウザがついていた伝票の id。
+     *
+     * <p><b>会計が済んだあとに、その伝票の中身を見せるために持ちます。</b>
+     * 締めると「その卓のいま開いている伝票」は無くなるので、
+     * 卓の id からは自分がいくら払ったのかを辿れなくなります。
+     *
+     * <p><b>卓から引き直してはいけません。</b>
+     * 「その卓の最後に締まった伝票」を出すと、同じ席に次の組が入って
+     * 会計まで済ませたとき、前の組のスマホに<b>次の組の伝票</b>が出ます。
+     * 見ているのは金額と、何を頼んだかです。他人には見せられません。
+     *
+     * <p>ここに覚えた id は、このブラウザのセッションの中だけにあります。
+     */
+    private Long sessionId;
+
     /** 卓に入店した（QR を読んだ）。 */
     public void bind(Long tableId, String tableName, String accessToken) {
         this.tableId = tableId;
@@ -40,6 +56,22 @@ public class TableContext implements Serializable {
         this.tableId = null;
         this.tableName = null;
         this.accessToken = null;
+        this.sessionId = null;
+    }
+
+    /**
+     * いまついている伝票を覚える。
+     *
+     * <p>入店したときと、伝票を開いたときに呼びます。
+     * 会計後にこの id で読み直して「お会計の内容」を出します。
+     */
+    public void rememberSession(Long sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    /** 覚えている伝票の id。一度も伝票につかないまま来た人は null。 */
+    public Long getSessionId() {
+        return sessionId;
     }
 
     /** 卓が紐づいているか。false ならメニューを見せる前に QR を読んでもらう。 */

@@ -88,14 +88,52 @@ public class CheckoutController {
         }
         TableSession session = tableService.currentSession(tableContext.getTableId()).orElse(null);
         if (session == null) {
-            // 会計が済んだ直後など。もう一度 QR から入り直してもらう。
+            // 会計が済んだ直後など。
+            //
+            // ★ ここで「ありがとうございました」だけを出して終わりにしない。
+            //   締めた瞬間に、お客さまの手元から金額も明細も消えます。
+            //   割り勘の計算も、経費で落とすときの控えも取れません。
+            //   自分がついていた伝票を読み直して、お会計の内容を残します。
+            //
+            //   ★ 卓から引き直してはいけません。「その卓の最後に締まった伝票」だと、
+            //     同じ席の次の組が会計を済ませたとき、前の組のスマホに
+            //     次の組の伝票が出ます（TableContext#sessionId のコメント参照）。
             model.addAttribute("tableName", tableContext.getTableName());
+            model.addAttribute("closedBill", closedBillOfThisBrowser());
             return "customer/bill-closed";
         }
+
+        // 会計後に読み直せるよう、ついている伝票を覚えておく。
+        // 入店時にも控えているが、セッションが作り直された場合はここが最後の砦になる
+        tableContext.rememberSession(session.getId());
 
         model.addAttribute("bill", session);
         model.addAttribute("orders", session.getBillableOrders());
         return "customer/bill";
+    }
+
+    /**
+     * このブラウザがついていた伝票（会計済み）。無ければ null。
+     *
+     * <p>覚えていない（一度も伝票につかないまま会計された）ときや、
+     * 何かの拍子にまだ開いているときは null を返します。
+     * 画面はそのとき、金額のない「ありがとうございました」だけを出します。
+     * <b>分からないものを、それらしく埋めないこと。</b>
+     */
+    private TableSession closedBillOfThisBrowser() {
+        Long id = tableContext.getSessionId();
+        if (id == null) {
+            return null;
+        }
+        try {
+            // getSession は注文まで読み終えてから返す（open-in-view: false なので、
+            // 画面を描く時点では DB 接続が無い）
+            TableSession bill = tableService.getSession(id);
+            return bill.isClosed() ? bill : null;
+        } catch (RuntimeException e) {
+            // 伝票が消えている（デモの入れ直しなど）。金額なしの画面に落とす
+            return null;
+        }
     }
 
     /**
