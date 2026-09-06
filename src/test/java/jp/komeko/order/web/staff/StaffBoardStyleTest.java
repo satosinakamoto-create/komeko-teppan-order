@@ -66,6 +66,7 @@ class StaffBoardStyleTest {
     @Test
     @DisplayName("★ 席の帯は高さ 72・幅いっぱい（設計 暗/席の帯）")
     void seatBarFillsTheWidth() throws Exception {
+        String css = Files.readString(APP_CSS);
         String rule = rule(".staffbar {");
 
         // ★ width:100% が無いと、flex コンテナが中身の幅まで縮む。
@@ -75,8 +76,53 @@ class StaffBoardStyleTest {
 
         // 43px だと下の大分類タブ（102px）に対して細すぎて「画面の一部」に見える。
         // 店員が見失ってはいけない情報なので、帯として成立する高さにする
-        assertThat(rule).as("帯の高さが設計と違う")
-                .contains("min-height: calc(72px + env(safe-area-inset-top, 0px));");
+        assertThat(css).as("帯の高さが設計と違う").contains(":root { --staffbar-h: 72px; }");
+
+        // ★ 高さは変数から引くこと。ここに 72px と直接書くと、
+        //   下の stickyTopCountsTheSeatBar が守っている足し算が
+        //   帯の実際の高さと無関係になる（変えても向こうが気づかない）
+        assertThat(rule).as("高さを直接書いている（変数から引くこと）")
+                .contains("min-height: calc(var(--staffbar-h) + env(safe-area-inset-top, 0px));");
+    }
+
+    @Test
+    @DisplayName("★ カテゴリの帯が席の帯のぶん下がる（大分類タブに重ならない）")
+    void stickyTopCountsTheSeatBar() throws Exception {
+        // カテゴリの帯（.tabs）は position:fixed で、上にいる帯の高さの合計を
+        // --sticky-top として受け取って自分の位置を決める。
+        // 帯が 1 本増えたのに足し忘れると、その高さぶん上にずれて
+        // 「お食事／ドリンク／サービス／伝票・会計」に重なる。
+        //
+        // 2026-09-06 に実際そうなった（席の帯 72px を足しておらず、
+        // 大分類タブ 72〜174 の上に .tabs が 102 から乗った）。
+        // 画面は落ちず、文字が帯の裏に隠れるだけなので、
+        // 実機を並べて見るまで誰も気づけない。
+        String rule = rule(".page--seated:has(.staffbar) {");
+
+        assertThat(rule).as("席の帯を数えていない").contains("var(--staffbar-h)");
+        assertThat(rule).as("大分類タブを数えていない")
+                .contains("var(--tabbar-top)")
+                .contains("var(--tabbar-item-h)");
+
+        // ノッチのぶんは 1 回だけ。いちばん上の 1 本（席の帯）が空ければ足りる。
+        // 2 回足すと、その高さぶん下に隙間ができる
+        assertThat(rule.split("env\\(safe-area-inset-top", -1).length - 1)
+                .as("ノッチのぶんを重ねて数えている").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("★ 変数の定義は 1 か所ずつ（2 か所に書くと片方が取り残される）")
+    void barHeightsAreDefinedOnce() throws Exception {
+        String css = Files.readString(APP_CSS);
+
+        // 高さの出どころが 2 か所あると、片方だけ直したときに
+        // 数える側（--sticky-top）が古い値のまま残り、黙って重なる。
+        // 上の 2 つのテストは「足し算が書いてあること」しか見ないので、
+        // 材料が二重定義になっていないかはここで守る
+        assertThat(css.split("--staffbar-h:", -1).length - 1)
+                .as("--staffbar-h が 2 か所以上で定義されている").isEqualTo(1);
+        assertThat(css.split("--tabbar-item-h:", -1).length - 1)
+                .as("--tabbar-item-h が 2 か所以上で定義されている").isEqualTo(1);
     }
 
     @Test

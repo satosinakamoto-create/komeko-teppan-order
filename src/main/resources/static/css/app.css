@@ -2490,6 +2490,30 @@ body.theme-night { background-image: none; }
                      + var(--tabbar-item-h));
 }
 
+/* ★ 店舗端末では、大分類タブの上にもう 1 本（席の帯）が乗る。
+
+     その高さを足し忘れると、カテゴリの帯が 72px ぶん上にずれて
+     「お食事／ドリンク／サービス／伝票・会計」に重なる。
+     上のコメントにある 2026-09-05 の不具合と、まったく同じ形。
+     あのときは .app-header から .tabbar への切り替えを忘れ、
+     今度は帯が 1 本増えたことを忘れた。
+
+     ★ 数えるものが増えたら、必ずここも足すこと。
+       画面は落ちない。黙って重なるだけなので、たちが悪い。
+
+     env(safe-area-inset-top) を 2 回足していないのは、
+     ノッチのぶんを空けるのはいちばん上の 1 本（席の帯）だけだから。
+     .staffbar が min-height にそれを含んでいるので、
+     ここでは帯そのものの高さだけを足す。
+
+     高さを直接書かず --staffbar-h から組み立てるのは、
+     帯の高さを変えたときにここが取り残されないようにするため
+     （上の --tabbar-item-h と同じ考え）。 */
+.page--seated:has(.staffbar) {
+  --sticky-top: calc(var(--staffbar-h) + env(safe-area-inset-top, 0px)
+                     + var(--tabbar-top) + var(--tabbar-item-h));
+}
+
 .tabs-slot {
   height: var(--tabs-h);
 }
@@ -4373,6 +4397,15 @@ body.is-sending .staff-main {
    ここだけ白基調にすると、番号を押した瞬間に配色が変わって別のアプリに見える）。
    -------------------------------------------------------------------------- */
 
+/* 席の帯の高さ。
+   ★ ここ 1 か所で決めること。
+     カテゴリの帯（.tabs）が「上に何本あるか」を数えて位置を決めるので、
+     2 か所に書くと、片方だけ変えたときに黙って重なる。
+   ★ .staffbar の中ではなく :root に置く理由
+     数える側（.page--seated）は帯の親なので、
+     帯の中で定義した変数は見えない（変数は子孫にしか継承されない）。 */
+:root { --staffbar-h: 72px; }
+
 /* いま何番を開いているかの帯。品を選んでいる最中も貼り付いたまま。
    店員は卓を渡り歩くので、「これはどの卓だったか」が
    この画面でいちばん起きやすい事故 */
@@ -4394,9 +4427,13 @@ body.is-sending .staff-main {
      ★ 43px だと、下の大分類タブ（102px）に対して細すぎて
        「画面の一部」に見える。72 あると、番号がひとつの塊として立つ。
        店員が見失ってはいけない情報なので、帯として成立させる。
+
+     ★ 高さは --staffbar-h（すぐ上で定義）から引くこと。
+       カテゴリの帯（.tabs）が「上に何本あるか」を数えて位置を決めるので、
+       ここを直接書くと、変えたときにあちらが取り残されて重なる。
      env(safe-area-inset-top) はノッチのぶん。
      min-height にしているのは、そこを足しても中身が潰れないようにするため */
-  min-height: calc(72px + env(safe-area-inset-top, 0px));
+  min-height: calc(var(--staffbar-h) + env(safe-area-inset-top, 0px));
   padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);

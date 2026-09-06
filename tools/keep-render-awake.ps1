@@ -126,6 +126,16 @@ if ($Register) {
     $action = 'powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $ScriptPath
     schtasks /Create /TN $TaskName /TR $action /SC DAILY /ST 08:00 /RI 10 /DU 0009:55 /K /F
     if ($LASTEXITCODE -eq 0) {
+        # schtasks の既定は「バッテリー稼働では起動しない／バッテリーに切り替わったら止める」。
+        # ノート PC だと電源を抜いた瞬間に黙って止まり、しかもエラーも出ないので気づけない。
+        # 登録し直すたびに既定へ戻るため、ここで毎回外しておく。
+        # あわせて 1 回の実行に上限（10 分）を付ける。240 秒 × 2 サービスでも収まる。
+        $s = (Get-ScheduledTask -TaskName $TaskName).Settings
+        $s.DisallowStartIfOnBatteries = $false
+        $s.StopIfGoingOnBatteries     = $false
+        $s.ExecutionTimeLimit         = 'PT10M'
+        Set-ScheduledTask -TaskName $TaskName -Settings $s | Out-Null
+
         Write-Output ''
         Write-Output "登録しました: $TaskName"
         Write-Output '  8:00〜17:50 の 10 分おきに実行されます。'
