@@ -4229,6 +4229,32 @@ body.is-sending .staff-main {
      線が合計にくっついて、設計にある 32px の間が消えていた。
      線を明細側に移し、合計は間を空けてから置く。 */
 .bill-lines .bill-row:last-child { border-bottom: 1px solid var(--border); }
+
+/* 行が 1 本も無いときだけ畳む。
+
+   注文が 0 件でもテーブルチャージの行は出るので、ふつうはここに来ない。
+   来るのは「注文もチャージも無い」＝チャージ 0 円の店の、頼む前だけ。
+   そのとき締めの線だけが 1 本浮くので、箱ごと消す。
+
+   ★ :empty ではなく :not(:has(*))。
+     :empty は改行や字下げの空白も子として数えるので、
+     Thymeleaf が残す空白に一致せず効かない（この CSS 内に同じ手当ての先例が 2 つある）。 */
+.bill-lines:not(:has(*)) { display: none; }
+
+/* まだ 1 品も頼んでいないことを言う一行（設計 暗30）。
+
+   ★ 上下の間は 32 で、明細・合計・但し書きと同じ刻み。
+     ここだけ違う数字にすると、伝票の縦のリズムがこの行で崩れる。
+   ★ 色は --text-faint（設計の 暗/かすれ）。
+     補足（#9e9e9e）より弱くするのは、これが金額でも品名でもなく
+     「いま中身が無い」という状態の説明だから。 */
+.bill-empty {
+  margin: 32px 0 0;
+  text-align: center;
+  font-size: 16px;
+  line-height: 28px;
+  color: var(--text-faint);
+}
 .bill-row__name { flex: 1 0 0; min-width: 0; }
 /* 選んだ内容。承りました（暗07）では品名と同じ行に括弧付きで続く */
 .bill-row__note,

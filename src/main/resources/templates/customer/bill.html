@@ -32,14 +32,17 @@
     */-->
     <section id="bill-status" th:attr="data-pending=${bill.hasPendingOrders()}">
 
-      <div th:if="${orders.isEmpty()}">
-        <div th:replace="~{fragments/common :: empty('膳', 'まだご注文がありません')}"></div>
-      </div>
-
       <!--/* bill-lines は「明細のかたまり」の目印。
              いちばん下の行に締めの線を引くのに使う（設計 暗04）。
-             合計側で線を引くと、設計にある 32px の間が消える */-->
-      <div class="bill-lines mt-6" th:unless="${orders.isEmpty()}">
+             合計側で線を引くと、設計にある 32px の間が消える。
+
+             ★ 注文が 0 件でも、この箱ごと隠さないこと（2026-09-07 / 設計 暗30）。
+               テーブルチャージは<b>着席した時点で発生している</b>ので、
+               明細を丸ごと消すと、理由の書かれていない合計だけが立つ。
+               「まだ何も頼んでいないのに ¥900 とは何か」を
+               お客さまが確かめる手段が画面から無くなる。
+               行が 1 本も無いときだけ、CSS 側（:not(:has(*))）で畳む。 */-->
+      <div class="bill-lines mt-6">
         <th:block th:each="order : ${orders}">
           <div class="bill-row" th:each="line : ${order.lines}">
             <!--/* ★ 品名と個数は 1 行、トッピングはその下（設計 暗29）。
@@ -66,8 +69,12 @@
           </div>
         </th:block>
 
-        <!--/* 品の合計と席の料金。設計では品の行と同じ形で続く */-->
-        <div class="bill-row">
+        <!--/* 品の合計と席の料金。設計では品の行と同じ形で続く。
+
+               ★ 「お料理・お飲み物」は注文があるときだけ。
+                 0 件のときに ¥0 の行を出すと、
+                 頼んでいないものの小計を読ませることになる（設計 暗30 にも無い）。 */-->
+        <div class="bill-row" th:unless="${orders.isEmpty()}">
           <span class="bill-row__name">お料理・お飲み物</span>
           <span class="bill-row__amount"
                 th:text="'¥' + ${#numbers.formatInteger(bill.subtotalAmount, 1, 'COMMA')}">¥4,200</span>
@@ -86,6 +93,19 @@
                 th:text="'¥' + ${#numbers.formatInteger(bill.lateNightAmount, 1, 'COMMA')}">¥1,004</span>
         </div>
       </div>
+
+      <!--/* まだ 1 品も頼んでいないことを言う（設計 暗30）。
+
+             ★ 明細の<b>下</b>に置くこと。
+               上に置くと「まだご注文がありません」の直後に
+               テーブルチャージの行が来て、無いと言ったそばから
+               金額が並ぶ形になる。
+               下に置けば、席料だけが立っている理由の説明として読める。
+
+             ★ 印（膳）は置いていません。
+               設計 暗30 で外れました。行が 1 本立つ画面になったので、
+               その上に大きな飾りを重ねると主役が入れ替わります。 */-->
+      <p class="bill-empty" th:if="${orders.isEmpty()}">まだご注文がありません</p>
 
       <!--/* 合計。ここだけ 20px の太字ときつね色（暗/合計行 342x60） */-->
       <div class="bill-total">

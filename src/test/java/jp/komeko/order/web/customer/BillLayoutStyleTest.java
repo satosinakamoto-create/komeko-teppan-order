@@ -157,4 +157,89 @@ class BillLayoutStyleTest {
                 Path.of("src/main/resources/templates/customer/bill.html")))
                 .contains("bill-lines");
     }
+
+    /** 伝票の本文。コメントを外してから調べる（説明文に条件式が出てくるため）。 */
+    private String billBody() throws Exception {
+        return Files.readString(Path.of("src/main/resources/templates/customer/bill.html"))
+                .replaceAll("(?s)<!--.*?-->", "");
+    }
+
+    @Test
+    @DisplayName("★ 注文が 0 件でもテーブルチャージの行を出す（設計 暗30）")
+    void tableChargeShowsEvenWithNoOrders() throws Exception {
+        String html = billBody();
+
+        // ★ ここがこの画面のいちばんの落とし穴。
+        //   チャージは「着席した時点で」発生しているので、
+        //   注文が無いことを理由に明細を丸ごと隠すと、
+        //   理由の書かれていない合計だけが立つ。
+        //   2026-09-07 まで実際にそうなっていて、
+        //   お客さまには「まだ何も頼んでいないのに ¥900」としか見えなかった。
+        int lines = html.indexOf("class=\"bill-lines");
+        assertThat(lines).as("明細のかたまりが無い").isGreaterThan(-1);
+        String linesTag = html.substring(lines, html.indexOf('>', lines));
+        assertThat(linesTag).as("注文が 0 件だと明細ごと消える")
+                .doesNotContain("orders.isEmpty()");
+
+        // チャージの行の出る条件は「金額があるか」だけ。注文の有無は関係しない
+        assertThat(html).as("チャージの行の条件が変わっている")
+                .contains("th:if=\"${bill.tableChargeAmount > 0}\"");
+    }
+
+    @Test
+    @DisplayName("★ 「お料理・お飲み物」は注文があるときだけ")
+    void subtotalRowNeedsOrders() throws Exception {
+        // 0 件のときに ¥0 の小計を出すと、頼んでいないものの合計を読ませることになる。
+        // 設計 暗30 にもこの行は無い
+        String html = billBody();
+        int at = html.indexOf("お料理・お飲み物");
+        assertThat(at).as("小計の行が無い").isGreaterThan(-1);
+        String row = html.substring(html.lastIndexOf("<div class=\"bill-row", at), at);
+        assertThat(row).as("注文が 0 件でも ¥0 の小計が出る")
+                .contains("th:unless=\"${orders.isEmpty()}\"");
+    }
+
+    @Test
+    @DisplayName("★ 「まだご注文がありません」は明細の下（上に置くと言った直後に金額が並ぶ）")
+    void theEmptyNoticeSitsBelowTheLines() throws Exception {
+        String html = billBody();
+
+        int lines = html.indexOf("class=\"bill-lines");
+        int notice = html.indexOf("class=\"bill-empty\"");
+        int total = html.indexOf("class=\"bill-total\"");
+
+        assertThat(notice).as("空の知らせが無い").isGreaterThan(-1);
+        assertThat(lines).as("空の知らせが明細より上にある").isLessThan(notice);
+        assertThat(notice).as("空の知らせが合計より下にある").isLessThan(total);
+        assertThat(html).as("注文があるときにも出ている")
+                .contains("th:if=\"${orders.isEmpty()}\">まだご注文がありません");
+    }
+
+    @Test
+    @DisplayName("★ 空の知らせの間隔と色（32px ／ かすれ）")
+    void theEmptyNoticeStyle() throws Exception {
+        String rule = rule(".bill-empty {");
+
+        // 上下 32 は明細・合計・但し書きと同じ刻み。ここだけ違うと縦のリズムが崩れる
+        assertThat(rule).as("間隔が伝票の刻みと違う").contains("margin: 32px 0 0;");
+        assertThat(rule).contains("text-align: center;");
+
+        // 金額でも品名でもなく「いま中身が無い」という状態の説明なので、
+        // 補足（--text-muted）よりさらに弱い色にする
+        assertThat(rule).as("補足と同じ強さになっている").contains("color: var(--text-faint);");
+    }
+
+    @Test
+    @DisplayName("行が 1 本も無いときだけ明細を畳む（締めの線が 1 本浮かないように）")
+    void emptyLineBoxCollapses() throws Exception {
+        // チャージ 0 円の店で、まだ何も頼んでいないときにだけ起きる。
+        // ★ :empty ではなく :not(:has(*))。
+        //   :empty は改行や字下げの空白も子として数えるので、
+        //   Thymeleaf が残す空白に一致せず効かない
+        String css = Files.readString(APP_CSS);
+        assertThat(css).as("空の明細が締めの線だけ残す")
+                .contains(".bill-lines:not(:has(*)) { display: none; }");
+        assertThat(css).as(":empty では Thymeleaf の空白に一致しない")
+                .doesNotContain(".bill-lines:empty");
+    }
 }
