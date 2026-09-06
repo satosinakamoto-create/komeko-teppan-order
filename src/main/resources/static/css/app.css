@@ -4408,19 +4408,43 @@ body.is-sending .staff-main {
   color: var(--text);
 }
 
-.staff-order { padding-block: 24px 40px; }
+/* 上下 40px、要素の間は 32px（設計 店01 409:4228）。
+
+   ★ 間隔を 32 で通しているのは、この画面が「押す番号を探す」ためだけの
+     ものだからです。見出し・札・説明・盤面の 4 つしか無いので、
+     詰めるより離したほうが、番号の塊がひとまとまりに見えます。 */
+.staff-order { padding-block: 40px; }
+
+/* ★ 間隔を持つのは .container のほう。
+     .staff-order（main）の直下は .container 1 つだけなので、
+     そちらに gap を付けても効かない。 */
+.staff-order > .container {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* フラッシュの枠は、中身が空でも出る（中の 3 つがそれぞれ条件付きのため）。
+   そのままだと gap を 1 つ余分に生んで、見出しが 32px 下がる。
+   ★ :empty ではなく :not(:has(*))。:empty は改行や字下げの空白も
+     子として数えるので、Thymeleaf が残す空白に一致しない。 */
+.staff-order > .container > .stack-sm:not(:has(*)) { display: none; }
 .staff-order__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  /* 左右 8px は設計どおり。マスは内側に 16px 持つので、
+     見出しの文字がマスの中の文字と近い位置で始まる */
+  padding-inline: 8px;
 }
 .staff-order__title { margin: 0; font-size: 20px; font-weight: 700; }
 .staff-order__out { font-size: 13px; color: var(--text-muted); text-decoration: none; }
-.staff-order__lead { margin: 0 0 16px; color: var(--text-muted); font-size: 14px; }
-.staff-order__note { margin-top: 24px; font-size: 13px; color: var(--text-muted); }
-.staff-order__actions { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+/* 余白は親の gap（32px）が持つ。ここで margin を足すと、
+   要素ごとに間隔がばらつく */
+.staff-order__lead { margin: 0; color: var(--text-muted); font-size: 14px; }
+.staff-order__note { margin: 0; font-size: 13px; color: var(--text-muted); }
+.staff-order__actions { display: flex; flex-direction: column; gap: 12px; }
 
 /* 番号の盤面。片手で押す前提なので 2 列。
    1 列だと画面に 4 つしか入らず、10 卓ある店ではスクロールが要る。
@@ -4428,7 +4452,11 @@ body.is-sending .staff-main {
 .seat-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  /* 行間 24・列間 12（設計 店01）。
+     ★ 縦横を同じにしないこと。同じにすると 2×2 の塊に見えて、
+       どれが「横に並んだ 2 つ」なのか分からなくなる。
+       行間を広げると、左右の 2 つが 1 組として読める */
+  gap: 24px 12px;
 }
 .seat {
   display: flex;
