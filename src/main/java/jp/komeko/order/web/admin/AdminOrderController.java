@@ -50,10 +50,21 @@ public class AdminOrderController {
 
     private final OrderService orderService;
     private final ShopSettingService shopSettingService;
+    /**
+     * その日の集計。売上（月）と同じ計算を使い回す。
+     *
+     * <p><b>同じ「売上」を 2 通りに数えないため</b>です。
+     * ここで独自に足し算を書くと、売上画面と 1 円ずれたときに
+     * どちらが正しいのか誰にも分からなくなります。
+     */
+    private final jp.komeko.order.service.SalesReportService salesReportService;
 
-    public AdminOrderController(OrderService orderService, ShopSettingService shopSettingService) {
+    public AdminOrderController(OrderService orderService,
+                                ShopSettingService shopSettingService,
+                                jp.komeko.order.service.SalesReportService salesReportService) {
         this.orderService = orderService;
         this.shopSettingService = shopSettingService;
+        this.salesReportService = salesReportService;
     }
 
     // ========================================================================
@@ -104,6 +115,22 @@ public class AdminOrderController {
                 .toList();
 
         model.addAttribute("rows", rows);
+
+        // ── その日の集計（2026-09-07）
+        //
+        // ★ 3 つの画面で期間の粒度を分けています。
+        //     ダッシュボード … 今日（いまどうなっているか）
+        //     注文履歴       … 日を指定（あの日は何が出たか）  ← ここ
+        //     売上           … 月（今月は。先月と比べて）
+        //   同じ数字を違う切り口で見るので、集計そのものは
+        //   SalesReportService の 1 か所に置いたままにします。
+        var summary = salesReportService.summary(target);
+        model.addAttribute("summary", summary);
+        model.addAttribute("ranking",
+                SalesView.ranking(salesReportService.ranking(target), summary.total()));
+        // 平均単価。0 除算を避けるのはここ（テンプレートで割らない）
+        model.addAttribute("averageSpend",
+                summary.orders() == 0 ? 0L : summary.total() / summary.orders());
 
         // 日付は表示用（日本語）と URL 用（ISO 文字列）を分けて渡す。
         // LocalDate をそのままリンクの引数にすると、環境によっては

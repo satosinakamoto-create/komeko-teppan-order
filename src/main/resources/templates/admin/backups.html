@@ -5,9 +5,28 @@
 <main>
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">バックアップ</h1>
-    <span class="section-title__count" th:text="${backups.size()} + ' 世代'">14 世代</span>
+  <!--/* 見出しの隣に主ボタンを置く（設計 16 バックアップ 42:2527）。
+
+         ★ 設計はこの画面を「見出し＋ボタン＋一覧」だけにしていますが、
+           下の説明カード（いつ・どこに取られるか／復元のしかた）は残しています。
+           バックアップは<b>普段は誰も見ない画面</b>で、開くのは
+           たいてい「何かあったとき」です。そのときに手順が無いと、
+           取ってあるのに戻せません。
+
+         ★ 設計の「復元する」リンクは付けていません。
+           復元は本番のデータを丸ごと置き換える操作で、手順書
+           （docs/バックアップと復元.md）では隔離フォルダへ展開し、
+           別ポートで開いて中身を確かめてから入れ替えます。
+           ワンタップの口を作ると、確かめる工程ごと飛ばせてしまいます。 */-->
+  <div class="page-head">
+    <h1 class="page-head__title">バックアップ</h1>
+    <span class="page-head__sub" th:text="${backups.size()} + ' 世代'">14 世代</span>
+    <span class="page-head__spacer"></span>
+    <form th:action="@{/admin/backups/run}" method="post">
+      <button type="submit" class="btn btn--primary" th:disabled="${!supported}">
+        今すぐバックアップを取る
+      </button>
+    </form>
   </div>
 
   <!--/* ===== この DB では取れない場合（PostgreSQL 運用時） ===== */-->
@@ -30,13 +49,8 @@
         <p class="small muted mt-4 mb-0"
            th:text="'最後に成功した日時：' + ${lastSuccessLabel}">最後に成功した日時：8月17日 04:30</p>
       </div>
-      <div class="card__foot">
-        <form th:action="@{/admin/backups/run}" method="post">
-          <button type="submit" class="btn btn--primary" th:disabled="${!supported}">
-            今すぐバックアップを取る
-          </button>
-        </form>
-      </div>
+      <!--/* 「今すぐ取る」は見出しの隣へ移しました（2026-09-07 / 設計 16）。
+             同じボタンが 1 画面に 2 つあると、どちらを押したのか分からなくなります。 */-->
     </div>
 
     <div class="card">

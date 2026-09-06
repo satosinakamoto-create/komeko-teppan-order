@@ -139,12 +139,23 @@
 
     <div class="breakdown">
       <table class="table table--breakdown">
+        <!--/* 列の並びは設計 14 売上（17:1038）どおり
+               費目 → 金額 → 目標 → 実績 → 差。
+
+               ★ 金額を実績のとなりではなく先に置くのは、
+                 まず「いくら出ているか」を読ませたいからです。
+                 割合は、その金額が多いか少ないかを言うための補足。
+               ★ 差（実績 − 目標）を足しました。設計に列があります。
+                 目標と実績を並べても、頭の中で引き算するのは店主の仕事になります。
+                 プラスが赤（使いすぎ）、マイナスが黒。ふつうの増減とは色が逆で、
+                 費目は「少ないほうがよい」ためです。 */-->
         <thead>
         <tr>
           <th>費目</th>
-          <th class="num">目安</th>
-          <th class="num">実績</th>
           <th class="num">金額</th>
+          <th class="num">目標</th>
+          <th class="num">実績</th>
+          <th class="num">差</th>
         </tr>
         </thead>
         <tbody>
@@ -153,16 +164,23 @@
             <span class="breakdown__chip" th:style="'background:' + ${b.color()}" aria-hidden="true"></span>
             <span th:text="${b.label()}">F 食材・飲料</span>
           </td>
-          <td class="num" th:text="${b.target()} + '%'">60%</td>
-          <td class="num">
-            <span th:if="${b.percent() != null}" th:text="${b.percent()} + '%'">58.4%</span>
-            <span th:unless="${b.percent() != null}" class="faint">—</span>
-          </td>
           <td class="num">
             <span th:if="${b.amount() != null}"
                   th:text="'¥' + ${#numbers.formatInteger(b.amount(), 1, 'COMMA')}">¥750,000</span>
             <span th:unless="${b.amount() != null}" class="faint">記録していません</span>
           </td>
+          <td class="num" th:text="${b.target()} + '%'">60%</td>
+          <!--/* 実績だけ太字。3 つ並ぶ数字の中で、いま見るべきはここ */-->
+          <td class="num bold">
+            <span th:if="${b.percent() != null}" th:text="${b.percent()} + '%'">58.4%</span>
+            <span th:unless="${b.percent() != null}" class="faint">—</span>
+          </td>
+          <!--/* 差＝実績 − 目標。プラスが赤（使いすぎ）。
+                 費目は少ないほうがよいので、ふつうの増減とは色が逆になる */-->
+          <td class="num" th:if="${b.diff() != null}"
+              th:classappend="${b.over()} ? 'is-over' : 'is-under'"
+              th:text="${b.over() ? '+' : ''} + ${b.diff()}">+4.0</td>
+          <td class="num faint" th:unless="${b.percent() != null}">—</td>
         </tr>
         </tbody>
       </table>
@@ -243,9 +261,15 @@
 
     <div class="table-wrap" th:unless="${#lists.isEmpty(ranking)}">
       <table class="table table--ranking">
+        <!--/* カテゴリの列は設計 14 売上（17:1038）どおり。
+
+               ★ 「たこ焼きが全体でどれくらい出ているか」は、
+                 商品名だけの表からは読み取れません。品名を 1 行ずつ目で
+                 分類し直すことになります。カテゴリが列にあれば目で追えます。 */-->
         <thead>
         <tr>
           <th>商品</th>
+          <th>カテゴリ</th>
           <th class="num">数量</th>
           <th class="num">売上（税込）</th>
           <th class="num">構成比</th>
@@ -254,6 +278,8 @@
         <tbody>
         <tr th:each="r : ${ranking}">
           <td th:text="${r.name()}">肉玉米粉そば</td>
+          <td th:text="${r.category()}"
+              th:classappend="${r.category() == '（削除された商品）'} ? 'faint'">広島風お好み焼き</td>
           <td class="num" th:text="${#numbers.formatInteger(r.quantity(), 1, 'COMMA')}">284</td>
           <td class="num"
               th:text="'¥' + ${#numbers.formatInteger(r.amount(), 1, 'COMMA')}">¥335,120</td>

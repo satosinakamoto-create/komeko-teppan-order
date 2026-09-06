@@ -32,6 +32,79 @@
     <a class="btn btn--sm btn--ghost" th:href="@{/admin/sales(date=${dateIso})}">この日の売上</a>
   </form>
 
+  <!--/* ====== その日の数字 ====== （2026-09-07）
+
+         ★ 3 つの画面で期間の粒度を分けています。
+             ダッシュボード … 今日（いまどうなっているか）
+             注文履歴       … 日を指定（あの日は何が出たか）← この画面
+             売上           … 月（今月は。先月と比べて）
+           同じ数字を違う切り口で見るので、集計そのものは
+           SalesReportService の 1 か所に置いたままです。 */-->
+  <div class="statrow mt-4">
+    <div class="statcard">
+      <p class="statcard__label">この日の売上</p>
+      <p class="statcard__value"
+         th:text="'¥' + ${#numbers.formatInteger(summary.total(), 1, 'COMMA')}">¥182,400</p>
+      <p class="statcard__note">商品ぶんだけ（チャージ・深夜料金は含みません）</p>
+    </div>
+    <div class="statcard">
+      <p class="statcard__label">注文数</p>
+      <p class="statcard__value" th:text="${#numbers.formatInteger(summary.orders(), 1, 'COMMA')}">42</p>
+      <p class="statcard__note">キャンセルを除いた件数</p>
+    </div>
+    <div class="statcard">
+      <p class="statcard__label">1 注文あたり</p>
+      <p class="statcard__value"
+         th:text="'¥' + ${#numbers.formatInteger(averageSpend, 1, 'COMMA')}">¥4,342</p>
+      <p class="statcard__note">売上 ÷ 注文数</p>
+    </div>
+  </div>
+
+  <!--/* ====== 何がどれだけ売れたか ======
+
+         ★ 棒は「数」ではなく「構成比」で引いています。
+           その日の中で何が主役だったかを見る画面なので、
+           40 食売れた日と 400 食売れた日を同じ形で比べられるほうが役に立ちます。
+
+         ★ 棒は CSS の幅だけで描いています。画像も JavaScript も使いません。
+           店内 Wi-Fi にネットが無くても崩れない、という決まりに沿うためです。 */-->
+  <section class="panel mt-6" th:unless="${#lists.isEmpty(ranking)}">
+    <div class="panel__head">
+      <h2 class="panel__title">売れた商品</h2>
+      <span class="panel__sub" th:text="${dateLabel} + ' の売れ行き'">この日の売れ行き</span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table table--ranking">
+        <thead>
+        <tr>
+          <th>商品</th>
+          <th>カテゴリ</th>
+          <th class="num">数量</th>
+          <th class="num">売上（税込）</th>
+          <th>構成比</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${ranking}">
+          <td th:text="${r.name()}">肉玉米粉そば</td>
+          <td th:text="${r.category()}"
+              th:classappend="${r.category() == '（削除された商品）'} ? 'faint'">広島風お好み焼き</td>
+          <td class="num" th:text="${#numbers.formatInteger(r.quantity(), 1, 'COMMA')}">12</td>
+          <td class="num" th:text="'¥' + ${#numbers.formatInteger(r.amount(), 1, 'COMMA')}">¥14,160</td>
+          <td>
+            <span class="sharebar" th:if="${r.share() != null}">
+              <span class="sharebar__fill" th:style="'width:' + ${r.share()} + '%'"></span>
+              <span class="sharebar__num" th:text="${r.share()} + '%'">26.1%</span>
+            </span>
+            <span class="faint" th:unless="${r.share() != null}">—</span>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <p class="help">
     キャンセルされた注文も消さずに残します（記録として残すのが会計の基本です）。
     キャンセルした注文は、その卓の伝票の小計からは自動的に外れます。<br>

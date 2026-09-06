@@ -206,6 +206,29 @@ public class AdminSalesController {
      */
     public record BreakdownRow(String label, Integer amount, java.math.BigDecimal percent,
                                int target, String color, boolean recorded) {
+
+        /**
+         * 実績 − 目標（％ポイント）。記録が無ければ null。
+         *
+         * <p>設計 14 売上（17:1038）の「差」の列です。
+         * 目標と実績を並べただけだと、引き算は店主の仕事になります。
+         *
+         * <p><b>テンプレートで計算しないこと。</b>
+         * {@code T(java.math.BigDecimal).valueOf(target())} と書いたら、
+         * SpEL が {@code valueOf(Integer)} を解決できずに画面ごと落ちました。
+         * 計算は Java に置けば型で守られます（CLAUDE.md の
+         * 「業務ロジックはコントローラに書かず Service に置く」と同じ考え）。
+         */
+        public java.math.BigDecimal diff() {
+            return percent == null ? null
+                    : percent.subtract(java.math.BigDecimal.valueOf(target));
+        }
+
+        /** 目標を上回っているか（費目なので、上回る＝使いすぎ）。 */
+        public boolean over() {
+            java.math.BigDecimal d = diff();
+            return d != null && d.signum() > 0;
+        }
     }
 
     /**
@@ -322,7 +345,7 @@ public class AdminSalesController {
     // ========================================================================
 
     /** ランキング 1 行（構成比つき）。 */
-    public record RankingRow(String name, long quantity, long amount, java.math.BigDecimal share) {
+    public record RankingRow(String name, String category, long quantity, long amount, java.math.BigDecimal share) {
     }
 
     private List<RankingRow> toRanking(List<ItemSales> ranking, long sales) {
@@ -332,7 +355,7 @@ public class AdminSalesController {
                     : java.math.BigDecimal.valueOf(i.sales())
                             .multiply(java.math.BigDecimal.valueOf(100))
                             .divide(java.math.BigDecimal.valueOf(sales), 1, java.math.RoundingMode.HALF_UP);
-            rows.add(new RankingRow(i.menuItemName(), i.qty(), i.sales(), share));
+            rows.add(new RankingRow(i.menuItemName(), i.categoryLabel(), i.qty(), i.sales(), share));
         }
         return rows;
     }

@@ -3352,6 +3352,41 @@ body.is-sending .staff-main {
 .table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 160px; }
 .table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 360px; }
 
+/* 構成比の棒（注文履歴の「売れた商品」）。
+
+   ★ 画像も JavaScript も使わず、幅だけで描く。
+     店内 Wi-Fi にネットが無くても崩れない、という決まり（CLAUDE.md）に沿う。
+   ★ 数字を棒の中に入れず、右に並べる。
+     短い棒（数 %）のときに数字がはみ出して読めなくなるため。 */
+.sharebar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 140px;
+}
+.sharebar__fill {
+  height: 8px;
+  min-width: 2px;
+  max-width: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  flex: none;
+}
+.sharebar__num {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+/* 売上の配分表の「差」（設計 14 売上）。
+   ★ プラスが赤。ふつうの増減とは色が逆になる。
+     費目は少ないほうがよいので、目標を上回っている＝使いすぎ。
+     ここを緑にすると「よく出来ている」と読めてしまう。 */
+.table--breakdown .is-over  { color: var(--danger); font-weight: 700; }
+.table--breakdown .is-under { color: var(--text-muted); }
+
 /* スタッフの表（設計 13 スタッフ 41:2170）。合計 1120 */
 .theme-desk .table--staff th { padding: 16px; height: 64px; }
 .theme-desk .table--staff td { padding: 20px 20px 19px; height: 68px; }

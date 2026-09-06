@@ -129,8 +129,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * 「あのとき出していた品」の売れ行きを見たいという意図どおり。
      */
     @Query("""
-            select new jp.komeko.order.service.dto.ItemSales(l.menuItemName, sum(l.quantity), sum(l.lineTotal))
-            from OrderLine l join l.order o
+            select new jp.komeko.order.service.dto.ItemSales(
+                l.menuItemName, min(c.name), sum(l.quantity), sum(l.lineTotal))
+            from OrderLine l
+            join l.order o
+            left join MenuItem m on m.id = l.menuItemId
+            left join m.category c
             where o.businessDate between :from and :to and o.status = :status
             group by l.menuItemName
             order by sum(l.lineTotal) desc, sum(l.quantity) desc
@@ -216,12 +220,25 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     DailySales summarize(@Param("businessDate") LocalDate businessDate,
                          @Param("status") OrderStatus status);
 
-    /** 商品別の売れ筋ランキング。 */
+    /**
+     * 商品別の売れ筋ランキング。
+     *
+     * <p><b>カテゴリは left join で引くこと（2026-09-07 / 設計 14 売上に列がある）。</b><br>
+     * 注文明細（OrderLine）は商品名を<b>写して</b>持っているので、商品を消しても
+     * 売上には残ります。ところがカテゴリは持っていないので、いまの商品から引くしかありません。
+     * {@code join}（内部結合）にすると、<b>消した商品の売上が集計から丸ごと落ちます</b>。
+     * 総売上と足し合わなくなるので、必ず {@code left join} にしてください。
+     *
+     * <p>{@code menuItemId} は列として持っているだけで外部キーではないため、
+     * {@code on} で結び付けます。
+     */
     @Query("""
             select new jp.komeko.order.service.dto.ItemSales(
-                l.menuItemName, sum(l.quantity), sum(l.lineTotal))
+                l.menuItemName, min(c.name), sum(l.quantity), sum(l.lineTotal))
             from OrderLine l
             join l.order o
+            left join MenuItem m on m.id = l.menuItemId
+            left join m.category c
             where o.businessDate = :businessDate and o.status = :status
             group by l.menuItemName
             order by sum(l.lineTotal) desc, sum(l.quantity) desc

@@ -184,13 +184,13 @@ public final class SalesView {
     // ========================================================================
 
     /** ランキング 1 行（構成比つき）。 */
-    public record RankingRow(String name, long quantity, long amount, BigDecimal share) {
+    public record RankingRow(String name, String category, long quantity, long amount, BigDecimal share) {
     }
 
     public static List<RankingRow> ranking(List<ItemSales> ranking, long sales) {
         List<RankingRow> rows = new ArrayList<>();
         for (ItemSales i : ranking) {
-            rows.add(new RankingRow(i.menuItemName(), i.qty(), i.sales(), percent(i.sales(), sales)));
+            rows.add(new RankingRow(i.menuItemName(), i.categoryLabel(), i.qty(), i.sales(), percent(i.sales(), sales)));
         }
         return rows;
     }
