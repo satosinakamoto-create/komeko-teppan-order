@@ -155,30 +155,53 @@ class CustomerCancelHttpTest {
     }
 
     @Test
-    @DisplayName("POST /bill/orders/{token}/cancel が 500 にならず、在庫と伝票金額が戻る")
-    void customerCancelSucceedsOverHttp() throws Exception {
-        assertThat(stockOf(item)).isEqualTo(INITIAL_STOCK - ORDER_QUANTITY);
-        assertThat(subtotalOfBill()).isEqualTo(UNIT_PRICE * ORDER_QUANTITY);
-
-        // お客さま画面には連番 ID ではなく推測できないトークンが出ている（bill.html）。
-        // ログインは不要なので、認証を付けずに素で叩くのが本番と同じ形
+    @DisplayName("★ お客さまの画面からは、もう注文を取り消せない（口ごと閉じてある）")
+    void customerCancelEndpointIsGone() throws Exception {
+        // 2026-09-06 に、伝票の「ご注文 #119 をキャンセル」を外した。
+        // 注文番号はその日の店全体の通し番号で、明細のどこにも出ていないため、
+        // その番号がどの品なのかお客さまには分からなかった。
+        //
+        // ★ ボタンを消しただけでは足りない。
+        //   この URL は認証なし（SecurityConfig で permitAll）なので、
+        //   画面から消しても叩ける。同じ操作に入口が 2 つある状態にすると、
+        //   片方に掛けた判断がもう片方から素通りする
+        //   （厨房の changeStatus が CANCELED を受け付けない理由と同じ）。
         mockMvc.perform(post("/bill/orders/{token}/cancel", placed.getPublicToken())
                         .with(csrf()))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/bill"));
+                .andExpect(status().isNotFound());
 
-        // 「拒否されずに済んだ」だけでは足りない。キャンセルの後始末が
-        // 最後まで走ったことを、副作用 3 点で確かめる
-        Order canceled = orderRepository.findById(placed.getId()).orElseThrow();
-        assertThat(canceled.getStatus())
-                .as("注文がキャンセルになっていること")
-                .isEqualTo(OrderStatus.CANCELED);
+        // 断られただけでなく、何も起きていないこと。
+        // 「404 は返ったが処理は走っていた」が起こりうる形ではないが、
+        // ここを見ておかないと、口を戻したときにこのテストだけが通る
+        Order untouched = orderRepository.findById(placed.getId()).orElseThrow();
+        assertThat(untouched.getStatus())
+                .as("注文が取り消されている")
+                .isEqualTo(OrderStatus.RECEIVED);
         assertThat(stockOf(item))
-                .as("在庫が戻っていること")
-                .isEqualTo(INITIAL_STOCK);
+                .as("在庫が戻っている")
+                .isEqualTo(INITIAL_STOCK - ORDER_QUANTITY);
         assertThat(subtotalOfBill())
-                .as("伝票の請求からも外れていること")
-                .isZero();
+                .as("伝票の請求から外れている")
+                .isEqualTo(UNIT_PRICE * ORDER_QUANTITY);
+    }
+
+    @Test
+    @DisplayName("★ 伝票の画面にも、取り消しの入口を出さない")
+    void billPageOffersNoCancel() throws Exception {
+        // 画面を描かずテンプレートを直接見ている。
+        // 卓に着いた状態を作らないと /bill は描けず、
+        // ここで見たいのは「その口が書いてあるかどうか」だけなので
+        String template = java.nio.file.Files.readString(
+                java.nio.file.Path.of("src/main/resources/templates/customer/bill.html"));
+
+        // 番号で示す取り消しが復活していないこと。
+        // 明細に番号が出ていない画面で番号のボタンを出すと、
+        // どの品が消えるのか判断する材料が無いまま押させることになる。
+        // コメントには経緯として残してあるので、送信先の形だけを見る
+        assertThat(template).as("取り消しの送信先が戻っている")
+                .doesNotContain("th:action=\"@{/bill/orders/");
+        assertThat(template).as("番号で示す取り消しのボタンが戻っている")
+                .doesNotContain("' をキャンセル'");
     }
 
     private Integer stockOf(MenuItem target) {

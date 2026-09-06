@@ -164,22 +164,22 @@ public class CheckoutController {
         return "customer/order-placed";
     }
 
-    /**
-     * お客さん自身によるキャンセル（調理開始前のみ）。
+    /*
+     * ★ ここにあった POST /bill/orders/{token}/cancel を外しました（2026-09-06）。
      *
-     * <p>注文の指定に連番の ID ではなく推測できないトークンを使っているのは、
-     * 番号を変えるだけで他の卓の注文を取り消せてしまうのを防ぐためです。
+     * 伝票の画面に出していた「ご注文 #119 をキャンセル」を外したのに合わせています。
+     * 注文番号はその日の店全体の通し番号で、明細のどこにも出ていないため、
+     * その番号がどの品なのかお客さまには分かりませんでした。
+     *
+     * ★ ボタンだけ消して口を残さないこと。
+     *   この URL は認証なし（SecurityConfig で permitAll）なので、
+     *   画面から消しても叩けます。同じ操作に入口が 2 つある状態にすると、
+     *   片方に掛けた判断がもう片方から素通りします。
+     *   厨房の changeStatus が CANCELED を受け付けない理由と同じです。
+     *
+     * 取り消しはスタッフが行います（ホール／厨房の画面 → OrderService#cancelByStaff）。
+     * お客さまはサービスのタブからスタッフを呼べます。
      */
-    @PostMapping("/bill/orders/{token}/cancel")
-    public String cancel(@PathVariable String token, RedirectAttributes redirectAttributes) {
-        try {
-            orderService.cancelByCustomer(token);
-            redirectAttributes.addFlashAttribute("flashInfo", "ご注文をキャンセルしました");
-        } catch (OrderRejectedException e) {
-            redirectAttributes.addFlashAttribute("flashErrors", e.getReasons());
-        }
-        return "redirect:/bill";
-    }
 
     /**
      * 伝票ページが定期的に呼ぶ JSON API。

@@ -100,9 +100,17 @@ class TransientNoticeTest {
         void matchesTheDesign() throws Exception {
             String css = Files.readString(Path.of("src/main/resources/static/css/app.css"));
 
-            int start = css.indexOf(".theme-night .alert--success");
-            assertThat(start).as("お客さま側の成功の札に、設計の指定が無い").isGreaterThan(-1);
+            // 2026-09-06: 条件を色（.alert--success）から印（.is-transient）に移した。
+            // 「ご注文をキャンセルしました」は info（青）で、同じ 1 回きりの報告なのに
+            // 左に線を引いた別の形で出ていた。設計（暗28）で両方が同じ札になったため。
+            int start = css.indexOf(".theme-night .alert.is-transient {");
+            assertThat(start).as("1 回きりの札に、設計の指定が無い").isGreaterThan(-1);
             String block = css.substring(start, css.indexOf('}', start));
+
+            // 色で選ぶ形に戻っていないこと。戻すと、緑の札だけが設計の形になり、
+            // 青（キャンセル）がまた別の形で出る
+            assertThat(css).as("色で選ぶ形に戻っている")
+                    .doesNotContain(".theme-night .alert--success {");
 
             // 左だけ 4px → 四辺 1px（.alert の border-left を上書きする）
             assertThat(block).as("四辺を囲っていない").contains("border: 1px solid");
@@ -118,7 +126,7 @@ class TransientNoticeTest {
             // 箱に付けると、テンプレートの字下げまで行として数えられ、
             // 上下に空行が 3 つずつ入って高さが 77 → 131px になる（実機で確認済み）
             assertThat(css).as("改行が空白に潰れる")
-                    .contains(".theme-night .alert--success p { white-space: pre-line; }");
+                    .contains(".theme-night .alert.is-transient p { white-space: pre-line; }");
             assertThat(block).as("改行の指定を箱に付けている。上下に空行が入る")
                     .doesNotContain("white-space");
         }
