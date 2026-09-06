@@ -30,38 +30,24 @@
     <span class="page-head__sub" th:text="${todayLabel} + ' の営業'">2026年9月5日(金) の営業</span>
   </div>
 
-  <!--/* ====== 注文受付の状態 ======
-         ここでは切り替えません（切り替えは店舗設定画面の役目）。
-         「見る場所」と「変える場所」を分けると、うっかり操作を減らせます。 */-->
-  <section class="panel">
-    <div class="row row--between row--wrap">
-      <div>
-        <p class="statcard__label">ただいまの注文受付</p>
-        <p class="statcard__value" th:text="${shop.acceptingOrders} ? '受付中' : '停止中'">受付中</p>
-        <p class="small muted mb-0" th:if="${shop.acceptingOrders}"
-           th:text="'営業 ' + ${shop.openTime} + ' 〜 ' + ${shop.closeTime} + '（ラストオーダー ' + ${shop.lastOrderTime} + '）'">
-          営業 17:30 〜 02:00（ラストオーダー 01:30）
-        </p>
-        <p class="small muted mb-0" th:unless="${shop.acceptingOrders}"
-           th:text="${shop.closedMessage}">ただいま大変混み合っております。</p>
-        <p class="tiny faint mb-0" th:unless="${shop.acceptingOrders}">
-          受付を止めているあいだも、ご案内中の卓のお会計はふつうにできます。
-        </p>
-      </div>
-      <a class="btn" th:href="@{/admin/settings}">店舗設定で切り替える</a>
-    </div>
-  </section>
+  <!--/* 「注文受付の状態」の大きなパネルは置かない（設計 01 ダッシュボード 15:319。2026-09-07）。
+         受付中／停止中は上の帯のピルが全画面に出していて、ここに再掲すると
+         同じ情報が 2 か所に並ぶだけだった。切り替えは店舗設定の役目のまま。 */-->
 
   <!--/* ====== 厨房の状況 ====== */-->
   <div class="statrow">
     <div class="statcard">
-      <p class="statcard__label">在席の卓</p>
-      <p class="statcard__value" th:text="${@tableService.openSessions().size()}">0</p>
-      <p class="statcard__delta"><span class="statcard__note">ご案内中の卓の数</span></p>
+      <p class="statcard__label">在席の卓数</p>
+      <p class="statcard__value">
+        <span th:text="${@tableService.openSessions().size()}">0</span><span class="statcard__unit">卓</span>
+      </p>
+      <p class="statcard__delta"><span class="statcard__note">お会計がまだの伝票</span></p>
     </div>
     <div class="statcard">
       <p class="statcard__label">進行中の注文</p>
-      <p class="statcard__value" th:text="${board.activeCount()}">0</p>
+      <p class="statcard__value">
+        <span th:text="${board.activeCount()}">0</span><span class="statcard__unit">件</span>
+      </p>
       <p class="statcard__delta">
         <span class="statcard__note"
               th:text="'受付 ' + ${board.received().size()} + ' ／ 調理中 ' + ${board.cooking().size()} + ' ／ 提供待ち ' + ${board.ready().size()}">
@@ -71,65 +57,72 @@
     </div>
     <div class="statcard">
       <p class="statcard__label">提供待ち</p>
-      <p class="statcard__value" th:text="${board.ready().size()}">0</p>
+      <p class="statcard__value">
+        <span th:text="${board.ready().size()}">0</span><span class="statcard__unit">件</span>
+      </p>
       <p class="statcard__delta">
-        <span class="statcard__note">できあがり。卓へお持ちする</span>
+        <span class="statcard__note">できあがり。卓へお持ちする品</span>
       </p>
     </div>
   </div>
 
-  <!--/* ====== 今日の数字（売上画面と同じ 3 枚） ====== */-->
+  <!--/* ====== 今日の数字（売上画面と同じ 3 枚） ======
+         比べる相手は「先週の同じ曜日」（設計どおり）。
+         居酒屋の売上は曜日でまるごと変わるので、前日比だと
+         毎週月曜に「大きく落ちた」と出て、数字が曜日を語ってしまう。 */-->
   <div class="statrow">
     <div class="statcard">
-      <p class="statcard__label">本日の総売上</p>
+      <p class="statcard__label">本日の売上</p>
       <p class="statcard__value"
-         th:text="'¥' + ${#numbers.formatInteger(sales.sales(), 1, 'COMMA')}">¥63,770</p>
+         th:text="'¥' + ${#numbers.formatInteger(sales.sales(), 1, 'COMMA')}">¥35,320</p>
       <p class="statcard__delta">
         <span th:if="${salesDelta != null}"
               th:classappend="${salesDelta.signum() >= 0} ? 'is-up' : 'is-down'"
-              th:text="(${salesDelta.signum() >= 0} ? '＋' : '') + ${salesDelta} + '%'">＋12.5%</span>
+              th:text="(${salesDelta.signum() >= 0} ? '＋' : '') + ${salesDelta} + '%'">＋6.4%</span>
         <span th:if="${salesDelta == null}" class="faint">—</span>
-        <span class="statcard__note">前日比</span>
+        <span class="statcard__note">先週の同じ曜日と比べて</span>
       </p>
     </div>
     <div class="statcard">
       <p class="statcard__label">注文数</p>
-      <p class="statcard__value" th:text="${#numbers.formatInteger(sales.orders(), 1, 'COMMA')}">12</p>
+      <p class="statcard__value" th:text="${#numbers.formatInteger(sales.orders(), 1, 'COMMA')}">18</p>
+      <!--/* 注文数だけ % ではなく件数の差。12→14 件を「＋16.7%」と
+             書かれても現場ではピンとこない（設計も「＋2 件」） */-->
       <p class="statcard__delta">
-        <span th:if="${ordersDelta != null}"
-              th:classappend="${ordersDelta.signum() >= 0} ? 'is-up' : 'is-down'"
-              th:text="(${ordersDelta.signum() >= 0} ? '＋' : '') + ${ordersDelta} + '%'">＋8.2%</span>
-        <span th:if="${ordersDelta == null}" class="faint">—</span>
-        <span class="statcard__note">前日比</span>
+        <span th:classappend="${ordersDiff >= 0} ? 'is-up' : 'is-down'"
+              th:text="(${ordersDiff >= 0} ? '＋' : '−') + ${T(java.lang.Math).abs(ordersDiff)} + ' 件'">＋2 件</span>
+        <span class="statcard__note">先週の同じ曜日と比べて</span>
       </p>
     </div>
     <div class="statcard">
       <p class="statcard__label">平均単価</p>
       <p class="statcard__value"
-         th:text="'¥' + ${#numbers.formatInteger(sales.averagePerBill(), 1, 'COMMA')}">¥3,150</p>
+         th:text="'¥' + ${#numbers.formatInteger(sales.averagePerBill(), 1, 'COMMA')}">¥2,940</p>
       <p class="statcard__delta">
         <span th:if="${averageDelta != null}"
               th:classappend="${averageDelta.signum() >= 0} ? 'is-up' : 'is-down'"
-              th:text="(${averageDelta.signum() >= 0} ? '＋' : '') + ${averageDelta} + '%'">＋4.0%</span>
+              th:text="(${averageDelta.signum() >= 0} ? '＋' : '') + ${averageDelta} + '%'">−4.1%</span>
         <span th:if="${averageDelta == null}" class="faint">—</span>
-        <span class="statcard__note">1組あたり／前日比</span>
+        <span class="statcard__note">1組あたり／先週の同じ曜日と比べて</span>
       </p>
     </div>
   </div>
 
-  <!--/* ====== 売上推移（日ごと） ====== */-->
+  <!--/* ====== 時間帯別の売上 ======
+         設計 01 ダッシュボード（15:319）どおり、直近 7 日ではなく
+         今日の時間帯別。朝いちばんに見る画面なので、昨日までの流れより
+         今日の山谷が要る。週や月の流れは売上画面の折れ線が受け持つ。 */-->
   <section class="panel">
     <div class="panel__head">
-      <h2 class="panel__title">売上推移</h2>
-      <span class="panel__sub" th:text="'直近 ' + ${recentDays} + ' 日（本日まで）'">直近 7 日（本日まで）</span>
-      <span class="panel__spacer"></span>
-      <a class="btn btn--sm" th:href="@{/admin/sales}">月ごとの売上を見る</a>
+      <h2 class="panel__title">時間帯別の売上</h2>
+      <span class="panel__sub"
+            th:text="'本日 ' + ${shop.openTime} + ' 〜 ' + ${shop.closeTime}">本日 17:30 〜 02:00</span>
     </div>
 
     <!--/* 点を SVG の外に置く理由は admin/sales.html と同じ（横だけ伸びて楕円になる） */-->
     <div class="linechart__wrap">
       <svg class="linechart" viewBox="0 0 1000 300" preserveAspectRatio="none" role="img"
-           aria-label="日ごとの売上の推移">
+           aria-label="時間帯ごとの売上の推移">
         <g class="linechart__grid">
           <line th:each="g : ${chart.grid()}" x1="56" x2="992"
                 th:y1="${g.y()}" th:y2="${g.y()}"></line>
@@ -137,15 +130,21 @@
         <polygon class="linechart__area" th:attr="points=${chart.area()}"></polygon>
         <polyline class="linechart__line" th:attr="points=${chart.line()}"></polyline>
       </svg>
+      <span th:each="g : ${chart.grid()}" class="linechart__ylabel"
+            th:style="'top:' + ${g.y()} / 3 + '%'" th:text="${g.label()}">¥4,000</span>
       <span th:each="p : ${chart.points()}" class="linechart__dot"
             th:classappend="${p.last()} ? 'is-last'"
             th:style="'left:' + ${p.x()} / 10 + '%; top:' + ${p.y()} / 3 + '%'"></span>
+      <!--/* 金額はピークにだけ添える（設計どおり）。1 時間刻みは点が
+             10 個あるので、全部に書くと文字が重なって読めない */-->
+      <span th:each="p : ${chart.points()}" th:if="${p.peak()}" class="linechart__plabel is-last"
+            th:style="'left:' + ${p.x()} / 10 + '%; top:' + ${p.y()} / 3 + '%'"
+            th:text="${p.amountLabel()}">¥7,100</span>
     </div>
 
     <div class="linechart__xaxis">
       <span th:each="p : ${chart.points()}" th:classappend="${p.last()} ? 'is-last'">
-        <b th:text="${p.amountLabel()}">¥6万</b>
-        <i th:text="${p.label()}">9/5</i>
+        <i th:text="${p.label()}">17時</i>
       </span>
     </div>
   </section>
@@ -163,9 +162,13 @@
 
     <div class="table-wrap" th:unless="${#lists.isEmpty(ranking)}">
       <table class="table table--ranking">
+        <!--/* カテゴリの列は売上画面と同じ理由で置く（設計 15:319 にもある）。
+               品名だけの表だと「たこ焼きが全体でどれくらい出ているか」を
+               1 行ずつ目で分類し直すことになる */-->
         <thead>
         <tr>
           <th>商品</th>
+          <th>カテゴリ</th>
           <th class="num">数量</th>
           <th class="num">売上（税込）</th>
           <th class="num">構成比</th>
@@ -174,6 +177,8 @@
         <tbody>
         <tr th:each="r : ${ranking}">
           <td th:text="${r.name()}">肉玉米粉そば</td>
+          <td th:text="${r.category()}"
+              th:classappend="${r.category() == '（削除された商品）'} ? 'faint'">広島風お好み焼き</td>
           <td class="num" th:text="${#numbers.formatInteger(r.quantity(), 1, 'COMMA')}">12</td>
           <td class="num"
               th:text="'¥' + ${#numbers.formatInteger(r.amount(), 1, 'COMMA')}">¥14,160</td>

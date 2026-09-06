@@ -3629,6 +3629,9 @@ body.is-sending .staff-main {
 .statcard__delta .is-up   { color: var(--ok); }
 .statcard__delta .is-down { color: var(--danger); }
 .statcard__note { font-size: 13px; font-weight: 400; color: var(--text-muted); }
+/* 値に添える単位（「3 卓」「6 件」）。設計 01 ダッシュボード（15:319）。
+   数字と同じ大きさで書くと 3 卓が 34 に見間違う */
+.statcard__unit { font-size: 14px; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
 
 /* 背の高いほう（仕入れ・経費）。設計は 357x202・余白 40/24・間隔 16・角 6。
    売上の 128px 版と分けているのは、置かれる数が違うから。
@@ -3724,23 +3727,160 @@ body.is-sending .staff-main {
 }
 .linechart__dot.is-last { background: var(--accent); }
 
-/* 月と金額のラベル。SVG の中に置くと横に引き伸ばされるので HTML で並べる */
+/* 月のラベル。SVG の中に置くと横に引き伸ばされるので HTML で並べる。
+   ★ 金額は 2026-09-07 にここから点のそば（.linechart__plabel）へ移した。
+     設計 14 売上（17:1038）は金額が点に添い、軸の下は月だけ。 */
 .linechart__xaxis { display: flex; padding-left: 56px; }
 .linechart__xaxis > span { flex: 1; text-align: center; display: flex; flex-direction: column; gap: 2px; }
-.linechart__xaxis b { font-size: 12px; font-weight: 400; color: var(--text-muted); font-family: var(--font-num); }
 .linechart__xaxis i { font-size: 12px; font-style: normal; color: var(--text-muted); }
-.linechart__xaxis > span.is-last b { color: var(--accent); font-weight: 700; }
+.linechart__xaxis > span.is-last i { color: var(--accent); font-weight: 700; }
 
-/* 配分 */
-.breakdown { display: flex; flex-direction: column; gap: 12px; }
+/* 縦軸の目盛り（¥120万 など）。設計にはあるのに描いていなかった（2026-09-07）。
+   罫線と同じ y 座標に % で置く。SVG の中に書くと横に引き伸ばされる */
+.linechart__ylabel {
+  position: absolute;
+  left: 0;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-num);
+  pointer-events: none;
+}
+
+/* 点に添える金額。売上（月ごと）は全点、ダッシュボード（時間帯別）はピークだけ。
+   線に重なっても読めるよう、地の色で細く縁取る */
+.linechart__plabel {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  margin-top: -10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-num);
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 1px 0 var(--bg-elevated), 0 -1px 0 var(--bg-elevated),
+               1px 0 0 var(--bg-elevated), -1px 0 0 var(--bg-elevated);
+}
+.linechart__plabel.is-last { color: var(--accent); font-weight: 700; }
+
+/* --------------------------------------------------------------------------
+   売上の配分（設計 14 売上 290:2012。2026-09-07 に帯グラフを実装）
+   --------------------------------------------------------------------------
+   左＝目標と実績の帯、右＝明細（520px 固定）。
+   帯の色は明細のしるし（.breakdown__chip の inline style）と揃えること。
+   帯と表で同じ費目が違う色だと、対応が目で追えなくなる。
+   -------------------------------------------------------------------------- */
+.alloc { display: flex; gap: 32px; align-items: flex-start; }
+.alloc__left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.alloc__right { width: 520px; max-width: 100%; flex: none; }
+@media (max-width: 1100px) {
+  .alloc { flex-direction: column; }
+  .alloc__right { width: 100%; }
+}
+
+.allocbar { display: flex; align-items: center; gap: 10px; }
+.allocbar__label {
+  width: 32px;
+  flex: none;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.allocbar__track {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  height: 24px;
+  border-radius: 6px;
+  overflow: hidden;   /* 両端の区画の角を丸に合わせる */
+}
+/* 区画の幅は flex-grow に % の値を入れて分け合う（合計 100）。
+   幅を width:% で書くと枠線 1px のぶん合計が 100% を超えて折り返す */
+.allocbar__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  flex-basis: 0;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.allocbar__seg + .allocbar__seg { border-left: none; }
+.allocbar__seg span { font-size: 11px; font-weight: 700; }
+.allocbar__seg--f      { background: var(--green-700); color: #fff; }
+.allocbar__seg--l      { background: var(--green-600); color: #fff; }
+.allocbar__seg--util   { background: var(--green-100); color: var(--text); }
+.allocbar__seg--misc   { background: var(--surface-2); color: var(--text-muted); }
+.allocbar__seg--rent   { background: var(--surface);   color: var(--text-muted); }
+.allocbar__seg--rent-over { background: var(--danger); color: #fff; }
+.allocbar__seg--profit { background: var(--ok); color: #fff; }
+
+/* ことわり書き（賃貸が目標を超えた月の赤い箱） */
+.allocnote {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--danger-soft);
+  font-size: 12px;
+}
+.allocnote__main { margin: 0; font-weight: 500; color: var(--danger); }
+.allocnote__sub  { margin: 0; color: var(--text-muted); }
+
+/* 明細の寸法（設計 290:2048。ふつうの .table より詰める） */
 .breakdown__chip {
   display: inline-block;
-  width: 12px; height: 12px;
-  border-radius: 3px;
+  width: 10px; height: 10px;
+  border-radius: 2px;
   margin-right: 8px;
-  vertical-align: -1px;
+  vertical-align: 0;
   border: 1px solid var(--border);
 }
+.theme-desk .table--breakdown th { padding: 0 0 2px 8px; font-size: 12px; height: auto; }
+.theme-desk .table--breakdown td { padding: 8px 0 8px 8px; font-size: 13px; }
+.theme-desk .table--breakdown th:first-child,
+.theme-desk .table--breakdown td:first-child { padding-left: 0; font-size: 14px; font-weight: 500; }
+.theme-desk .table--breakdown td.bold { font-size: 15px; }
+.theme-desk .table--breakdown td:last-child { font-size: 12px; }
+
+/* --------------------------------------------------------------------------
+   棚卸し・廃棄を記録するページ（設計 現05 443:2940。2026-09-07）
+   --------------------------------------------------------------------------
+   共通の .card / .grid より一段詰めた寸法。ここだけに効かせるため
+   .recpage-head / .recgrid で絞る（.card__head を直接いじると全カードが動く）。
+   ★ 入力欄の文字は設計 15px だが 16px のまま（CLAUDE.md：16 未満にしない）。
+   -------------------------------------------------------------------------- */
+.recpage-head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 16px 40px;
+  overflow: hidden;           /* 注記が長いときに折らずに切る（設計はノーラップ） */
+}
+.recpage-head h1 { margin: 0; font-size: 32px; line-height: 1.6; font-weight: 700; }
+.recpage-head__sub { font-size: 14px; color: var(--text-muted); white-space: nowrap; }
+
+/* .theme-desk .grid { gap:24px }（30 節）に勝つため、こちらも 2 段で書く */
+.theme-desk .recgrid { gap: 16px; }
+.recgrid .card { border-radius: 6px; }
+.recgrid .card__head {
+  padding: 14px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.recgrid .card__body { display: flex; flex-direction: column; gap: 16px; padding: 20px; }
+.recgrid .card__body > * { margin: 0; }   /* 縦の間隔は gap に一本化。margin と二重にしない */
+.recgrid .grid--2 { gap: 16px; }
+.recgrid .grid--3 { gap: 12px; }
+.recgrid .label { font-size: 13px; margin-bottom: 6px; }
+.recgrid .input, .recgrid .select { border-radius: 4px; padding-left: 14px; padding-right: 14px; }
+.recgrid .help { font-size: 12px; }
+.recgrid .btn { border-radius: 4px; align-self: flex-start; }
 
 @media (max-width: 960px) {
   .statrow { grid-template-columns: 1fr; }

@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 売上まわりの「画面に出す形」を作る道具箱。
@@ -50,9 +51,16 @@ public final class SalesView {
     public record Chart(List<ChartPoint> points, String line, String area, List<GridLine> grid) {
     }
 
-    /** 折れ線の点 1 つ。{@code last} は右端（＝いま見ている期間）かどうか。 */
+    /**
+     * 折れ線の点 1 つ。{@code last} は右端（＝いま見ている期間）かどうか。
+     *
+     * <p>{@code peak} はいちばん高い点（最初の 1 つだけ）。
+     * ダッシュボードの時間帯グラフは、設計（01 ダッシュボード 15:319）が
+     * <b>ピークにだけ金額を添える</b>形なので、その目印に使います。
+     * 全部の点に金額を書くと、1 時間刻み（点が 10 個）では文字が重なります。
+     */
     public record ChartPoint(String label, long value, String amountLabel,
-                             int x, int y, boolean last) {
+                             int x, int y, boolean last, boolean peak) {
     }
 
     /** 横罫線 1 本。 */
@@ -79,6 +87,17 @@ public final class SalesView {
             grid.add(new GridLine(yOf(v, top), axisLabel(v)));
         }
 
+        // ピーク（最初の最大値）の位置。売上が全く無いときはピーク無し
+        int peakIndex = -1;
+        if (max > 0) {
+            for (int i = 0; i < values.size(); i++) {
+                if (values.get(i) == max) {
+                    peakIndex = i;
+                    break;
+                }
+            }
+        }
+
         List<ChartPoint> points = new ArrayList<>();
         StringBuilder line = new StringBuilder();
         int n = labels.size();
@@ -88,7 +107,8 @@ public final class SalesView {
                     ? PAD_LEFT + (CHART_W - PAD_LEFT - PAD_RIGHT) / 2
                     : PAD_LEFT + (CHART_W - PAD_LEFT - PAD_RIGHT) * i / (n - 1);
             int y = yOf(v, top);
-            points.add(new ChartPoint(labels.get(i), v, manLabel(v), x, y, i == n - 1));
+            points.add(new ChartPoint(labels.get(i), v, manLabel(v), x, y,
+                    i == n - 1, i == peakIndex));
             line.append(x).append(',').append(y).append(' ');
         }
 
@@ -99,6 +119,59 @@ public final class SalesView {
                     + " " + points.get(points.size() - 1).x() + "," + baseY;
         }
         return new Chart(points, line.toString().trim(), area, grid);
+    }
+
+    /**
+     * 時間帯別（今日 1 日ぶん）の折れ線。ダッシュボード用。
+     *
+     * <p>設計（01 ダッシュボード 15:319）は「直近 7 日」ではなく
+     * <b>今日の時間帯別</b>を折れ線で見せる形です。
+     * 開店〜閉店の時間帯を基本にしつつ、その外側でも売上のある時間は含めます
+     * （閉店後の会計などがこぼれると、合計と目で合わなくなる）。
+     *
+     * <p><b>「何時」ではなく「営業日の何番目の時間帯か」で並べます。</b>
+     * 深夜営業では同じ営業日に 23 時と翌 0 時が同居するので、
+     * 時刻の小さい順に並べると閉店間際の棒がグラフの左端に来てしまいます。
+     * 営業日の切り替え時刻（cutoverHour）を 0 番目とする通し位置に直してから並べます。
+     *
+     * @param hourly      時刻（0〜23）→ 金額。無い時刻は 0 扱い
+     * @param openHour    開店時刻の「時」
+     * @param closeHour   閉店時刻の「時」
+     * @param cutoverHour 営業日の切り替え時刻
+     */
+    public static Chart hourlyChart(Map<Integer, Long> hourly,
+                                    int openHour, int closeHour, int cutoverHour) {
+        int from = positionOf(openHour, cutoverHour);
+        int to = positionOf(closeHour, cutoverHour);
+        for (Map.Entry<Integer, Long> entry : hourly.entrySet()) {
+            if (entry.getValue() != null && entry.getValue() > 0) {
+                int position = positionOf(entry.getKey(), cutoverHour);
+                from = Math.min(from, position);
+                to = Math.max(to, position);
+            }
+        }
+        if (to < from) {
+            to = from;
+        }
+
+        List<String> labels = new ArrayList<>();
+        List<Long> values = new ArrayList<>();
+        for (int p = from; p <= to; p++) {
+            int hour = Math.floorMod(cutoverHour + p, 24);
+            Long v = hourly.get(hour);
+            labels.add(hour + "時");
+            values.add(v == null ? 0L : v);
+        }
+        return chart(labels, values);
+    }
+
+    /**
+     * 時刻（0〜23）を「営業日の何番目の時間帯か」（0〜23）に直す。
+     * {@code Math.floorMod} を使うのは、引き算がマイナスになっても
+     * 0〜23 に収めたいため（{@code %} だとマイナスがそのまま残る）。
+     */
+    private static int positionOf(int hour, int cutoverHour) {
+        return Math.floorMod(hour - cutoverHour, 24);
     }
 
     private static int yOf(long value, long top) {

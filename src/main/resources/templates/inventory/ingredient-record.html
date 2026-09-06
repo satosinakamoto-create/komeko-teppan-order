@@ -17,11 +17,16 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
+  <!--/* 戻る口は設計 現05 に無いが残す。サイドバーの現在地は「食材・在庫」の
+         ままなので、来た道を返す口が無いと行き止まりに感じる */-->
   <p class="small"><a th:href="@{/inventory/ingredients}">← 食材・在庫にもどる</a></p>
 
-  <div class="section-title">
-    <h1 class="section-title__text">棚卸し・廃棄を記録する</h1>
-    <span class="section-title__count" th:text="${today} + ' 時点'">今日</span>
+  <!--/* 見出しは設計 現05（443:3077）：題 32 と注記 14 をベースラインで並べる。
+         注記は設計では「どこにあるか」の説明だが、フォームは一覧の下から
+         このページへ移したので、ここでは日付（いつ時点の記録か）を出す */-->
+  <div class="recpage-head">
+    <h1>棚卸し・廃棄を記録する</h1>
+    <span class="recpage-head__sub" th:text="${today} + ' 時点'">2026-09-07 時点</span>
   </div>
 
   <!--/* 食材が 1 つも無ければ記録しようがない */-->
@@ -33,12 +38,7 @@
   </div>
 
   <th:block th:unless="${levels.isEmpty()}">
-  <!--/* ===== 棚卸し・廃棄の記録 ===== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">棚卸し・廃棄を記録する</h2>
-  </div>
-
-  <div class="grid grid--2">
+  <div class="grid grid--2 recgrid">
 
     <form th:action="@{/inventory/ingredients/stocktake}" method="post"
           th:object="${stocktakeForm}" class="card">

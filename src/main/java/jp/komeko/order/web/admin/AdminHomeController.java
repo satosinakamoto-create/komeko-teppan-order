@@ -80,23 +80,34 @@ public class AdminHomeController {
         //   数字の出どころも売上画面とそろえて、閉じた伝票から取ります。
         //   注文の合計にはテーブルチャージと深夜料金が乗らないので、
         //   ここだけ注文ベースにすると「ダッシュボードと売上で今日の額が違う」ことになります。
+        //
+        // ★ 比べる相手は「先週の同じ曜日」（設計 01 ダッシュボード 15:319。2026-09-07）★
+        //   もとは前日比だったが、居酒屋の売上は曜日でまるごと変わる。
+        //   月曜を日曜と比べると毎週月曜に「大きく落ちた」と出て、
+        //   数字が店の調子ではなく曜日を語ってしまう。
         SalesReportService.MonthlySales sales = salesReportService.daySummary(today);
-        SalesReportService.MonthlySales prev = salesReportService.daySummary(today.minusDays(1));
-        List<SalesReportService.MonthlySales> series = salesReportService.dailySeries(today, RECENT_DAYS);
+        SalesReportService.MonthlySales prev = salesReportService.daySummary(today.minusWeeks(1));
 
         model.addAttribute("todayLabel", today.format(DATE_LABEL));
         model.addAttribute("board", board);
 
         model.addAttribute("sales", sales);
         model.addAttribute("salesDelta", SalesView.deltaPercent(sales.sales(), prev.sales()));
-        model.addAttribute("ordersDelta", SalesView.deltaPercent(sales.orders(), prev.orders()));
+        // 注文数は % ではなく件数の差で出す（設計どおり）。
+        // 12 件 → 14 件を「＋16.7%」と書かれても現場ではピンとこない
+        model.addAttribute("ordersDiff", sales.orders() - prev.orders());
         model.addAttribute("averageDelta",
                 SalesView.deltaPercent(sales.averagePerBill(), prev.averagePerBill()));
 
-        model.addAttribute("chart", SalesView.chart(
-                series.stream().map(s -> s.month().getMonthValue() + "/" + s.day()).toList(),
-                series.stream().map(SalesReportService.MonthlySales::sales).toList()));
-        model.addAttribute("recentDays", RECENT_DAYS);
+        // 推移は「直近 7 日」ではなく「今日の時間帯別」（設計どおり）。
+        // 朝いちばんに見る画面なので、昨日までの流れより今日の山谷が要る。
+        // 週の流れは売上画面の折れ線（期間切り替え）が受け持つ
+        var shop = shopSettingService.currentReadOnly();
+        model.addAttribute("chart", SalesView.hourlyChart(
+                salesReportService.hourlyAmount(today),
+                shop.getOpenTime().getHour(),
+                shop.getCloseTime().getHour(),
+                shop.getBusinessDayCutoverHour()));
 
         model.addAttribute("ranking",
                 SalesView.ranking(salesReportService.ranking(today), sales.sales()));
@@ -106,7 +117,4 @@ public class AdminHomeController {
         model.addAttribute("nextDateIso", today.plusDays(1).toString());
         return "admin/home";
     }
-
-    /** 推移グラフに出す日数。1 週間ぶんあれば「昨日より良いか」も「先週の同じ曜日と比べて」も読める。 */
-    private static final int RECENT_DAYS = 7;
 }

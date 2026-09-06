@@ -100,7 +100,9 @@
     <!--/* 点は SVG の外（HTML）に置く。
            preserveAspectRatio="none" は横だけを伸ばすので、
            SVG の中の円は画面幅に応じて楕円に潰れる。
-           線と面は伸びてよいが、点は形が意味なので伸ばせない。 */-->
+           線と面は伸びてよいが、点は形が意味なので伸ばせない。
+           縦軸の目盛りと点の金額も同じ理由で SVG の外（2026-09-07。
+           設計 14 売上では金額が点のそば、目盛りが左端にある）。 */-->
     <div class="linechart__wrap">
       <svg class="linechart" viewBox="0 0 1000 300" preserveAspectRatio="none" role="img"
            aria-label="月ごとの売上の推移">
@@ -113,17 +115,22 @@
         <polygon class="linechart__area" th:attr="points=${chart.area()}"></polygon>
         <polyline class="linechart__line" th:attr="points=${chart.line()}"></polyline>
       </svg>
+      <span th:each="g : ${chart.grid()}" class="linechart__ylabel"
+            th:style="'top:' + ${g.y()} / 3 + '%'" th:text="${g.label()}">¥120万</span>
       <span th:each="p : ${chart.points()}" class="linechart__dot"
             th:classappend="${p.last()} ? 'is-last'"
             th:style="'left:' + ${p.x()} / 10 + '%; top:' + ${p.y()} / 3 + '%'"></span>
+      <span th:each="p : ${chart.points()}" class="linechart__plabel"
+            th:classappend="${p.last()} ? 'is-last'"
+            th:style="'left:' + ${p.x()} / 10 + '%; top:' + ${p.y()} / 3 + '%'"
+            th:text="${p.amountLabel()}">¥128万</span>
     </div>
 
-    <!--/* 目盛りと月のラベルは SVG の外に HTML で置く。
+    <!--/* 月のラベルは SVG の外に HTML で置く。
            viewBox で横に伸縮させているので、SVG の中の文字は
            そのぶん横に引き伸ばされてしまう */-->
     <div class="linechart__xaxis">
       <span th:each="p : ${chart.points()}" th:classappend="${p.last()} ? 'is-last'">
-        <b th:text="${p.amountLabel()}">¥128万</b>
         <i th:text="${p.label()}">8月</i>
       </span>
     </div>
@@ -137,7 +144,39 @@
             th:text="'売上 ¥' + ${#numbers.formatInteger(sales.sales(), 1, 'COMMA')} + ' に対して'">売上に対して</span>
     </div>
 
-    <div class="breakdown">
+    <!--/* 設計 14 売上（17:1038）の二列。
+           左＝目標と実績の帯（どこが太ったかが一目）、右＝明細の表（正確な数字）。
+           帯は売上と家賃がそろっている月だけ出る（残り＝人件費＋利益が計算できないと嘘の帯になる） */-->
+    <div class="alloc">
+      <div class="alloc__left" th:if="${alloc.hasBars()}">
+        <div class="allocbar">
+          <span class="allocbar__label">目標</span>
+          <div class="allocbar__track">
+            <div th:each="s : ${alloc.targetBar()}" class="allocbar__seg"
+                 th:classappend="${s.cls()}" th:style="'flex-grow:' + ${s.weight()}">
+              <span th:if="${s.showLabel()}" th:text="${s.text()}">30%</span>
+            </div>
+          </div>
+        </div>
+        <div class="allocbar">
+          <span class="allocbar__label">実績</span>
+          <div class="allocbar__track">
+            <div th:each="s : ${alloc.actualBar()}" class="allocbar__seg"
+                 th:classappend="${s.cls()}" th:style="'flex-grow:' + ${s.weight()}">
+              <span th:if="${s.showLabel()}" th:text="${s.text()}">34%</span>
+            </div>
+          </div>
+        </div>
+        <!--/* ことわり書き。1 行目（赤）は賃貸が目標を超えた月だけ */-->
+        <div class="allocnote" th:if="${alloc.rentNote() != null or alloc.remainNote() != null}">
+          <p class="allocnote__main" th:if="${alloc.rentNote() != null}"
+             th:text="${alloc.rentNote()}">賃貸 ¥350,000 が売上の 27.2%。</p>
+          <p class="allocnote__sub" th:if="${alloc.remainNote() != null}"
+             th:text="${alloc.remainNote()}">いま手元に残るのは ¥249,800／月（19.5%）。</p>
+        </div>
+      </div>
+
+      <div class="alloc__right">
       <table class="table table--breakdown">
         <!--/* 列の並びは設計 14 売上（17:1038）どおり
                費目 → 金額 → 目標 → 実績 → 差。
@@ -175,26 +214,29 @@
             <span th:if="${b.percent() != null}" th:text="${b.percent()} + '%'">58.4%</span>
             <span th:unless="${b.percent() != null}" class="faint">—</span>
           </td>
-          <!--/* 差＝実績 − 目標。プラスが赤（使いすぎ）。
-                 費目は少ないほうがよいので、ふつうの増減とは色が逆になる */-->
+          <!--/* 差＝実績 − 目標。悪い方向のずれが赤。
+                 費目は「上回る＝使いすぎ」で赤だが、L 人件費＋利益（残り）は逆に
+                 下回るほうが赤（bad() が費目ごとの向きを知っている） */-->
           <td class="num" th:if="${b.diff() != null}"
-              th:classappend="${b.over()} ? 'is-over' : 'is-under'"
+              th:classappend="${b.bad()} ? 'is-over' : 'is-under'"
               th:text="${b.over() ? '+' : ''} + ${b.diff()}">+4.0</td>
           <td class="num faint" th:unless="${b.percent() != null}">—</td>
         </tr>
         </tbody>
       </table>
-
-      <!--/* 記録が無い費目があることを、画面に明示する。
-             ここを黙って 0 円にすると「家賃がかかっていない」という嘘になる */-->
-      <p class="alert alert--warn mb-0">
-        <strong>人件費は、このアプリではまだ記録していません。</strong>
-        仕入れの費目は 食材／飲料・酒／消耗品／光熱費／その他 の 5 つで、給与を入れる先がありません。
-        配分の全体像を見るには、人件費を別に足して考えてください。<br>
-        家賃は<a th:href="@{/admin/settings}">店舗設定</a>の「固定費」に入れた金額を使っています。
-        入っていないときは、賃貸の行も「記録していません」と出ます。
-      </p>
+      </div>
     </div>
+
+    <!--/* 記録の出どころ。ここを黙ると数字が独り歩きする */-->
+    <p class="help mb-0" th:if="${alloc.hasBars()}">
+      人件費はまだ記録していないため、L の行は売上から記録済みの費目を引いた
+      <b>残り（人件費＋利益）</b>です。家賃は<a th:href="@{/admin/settings}">店舗設定</a>の「固定費」の金額。
+    </p>
+    <p class="alert alert--warn mb-0" th:unless="${alloc.hasBars()}">
+      <strong>帯グラフを出すには、あと少し記録が要ります。</strong>
+      家賃は<a th:href="@{/admin/settings}">店舗設定</a>の「固定費」に入れた金額を使います。
+      入っていないと「残り（人件費＋利益）」が計算できないので、表だけを出しています。
+    </p>
   </section>
 
   <!--/* ====== お支払いの内訳 ======

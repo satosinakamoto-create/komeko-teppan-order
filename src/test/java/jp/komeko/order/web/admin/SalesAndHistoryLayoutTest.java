@@ -65,15 +65,28 @@ class SalesAndHistoryLayoutTest {
                 .as("テンプレートで計算している").doesNotContain("T(java.math.BigDecimal)");
 
         AdminSalesController.BreakdownRow row = new AdminSalesController.BreakdownRow(
-                "賃貸", 350000, new BigDecimal("27.2"), 10, "#000", true);
+                "賃貸", 350000, new BigDecimal("27.2"), 10, "#000", true, false);
         assertThat(row.diff()).isEqualByComparingTo(new BigDecimal("17.2"));
         assertThat(row.over()).as("目標を上回っているのに over が false").isTrue();
+        assertThat(row.bad()).as("費目は上回ったら赤").isTrue();
 
         // 記録が無い費目は差も出せない（0 と言い切ってはいけない）
         AdminSalesController.BreakdownRow none = new AdminSalesController.BreakdownRow(
-                "人件費", null, null, 40, "#000", false);
+                "人件費", null, null, 40, "#000", false, false);
         assertThat(none.diff()).isNull();
         assertThat(none.over()).isFalse();
+    }
+
+    @Test
+    @DisplayName("★ L 人件費＋利益（残り）は、下回るほうが赤")
+    void remainderIsRedWhenUnderTarget() throws Exception {
+        // 設計 14 売上では 賃貸 ＋17.2 と L −20.5 が「どちらも赤」。
+        // 符号だけで塗り分けると、手取りの不足が良いことに見えてしまう
+        AdminSalesController.BreakdownRow labor = new AdminSalesController.BreakdownRow(
+                "L 人件費＋利益", 249800, new BigDecimal("19.5"), 40, "#000", true, true);
+        assertThat(labor.diff()).isEqualByComparingTo(new BigDecimal("-20.5"));
+        assertThat(labor.over()).isFalse();
+        assertThat(labor.bad()).as("残りが目標を下回っているのに赤くならない").isTrue();
     }
 
     @Test

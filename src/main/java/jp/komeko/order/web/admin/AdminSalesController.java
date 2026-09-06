@@ -159,8 +159,10 @@ public class AdminSalesController {
         model.addAttribute("spans", SPANS);
         model.addAttribute("span", months);
 
-        model.addAttribute("breakdown",
-                breakdownOf(target, now.sales(), shopSettingService.currentReadOnly().getMonthlyRent()));
+        Allocation alloc = allocationOf(target, now.sales(),
+                shopSettingService.currentReadOnly().getMonthlyRent());
+        model.addAttribute("breakdown", alloc.rows());
+        model.addAttribute("alloc", alloc);
         // レジ締め用の内訳。名前を settlement にしているのは、上の breakdown
         // （原価・人件費などの費用の内訳）と混ざらないようにするため。
         model.addAttribute("settlement",
@@ -205,7 +207,7 @@ public class AdminSalesController {
      * @param color   帯の色
      */
     public record BreakdownRow(String label, Integer amount, java.math.BigDecimal percent,
-                               int target, String color, boolean recorded) {
+                               int target, String color, boolean recorded, boolean lowerIsBad) {
 
         /**
          * 実績 − 目標（％ポイント）。記録が無ければ null。
@@ -228,6 +230,53 @@ public class AdminSalesController {
         public boolean over() {
             java.math.BigDecimal d = diff();
             return d != null && d.signum() > 0;
+        }
+
+        /**
+         * 悪い方向にずれているか（赤で出すか）。
+         *
+         * <p>費目は「上回る＝使いすぎ」で悪い。
+         * ただし <b>L 人件費＋利益（残り）は逆</b>で、下回るほうが悪い。
+         * 設計 14 売上（17:1038）でも、賃貸の ＋17.2 と L の −20.5 が
+         * <b>どちらも赤</b>です。符号で塗り分けると L の不足が良いことに見えます。
+         */
+        public boolean bad() {
+            java.math.BigDecimal d = diff();
+            if (d == null) {
+                return false;
+            }
+            return lowerIsBad ? d.signum() < 0 : d.signum() > 0;
+        }
+    }
+
+    /**
+     * 帯グラフの 1 区画。
+     *
+     * @param cls    色を決める CSS クラス（allocbar__seg--f など）
+     * @param weight 幅の重み（％の値そのまま。flex-grow に入れる）
+     * @param text   区画の中に書く割合（丸めた「34%」）
+     */
+    public record AllocSeg(String cls, java.math.BigDecimal weight, String text) {
+
+        /** 区画の中に % を書くか。設計では 8.1% の区画は無記入（幅が足りず溢れる）。 */
+        public boolean showLabel() {
+            return weight != null && weight.doubleValue() >= 9;
+        }
+    }
+
+    /**
+     * 売上の配分ひとそろい（明細の行＋帯グラフ＋ことわり書き）。
+     *
+     * <p>帯（targetBar / actualBar）は、売上と家賃がそろっているときだけ作ります。
+     * 家賃が未記録のまま「残り」を出すと家賃のぶん膨らんだ嘘になるためで、
+     * そのときは明細の表だけを出します（{@code hasBars()} で分岐）。
+     */
+    public record Allocation(List<BreakdownRow> rows,
+                             List<AllocSeg> targetBar, List<AllocSeg> actualBar,
+                             String rentNote, String remainNote) {
+
+        public boolean hasBars() {
+            return targetBar != null && !targetBar.isEmpty();
         }
     }
 
@@ -252,6 +301,8 @@ public class AdminSalesController {
     private static final int TARGET_UTILITIES = 10;
     private static final int TARGET_SUNDRY = 10;
     private static final int TARGET_RENT = 10;
+    /** 目安の残り約 10% ＝ 営業利益。帯グラフと「L 人件費＋利益」の目標に使う。 */
+    private static final int TARGET_PROFIT = 10;
 
     /**
      * 売上の配分。
@@ -276,19 +327,19 @@ public class AdminSalesController {
      *
      * @param monthlyRent 店舗設定の月額家賃（税込・円）。0 なら未記録として扱う
      */
-    private List<BreakdownRow> breakdownOf(YearMonth month, long sales, int monthlyRent) {
+    private Allocation allocationOf(YearMonth month, long sales, int monthlyRent) {
         PurchaseService purchaseService = purchaseServiceProvider.getIfAvailable();
         if (purchaseService == null) {
             // 在庫モジュールを切っているときは仕入れの記録そのものが無い。
             // 目安だけを出して、実績は「記録していない」にする。
             // ただし家賃は在庫モジュールと無関係なので、設定があればここでも出す
             List<BreakdownRow> none = new ArrayList<>();
-            none.add(new BreakdownRow("F 食材・飲料", null, null, TARGET_FOOD, "var(--border)", false));
-            none.add(new BreakdownRow("光熱費", null, null, TARGET_UTILITIES, "var(--border)", false));
-            none.add(new BreakdownRow("雑費（消耗品・その他）", null, null, TARGET_SUNDRY, "var(--border)", false));
+            none.add(new BreakdownRow("F 食材・飲料", null, null, TARGET_FOOD, "var(--border)", false, false));
+            none.add(new BreakdownRow("光熱費", null, null, TARGET_UTILITIES, "var(--border)", false, false));
+            none.add(new BreakdownRow("雑費（消耗品・その他）", null, null, TARGET_SUNDRY, "var(--border)", false, false));
             none.add(rentRow(monthlyRent, sales));
-            none.add(new BreakdownRow("L 人件費", null, null, TARGET_LABOR, "var(--border)", false));
-            return none;
+            none.add(new BreakdownRow("L 人件費", null, null, TARGET_LABOR, "var(--border)", false, false));
+            return new Allocation(none, null, null, null, null);
         }
         PurchaseSummary p = purchaseService.summarize(month);
 
@@ -307,15 +358,80 @@ public class AdminSalesController {
             }
         }
 
+        // しるしの色は設計 14 売上（17:1038）の帯と同じにする。
+        // 帯と表で同じ費目が違う色だと、対応が目で追えない
+        BreakdownRow foodRow = row("F 食材・飲料", food + drink, sales, TARGET_FOOD, "var(--green-700)");
+        BreakdownRow utilRow = row("光熱費", utilities, sales, TARGET_UTILITIES, "var(--green-100)");
+        BreakdownRow miscRow = row("雑費（消耗品・その他）", supplies + other, sales, TARGET_SUNDRY, "var(--surface-2)");
+        BreakdownRow rentR = rentRow(monthlyRent, sales);
+
         List<BreakdownRow> rows = new ArrayList<>();
-        rows.add(row("F 食材・飲料", food + drink, sales, TARGET_FOOD, "var(--green-700)"));
-        rows.add(row("光熱費", utilities, sales, TARGET_UTILITIES, "var(--green-600)"));
-        rows.add(row("雑費（消耗品・その他）", supplies + other, sales, TARGET_SUNDRY, "var(--green-100)"));
-        rows.add(rentRow(monthlyRent, sales));
-        // 人件費はまだ記録する場所が無い。0 円ではなく「記録していない」として出す。
-        // 0 と書くと「人を雇っていない」という嘘になる。
-        rows.add(new BreakdownRow("L 人件費", null, null, TARGET_LABOR, "var(--border)", false));
-        return rows;
+        rows.add(foodRow);
+        rows.add(utilRow);
+        rows.add(miscRow);
+        rows.add(rentR);
+
+        // ★ L は「売上から、記録のある費目を全部引いた残り」＝人件費＋利益。
+        //   人件費そのものは記録する場所がまだ無いが、残りなら嘘なく計算できる
+        //   （設計 14 売上の「L 人件費＋利益」の行）。
+        //   ただし家賃が未記録だと、残りが家賃のぶん膨らんで嘘になる。
+        //   その場合は従来どおり「記録していない」の行にして、帯も出さない。
+        if (sales <= 0 || monthlyRent <= 0) {
+            rows.add(new BreakdownRow("L 人件費", null, null, TARGET_LABOR, "var(--border)", false, false));
+            return new Allocation(rows, null, null, null, null);
+        }
+
+        long remainder = sales - (food + drink + supplies + utilities + other) - monthlyRent;
+        BreakdownRow laborRow = new BreakdownRow("L 人件費＋利益", (int) remainder,
+                SalesView.percent(remainder, sales), TARGET_LABOR + TARGET_PROFIT,
+                "var(--green-600)", true, true);
+        rows.add(laborRow);
+
+        // ── 帯グラフ ──
+        // 目標の帯は固定（F30／L30／光熱10／雑費10／賃貸10／利益10 ＝ 100）。
+        // 実績の帯は 5 区画（L と利益は「残り」として 1 区画にまとまる）で、
+        // % がそのまま幅の重みになるので、合計は必ず 100 になる
+        List<AllocSeg> targetBar = List.of(
+                new AllocSeg("allocbar__seg--f", java.math.BigDecimal.valueOf(TARGET_FOOD), TARGET_FOOD + "%"),
+                new AllocSeg("allocbar__seg--l", java.math.BigDecimal.valueOf(TARGET_LABOR), TARGET_LABOR + "%"),
+                new AllocSeg("allocbar__seg--util", java.math.BigDecimal.valueOf(TARGET_UTILITIES), TARGET_UTILITIES + "%"),
+                new AllocSeg("allocbar__seg--misc", java.math.BigDecimal.valueOf(TARGET_SUNDRY), TARGET_SUNDRY + "%"),
+                new AllocSeg("allocbar__seg--rent", java.math.BigDecimal.valueOf(TARGET_RENT), TARGET_RENT + "%"),
+                new AllocSeg("allocbar__seg--profit", java.math.BigDecimal.valueOf(TARGET_PROFIT), TARGET_PROFIT + "%"));
+
+        // 賃貸の区画は、目標を超えたら赤にする（設計の 27.2% が赤いのはこれ）。
+        // 色だけの違いなので、超えていない月は薄いグレーのまま
+        List<AllocSeg> actualBar = List.of(
+                seg("allocbar__seg--f", foodRow.percent()),
+                seg("allocbar__seg--l", laborRow.percent()),
+                seg("allocbar__seg--util", utilRow.percent()),
+                seg("allocbar__seg--misc", miscRow.percent()),
+                seg(rentR.over() ? "allocbar__seg--rent-over" : "allocbar__seg--rent", rentR.percent()));
+
+        // ── ことわり書き ──
+        // 「目標の 10% に収めるには月商いくら要るか」は家賃からの逆算。
+        // 割合だけ見せられても、店主が決められるのは月商の目標のほう
+        String rentNote = null;
+        if (rentR.over()) {
+            long needed = (long) monthlyRent * 100 / TARGET_RENT;
+            rentNote = "賃貸 ¥%,d が売上の %s%%。目標の %d%% に収めるには月商 ¥%,d が要ります。"
+                    .formatted(monthlyRent, rentR.percent(), TARGET_RENT, needed);
+        }
+        String remainNote = remainder >= 0
+                ? "いま手元に残るのは ¥%,d／月（%s%%）。ここから人件費を払います。"
+                        .formatted(remainder, laborRow.percent())
+                : "記録済みの費目だけで売上を上回っています（¥%,d の持ち出し）。"
+                        .formatted(-remainder);
+
+        return new Allocation(rows, targetBar, actualBar, rentNote, remainNote);
+    }
+
+    /** 実績の帯の 1 区画。マイナスの残り（持ち出し）は幅 0 で描く。 */
+    private static AllocSeg seg(String cls, java.math.BigDecimal percent) {
+        java.math.BigDecimal weight = (percent == null || percent.signum() < 0)
+                ? java.math.BigDecimal.ZERO : percent;
+        return new AllocSeg(cls, weight,
+                weight.setScale(0, java.math.RoundingMode.HALF_UP) + "%");
     }
 
     /**
@@ -327,9 +443,14 @@ public class AdminSalesController {
      */
     private static BreakdownRow rentRow(int monthlyRent, long sales) {
         if (monthlyRent <= 0) {
-            return new BreakdownRow("賃貸", null, null, TARGET_RENT, "var(--border)", false);
+            return new BreakdownRow("賃貸", null, null, TARGET_RENT, "var(--border)", false, false);
         }
-        return row("賃貸", monthlyRent, sales, TARGET_RENT, "var(--green-600)");
+        BreakdownRow rent = row("賃貸", monthlyRent, sales, TARGET_RENT, "var(--surface)");
+        // しるしの色は目標内なら薄いグレー、超えたら赤（設計の帯と同じ塗り分け）
+        return rent.over()
+                ? new BreakdownRow(rent.label(), rent.amount(), rent.percent(),
+                        rent.target(), "var(--danger)", true, false)
+                : rent;
     }
 
     private static BreakdownRow row(String label, int amount, long sales, int target, String color) {
@@ -337,7 +458,7 @@ public class AdminSalesController {
                 : java.math.BigDecimal.valueOf(amount)
                         .multiply(java.math.BigDecimal.valueOf(100))
                         .divide(java.math.BigDecimal.valueOf(sales), 1, java.math.RoundingMode.HALF_UP);
-        return new BreakdownRow(label, amount, percent, target, color, true);
+        return new BreakdownRow(label, amount, percent, target, color, true, false);
     }
 
     // ========================================================================
