@@ -14,6 +14,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
+import org.springframework.validation.SmartValidator;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -62,15 +63,19 @@ public class AdminMenuItemController {
     private final CategoryRepository categoryRepository;
     private final MenuService menuService;
     private final ImageStorageService imageStorageService;
+    /** 「掲載する」のときだけ足す決まり（MenuItemForm.Publish）を走らせるのに使う。 */
+    private final SmartValidator validator;
 
     public AdminMenuItemController(MenuItemRepository menuItemRepository,
                                    CategoryRepository categoryRepository,
                                    MenuService menuService,
-                                   ImageStorageService imageStorageService) {
+                                   ImageStorageService imageStorageService,
+                                   SmartValidator validator) {
         this.menuItemRepository = menuItemRepository;
         this.categoryRepository = categoryRepository;
         this.menuService = menuService;
         this.imageStorageService = imageStorageService;
+        this.validator = validator;
     }
 
     // ========================================================================
@@ -93,11 +98,20 @@ public class AdminMenuItemController {
     }
 
     /** タブの並び。左から「広い→狭い」。すべてが最初に来るのは、既定がそこだから。 */
+    /**
+     * 状態のタブ（設計 08 商品 305:2125）。
+     *
+     * <p>★ 書きかけ（draft）は「掲載中」「掲載停止」のどちらにも入れないこと。
+     * 掲載停止に混ぜると、季節外れでいま隠している品と作りかけが同じ棚に並び、
+     * 店主が探しているほう（作りかけ）を毎回全部見て探すことになります。
+     */
     private static final List<ItemTab> TABS = List.of(
             new ItemTab("all", "すべて", item -> true),
-            new ItemTab("published", "掲載中", MenuItem::isVisible),
-            new ItemTab("soldout", "品切れ", item -> item.isSoldOut() || item.isOutOfStock()),
-            new ItemTab("hidden", "掲載停止", item -> !item.isVisible()));
+            new ItemTab("published", "掲載中", item -> !item.isDraft() && item.isVisible()),
+            new ItemTab("soldout", "品切れ",
+                    item -> !item.isDraft() && (item.isSoldOut() || item.isOutOfStock())),
+            new ItemTab("hidden", "掲載停止", item -> !item.isDraft() && !item.isVisible()),
+            new ItemTab("draft", "編集中", MenuItem::isDraft));
 
     /** 画面に渡すタブ 1 つぶん。 */
     public record TabView(String key, String label, int count, boolean active) {
@@ -188,7 +202,8 @@ public class AdminMenuItemController {
         model.addAttribute("currentTab", selected.key());
         // 見出しの「掲載中 94 品」も、タブの件数と同じく店の全体像を出す
         model.addAttribute("totalCount", all.size());
-        model.addAttribute("visibleCount", (int) all.stream().filter(MenuItem::isVisible).count());
+        model.addAttribute("visibleCount",
+                (int) all.stream().filter(i -> !i.isDraft() && i.isVisible()).count());
         // 入力した語を画面に返す。返さないと、検索したあとに入力欄が空に戻り、
         // 何で絞った結果を見ているのか分からなくなる
         model.addAttribute("q", keyword);
@@ -250,8 +265,11 @@ public class AdminMenuItemController {
     @Transactional
     public String create(@Validated @ModelAttribute("itemForm") MenuItemForm form,
                          BindingResult binding,
+                         @RequestParam(defaultValue = "publish") String action,
                          Model model,
                          RedirectAttributes redirectAttributes) {
+        boolean publish = validateForAction(action, form, binding);
+
         // 新規登録なので、id と「いまの画像」は必ず空にそろえる。
         // フォームクラスには setter があるため、リクエストに id=7 を紛れ込ませるだけで
         // 入力エラーで描き直したときの送信先が /admin/items/7（＝更新）に化けてしまい、
@@ -272,7 +290,11 @@ public class AdminMenuItemController {
             return "admin/item-form";
         }
 
-        MenuItem item = new MenuItem(category, form.getName().trim(), form.getPrice());
+        // 下書きは価格が空のまま来る。0 で作ってから applyForm が上書きする形にすると、
+        // 空のときに 0（＝時価）で固定されてしまうので、ここでは 0 で作って
+        // applyForm 側の「空なら触らない」に任せる
+        MenuItem item = new MenuItem(category, form.getName().trim(),
+                form.getPrice() == null ? 0 : form.getPrice());
         applyForm(item, form);
         // 並び順は新規フォームで聞いていないので、そのカテゴリの末尾に付ける。
         // 既定の 0 のままだと、追加した品が看板メニューの上に割り込みます。
@@ -281,10 +303,17 @@ public class AdminMenuItemController {
         item.setImagePath(storedImagePath);
         menuItemRepository.save(item);
 
-        log.info("商品を登録しました: {}", item.getName());
-        redirectAttributes.addFlashAttribute("flashSuccess",
-                "商品「%s」を登録しました".formatted(item.getName()));
-        return "redirect:/admin/items";
+        log.info("商品を登録しました: {}（{}）", item.getName(), publish ? "掲載" : "下書き");
+        if (publish) {
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    "商品「%s」を掲載しました。お客さまのメニューに並びます".formatted(item.getName()));
+            return "redirect:/admin/items";
+        }
+        // 下書きは「編集中」タブへ戻す。素の一覧に戻すと、
+        // いま保存したものが 100 品の中に紛れて、続きから直せない
+        redirectAttributes.addFlashAttribute("flashInfo",
+                "商品「%s」を下書きとして保存しました。お客さまにはまだ出ません".formatted(item.getName()));
+        return "redirect:/admin/items?tab=draft";
     }
 
     // ========================================================================
@@ -297,8 +326,10 @@ public class AdminMenuItemController {
     public String update(@PathVariable("id") Long id,
                          @Validated @ModelAttribute("itemForm") MenuItemForm form,
                          BindingResult binding,
+                         @RequestParam(defaultValue = "publish") String action,
                          Model model,
                          RedirectAttributes redirectAttributes) {
+        boolean publish = validateForAction(action, form, binding);
         MenuItem item = menuItemRepository.findById(id)
                 .orElseThrow(() -> new MenuService.MenuItemNotFoundException(id));
 
@@ -336,10 +367,15 @@ public class AdminMenuItemController {
         //    ファイルだけ無い状態になります。実務では
         //    TransactionSynchronizationManager で「コミット後に実行」を登録します。
 
-        log.info("商品を更新しました: {}", item.getName());
-        redirectAttributes.addFlashAttribute("flashSuccess",
-                "商品「%s」を更新しました".formatted(item.getName()));
-        return "redirect:/admin/items";
+        log.info("商品を更新しました: {}（{}）", item.getName(), publish ? "掲載" : "下書き");
+        if (publish) {
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    "商品「%s」を更新しました".formatted(item.getName()));
+            return "redirect:/admin/items";
+        }
+        redirectAttributes.addFlashAttribute("flashInfo",
+                "商品「%s」を下書きとして保存しました。お客さまにはまだ出ません".formatted(item.getName()));
+        return "redirect:/admin/items?tab=draft";
     }
 
     // ========================================================================
@@ -564,13 +600,53 @@ public class AdminMenuItemController {
     private void applyForm(MenuItem item, MenuItemForm form) {
         item.setName(form.getName().trim());
         item.setDescription(blankToNull(form.getDescription()));
-        item.setPrice(form.getPrice());
-        item.setCookMinutes(form.getCookMinutes());
-        item.setSortOrder(form.getSortOrder());
+        // 下書きは価格・調理時間・並びが空のまま保存できる（設計 08-2）。
+        // 空で来たときは今の値を残す。0 で埋めると、価格 0 は「時価」の意味になるので、
+        // 入れ忘れた品が時価として扱われてしまう
+        if (form.getPrice() != null) {
+            item.setPrice(form.getPrice());
+        }
+        if (form.getCookMinutes() != null) {
+            item.setCookMinutes(form.getCookMinutes());
+        }
+        if (form.getSortOrder() != null) {
+            item.setSortOrder(form.getSortOrder());
+        }
         item.setSoldOut(form.isSoldOut());
         item.setVisible(form.isVisible());
+        item.setDraft(form.isDraft());
         item.setRecommended(form.isRecommended());
         item.setAllergens(toEnumSet(form.getAllergens()));
+    }
+
+    /**
+     * 「掲載する」ときだけ走らせる決まりを追加で確かめる。
+     *
+     * <p>注釈（{@code @Validated}）ではリクエストごとにグループを選べないので、
+     * 押されたボタンを見てここで足します。
+     *
+     * @return 掲載する（＝下書きではない）なら true
+     */
+    private boolean validateForAction(String action, MenuItemForm form, BindingResult binding) {
+        boolean publish = !"draft".equals(action);
+        if (publish) {
+            validator.validate(form, binding, MenuItemForm.Publish.class);
+        }
+        // ★ ラジオ（掲載の 3 択）とボタンは同じ値を触る。ボタンが勝つ。
+        //   どちらが勝つかを決めずに書くと、実装のたびに解釈が変わる。
+        form.setDraft(!publish);
+        if (publish) {
+            // 「掲載停止」を選んだまま掲載ボタンを押したときは、止めた状態で保存する。
+            // 編集中のまま押されたら、掲載するつもりだったとみなす
+            form.setVisible(!"hidden".equals(form.getPublishState()));
+        } else {
+            // ★ 下書きは掲載も落とすこと。
+            //   draft だけ立てて visible を true のままにすると、
+            //   visible を見ている問い合わせ（お客さまのメニュー）を素通りする。
+            //   実際にそれで、価格を入れる前の品がお客さまの画面に並んだ。
+            form.setVisible(false);
+        }
+        return publish;
     }
 
     /**

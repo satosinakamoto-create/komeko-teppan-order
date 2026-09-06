@@ -86,6 +86,27 @@ public class MenuItem {
     @Column(nullable = false)
     private boolean visible = true;
 
+    /**
+     * 書きかけ（編集中）かどうか。設計 08-2 商品を追加（315:1983）。
+     *
+     * <p><b>なぜ visible の false と別に持つのか</b><br>
+     * 「掲載停止」と「編集中」は、同じ<b>出していない</b>でも意味がまるで違います。
+     * <ul>
+     *   <li>掲載停止 … 一度出したものを引っ込めた。<b>中身はそろっている</b></li>
+     *   <li>編集中   … まだ作りかけ。価格が空かもしれない</li>
+     * </ul>
+     * 真偽値 1 つで両方を表すと、商品一覧で「作りかけ」と
+     * 「季節外れでいま隠しているもの」が同じ棚に並びます。
+     * 店主が探しているのはたいてい前者なので、区別できないと毎回全部見ることになります。
+     *
+     * <p><b>{@code columnDefinition} に DEFAULT を書く理由</b><br>
+     * dev / demo は {@code ddl-auto: update} で列を足します。
+     * NOT NULL の列を DEFAULT 無しで足すと、既存の行を埋められず失敗します。
+     * 本番（Flyway）側にも同じ既定値を書いてあります（V12）。
+     */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean draft = false;
+
     /** おすすめバッジを付けるか。 */
     @Column(nullable = false)
     private boolean recommended = false;
@@ -158,9 +179,31 @@ public class MenuItem {
      * いま注文できる状態か。
      * 「掲載中」かつ「手動の品切れフラグが立っていない」かつ「残数が尽きていない」。
      * 品切れの理由が手動フラグでも残数ゼロでも、お客さまから見れば同じ「売り切れ」です。
+     *
+     * <p><b>★ 書きかけ（{@link #isDraft()}）はここで必ず落とすこと。</b><br>
+     * 画面側で {@code draft} を見て隠していても、
+     * 判定がこの 1 か所に無いと、あとから足した画面や API が素通りさせます。
+     * 作りかけの商品がお客さまのメニューに並ぶのは、
+     * 価格が空のまま注文されるということでもあります。
      */
     public boolean isOrderable() {
-        return visible && !soldOut && !isOutOfStock();
+        return !draft && visible && !soldOut && !isOutOfStock();
+    }
+
+    /**
+     * 掲載できるだけの中身がそろっているか（設計 08-2 の「掲載する」が押せる条件）。
+     *
+     * <p>商品名・カテゴリ・価格の 3 つ。写真は無くても掲載できます
+     * （設計の但し書き「無くても掲載できます」）。
+     *
+     * <p>価格は 0 も通します。0 は「時価」の意味で、
+     * 金額はスタッフが店舗端末で決めるためです
+     * （そのぶん品切れを外せないようにしてある。{@code MenuService#toggleSoldOut}）。
+     */
+    public boolean isReadyToPublish() {
+        return name != null && !name.isBlank()
+                && category != null
+                && price >= 0;
     }
 
     /** 双方向関連を安全に張るためのヘルパー。 */
@@ -242,6 +285,14 @@ public class MenuItem {
 
     public void setVisible(boolean visible) {
         this.visible = visible;
+    }
+
+    public boolean isDraft() {
+        return draft;
+    }
+
+    public void setDraft(boolean draft) {
+        this.draft = draft;
     }
 
     public boolean isRecommended() {

@@ -102,11 +102,17 @@
             <a th:href="@{/admin/items/{id}/edit(id=${item.id})}" th:text="${item.name}">肉玉米粉そば</a>
           </td>
           <td th:text="${categoryNames.get(item.category.id)}">広島風お好み焼き</td>
-          <!--/* 価格 0 は「時価」。共通フラグメントと同じ扱いにそろえる */-->
+          <!--/* 価格 0 は「時価」。共通フラグメントと同じ扱いにそろえる。
+
+                 ★ ただし書きかけ（編集中）は別。
+                   下書きは価格を空のまま保存できるので、DB には 0 が入る。
+                   そこに「時価」と出すと、値段を決めずに保存しただけの品が
+                   「その日の仕入れで決める品」に見える。意味がまるで違う。 */-->
           <td class="num">
             <span th:if="${item.price > 0}"
                   th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥1,180</span>
-            <span th:unless="${item.price > 0}">時価</span>
+            <span class="faint" th:if="${item.price <= 0 and item.draft}">未入力</span>
+            <span th:if="${item.price <= 0 and !item.draft}">時価</span>
           </td>
           <!--/* ====== 掲載 ／ 販売 ======
                  ★ 見た目はバッジのまま、押せるようにしてあります（2026-09-07）。
@@ -118,7 +124,16 @@
 
                  ★ 押した場所へ戻すため、タブと検索語を持たせています。 */-->
           <td>
-            <form th:action="@{/admin/items/{id}/visibility(id=${item.id})}" method="post">
+            <!--/* ★ 書きかけ（編集中）はここで切り替えさせません。
+                   まだ価格やカテゴリが空かもしれないので、
+                   一覧のワンタップで掲載できてしまうと中身の無い品が
+                   お客さまのメニューに並びます。
+                   押すと編集画面へ連れて行き、そこで「掲載する」を押させます。 */-->
+            <a th:if="${item.draft}" class="badge badge--draft"
+               th:href="@{/admin/items/{id}/edit(id=${item.id})}"
+               title="作りかけです。押すと続きから編集できます">編集中</a>
+            <form th:unless="${item.draft}"
+                  th:action="@{/admin/items/{id}/visibility(id=${item.id})}" method="post">
               <input type="hidden" name="tab" th:value="${currentTab}">
               <input type="hidden" name="q" th:value="${q}">
               <button type="submit" class="badge badge--act badge--gf" th:if="${item.visible}"
@@ -129,8 +144,10 @@
           </td>
           <td>
             <!--/* 掲載していない品の販売状態は意味を持たないので出さない。
-                   メニューに無いものが「販売中」でも「品切れ」でもない */-->
-            <form th:if="${item.visible}" th:action="@{/admin/items/{id}/sale(id=${item.id})}" method="post">
+                   メニューに無いものが「販売中」でも「品切れ」でもない。
+                   書きかけも同じ（まだメニューに出ていない） */-->
+            <form th:if="${item.visible and !item.draft}"
+                  th:action="@{/admin/items/{id}/sale(id=${item.id})}" method="post">
               <input type="hidden" name="tab" th:value="${currentTab}">
               <input type="hidden" name="q" th:value="${q}">
               <!--/* 残数ゼロの品切れはここでは押せません。
@@ -145,7 +162,7 @@
                       th:unless="${item.soldOut or item.outOfStock}"
                       title="押すと品切れにします">販売中</button>
             </form>
-            <span class="faint" th:unless="${item.visible}">—</span>
+            <span class="faint" th:unless="${item.visible and !item.draft}">—</span>
           </td>
           <!--/* 並び替え。
                  上下ボタンが動かすのは<b>同じカテゴリの中だけ</b>です。

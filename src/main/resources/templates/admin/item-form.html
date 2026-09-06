@@ -19,13 +19,7 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <p class="small"><a th:href="@{/admin/items}">← 商品一覧に戻る</a></p>
-
-  <div class="section-title">
-    <h1 class="section-title__text" th:text="${pageTitle}">商品を追加</h1>
-    <span class="section-title__count" th:if="${itemForm.id != null}"
-          th:text="'id: ' + ${itemForm.id}">id: 3</span>
-  </div>
+  <p class="small"><a th:href="@{/admin/items}">← 商品の一覧にもどる</a></p>
 
   <!--/*
     ・enctype="multipart/form-data" … ファイルを送るために必須。付け忘れると画像が届きません
@@ -35,6 +29,36 @@
   */-->
   <form method="post" enctype="multipart/form-data" th:object="${itemForm}"
         th:action="${itemForm.id == null} ? @{/admin/items} : @{/admin/items/{id}(id=${itemForm.id})}">
+
+    <!--/* ====== 見出しと保存のボタン ====== 設計 08-2 商品を追加（315:1983）
+
+           ★ ボタンをフォームの<b>上</b>に置いています。
+             設計どおりですが、理由もあります。この画面は「詳しい設定」を開くと
+             縦に長くなるので、下だけに置くと毎回いちばん下まで送る必要があります。
+             保存はいつでも押せる場所に置く。
+
+           ★ 「掲載する」は中身がそろうまで押せません。
+             商品名・カテゴリ・価格の 3 つ（設計の但し書きどおり）。
+             押せないボタンを出しているのは、そこに何があるかを先に見せるためです。
+             隠すと、何をすれば出てくるのかが分かりません。 */-->
+    <div class="page-head">
+      <h1 class="page-head__title"
+          th:text="${itemForm.id == null and #strings.isEmpty(itemForm.name)} ? '新しい商品'
+                   : (${#strings.isEmpty(itemForm.name)} ? ${pageTitle} : ${itemForm.name})">新しい商品</h1>
+      <span class="badge badge--draft" th:if="${itemForm.draft or itemForm.id == null}">編集中</span>
+      <span class="page-head__spacer"></span>
+      <button class="btn" type="submit" name="action" value="draft">下書きのまま保存</button>
+      <button class="btn btn--primary" type="submit" name="action" value="publish"
+              th:disabled="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}">
+        掲載する
+      </button>
+    </div>
+    <p class="page-head__note"
+       th:text="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}
+                ? '商品名・カテゴリ・価格 を入れると、掲載できるようになります'
+                : '必要な項目がそろいました。「掲載する」でお客さまの画面に出ます'">
+      商品名・カテゴリ・価格 を入れると、掲載できるようになります
+    </p>
 
     <!--/* ====== 基本 ====== */-->
     <section class="card">
@@ -62,32 +86,17 @@
           <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
         </div>
 
-        <div class="field">
-          <label class="label" for="description">説明</label>
-          <textarea class="textarea" th:field="*{description}" maxlength="300"
-                    placeholder="例：ハム・チーズ・卵をのせた定番。米粉100%の生地で焼き上げます。"
-                    th:classappend="${#fields.hasErrors('description')} ? 'is-error'"></textarea>
-          <p class="help">300文字まで。メニュー一覧では 2 行までしか表示されないので、短く要点を。</p>
-          <p class="error" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">エラー内容</p>
-        </div>
-
+        <!--/* 説明・調理時間・おすすめ・アレルゲンは下の「詳しい設定」へ移しました
+               （2026-09-07 / 設計 08-2）。ここに残すのは、商品を思いついた時点で
+               決まっている 4 つ（商品名・カテゴリ・価格・並び）だけです。 */-->
         <div class="grid grid--3">
           <div class="field">
             <label class="label" for="price">価格（税込・円）<span class="req">必須</span></label>
             <input class="input" type="number" th:field="*{price}" min="0" max="1000000"
-                   inputmode="numeric"
+                   inputmode="numeric" placeholder="例：1,180"
                    th:classappend="${#fields.hasErrors('price')} ? 'is-error'">
             <p class="help">日本は総額表示が義務なので、税込の金額を入れます。</p>
             <p class="error" th:if="${#fields.hasErrors('price')}" th:errors="*{price}">エラー内容</p>
-          </div>
-
-          <div class="field">
-            <label class="label" for="cookMinutes">調理時間（分）<span class="req">必須</span></label>
-            <input class="input" type="number" th:field="*{cookMinutes}" min="0" max="180"
-                   inputmode="numeric"
-                   th:classappend="${#fields.hasErrors('cookMinutes')} ? 'is-error'">
-            <p class="help">待ち時間の目安の計算に使います。ドリンクは 0〜1 分。</p>
-            <p class="error" th:if="${#fields.hasErrors('cookMinutes')}" th:errors="*{cookMinutes}">エラー内容</p>
           </div>
 
           <!--/* 並び順は編集のときだけ聞きます（2026-09-05）。
@@ -110,23 +119,52 @@
           </div>
         </div>
 
+        <hr class="rule">
+
+        <!--/* ====== 掲載 ／ 販売 ====== 設計 08-2 の 2 段のセグメント
+
+               ★ ラジオとボタン（上の「下書きのまま保存」「掲載する」）は
+                 同じ値を触ります。<b>ボタンが勝ちます</b>。
+                 ここを決めずに書くと、実装のたびに解釈が変わります。
+                 ラジオの役目は「いまどの状態か」を見せることと、
+                 掲載を止めた状態のまま保存できるようにすることです。 */-->
         <div class="field">
-          <span class="label">掲載の設定</span>
-          <label class="choice">
-            <input type="checkbox" th:field="*{visible}">
-            <span class="choice__name">メニューに掲載する</span>
-          </label>
-          <label class="choice">
-            <input type="checkbox" th:field="*{soldOut}">
-            <span class="choice__name">いま品切れ（注文できない状態にする）</span>
-          </label>
-          <label class="choice">
-            <input type="checkbox" th:field="*{recommended}">
-            <span class="choice__name">「おすすめ」バッジを付ける</span>
-          </label>
-          <p class="help">
-            「掲載しない」は季節商品を一時的に隠すとき、「品切れ」は今日だけ出せないときに使い分けます。
+          <span class="label">掲載</span>
+          <div class="segmented">
+            <label class="segmented__item">
+              <input type="radio" th:field="*{publishState}" value="draft">
+              <span>編集中</span>
+            </label>
+            <label class="segmented__item">
+              <input type="radio" th:field="*{publishState}" value="published">
+              <span>掲載中</span>
+            </label>
+            <label class="segmented__item">
+              <input type="radio" th:field="*{publishState}" value="hidden">
+              <span>掲載停止</span>
+            </label>
+          </div>
+          <p class="help"
+             th:text="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}
+                      ? '商品名・カテゴリ・価格 がそろうまで「掲載中」は選べません'
+                      : '「掲載中」にすると、お客さまのメニューに並びます'">
+            商品名・カテゴリ・価格 がそろうまで「掲載中」は選べません
           </p>
+        </div>
+
+        <div class="field">
+          <span class="label">販売</span>
+          <div class="segmented">
+            <label class="segmented__item">
+              <input type="radio" th:field="*{soldOut}" value="false">
+              <span>販売中</span>
+            </label>
+            <label class="segmented__item">
+              <input type="radio" th:field="*{soldOut}" value="true">
+              <span>品切れ</span>
+            </label>
+          </div>
+          <p class="help">掲載してから、その日の品切れを切り替えられます。</p>
         </div>
 
       </div>
@@ -163,6 +201,53 @@
 
       </div>
     </section>
+
+    <!--/* ====== 詳しい設定（折りたたみ）======
+           設計 08-2 のカードには 商品名・カテゴリ・価格・並び・写真 しかありません。
+           残りをここへ畳みました（2026-09-07）。
+
+           ★ 消したのではなく畳んだだけです。
+             説明はお客さまのメニューに出ますし、アレルゲンは表示義務があります。
+             畳んであるのは<b>商品を思いついた時点では決まっていない</b>もので、
+             毎回いちばん上に置くと、追加のたびに長いフォームを通ることになります。
+
+           ★ 残数（数量限定の数）はここにありません。
+             あれは「今日は何個出せるか」という営業中の数で、
+             商品の設定ではないため「品切れ・残数」の画面が持っています。 */-->
+    <details class="foldout mt-6"
+             th:attr="open=${#fields.hasErrors('description') or #fields.hasErrors('cookMinutes')} ? 'open' : null">
+      <summary class="foldout__head">詳しい設定（説明・調理時間・おすすめ・アレルゲン）</summary>
+
+      <section class="card mt-4">
+        <div class="card__body">
+
+          <div class="field">
+            <label class="label" for="description">説明</label>
+            <textarea class="textarea" th:field="*{description}" maxlength="300"
+                      placeholder="例：ハム・チーズ・卵をのせた定番。米粉100%の生地で焼き上げます。"
+                      th:classappend="${#fields.hasErrors('description')} ? 'is-error'"></textarea>
+            <p class="help">300文字まで。お客さまのメニューでは品名の下に 1 行で出ます。</p>
+            <p class="error" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">エラー内容</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="cookMinutes">調理時間（分）</label>
+            <input class="input" type="number" th:field="*{cookMinutes}" min="0" max="180"
+                   inputmode="numeric"
+                   th:classappend="${#fields.hasErrors('cookMinutes')} ? 'is-error'">
+            <p class="help">待ち時間の目安の計算に使います。ドリンクは 0〜1 分。</p>
+            <p class="error" th:if="${#fields.hasErrors('cookMinutes')}" th:errors="*{cookMinutes}">エラー内容</p>
+          </div>
+
+          <div class="field">
+            <label class="choice">
+              <input type="checkbox" th:field="*{recommended}">
+              <span class="choice__name">「おすすめ」バッジを付ける</span>
+            </label>
+          </div>
+
+        </div>
+      </section>
 
     <!--/* ====== アレルゲン ======
            ここは th:field ではなく name / value を直接書いています。
@@ -228,11 +313,17 @@
 
       </div>
     </section>
+    </details>
 
-    <!--/* ====== 送信 ====== */-->
+    <!--/* ====== 送信 ======
+           上の見出しにも同じ 2 つを置いてあります。
+           長いフォームを下まで送ったところで、もう一度押せるようにするため。 */-->
     <div class="row row--wrap mt-6">
-      <button class="btn btn--primary btn--lg" type="submit"
-              th:text="${itemForm.id == null} ? '登録する' : '保存する'">登録する</button>
+      <button class="btn btn--primary btn--lg" type="submit" name="action" value="publish"
+              th:disabled="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}">
+        掲載する
+      </button>
+      <button class="btn btn--lg" type="submit" name="action" value="draft">下書きのまま保存</button>
       <a class="btn btn--lg" th:href="@{/admin/items}">やめる</a>
     </div>
 

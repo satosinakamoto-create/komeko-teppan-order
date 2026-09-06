@@ -30,10 +30,21 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
      * {@code LazyInitializationException} が出ます
      * （このアプリは {@code open-in-view: false} で、描画時には DB 接続が無いため）。
      */
+    /*
+     * ★ 書きかけ（draft）は必ずここでも落とすこと（2026-09-07）。
+     *
+     *   MenuItem#isOrderable は draft を見ますが、<b>この問い合わせは
+     *   isOrderable を通りません</b>。SQL で visible だけを見ていたため、
+     *   下書きとして保存した商品がそのままお客さまのメニューに並びました
+     *   （実際に出た。価格を入れる前の品が「時価」として出ていた）。
+     *
+     *   保存側でも visible=false にしていますが、条件は<b>両方</b>に要ります。
+     *   片方だけだと、あとから別の経路で下書きが作られたときに素通りします。
+     */
     @EntityGraph(attributePaths = {"category", "allergens"})
     @Query("""
             select m from MenuItem m
-            where m.visible = true and m.category.visible = true
+            where m.visible = true and m.draft = false and m.category.visible = true
             order by m.category.sortOrder asc, m.sortOrder asc, m.id asc
             """)
     List<MenuItem> findVisibleForCustomer();

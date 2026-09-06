@@ -35,9 +35,37 @@ import java.util.Set;
  */
 public class MenuItemForm {
 
+    /**
+     * 「掲載する」ときだけ確かめる決まりの目印（設計 08-2 商品を追加）。
+     *
+     * <p><b>下書きは途中で保存できないと意味がありません。</b>
+     * 商品名だけ思いついて開いた店主に、価格とカテゴリまで求めたら、
+     * 保存できずに画面を閉じることになります。
+     *
+     * <p>そこで「入っているか」の決まりだけこのグループに入れ、
+     * 掲載するときにだけ走らせます。
+     * 長さや範囲の決まり（60 文字以内・0 円以上など）は<b>常に</b>走ります。
+     * 下書きでも、入っている値が壊れていてよい理由はありません。
+     */
+    public interface Publish {
+    }
+
     /** 新規なら null、編集なら対象商品の ID。 */
     private Long id;
 
+    /**
+     * ★ カテゴリと商品名だけは、下書きでも必ず要ります。
+     *
+     * <p>{@code menu_item.category_id} と {@code name} は DB で NOT NULL、
+     * カテゴリは {@code @ManyToOne(optional = false)} です。
+     * ここを空で保存できるようにするには両方を NULL 許可に変える必要があり、
+     * カテゴリは商品一覧・お客さまのメニューの見出し・注文明細まで
+     * 「必ずある」前提で書かれています。
+     * 下書きのために全体の前提を緩めるのは割に合いません。
+     *
+     * <p>入力の負担としても、この 2 つは商品を思いついた時点で決まっています。
+     * 途中で保存したくなるのは、価格や写真やアレルゲンを調べている最中です。
+     */
     @NotNull(message = "カテゴリを選択してください")
     private Long categoryId;
 
@@ -49,17 +77,17 @@ public class MenuItemForm {
     private String description;
 
     /** 税込価格（円）。日本円は小数が無いので整数で扱う。 */
-    @NotNull(message = "価格を入力してください")
+    @NotNull(message = "価格を入力してください", groups = Publish.class)
     @Min(value = 0, message = "価格は0円以上で入力してください")
     @Max(value = 1000000, message = "価格は1,000,000円以下で入力してください")
     private Integer price;
 
-    @NotNull(message = "調理時間を入力してください")
+    @NotNull(message = "調理時間を入力してください", groups = Publish.class)
     @Min(value = 0, message = "調理時間は0分以上で入力してください")
     @Max(value = 180, message = "調理時間は180分以下で入力してください")
     private Integer cookMinutes = 5;
 
-    @NotNull(message = "並び順を入力してください")
+    @NotNull(message = "並び順を入力してください", groups = Publish.class)
     @Min(value = 0, message = "並び順は0以上で入力してください")
     @Max(value = 9999, message = "並び順は9999以下で入力してください")
     private Integer sortOrder = 0;
@@ -68,6 +96,30 @@ public class MenuItemForm {
 
     /** 掲載するか。新規は「掲載する」を初期値にする。 */
     private boolean visible = true;
+
+    /**
+     * 書きかけ（編集中）か。設計 08-2 の「掲載」の 3 択のうち左端。
+     *
+     * <p>true の間は {@link jp.komeko.order.domain.MenuItem#isOrderable()} が
+     * 必ず false を返すので、お客さまのメニューには並びません。
+     */
+    private boolean draft = false;
+
+    /**
+     * 掲載の 3 択（設計 08-2 の「掲載」）。{@code draft / published / hidden}。
+     *
+     * <p>画面のラジオはこれを指します。保存したときに何になるかは
+     * <b>押したボタン</b>で決まります。
+     * <ul>
+     *   <li>下書きのまま保存 … 何を選んでいても 編集中</li>
+     *   <li>掲載する         … 編集中ではなくなる。
+     *       「掲載停止」を選んでいればそのまま止めた状態で保存する</li>
+     * </ul>
+     * ラジオとボタンの両方が同じ値を触るので、
+     * <b>どちらが勝つかをここに書いておかないと</b>、
+     * 実装のたびに解釈が変わります。ボタンが勝ちます。
+     */
+    private String publishState = "published";
 
     private boolean recommended = false;
 
@@ -112,6 +164,8 @@ public class MenuItemForm {
         form.setSortOrder(item.getSortOrder());
         form.setSoldOut(item.isSoldOut());
         form.setVisible(item.isVisible());
+        form.setDraft(item.isDraft());
+        form.setPublishState(item.isDraft() ? "draft" : (item.isVisible() ? "published" : "hidden"));
         form.setRecommended(item.isRecommended());
         // エンティティの Set をそのまま渡すと、フォーム側の操作が
         // エンティティに伝わってしまうのでコピーして持つ
@@ -189,6 +243,22 @@ public class MenuItemForm {
 
     public void setSoldOut(boolean soldOut) {
         this.soldOut = soldOut;
+    }
+
+    public String getPublishState() {
+        return publishState;
+    }
+
+    public void setPublishState(String publishState) {
+        this.publishState = publishState;
+    }
+
+    public boolean isDraft() {
+        return draft;
+    }
+
+    public void setDraft(boolean draft) {
+        this.draft = draft;
     }
 
     public boolean isVisible() {
