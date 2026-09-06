@@ -94,10 +94,11 @@
               <img class="drink-row__img" th:if="${item.imagePath != null}"
                    th:src="@{${item.imagePath}}" th:alt="${item.name}" loading="lazy">
               <span class="drink-row__body">
+                <!--/* 札は品名の上（2026-09-06）。写真カード・サムネイルと揃える */-->
+                <span th:replace="~{fragments/common :: allergens(${item})}"></span>
                 <span class="drink-row__name" th:text="${item.name}">サッポロ赤星（中瓶）</span>
                 <span class="drink-row__note" th:if="${item.description}"
                       th:text="${item.description}">お店のおすすめ。</span>
-                <span th:replace="~{fragments/common :: allergens(${item})}"></span>
               </span>
               <span class="drink-row__price"
                     th:insert="~{fragments/common :: price(${item})}">¥700</span>
@@ -147,10 +148,14 @@
                  th:href="@{/items/{id}(id=${item.id})}">
                 <img class="thumb__img" th:src="@{${item.imagePath}}"
                      th:alt="${item.name}" loading="lazy">
+                <!--/* 「おすすめ」などの札は品名の上（2026-09-06）。
+                       写真カードは写真に重ねて上に出しているので、そちらと揃う。
+                       下に置くと、品名と価格を読んだあとで目に入るので、
+                       「おすすめだから見た」ではなく「見たあとにおすすめと知る」になる */-->
+                <span th:replace="~{fragments/common :: allergens(${item})}"></span>
                 <span class="thumb__name" th:text="${item.name}">ねぎたっぷり米粉そば</span>
                 <span class="thumb__price"
                       th:insert="~{fragments/common :: price(${item})}">¥1,380</span>
-                <span th:replace="~{fragments/common :: allergens(${item})}"></span>
               </a>
             </div>
 
@@ -160,10 +165,11 @@
                th:classappend="${!item.orderable} ? 'is-soldout'"
                th:href="@{/items/{id}(id=${item.id})}">
               <span class="drink-row__body">
+                <!--/* 札は品名の上（2026-09-06）。写真カード・サムネイルと揃える */-->
+                <span th:replace="~{fragments/common :: allergens(${item})}"></span>
                 <span class="drink-row__name" th:text="${item.name}">本日の特製サラダ</span>
                 <span class="drink-row__note" th:if="${item.description}"
                       th:text="${item.description}">お店のおすすめ。</span>
-                <span th:replace="~{fragments/common :: allergens(${item})}"></span>
               </span>
               <span class="drink-row__price"
                     th:insert="~{fragments/common :: price(${item})}">¥1,200</span>
