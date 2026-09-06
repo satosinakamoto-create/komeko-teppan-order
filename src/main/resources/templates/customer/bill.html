@@ -36,7 +36,10 @@
         <div th:replace="~{fragments/common :: empty('膳', 'まだご注文がありません')}"></div>
       </div>
 
-      <div class="mt-6" th:unless="${orders.isEmpty()}">
+      <!--/* bill-lines は「明細のかたまり」の目印。
+             いちばん下の行に締めの線を引くのに使う（設計 暗04）。
+             合計側で線を引くと、設計にある 32px の間が消える */-->
+      <div class="bill-lines mt-6" th:unless="${orders.isEmpty()}">
         <th:block th:each="order : ${orders}">
           <div class="bill-row" th:each="line : ${order.lines}">
             <span class="bill-row__name">

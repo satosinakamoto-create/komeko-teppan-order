@@ -44,7 +44,9 @@
               th:text="${closedBill.diningTable.name} + ' ／ ' + ${closedBill.guestCount} + '名'">カウンター1 ／ 2名</span>
       </div>
 
-      <div class="mt-6">
+      <!--/* 伝票（暗04）と同じ形。明細の締めの線はここが持つ。
+             付け忘れると、合計から線が消えて明細と地続きに見える */-->
+      <div class="bill-lines mt-6">
         <th:block th:each="order : ${closedBill.billableOrders}">
           <div class="bill-row" th:each="line : ${order.lines}">
             <span class="bill-row__name">

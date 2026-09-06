@@ -3670,6 +3670,27 @@ body.is-sending .staff-main {
 /* 伝票の画面だけ左右 24px。本文の幅が 390 − 48 = 342 になる（設計 暗04） */
 .bill-page { padding-inline: 24px; }
 
+/* 伝票の画面は、タブ帯の下を 32px 空ける（設計 暗04 の本文 pt-32）。
+   .theme-night .page__body が全画面ぶんの 16px を持っているので、
+   差の 16px をここで足す。
+   ★ page__body 側を 32 にしないこと。メニュー（暗01）は 16 が正しく、
+     全画面が下がる。上の余白は画面ごとに違う（暗01=16 / 暗03=24 / 暗04=32）。 */
+.bill-page { padding-block-start: 16px; }
+
+/* 伝票の節見出しだけ、左右を 40px 内側に入れる（設計 暗04 の 87:3716）。
+   ★ 見出しが中身より内側に入るのは、ふつうとは逆です。
+     設計にそう描かれているのでそのまま実装しています。
+     やめるならこの padding-inline を消すだけで、明細の位置は動きません。
+
+   ★ 上の余白は 0 に戻す。
+     .section-title は自前で上に 32px 持っているので、
+     上の padding（16 + 16 = 32）と足されて 64px になっていた。
+     設計はタブ帯の下 32px でこの見出しが始まる。 */
+.bill-page .section-title {
+  margin-block-start: 0;
+  padding-inline: 40px;
+}
+
 /* --------------------------------------------------------------------------
    31-7. 品を選ぶモーダル（設計「暗05 トッピングを選ぶ」）
 
@@ -4029,12 +4050,22 @@ body.is-sending .staff-main {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  padding: 12px 16px;
+  /* 左右 8px（設計 暗/伝票の行 82:3455）。16px にすると、
+     品名の始まりと金額の終わりが 8px ずつ内側に寄る */
+  padding: 12px 8px;
   font-size: 16px;
   font-weight: 400;
   line-height: 28px;
 }
 .bill-row + .bill-row { border-top: 1px solid var(--border); }
+
+/* 明細のいちばん下にも線を引く（設計 暗04 の 148:4045）。
+
+   ★ 線は「明細の締めくくり」であって「合計の飾り」ではない。
+     もとは .bill-total の border-top で描いていたので、
+     線が合計にくっついて、設計にある 32px の間が消えていた。
+     線を明細側に移し、合計は間を空けてから置く。 */
+.bill-lines .bill-row:last-child { border-bottom: 1px solid var(--border); }
 .bill-row__name { flex: 1 0 0; min-width: 0; }
 /* 選んだ内容と、いまの状態。行の高さ 52 を保つため、名前と同じ行に置く */
 .bill-row__note,
@@ -4050,9 +4081,11 @@ body.is-sending .staff-main {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  /* 上線 1px は箱の内側。上の余白から 1px 返して 60 を守る */
-  padding: 15px 8px 16px;
-  border-top: 1px solid var(--border);
+  /* 明細との間は 32px（設計 暗04 の本文 gap）。
+     ★ 線はここで引かない。明細の最後の行が持っている（.bill-lines 参照）。
+       ここで border-top を引くと、線が合計にくっついて間が消える */
+  margin-top: 32px;
+  padding: 16px 8px;
   font-size: 20px;
   font-weight: 700;
   /* ここだけ行送りが 1.4。20 × 1.4 = 28 で、上の品の行（16 × 1.75 = 28）と
