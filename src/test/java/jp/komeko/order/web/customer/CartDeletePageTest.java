@@ -150,7 +150,12 @@ class CartDeletePageTest {
         assertThat(page).as("消す対象の名前を持っていない")
                 .contains("data-confirm-name=\"肉玉米粉そば ×2\"");
         assertThat(page).as("確認そのものが無い").contains("id=\"confirm-remove\"");
-        assertThat(page).contains("この項目を削除しますか");
+        // 「すべて」は削り落とさないこと（2026-09-06 決定）。
+        // 「−」という記号は「1 つ減らす」と読めるが、実際は行ごと消える。
+        // ×3 の行で 1 つ減るつもりで押した人に、この 3 文字が「そうではない」と伝える。
+        // ここが「この項目を削除しますか」に戻ると、記号と挙動の食い違いが
+        // 確認の文言で受け止められなくなる
+        assertThat(page).contains("この品をすべて削除しますか");
     }
 
     @Test
