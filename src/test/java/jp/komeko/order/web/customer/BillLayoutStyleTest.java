@@ -87,6 +87,40 @@ class BillLayoutStyleTest {
     }
 
     @Test
+    @DisplayName("★ 伝票に注文の状態を出さない（設計 暗29）")
+    void billShowsNoCookingStatus() throws Exception {
+        // もとは品名の右に「受付済み／焼いています」を並べていた。
+        // 品名・トッピング・状態の 3 つが横に流れて折り返し、
+        // 行が 81px（設計 52px）になり、どこで折り返すかも品名の長さで変わっていた。
+        // 伝票は「何を頼んだか」と「いくらか」を読む画面、という切り分け
+        for (String page : new String[]{"bill.html", "bill-closed.html"}) {
+            String html = Files.readString(
+                    Path.of("src/main/resources/templates/customer/" + page));
+            assertThat(html).as(page + " に状態が戻っている")
+                    .doesNotContain("bill-row__state");
+            assertThat(html).as(page + " に状態の色が戻っている")
+                    .doesNotContain("status.color");
+        }
+    }
+
+    @Test
+    @DisplayName("★ トッピングは品名の下（承りました画面は括弧付きのまま）")
+    void toppingsSitUnderTheNameOnlyOnTheBill() throws Exception {
+        String css = Files.readString(APP_CSS);
+
+        // 明細だけ縦並び。.bill-row__note は暗07 とも共有しているので、
+        // 全体に効かせると、あちらの「（米粉そば ／ チーズ）」が 2 行目に落ちる
+        assertThat(rule(".bill-lines .bill-row__name {"))
+                .as("トッピングが品名の横に戻っている").contains("flex-direction: column;");
+        assertThat(css).as("行送りが品名と同じ 28px のままで開きすぎる")
+                .contains(".bill-lines .bill-row__note");
+
+        // 品名と個数を包む span が無いと、縦並びにした瞬間に 2 つが別の行に分かれる
+        assertThat(Files.readString(Path.of("src/main/resources/templates/customer/bill.html")))
+                .as("品名と個数を包んでいない").contains("bill-row__title");
+    }
+
+    @Test
     @DisplayName("会計済みの伝票も、同じ締めの線を持つ")
     void closedBillUsesTheSameLines() throws Exception {
         // .bill-lines を付け忘れると、合計から線が消えて明細と地続きに見える

@@ -49,9 +49,14 @@
       <div class="bill-lines mt-6">
         <th:block th:each="order : ${closedBill.billableOrders}">
           <div class="bill-row" th:each="line : ${order.lines}">
+            <!--/* 開いている伝票（暗29）と同じ形。品名と個数が 1 行、
+                   トッピングはその下。内側の span を外すと、
+                   縦並びにしたときに品名と個数が分かれる */-->
             <span class="bill-row__name">
-              <span th:text="${line.menuItemName}">肉玉米粉そば</span>
-              <span th:text="' ×' + ${line.quantity}"> ×2</span>
+              <span class="bill-row__title">
+                <span th:text="${line.menuItemName}">肉玉米粉そば</span>
+                <span th:text="' ×' + ${line.quantity}"> ×2</span>
+              </span>
               <span class="bill-row__note" th:if="${!line.options.isEmpty()}"
                     th:text="${line.optionSummary}">ソース / ねぎマヨ</span>
             </span>

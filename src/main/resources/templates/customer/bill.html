@@ -42,14 +42,24 @@
       <div class="bill-lines mt-6" th:unless="${orders.isEmpty()}">
         <th:block th:each="order : ${orders}">
           <div class="bill-row" th:each="line : ${order.lines}">
+            <!--/* ★ 品名と個数は 1 行、トッピングはその下（設計 暗29）。
+                   ★ 内側の span で品名と個数を包むこと。
+                     包まないと、外側を縦並びにした瞬間に
+                     「肉玉米粉そば」と「×2」が別の行に分かれる。
+
+                   ★ 状態（受付済み／焼いています）はここに出しません（2026-09-06）。
+                     もとは品名の右に並べていましたが、品名・トッピング・状態の
+                     3 つが横に流れて折り返し、行の高さが 81px（設計 52px）になり、
+                     どこで折り返すかも品名の長さしだいで変わっていました。
+                     伝票は「何を頼んだか」と「いくらか」を読む画面、
+                     という切り分けです。 */-->
             <span class="bill-row__name">
-              <span th:text="${line.menuItemName}">肉玉米粉そば</span>
-              <span th:text="' ×' + ${line.quantity}"> ×2</span>
+              <span class="bill-row__title">
+                <span th:text="${line.menuItemName}">肉玉米粉そば</span>
+                <span th:text="' ×' + ${line.quantity}"> ×2</span>
+              </span>
               <span class="bill-row__note" th:if="${!line.options.isEmpty()}"
                     th:text="${line.optionSummary}">ソース / ねぎマヨ</span>
-              <span class="bill-row__state" th:if="${order.status.name != 'COMPLETED'}"
-                    th:style="'color:' + ${order.status.color}"
-                    th:text="${order.status.customerLabel}">焼いています</span>
             </span>
             <span class="bill-row__amount"
                   th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥2,360</span>

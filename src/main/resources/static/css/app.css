@@ -4067,10 +4067,30 @@ body.is-sending .staff-main {
      線を明細側に移し、合計は間を空けてから置く。 */
 .bill-lines .bill-row:last-child { border-bottom: 1px solid var(--border); }
 .bill-row__name { flex: 1 0 0; min-width: 0; }
-/* 選んだ内容と、いまの状態。行の高さ 52 を保つため、名前と同じ行に置く */
+/* 選んだ内容。承りました（暗07）では品名と同じ行に括弧付きで続く */
 .bill-row__note,
 .bill-row__state { font-size: 14px; color: var(--text-muted); }
 .bill-row__state { margin-left: 8px; }
+
+/* 伝票の明細だけ、トッピングを品名の下に置く（設計 暗29）。
+
+   ★ 承りました（暗07）には効かせない。
+     あちらは「（米粉そば ／ チーズ）」と括弧付きで品名に続く形が設計で、
+     .bill-row__note を共有しているだけ。ここを全体に効かせると、
+     暗07 の括弧書きが 2 行目に落ちる。
+
+   ★ 品名と個数は .bill-row__title で包んである。
+     包まずに縦並びにすると、「肉玉米粉そば」と「×2」が別の行に分かれる。 */
+.bill-lines .bill-row__name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bill-lines .bill-row__note {
+  /* 14px の文字に 28px（品名と同じ行送り）は開きすぎる。
+     設計は 1.6（＝22.4px） */
+  line-height: 1.6;
+}
 .bill-row__amount {
   flex: none;
   white-space: nowrap;
