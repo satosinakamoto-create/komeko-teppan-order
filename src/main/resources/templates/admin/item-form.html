@@ -49,7 +49,7 @@
             <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}">米粉ガレット</option>
           </select>
           <p class="help" th:if="${categories.isEmpty()}">
-            カテゴリがありません。先に <a th:href="@{/admin/categories}">カテゴリ</a> を作ってください。
+            カテゴリがありません。先に <a th:href="@{/admin/categories/edit}">カテゴリ</a> を作ってください。
           </p>
           <p class="error" th:if="${#fields.hasErrors('categoryId')}" th:errors="*{categoryId}">エラー内容</p>
         </div>

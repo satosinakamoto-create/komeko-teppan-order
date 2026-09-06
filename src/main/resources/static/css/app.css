@@ -3150,6 +3150,12 @@ body.is-sending .staff-main {
 .searchbox { margin-top: 48px; }
 .tabtable  { margin-top: 48px; }
 
+/* カテゴリ一覧のように、見出しのすぐ下が表の画面（設計 09 カテゴリ）。
+   ★ .page-head 側に margin-bottom を持たせないこと。
+     .page-head は仕入れ・経費でも使っていて、あちらの間はまだ設計を見ていない。
+     「見出しの直後が表のときだけ」に絞れば、確かめた画面だけが動く。 */
+.page-head + .table-wrap { margin-top: 48px; }
+
 .searchbox {
   display: flex;
   align-items: center;
@@ -3263,6 +3269,16 @@ body.is-sending .staff-main {
 .table--items th:nth-child(4), .table--items td:nth-child(4) { width: 130px; }
 .table--items th:nth-child(5), .table--items td:nth-child(5) { width: 130px; }
 .table--items th:nth-child(6), .table--items td:nth-child(6) { width: 120px; }
+
+/* カテゴリの表（設計 09 カテゴリ 41:1725）。
+   見出し 16／行 20 の流儀は商品・仕入れと同じ。列幅だけ違う（合計 1120） */
+.theme-desk .table--cats th { padding: 16px; height: 64px; }
+.theme-desk .table--cats td { padding: 20px 20px 19px; height: 68px; }
+.table--cats { table-layout: fixed; }
+.table--cats th:nth-child(1), .table--cats td:nth-child(1) { width: 400px; }
+.table--cats th:nth-child(2), .table--cats td:nth-child(2) { width: 200px; }
+.table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 160px; }
+.table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 360px; }
 
 /* --------------------------------------------------------------------------
    30-6-3. 売上・ダッシュボードの面（.sheet）— 2026-09-05

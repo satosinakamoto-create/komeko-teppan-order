@@ -67,11 +67,35 @@ public class AdminCategoryController {
     // ========================================================================
 
     /**
-     * カテゴリ一覧。画面上部に新規追加フォーム、各行に更新・削除フォームを出す。
+     * カテゴリ一覧（読むだけ）。設計 09 カテゴリ（41:1782）。
+     *
+     * <p><b>2026-09-07 に、開いた直後を「読む画面」に変えました。</b><br>
+     * それまでは開いた瞬間に新規追加フォームが出て、その下に
+     * 1 行ずつ入力欄の付いた表が続いていました。
+     * ところがこの画面を開く理由のほとんどは
+     * 「いまカテゴリが何個あって、どれに何品入っているか」を見ることで、
+     * <b>直すのはたまに</b>です。
+     * 見るために開いたのに、いきなり書き換えられる画面が出るのは、
+     * 押し間違いの的が常に置いてあるのと同じでした。
+     *
+     * <p>直すほうは {@link #edit} に分けました。
      */
     @GetMapping
     @Transactional(readOnly = true)
     public String index(Model model) {
+        prepareList(model);
+        return "admin/category-list";
+    }
+
+    /**
+     * カテゴリを編集・追加する画面（もとの一覧そのもの）。
+     *
+     * <p>新規追加フォームと、1 行ずつの更新・削除・並べ替えを持ちます。
+     * 一覧の「カテゴリを 編集・追加」から来ます。
+     */
+    @GetMapping("/edit")
+    @Transactional(readOnly = true)
+    public String edit(Model model) {
         prepareList(model);
         model.addAttribute("categoryForm", new CategoryForm());
         return "admin/categories";
@@ -117,7 +141,7 @@ public class AdminCategoryController {
         // 保存後の画面で再読み込みされたときに同じ POST が飛んで二重登録になる。
         redirectAttributes.addFlashAttribute("flashSuccess",
                 "カテゴリ「%s」を追加しました".formatted(category.getName()));
-        return "redirect:/admin/categories";
+        return "redirect:/admin/categories/edit";
     }
 
     // ========================================================================
@@ -145,7 +169,7 @@ public class AdminCategoryController {
         if (category == null) {
             redirectAttributes.addFlashAttribute("flashErrors",
                     List.of("カテゴリが見つかりませんでした（すでに削除された可能性があります）"));
-            return "redirect:/admin/categories";
+            return "redirect:/admin/categories/edit";
         }
 
         if (binding.hasErrors()) {
@@ -166,7 +190,7 @@ public class AdminCategoryController {
 
         redirectAttributes.addFlashAttribute("flashSuccess",
                 "カテゴリ「%s」を更新しました".formatted(category.getName()));
-        return "redirect:/admin/categories";
+        return "redirect:/admin/categories/edit";
     }
 
     // ========================================================================
@@ -190,7 +214,7 @@ public class AdminCategoryController {
         if (category == null) {
             redirectAttributes.addFlashAttribute("flashErrors",
                     List.of("カテゴリが見つかりませんでした（すでに削除された可能性があります）"));
-            return "redirect:/admin/categories";
+            return "redirect:/admin/categories/edit";
         }
 
         long itemCount = menuService.countItemsInCategory(id);
@@ -198,13 +222,13 @@ public class AdminCategoryController {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(
                     "カテゴリ「%s」には商品が %d 件あるため削除できません".formatted(category.getName(), itemCount),
                     "商品を別のカテゴリに移すか、先に商品を削除してください"));
-            return "redirect:/admin/categories";
+            return "redirect:/admin/categories/edit";
         }
 
         String name = category.getName();
         categoryRepository.delete(category);
         redirectAttributes.addFlashAttribute("flashSuccess", "カテゴリ「%s」を削除しました".formatted(name));
-        return "redirect:/admin/categories";
+        return "redirect:/admin/categories/edit";
     }
 
     // ========================================================================
@@ -233,7 +257,7 @@ public class AdminCategoryController {
             redirectAttributes.addFlashAttribute("flashInfo",
                     up ? "すでにいちばん上です" : "すでにいちばん下です");
         }
-        return "redirect:/admin/categories";
+        return "redirect:/admin/categories/edit";
     }
 
     // ========================================================================

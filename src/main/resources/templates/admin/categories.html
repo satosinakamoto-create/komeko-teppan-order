@@ -22,8 +22,16 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
+  <!--/* ★ ここは「直す画面」です（2026-09-07 に一覧と分けました）。
+         開いた直後の一覧は /admin/categories（読むだけ）。
+         戻り口を必ず置くこと。直しに来ただけの人が、
+         終わったあとに一覧へ戻る道を探すことになります。 */-->
+  <p class="mb-0">
+    <a class="btn btn--ghost btn--sm" th:href="@{/admin/categories}">← カテゴリ一覧へ</a>
+  </p>
+
   <div class="section-title">
-    <h1 class="section-title__text">カテゴリ</h1>
+    <h1 class="section-title__text">カテゴリを 編集・追加</h1>
     <span class="section-title__count" th:text="${categories.size()} + ' 件'">4 件</span>
   </div>
 

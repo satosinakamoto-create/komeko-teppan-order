@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<!--/*
+   カテゴリ一覧（読むだけ）。設計 09 カテゴリ（41:1782）。
+
+   ── なぜ「読む画面」と「直す画面」を分けたか（2026-09-07）──
+   もとは /admin/categories を開いた瞬間に新規追加フォームが出て、
+   その下に 1 行ずつ入力欄の付いた表が続いていました。
+
+   ところがこの画面を開く理由のほとんどは
+   「いまカテゴリが何個あって、どれに何品入っているか」を見ることで、
+   直すのはたまにです。見るために開いたのに、いきなり書き換えられる画面が出るのは、
+   押し間違いの的を常に置いてあるのと同じでした。
+
+   直すほうは「カテゴリを 編集・追加」から /admin/categories/edit へ。
+
+   使えるモデルの値：
+     ${categories} … List<Category>（並び順）
+     ${itemCounts} … Map<Long, Long>（カテゴリ id → 商品数）
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('カテゴリ', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <!--/* 見出し・件数・ボタンで 1 行（設計 見出し/ページ 24:1392） */-->
+  <div class="page-head">
+    <h1 class="page-head__title">カテゴリ</h1>
+    <span class="page-head__sub" th:text="${categories.size()} + ' 件'">5 件</span>
+    <span class="page-head__spacer"></span>
+    <a class="btn btn--primary" th:href="@{/admin/categories/edit}">カテゴリを 編集・追加</a>
+  </div>
+
+  <!--/* カテゴリが 1 つも無いと商品を登録できない（商品は所属カテゴリが必須）。
+         空のときは表を出さず、次にやることだけを出す */-->
+  <div class="alert alert--warn" th:if="${categories.isEmpty()}" role="alert">
+    <p class="mb-0">
+      カテゴリがまだありません。商品はかならずどれかのカテゴリに属するので、
+      先に <a th:href="@{/admin/categories/edit}">カテゴリを追加</a> してください。
+    </p>
+  </div>
+
+  <!--/* 列幅は設計どおり 400 / 200 / 160 / 360（合計 1120）。
+         .table--cats が table-layout: fixed で受けている */-->
+  <div class="table-wrap" th:unless="${categories.isEmpty()}">
+    <table class="table table--cats">
+      <thead>
+      <tr>
+        <th>カテゴリ名</th>
+        <th>品数</th>
+        <th>並び</th>
+        <th>状態</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="c : ${categories}">
+        <!--/* 名前を押すと直す画面へ。行そのものを押せるようにはしていない。
+               読む画面で行全体が押せると、目で追っているだけのつもりが
+               画面ごと切り替わることがある */-->
+        <td class="wrap">
+          <a th:href="@{/admin/categories/edit}" th:text="${c.name}">広島風お好み焼き</a>
+        </td>
+        <td th:text="${itemCounts.get(c.id)} + ' 品'">5 品</td>
+        <td th:text="${c.sortOrder}">1</td>
+        <!--/* 「表示中」「非表示」はお客さまのメニューに出るかどうか。
+               商品の「掲載」と同じ言い方にしていないのは、
+               カテゴリを隠すと中の商品ごと消えるためで、意味の重さが違う */-->
+        <td>
+          <span class="badge badge--gf" th:if="${c.visible}">表示中</span>
+          <span class="badge" th:unless="${c.visible}">非表示</span>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+</body>
+</html>
