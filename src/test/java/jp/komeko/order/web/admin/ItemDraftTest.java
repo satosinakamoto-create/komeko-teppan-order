@@ -206,6 +206,22 @@ class ItemDraftTest {
         }
 
         @Test
+        @DisplayName("★ 掲載・販売の選択は .segmented を名乗らない（売上画面と衝突する）")
+        void statePickerDoesNotReuseTheSalesClass() throws Exception {
+            // 売上画面の期間切り替え（1か月／3か月／6か月／1年）が先に .segmented を使っている。
+            // app.css は 1 枚なので、名前がかぶった時点で必ずどちらかが壊れる
+            // （後ろにある定義が勝つ）。実際に一度これで商品フォームが素の見た目に戻った。
+            String html = Files.readString(
+                    Path.of("src/main/resources/templates/admin/item-form.html"));
+            assertThat(html).as("売上画面とクラス名がかぶっている").doesNotContain("class=\"segmented");
+            assertThat(html).contains("class=\"statepick\"");
+
+            String sales = Files.readString(
+                    Path.of("src/main/resources/templates/admin/sales.html"));
+            assertThat(sales).as("売上側が奪われている").contains("class=\"segmented\"");
+        }
+
+        @Test
         @DisplayName("詳しい設定は畳んであるだけで、消していない")
         void extraFieldsAreFoldedNotRemoved() throws Exception {
             String html = Files.readString(

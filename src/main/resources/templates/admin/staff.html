@@ -12,8 +12,15 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
+  <!--/* ★ ここは「直す画面」です（2026-09-07 に一覧と分けました）。
+         開いた直後の一覧は /admin/staff（読むだけ）。
+         戻り口を必ず置くこと。 */-->
+  <p class="mb-0">
+    <a class="btn btn--ghost btn--sm" th:href="@{/admin/staff}">← スタッフ一覧へ</a>
+  </p>
+
   <div class="section-title">
-    <h1 class="section-title__text">スタッフ</h1>
+    <h1 class="section-title__text">スタッフ 編集・追加</h1>
     <span class="section-title__count" th:text="${#lists.size(staffList)} + ' 人'">3 人</span>
   </div>
 

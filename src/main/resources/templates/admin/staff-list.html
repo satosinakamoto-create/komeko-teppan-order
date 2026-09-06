@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<!--/*
+   スタッフ一覧（読むだけ）。設計 13 スタッフ（41:2170）。
+
+   ── なぜ「読む画面」と「直す画面」を分けたか（2026-09-07）──
+   カテゴリと同じ理由です。この画面を開く理由のほとんどは
+   「誰がログインできる状態か」「最後に使ったのはいつか」を見ることで、
+   追加や削除はたまにです。
+
+   とくにここは<b>消すと二度と戻せない</b>ものが並びます。
+   見に来ただけの画面に削除ボタンを常時置いておく理由がありません。
+
+   直すほうは「スタッフ 編集・追加」から /admin/staff/edit へ。
+
+   使えるモデルの値：
+     ${staffList}       … List<StaffUser>
+     ${currentStaffId}  … いまログインしている人の id（自分の行に印を付ける）
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('スタッフ', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="page-head">
+    <h1 class="page-head__title">スタッフ</h1>
+    <span class="page-head__sub" th:text="${staffList.size()} + ' 人'">3 人</span>
+    <span class="page-head__spacer"></span>
+    <a class="btn btn--primary" th:href="@{/admin/staff/edit}">スタッフ 編集・追加</a>
+  </div>
+
+  <!--/* 列幅は設計どおり 330 / 270 / 220 / 300（合計 1120） */-->
+  <div class="table-wrap">
+    <table class="table table--staff">
+      <thead>
+      <tr>
+        <th>名前</th>
+        <th>ログインID</th>
+        <th>権限</th>
+        <th>最終ログイン</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="s : ${staffList}">
+        <td class="wrap">
+          <a th:href="@{/admin/staff/edit}" th:text="${s.displayName}">店長</a>
+          <!--/* 自分の行だと分かるようにする。権限を落とすときにいちばん危ないのが自分自身 */-->
+          <span class="badge badge--rec" th:if="${currentStaffId != null and currentStaffId == s.id}">ログイン中</span>
+          <!--/* 無効なアカウントは、消えてはいないがログインできない。
+                 一覧に居るのに入れない、が分からないと調べようがない */-->
+          <span class="badge" th:unless="${s.enabled}">無効</span>
+        </td>
+        <td th:text="${s.username}">admin</td>
+        <td th:text="${s.role.label}">管理者</td>
+        <!--/* 最終ログインが空欄なのは「一度もログインしていない」という意味。
+               作ったまま使われていないアカウントが分かるので、
+               ここは「—」ではなく、はっきりそう書く */-->
+        <td>
+          <span th:if="${s.lastLoginAt != null}"
+                th:text="${#temporals.format(s.lastLoginAt, 'yyyy-MM-dd HH:mm')}">2026-09-02 17:20</span>
+          <span class="faint" th:unless="${s.lastLoginAt != null}">まだログインなし</span>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+</body>
+</html>

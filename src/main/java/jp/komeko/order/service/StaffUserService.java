@@ -35,6 +35,24 @@ public class StaffUserService {
     }
 
     /**
+     * ログインできたときに、その時刻を残す（設計 13 スタッフの「最終ログイン」）。
+     *
+     * <p><b>失敗しても素通りします。</b>
+     * ここで例外を投げると、記録が取れなかっただけでログインそのものが
+     * 失敗します。最終ログインは「あとで見て役に立つ情報」であって、
+     * 入れないと働けないものではありません。
+     * 出勤して最初の 1 回に効くので、ここで転ぶと店が開きません。
+     *
+     * <p>見つからないユーザー名は黙って無視します。
+     * 認証を通ったあとに呼ばれるので、ふつうは起きません。
+     */
+    @Transactional
+    public void recordLogin(String username) {
+        repository.findByUsername(username)
+                .ifPresent(user -> user.setLastLoginAt(java.time.LocalDateTime.now()));
+    }
+
+    /**
      * 新規登録。パスワードはここで必ずハッシュ化する。
      *
      * @throws IllegalArgumentException ユーザー名が既に使われているとき

@@ -66,6 +66,21 @@ public class StaffUser {
     @Column(nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    /**
+     * 最後にログインした日時（設計 13 スタッフ 41:2170 の「最終ログイン」）。
+     *
+     * <p><b>null は「一度もログインしていない」</b>という意味です。
+     * 作っただけで使われていないアカウントが分かります。
+     * 辞めた人のアカウントが残っていないかを確かめるのに使うので、
+     * ここが空欄なのはむしろ大事な情報です。
+     *
+     * <p>だから型は {@code LocalDateTime}（null を持てる）で、
+     * NOT NULL にも DEFAULT にもしていません。
+     * 作成日で埋めると「作った瞬間にログインした」ことになってしまいます。
+     */
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
     protected StaffUser() {
     }
 
@@ -122,5 +137,13 @@ public class StaffUser {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public LocalDateTime getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public void setLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
     }
 }

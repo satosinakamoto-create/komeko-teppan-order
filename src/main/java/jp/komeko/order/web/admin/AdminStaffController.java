@@ -56,14 +56,28 @@ public class AdminStaffController {
     // ========================================================================
 
     /**
-     * スタッフ一覧と新規登録フォームを表示する。
+     * スタッフ一覧（読むだけ）。設計 13 スタッフ（41:2170）。
      *
      * <p>{@code @AuthenticationPrincipal} を引数に付けると、
      * いまログインしている人の情報（{@link StaffUserDetails}）が渡ってきます。
      * 「この行はあなた自身です」と画面に出すために使います。
+     *
+     * <p><b>2026-09-07 に、開いた直後を「読む画面」に変えました。</b><br>
+     * カテゴリと同じ理由です。この画面を開く理由のほとんどは
+     * 「誰がログインできる状態か」「最後に使ったのはいつか」を見ることで、
+     * 追加や削除はたまにです。
+     * とくにここは<b>消すと二度と戻せない</b>ものが並ぶので、
+     * 見に来ただけの画面に削除ボタンを常時置いておく理由がありません。
      */
     @GetMapping
     public String list(@AuthenticationPrincipal StaffUserDetails me, Model model) {
+        prepare(model, me);
+        return "admin/staff-list";
+    }
+
+    /** スタッフを編集・追加する画面（もとの一覧そのもの）。 */
+    @GetMapping("/edit")
+    public String edit(@AuthenticationPrincipal StaffUserDetails me, Model model) {
         prepare(model, me);
         model.addAttribute("staffForm", new StaffForm());
         return "admin/staff";
@@ -105,7 +119,7 @@ public class AdminStaffController {
             // 「そのユーザー名は既に使われています」などはサービスが日本語で投げてくれる
             redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
         }
-        return "redirect:/admin/staff";
+        return "redirect:/admin/staff/edit";
     }
 
     // ========================================================================
@@ -148,7 +162,7 @@ public class AdminStaffController {
         if (!errors.isEmpty()) {
             redirectAttributes.addFlashAttribute("flashErrors", errors);
         }
-        return "redirect:/admin/staff";
+        return "redirect:/admin/staff/edit";
     }
 
     /**
@@ -169,7 +183,7 @@ public class AdminStaffController {
         } catch (IllegalArgumentException | IllegalStateException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
         }
-        return "redirect:/admin/staff";
+        return "redirect:/admin/staff/edit";
     }
 
     /**
@@ -196,7 +210,7 @@ public class AdminStaffController {
         } catch (IllegalArgumentException | IllegalStateException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
         }
-        return "redirect:/admin/staff";
+        return "redirect:/admin/staff/edit";
     }
 
     // ========================================================================

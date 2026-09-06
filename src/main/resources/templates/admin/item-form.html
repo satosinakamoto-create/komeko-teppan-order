@@ -130,16 +130,16 @@
                  掲載を止めた状態のまま保存できるようにすることです。 */-->
         <div class="field">
           <span class="label">掲載</span>
-          <div class="segmented">
-            <label class="segmented__item">
+          <div class="statepick">
+            <label class="statepick__item">
               <input type="radio" th:field="*{publishState}" value="draft">
               <span>編集中</span>
             </label>
-            <label class="segmented__item">
+            <label class="statepick__item">
               <input type="radio" th:field="*{publishState}" value="published">
               <span>掲載中</span>
             </label>
-            <label class="segmented__item">
+            <label class="statepick__item">
               <input type="radio" th:field="*{publishState}" value="hidden">
               <span>掲載停止</span>
             </label>
@@ -154,12 +154,12 @@
 
         <div class="field">
           <span class="label">販売</span>
-          <div class="segmented">
-            <label class="segmented__item">
+          <div class="statepick">
+            <label class="statepick__item">
               <input type="radio" th:field="*{soldOut}" value="false">
               <span>販売中</span>
             </label>
-            <label class="segmented__item">
+            <label class="statepick__item">
               <input type="radio" th:field="*{soldOut}" value="true">
               <span>品切れ</span>
             </label>

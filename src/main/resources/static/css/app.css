@@ -495,12 +495,20 @@ hr {
 
    ★ 見た目はボタンの列だが、中身はラジオ。
      チェックボックス 3 つにすると「2 つ選ぶ」ができてしまう。
-     状態はどれか 1 つなので、構造のほうもどれか 1 つにする。 */
-.segmented { display: inline-flex; gap: 8px; flex-wrap: wrap; }
-.segmented__item { position: relative; }
+     状態はどれか 1 つなので、構造のほうもどれか 1 つにする。
+
+   ★ クラス名を .segmented にしないこと（2026-09-07 に踏んだ）。
+     売上画面の期間切り替え（1か月／3か月／6か月／1年）が
+     先に .segmented を使っている。同じ名前で書いたら、
+     あちらの定義が app.css の後ろにあるぶん勝ってしまい、
+     こちらのラジオが素の見た目に戻っていた。
+     app.css は 1 枚なので、名前がかぶった時点で必ずどちらかが壊れる
+     （10 節の .tab と同じ事故）。 */
+.statepick { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.statepick__item { position: relative; }
 /* ラジオ本体は見せないが、消してはいけない。
    display:none にするとキーボードで辿れなくなるので、透明にして重ねる */
-.segmented__item input {
+.statepick__item input {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -509,7 +517,7 @@ hr {
   opacity: 0;
   cursor: pointer;
 }
-.segmented__item span {
+.statepick__item span {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -522,12 +530,12 @@ hr {
   font-weight: 700;
   color: var(--text-muted);
 }
-.segmented__item input:checked + span {
+.statepick__item input:checked + span {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
 }
-.segmented__item input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.statepick__item input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* 見出しのすぐ下に置く一行（設計 08-2 の「〜と、掲載できるようになります」）。
    状態によって文が入れ替わるので、page-head と離して独立させてある */
@@ -3343,6 +3351,15 @@ body.is-sending .staff-main {
 .table--cats th:nth-child(2), .table--cats td:nth-child(2) { width: 200px; }
 .table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 160px; }
 .table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 360px; }
+
+/* スタッフの表（設計 13 スタッフ 41:2170）。合計 1120 */
+.theme-desk .table--staff th { padding: 16px; height: 64px; }
+.theme-desk .table--staff td { padding: 20px 20px 19px; height: 68px; }
+.table--staff { table-layout: fixed; }
+.table--staff th:nth-child(1), .table--staff td:nth-child(1) { width: 330px; }
+.table--staff th:nth-child(2), .table--staff td:nth-child(2) { width: 270px; }
+.table--staff th:nth-child(3), .table--staff td:nth-child(3) { width: 220px; }
+.table--staff th:nth-child(4), .table--staff td:nth-child(4) { width: 300px; }
 
 /* --------------------------------------------------------------------------
    30-6-3. 売上・ダッシュボードの面（.sheet）— 2026-09-05
