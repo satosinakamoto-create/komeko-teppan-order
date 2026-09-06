@@ -1,0 +1,226 @@
+package jp.komeko.order.web.customer;
+
+import jp.komeko.order.domain.Category;
+import jp.komeko.order.domain.DiningTable;
+import jp.komeko.order.domain.MenuItem;
+import jp.komeko.order.domain.ShopSetting;
+import jp.komeko.order.repository.CategoryRepository;
+import jp.komeko.order.repository.DailyCounterRepository;
+import jp.komeko.order.repository.DiningTableRepository;
+import jp.komeko.order.repository.MenuItemRepository;
+import jp.komeko.order.repository.OrderRepository;
+import jp.komeko.order.repository.TableSessionRepository;
+import jp.komeko.order.service.ShopSettingService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalTime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+
+/**
+ * 「しばらくしたら消えるお知らせ」と「消してはいけない案内」の切り分け。
+ *
+ * <p><b>何を守っているか</b><br>
+ * お客さま側の {@code customer.js} は、用が済んだ報告を 4 秒で引っ込めます。
+ * 引っ込めないと「注文リストに追加しました」がメニューに居座り続け、
+ * 次に本当に伝えたいことが埋もれるためです。
+ *
+ * <p>問題は<b>どれを消すかの選び方</b>でした。もとは {@code .alert--info} という
+ * <b>色のクラス</b>で選んでいました。色は見た目の指定でしかなく、
+ * 常設の案内文にも同じ色が使われています。その結果、消してはいけない 3 つが
+ * 4 秒で消えていました（2026-09-06 にスマホ画面の動作確認で発見）。
+ *
+ * <ul>
+ *   <li>注文リスト画面の「◯番テーブルへお持ちします。お会計はレジまで」</li>
+ *   <li>卓に入った直後の、店主が書いたお客さまへのご案内</li>
+ *   <li>公開デモの「これはお客さま側の画面です」という説明</li>
+ * </ul>
+ *
+ * <p>いちばん困るのは 3 つめです。<b>見学者が読んでいる最中に説明が消えます。</b>
+ * しかも例外は出ず、画面も壊れません。ただ文が無くなるだけなので、
+ * 消えたあとに画面を見た人には、はじめから書いていないようにしか見えません。
+ *
+ * <p>そこで「消してよい」という判断を、出した側（{@code fragments/common.html}）が
+ * {@code is-transient} という印で伝える形にしました。このテストは
+ * <b>印を付ける側と見る側の両方</b>を押さえます。片方だけ直すと元に戻るためです。
+ */
+@DisplayName("消えるお知らせと、消してはいけない案内")
+class TransientNoticeTest {
+
+    /**
+     * 見る側（JavaScript）。
+     *
+     * <p>Spring を起動しないので速い（CLAUDE.md のテスト方針）。
+     * ブラウザで動かさなくても、<b>選び方が色に戻っていないか</b>は文字列で分かります。
+     */
+    @Nested
+    @DisplayName("消す側（customer.js）")
+    class Remover {
+
+        private static final Path CUSTOMER_JS = Path.of("src/main/resources/static/js/customer.js");
+
+        @Test
+        @DisplayName("★ 印（is-transient）で選ぶ。色（alert--info）で選ばない")
+        void picksByMarkerNotByColour() throws Exception {
+            String js = Files.readString(CUSTOMER_JS);
+
+            // 消す対象を集めている 1 行を取り出す。
+            // ファイル全体で探すと、説明のコメントに書いた「.alert--info」に反応してしまう
+            String selectorLine = js.lines()
+                    .filter(line -> line.contains("querySelectorAll") && line.contains("alert"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("お知らせを集めている行が見つかりません"));
+
+            assertThat(selectorLine)
+                    .as("印ではなく色で選んでいる。常設の案内文まで消える")
+                    .contains("is-transient");
+            assertThat(selectorLine)
+                    .as("色のクラスで選んでいる。新しい案内文を足すたびに巻き込まれる")
+                    .doesNotContain("alert--info")
+                    .doesNotContain("alert--success");
+        }
+
+        @Test
+        @DisplayName("エラーは消さない（読み落とすと理由が分からなくなる）")
+        void keepsErrors() throws Exception {
+            String js = Files.readString(CUSTOMER_JS);
+            String selectorLine = js.lines()
+                    .filter(line -> line.contains("querySelectorAll") && line.contains("alert"))
+                    .findFirst().orElseThrow();
+
+            assertThat(selectorLine).doesNotContain("alert--error");
+        }
+    }
+
+    /**
+     * 印を付ける側（画面）。
+     *
+     * <p>{@code @Transactional} を付けていないのは、{@code open-in-view: false} の
+     * 本番と同じ形で描画させるためです。
+     */
+    @Nested
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    @ActiveProfiles("test")
+    @DisplayName("印を付ける側（画面）")
+    class Marker {
+
+        @Autowired
+        private MockMvc mockMvc;
+        @Autowired
+        private ShopSettingService shopSettingService;
+        @Autowired
+        private CategoryRepository categoryRepository;
+        @Autowired
+        private MenuItemRepository menuItemRepository;
+        @Autowired
+        private DiningTableRepository diningTableRepository;
+        @Autowired
+        private TableSessionRepository tableSessionRepository;
+        @Autowired
+        private OrderRepository orderRepository;
+        @Autowired
+        private DailyCounterRepository dailyCounterRepository;
+
+        private MockHttpSession browser;
+        private MenuItem item;
+
+        @BeforeEach
+        void setUp() throws Exception {
+            clearAll();
+
+            ShopSetting setting = shopSettingService.current();
+            setting.setAcceptingOrders(true);
+            setting.setOpenTime(LocalTime.MIN);
+            setting.setLastOrderTime(LocalTime.of(23, 59, 59));
+            setting.setBusinessDayCutoverHour(0);
+            shopSettingService.save(setting);
+
+            Category category = categoryRepository.save(new Category("鉄板焼き", 10));
+            item = menuItemRepository.save(new MenuItem(category, "肉玉米粉そば", 1180));
+
+            DiningTable table = diningTableRepository.save(new DiningTable("3番テーブル", 4, 10));
+
+            // QR を読んで卓に着き、人数を答えたところまで進める
+            browser = new MockHttpSession();
+            mockMvc.perform(get("/t/" + table.getAccessToken()).session(browser));
+            mockMvc.perform(post("/t/" + table.getAccessToken() + "/start")
+                    .with(csrf()).session(browser).param("guestCount", "2"));
+        }
+
+        @AfterEach
+        void tearDown() {
+            clearAll();
+        }
+
+        private void clearAll() {
+            orderRepository.deleteAll();
+            tableSessionRepository.deleteAll();
+            diningTableRepository.deleteAll();
+            menuItemRepository.deleteAll();
+            categoryRepository.deleteAll();
+            dailyCounterRepository.deleteAllInBatch();
+        }
+
+        @Test
+        @DisplayName("★ 1 回きりの報告には印が付く（消えてよい）")
+        void marksOneOffReports() throws Exception {
+            mockMvc.perform(post("/cart/add").with(csrf()).session(browser)
+                    .param("menuItemId", String.valueOf(item.getId()))
+                    .param("quantity", "1"));
+
+            // 追加のあとメニューへ戻される。そこに出る「追加しました」が対象
+            String menu = mockMvc.perform(get("/menu").session(browser))
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(menu).contains("注文リストに追加しました");
+            assertThat(menu).as("1 回きりの報告に印が付いていない。ずっと居座る")
+                    .contains("is-transient");
+        }
+
+        @Test
+        @DisplayName("★ 常設の案内には印を付けない（読んでいる最中に消えない）")
+        void neverMarksStandingNotices() throws Exception {
+            mockMvc.perform(post("/cart/add").with(csrf()).session(browser)
+                    .param("menuItemId", String.valueOf(item.getId()))
+                    .param("quantity", "1"));
+
+            // 注文リストの画面を、フラッシュが出ない形で開く。
+            // ここに残る「お持ちします／レジまで」は常設の案内
+            String cart = mockMvc.perform(get("/cart").session(browser))
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(cart).as("常設の案内そのものが消えている").contains("レジまで");
+            assertThat(cart).as("常設の案内に印が付いている。4 秒で消える")
+                    .doesNotContain("is-transient");
+        }
+
+        @Test
+        @DisplayName("★ 卓に着いた直後のご案内にも印を付けない")
+        void neverMarksTheWelcomeNotice() throws Exception {
+            DiningTable another = diningTableRepository.save(new DiningTable("4番テーブル", 4, 20));
+
+            // 人数を答える前の画面。店主が書いたご案内（pickupNotice）が出る
+            String start = mockMvc.perform(get("/t/" + another.getAccessToken()))
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(start).as("ご案内に印が付いている。読む前に消える")
+                    .doesNotContain("is-transient");
+        }
+    }
+}

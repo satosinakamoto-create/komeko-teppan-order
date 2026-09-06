@@ -27,8 +27,23 @@
 
      高さを 0 にしてから外すのは、いきなり消すと下の内容が飛び上がって
      読んでいた場所を見失うため。
+
+     ★ 見た目（.alert--info）で選ばない（2026-09-06 に直した）★
+       もとは .alert--success, .alert--info を消していた。
+       ところがこの 2 つは<b>色の指定でしかなく</b>、
+       常設の案内文にも同じ色が使われている。結果、消してはいけない 3 つが
+       4 秒で消えていた:
+         ・注文リスト画面の「◯番テーブルへお持ちします。お会計はレジまで」
+         ・卓に入った直後の、店主が書いたお客さまへのご案内
+         ・公開デモの「これはお客さま側の画面です」という説明
+       いちばん困るのは最後で、<b>見学者が読んでいる最中に説明が消えます。</b>
+
+       消してよいのは「1 回きりの報告」だけで、それを知っているのは
+       出した側（fragments/common.html の flash）です。
+       だから出す側に is-transient という印を付け、こちらはその印だけを見ます。
+       色を変えても、新しい案内文を足しても、この処理は巻き込まれません。
      ------------------------------------------------------------------ */
-  document.querySelectorAll('.alert--success, .alert--info').forEach(function (box) {
+  document.querySelectorAll('.alert.is-transient').forEach(function (box) {
     setTimeout(function () {
       box.style.transition = 'opacity .3s ease, max-height .3s ease, margin .3s ease';
       box.style.overflow = 'hidden';

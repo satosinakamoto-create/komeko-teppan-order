@@ -6,12 +6,28 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org">
 <body>
 
-<!--/* ====== フラッシュメッセージ（リダイレクト後に 1 回だけ出る通知） ====== */-->
+<!--/* ====== フラッシュメッセージ（リダイレクト後に 1 回だけ出る通知） ======
+
+       ★ is-transient は「1 回きりの報告なので、しばらくしたら消してよい」という印。
+         お客さま側の customer.js がこの印だけを見て引っ込めます。
+
+         色（.alert--info）で選ばせてはいけません。色は見た目の指定でしかなく、
+         常設の案内文にも同じ色を使っています。実際 2026-09-06 まで、
+         「◯番テーブルへお持ちします」「店主からのご案内」
+         「これはお客さま側の画面です（公開デモの説明）」の 3 つが
+         4 秒で消えていました。読んでいる最中に消える説明は、
+         書いていないのと同じです。
+
+         消してよいかを知っているのは、出したこちら側だけです。
+
+       ★ エラーには付けません。読み落としたまま消えると、
+         なぜうまくいかなかったのかが分からなくなります。
+*/-->
 <div th:fragment="flash" class="stack-sm">
-  <div class="alert alert--success" th:if="${flashSuccess}" role="status">
+  <div class="alert alert--success is-transient" th:if="${flashSuccess}" role="status">
     <p class="mb-0" th:text="${flashSuccess}">保存しました</p>
   </div>
-  <div class="alert alert--info" th:if="${flashInfo}" role="status">
+  <div class="alert alert--info is-transient" th:if="${flashInfo}" role="status">
     <p class="mb-0" th:text="${flashInfo}">お知らせ</p>
   </div>
   <div class="alert alert--error" th:if="${flashErrors != null and !flashErrors.isEmpty()}" role="alert">
