@@ -139,6 +139,7 @@ public class DataSeeder implements ApplicationRunner {
             backfillGroupNames();
             backfillServiceItems();
             backfillToppings();
+            backfillHighballStrength();
             log.info("メニューは登録済みのため、サンプル投入をスキップしました");
             return;
         }
@@ -210,6 +211,49 @@ public class DataSeeder implements ApplicationRunner {
         }
         menuItemRepository.saveAll(targets);
         log.info("お好み焼き {} 品にトッピング（チーズ・餅・目玉焼き）を追加しました", targets.size());
+    }
+
+    /**
+     * すでに動いている店の ハイボール に、濃さの選択を一度だけ足す。
+     *
+     * <p>濃さは 2026-09-06 に足した組です（設計「暗08 ドリンクの濃さを選ぶ」）。
+     * それ以前からメニューが入っている DB は {@code seedMenu()} を飛ばすので、
+     * <b>設計にある画面が、選ぶものが無いまま開きます</b>。
+     * 「濃さの設定画面が出てこない」の正体はこれでした。
+     *
+     * <p><b>目印が品名しかありません。</b>
+     * トッピングは「麺の変更を持っている」という構造で探せましたが、
+     * ハイボールにはそういう手がかりがありません。
+     * 店が名前を変えていれば当たりませんが、そのときは
+     * 管理画面から足していただく、という割り切りです。
+     *
+     * <p>すでに濃さを持っている商品は飛ばします。
+     * 店長が中身を編集したあとに、起動のたびに元の 3 つが生えるのは最悪の挙動です。
+     */
+    private void backfillHighballStrength() {
+        List<MenuItem> targets = new ArrayList<>();
+        for (MenuItem item : menuItemRepository.findAllWithOptions()) {
+            if (item.getName() == null || !item.getName().contains("ハイボール")) {
+                continue;
+            }
+            boolean has = item.getOptionGroups().stream()
+                    .anyMatch(g -> "濃さ".equals(g.getName()));
+            if (has) {
+                continue;
+            }
+            // 追加料金は 0 円。設計の選択肢にも金額が出ていない。
+            // 濃いめに料金を付けるなら 管理画面 → 商品 → オプション から
+            optionGroup(item, "濃さ", 1, 1,
+                    choice("濃いめ", 0, false),
+                    choice("ふつう", 0, true),
+                    choice("薄め", 0, false));
+            targets.add(item);
+        }
+        if (targets.isEmpty()) {
+            return;
+        }
+        menuItemRepository.saveAll(targets);
+        log.info("ハイボール {} 品に濃さ（濃いめ・ふつう・薄め）を追加しました", targets.size());
     }
 
     /**
@@ -669,7 +713,11 @@ public class DataSeeder implements ApplicationRunner {
         // 公式サイトの素材。銘柄そのものの写真なので本番でも使える
         photo(m.add("オールフリー（ノンアルコールビール）", 600, null), "allfree.jpg");
         m.recommend("自家製レモンサワー", 850, "お店のおすすめ。");
-        m.recommend("ジャスミンハイボール", 800, "お店のおすすめ。");
+        // ハイボールは濃さを選べる（角ハイボールと同じ。理由は seedWhisky を参照）
+        optionGroup(m.recommend("ジャスミンハイボール", 800, "お店のおすすめ。"), "濃さ", 1, 1,
+                choice("濃いめ", 0, false),
+                choice("ふつう", 0, true),
+                choice("薄め", 0, false));
     }
 
     /**
@@ -709,7 +757,19 @@ public class DataSeeder implements ApplicationRunner {
 
     private void seedWhisky() {
         Menu m = new Menu(category("ウィスキー", 100), 2);
-        m.add("角ハイボール", 680, null);
+
+        // ハイボールは濃さを選べる（設計 暗08 ドリンクの濃さを選ぶ）。
+        //
+        // ★ 追加料金は 0 円にしてある。設計の選択肢にも金額が出ていない。
+        //   濃いめに料金を付けるなら 管理画面 → 商品 → オプション から。
+        //   ここで勝手に付けると、店が決めていない値段を取ることになる。
+        //
+        // min=1 / max=1 なので、画面ではラジオになる（必ず 1 つ選ぶ）。
+        // 「ふつう」を既定にしておくと、そのまま押しても注文が通る。
+        optionGroup(m.add("角ハイボール", 680, null), "濃さ", 1, 1,
+                choice("濃いめ", 0, false),
+                choice("ふつう", 0, true),
+                choice("薄め", 0, false));
         m.add("KIRIN 陸", 700, null);
         m.add("山崎", 1400, null);
         m.add("白州", 1400, null);

@@ -4346,6 +4346,54 @@ body.is-sending .staff-main {
      ここを直し忘れると、最後の行が帯の下に潜る */
 .submitbar-room { padding-bottom: 200px; }
 
+/* 飲み物の見出し（設計 暗08 / 166:4013）。
+
+   粉もの（暗05）は写真を 213px の帯で出すが、飲み物はこの 1 行に収める。
+   品数が多く写真映えの差も小さいので、大きく出すより
+   濃さや数量を早く出したほうが用が済む。
+   一覧を行で並べているのと同じ判断。 */
+.drink-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 18px 0;
+}
+.drink-head__img {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.drink-head__body {
+  flex: 1 0 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.drink-head__name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.4;
+  /* 長い銘柄（クラフトジン ソーダ など）で価格を押し出さない */
+  overflow-wrap: anywhere;
+}
+.drink-head__note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.drink-head__price {
+  flex: none;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
 /* 削除の確認（設計 暗26 / 384:4011）。
 
    ★ 幕は 60%。後ろを完全に隠さないのは、何が消えるのかが

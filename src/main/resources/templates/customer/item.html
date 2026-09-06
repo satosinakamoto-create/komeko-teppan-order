@@ -104,16 +104,42 @@
       <!--/* 寸法は CSS（.item-photo）に置く。
              style 属性に書くと、モーダルで比を変えたくても
              インラインが必ず勝つので上書きできない（実際 4:3 のまま 256px になった）。 */-->
-      <img class="item-photo" th:if="${item.imagePath != null}"
+      <img class="item-photo" th:if="${item.imagePath != null and !isDrink}"
            th:src="@{${item.imagePath}}" th:alt="${item.name}">
 
+      <!--/* ===== 飲み物の見出し（設計 暗08 ドリンクの濃さを選ぶ）=====
+             写真 72px ／ 品名 20px ／ 説明 14px ／ 価格 18px を 1 行に収める。
+
+             ★ 粉ものと作りを変えているのは意図的です。
+               飲み物は品数が多く、写真映えの差も小さいので、
+               大きく出すより濃さや数量を早く出したほうが用が済みます
+               （一覧を行で並べているのと同じ理由。設計の
+                 「暗/飲み物の行」の説明にもそう書かれています）。 */-->
+      <div class="drink-head" th:if="${isDrink}">
+        <img class="drink-head__img" th:if="${item.imagePath != null}"
+             th:src="@{${item.imagePath}}" th:alt="${item.name}">
+        <div class="drink-head__body">
+          <h1 class="drink-head__name" th:text="${item.name}">ハイボール</h1>
+          <p class="drink-head__note" th:if="${item.description}"
+             th:text="${item.description}">サントリー角</p>
+        </div>
+        <!--/* ★ th:insert であって th:replace ではない。
+               replace だとこの span ごと差し替わり、
+               .drink-head__price（18px・きつね色）が消える。
+               他の価格表示（.thumb__price など）も insert にそろえてある */-->
+        <span class="drink-head__price"
+              th:insert="~{fragments/common :: price(${item})}">¥550</span>
+      </div>
+
       <div class="card__body">
-        <h1 class="mb-0" th:text="${item.name}">コンプレット</h1>
+        <h1 class="mb-0" th:unless="${isDrink}" th:text="${item.name}">コンプレット</h1>
         <div th:replace="~{fragments/common :: allergens(${item})}"></div>
 
-        <p class="lead mt-4" th:if="${item.description}" th:text="${item.description}">説明文</p>
+        <p class="lead mt-4" th:if="${item.description != null and !isDrink}"
+           th:text="${item.description}">説明文</p>
 
-        <p class="menu-item__price" style="font-size:1.5rem">
+        <!--/* 飲み物は上の見出しで価格を出しているので、ここでは繰り返さない */-->
+        <p class="menu-item__price" style="font-size:1.5rem" th:unless="${isDrink}">
           <span th:replace="~{fragments/common :: price(${item})}">¥880</span>
           <small th:if="${item.price > 0}">税込</small>
         </p>

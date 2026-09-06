@@ -168,8 +168,15 @@ public class MenuController {
         // 生ビールにも調理時間（注ぐ時間）は入っていて、厨房の見積もりには使うが、
         // お客さまに「焼き上がり」と書くと言葉が合わない。
         // 出す・出さないの判断はここでやり、画面では真偽値を見るだけにする。
-        model.addAttribute("showCookTime",
-                item.getCookMinutes() > 0 && !DRINK_SECTION.equals(item.getCategory().getTabName()));
+        // 飲み物かどうか。上の「焼き上がり」と同じ規則で決める。
+        //
+        // 見せ方が変わる：粉ものは写真を大きく出すが（設計 暗05）、
+        // 飲み物は写真を 72px の見出し行に収める（設計 暗08）。
+        // 飲み物は品数が多く、写真映えの差も小さいので、
+        // 大きく出すより濃さや数量を早く出したほうが用が済む。
+        boolean drink = DRINK_SECTION.equals(item.getCategory().getTabName());
+        model.addAttribute("showCookTime", item.getCookMinutes() > 0 && !drink);
+        model.addAttribute("isDrink", drink);
         return "customer/item";
     }
 }
