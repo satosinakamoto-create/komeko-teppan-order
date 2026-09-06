@@ -3882,6 +3882,81 @@ body.is-sending .staff-main {
 .recgrid .help { font-size: 12px; }
 .recgrid .btn { border-radius: 4px; align-self: flex-start; }
 
+/* --------------------------------------------------------------------------
+   ホール・会計ボード（設計 現02 437:2305。2026-09-07）
+   --------------------------------------------------------------------------
+   立って一瞬見る画面なので、共通のスタッフ画面より 1 段小さく組む。
+   数字（卓数・金額）だけを大きく残し、ラベルと注記を落として、
+   1 画面に入る卓の数を増やすのが狙い。
+
+   ★ .theme-desk は /hall にも付いている（layout/staff.html の body は
+     class="theme-snow theme-desk" 固定）。「厨房・ホールには付かない」は
+     誤りなので、ここの指定は .theme-desk の値を上書きする形で書く。
+   -------------------------------------------------------------------------- */
+/* 本文の縦余白 64→32（設計どおり）。共通の変数は触らず、この画面だけ絞る */
+.theme-desk .staff-main:has(.hallboard) { --main-pad-y: 32px; }
+
+.hallboard .section-title { margin: 40px 0 24px; }
+.hallboard .section-title:has(h1) { margin-top: 0; }
+.hallboard h1.section-title__text { font-size: 28px; }
+/* 節見出しだけ字間を開ける。.theme-snow が letter-spacing を 0 に
+   落としているので、ここで開け直す（設計 438:2438 の 2px） */
+.hallboard h2.section-title__text { font-size: 20px; letter-spacing: 2px; }
+.hallboard .section-title__count { font-size: 12px; }
+.hallboard h1.section-title__text + .section-title__count { font-size: 13px; }
+
+/* 数字カード（設計 437:2446）。列の間は 16、行の間は 24 */
+.hallboard .grid--3 { gap: 24px 16px; }
+.theme-desk .hallboard .stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  /* .theme-snow が枠線を透明にしているので戻す。面が白どうしなので
+     枠が無いと 3 枚が 1 枚の帯に見える */
+  border-color: var(--border);
+}
+.hallboard .stat > * { margin: 0; }   /* 縦の間隔は gap に一本化する */
+.theme-desk .hallboard .stat__label { font-size: 12px; letter-spacing: 1.2px; }
+.theme-desk .hallboard .stat__value { font-size: 28px; }
+.theme-desk .hallboard .stat__unit  { font-size: 14px; }
+.hallboard .stat .tiny { font-size: 11px; }
+
+/* 伝票カード（設計「ホール/伝票カード」453:5744）。
+   見出し帯・本体・足に分かれた .card ではなく、平らな 1 枚。
+   卓名から金額まで、線に区切られずに目で降りられる */
+.hallboard .billcard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.hallboard .billcard__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hallboard .billcard__table { font-size: 18px; font-weight: 700; line-height: 1.4; }
+.hallboard .billcard .badge { font-size: 11px; }
+.hallboard .billcard__meta,
+.hallboard .billcard__label {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.hallboard .billcard__amount { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.hallboard .billcard__yen {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.hallboard .billcard__note { font-size: 11px; line-height: 1.4; color: var(--text-muted); }
+/* ★ ボタンの高さは 48 のまま（設計は 44）。
+     CLAUDE.md の「タップ領域は 48px 以上」は設計より優先する。
+     チップと検索欄で同じ判断をしている */
+.hallboard .billcard .btn { font-size: 14px; border-radius: 4px; }
+
 @media (max-width: 960px) {
   .statrow { grid-template-columns: 1fr; }
   .monthnav { padding: 16px; height: auto; flex-wrap: wrap; }
