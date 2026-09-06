@@ -88,9 +88,38 @@ class StockRecordPageTest {
         assertThat(html).contains("棚卸し（数え直す）");
         assertThat(html).contains("廃棄・まかない（減らす）");
         // th:field は一致した option に selected を付ける。
-        // 一覧の「記録する」から来た人に食材を選び直させないための要
-        assertThat(html).as("食材が選ばれていない")
-                .contains("value=\"" + i.getId() + "\" selected");
+        // 一覧の「記録する」から来た人に食材を選び直させないための要。
+        // ★ 2 つのカードの両方で選ばれていること。片方だけだと、
+        //   棚卸しのつもりで廃棄カードに書いて別の食材を減らす事故になる
+        String selected = "value=\"" + i.getId() + "\" selected";
+        assertThat(html.split(java.util.regex.Pattern.quote(selected), -1).length - 1)
+                .as("棚卸しと廃棄の両方で食材が選ばれていない").isEqualTo(2);
+
+        ingredients.deleteById(i.getId());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("★ 記録するは枠付きのボタン（設計 466:6111）")
+    void recordIsAButtonNotAPlainLink() throws Exception {
+        Ingredient i = ingredients.save(
+                new Ingredient("ボタンテスト-" + System.nanoTime(), IngredientUnit.GRAM));
+
+        String html = mockMvc.perform(get("/inventory/ingredients"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // 文字リンクのままだと、同じ行にある食材名のリンクと見分けが付かない
+        assertThat(html).as("ボタンになっていない").contains("class=\"recbtn\"");
+        assertThat(html).doesNotContain("class=\"reclink\"");
+        // どの食材の記録なのかを読み上げでも分かるようにする
+        assertThat(html).contains("の棚卸し・廃棄を記録する");
+        // 列の名前。空のままだとボタンだけが並んで、何の列か読み取れない
+        assertThat(html).contains(">棚卸・廃棄</th>");
+
+        String css = Files.readString(CSS).replace("\r\n", "\n");
+        assertThat(css).contains("  height: 54px;\n  border: 1px solid var(--accent);");
+        assertThat(css).contains(".recbtn:hover { background: var(--accent-soft); }");
 
         ingredients.deleteById(i.getId());
     }
@@ -162,8 +191,14 @@ class StockRecordPageTest {
         // 検索は 48。設計は 40 だが、タップ 48px の下限（CLAUDE.md）で止めた
         assertThat(css).contains(".searchbox--slim { height: 48px; }");
 
-        // 行の上下 16（設計で 14→16 に編集された）
-        assertThat(css).contains(".theme-desk .table--stock td { padding-top: 16px; padding-bottom: 16px; }");
+        // 行の上下 9（2026-09-07 に 16 から変更）。
+        // 「記録する」がボタン（高さ 54）になり、行の高さはボタンで決まるようになった。
+        // 16 のままだと 86px になって、1 画面に入る食材が 2 つ減る。
+        // ★ :has で絞ること。同じ .table--stock を「未学習のレシート品名」の
+        //   表も使っていて、あちらにはボタンが無い。絞らないと理由もなく詰まる
+        assertThat(css).contains(".theme-desk .table--stock:has(.recbtn) td { padding-top: 9px; padding-bottom: 9px; }");
+        assertThat(css).as("ボタンの無い表まで詰めている")
+                .contains(".theme-desk .table--stock td { padding-top: 16px; padding-bottom: 16px; }");
     }
 
     @Test

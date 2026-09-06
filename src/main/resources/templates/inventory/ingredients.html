@@ -80,7 +80,9 @@
         <th>内訳</th>
         <!--/* 中身が class="num tiny" で右寄せなので、見出しもそろえる */-->
         <th class="right">最後の棚卸し</th>
-        <th></th>
+        <!--/* 空にしないこと。列の名前が無いと、ボタンだけが並んでいるように見えて
+               何を記録する列なのか読み取れない（設計 現04 で見出しが足された） */-->
+        <th>棚卸・廃棄</th>
       </tr>
       </thead>
       <tbody>
@@ -143,13 +145,18 @@
           <span th:if="${l.baselineOn() == null}" class="faint">―</span>
         </td>
 
-        <td class="right">
+        <td>
           <!--/* 棚卸し・廃棄の記録ページへ。この食材が選ばれた状態で開く
                （設計 現04 → 現05 / 2026-09-07）。
                もとは食材の詳細ページ行きだったが、詳細は「履歴を読む」画面で、
-               記録の入力はいちばん下までスクロールが要った */-->
-          <a class="reclink"
-             th:href="@{/inventory/ingredients/record(ingredient=${l.ingredient().id})}">記録する</a>
+               記録の入力はいちばん下までスクロールが要った。
+
+               ★ 文字リンクから枠付きのボタンにした（設計 466:6111）。
+                 一覧を眺めている段階で「ここは押せる」と分かる必要がある。
+                 文字だけだと、隣の食材名のリンクと見分けが付かなかった */-->
+          <a class="recbtn"
+             th:href="@{/inventory/ingredients/record(ingredient=${l.ingredient().id})}"
+             th:aria-label="${l.ingredient().name} + ' の棚卸し・廃棄を記録する'">記録する</a>
         </td>
       </tr>
       </tbody>

@@ -3430,11 +3430,18 @@ body.is-sending .staff-main {
      商品フォームのチップ（設計 40 → 実装 48）と同じ判断 */
 .searchbox--slim { height: 48px; }
 
-/* 食材の表の寸法（設計 現04）。
-   行は上下 16（設計で 14 → 16 に編集された）、見出し行は上下 14。
-   列幅は設計どおり合計 1120 */
+/* 食材の表の寸法（設計 現04）。見出し行は上下 14、列幅は合計 1120 */
 .theme-desk .table--stock th { padding-top: 14px; padding-bottom: 14px; }
 .theme-desk .table--stock td { padding-top: 16px; padding-bottom: 16px; }
+
+/* ★ 行の上下 9 は「記録する」ボタンがある表だけ（2026-09-07）。
+     ボタンが高さ 54 なので、上下 16 のままだと行が 86px になり、
+     1 画面に入る食材が 2 つ減る。9 にすると設計どおり 72px（9 + 54 + 9）。
+
+     :has で絞っているのは、同じ .table--stock を
+     「未学習のレシート品名」の表（下のほう）も使っているから。
+     あちらにはボタンが無いので、9 にすると理由もなく詰まる。 */
+.theme-desk .table--stock:has(.recbtn) td { padding-top: 9px; padding-bottom: 9px; }
 .table--stock { table-layout: fixed; }
 .table--stock th:nth-child(1), .table--stock td:nth-child(1) { width: 240px; }
 .table--stock th:nth-child(2), .table--stock td:nth-child(2) { width: 100px; }
@@ -3444,8 +3451,28 @@ body.is-sending .staff-main {
 .table--stock th:nth-child(6), .table--stock td:nth-child(6) { width: 140px; }
 .table--stock th:nth-child(7), .table--stock td:nth-child(7) { width: 120px; }
 
-/* 「記録する」は箱の無い文字リンク（設計 現04。もとは btn--sm --ghost の箱） */
-.reclink { font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+/* 「記録する」（設計 466:6111 / 2026-09-07）。
+   文字リンク → 枠付きのボタン。一覧を眺めている段階で「押せる」と分かる必要がある。
+   文字だけだと、同じ行にある食材名のリンクと見分けが付かなかった。
+
+   枠と文字だけを緑にして面は白のまま。面まで塗ると 1 画面に 6〜10 個並んだとき、
+   緑の帯が縦に連なって表の数字より目立つ。押せることが分かれば足りる。 */
+.recbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 54px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.recbtn:hover { background: var(--accent-soft); }
 
 /* 品切れ・残数の「探す／カテゴリを選ぶ」（設計 現03 439:2496 / 2026-09-07）。
    2 つを横に並べる。狭い画面では縦に落ちる */
