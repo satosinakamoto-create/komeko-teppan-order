@@ -38,7 +38,10 @@
       <!--/* 先頭はスタッフ呼び出し。用件が決まっていないときの逃げ道なので、
              探さずに押せる位置に置く。押した瞬間に人が動くので確認を 1 枚挟む */-->
       <form th:action="@{/service/call/STAFF}" method="post">
-        <button type="submit" class="svc-tile"
+        <!--/* --call は札を 14px Bold にする（設計 暗03）。
+               16px だとタイル 106px に対して札が 112px になり、6px はみ出す。
+               ほかの品と違い、この札は店が変えないので値を決め打ちにできる */-->
+        <button type="submit" class="svc-tile svc-tile--call"
                 onclick="return confirm('スタッフを呼ぶ。よろしいですか？');">
           <th:block th:replace="~{fragments/icons :: ic_bell}"/>
           <span>スタッフを呼ぶ</span>

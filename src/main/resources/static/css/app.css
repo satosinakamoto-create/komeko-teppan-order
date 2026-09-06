@@ -3587,9 +3587,12 @@ body.is-sending .staff-main {
   display: grid;
   /* ★ minmax(0, 1fr) と書くこと。repeat(3, 1fr) だと各マスの最小幅が
      「中身の幅」になり、いちばん長い札（スタッフを呼ぶ）のマスだけ広がる。
-     実際 124 / 97 / 97 と不揃いになった。
-     設計は 3 つとも 106px なので、札のほうがはみ出すのが正しい
-     （タイルに枠が無いので、少しはみ出しても見た目は破綻しない）。 */
+     実際 124 / 97 / 97 と不揃いになった。設計は 3 つとも 106px。
+
+     ★ はみ出しは、はみ出させずに解いた（2026-09-06 に直した）。
+       もとは「札のほうがはみ出すのが正しい」と書いていたが、
+       設計は「スタッフを呼ぶ」だけ 14px にして 1 行に収めている。
+       ほかの品名も折り返せるようにしたので、いまはどれも収まる。 */
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px 12px;
 }
@@ -3606,17 +3609,52 @@ body.is-sending .staff-main {
   width: 100%;
   /* 中身は 32 + 8 + 28 = 68。112 との差 44 を上下 22 ずつで分ける */
   height: 112px;
+  /* ★ button が既定で持つ左右 6px を消す。
+     これが残っていると、106px のタイルの中身が 94px になり、
+     98px の「スタッフを呼ぶ」が入らずに 2 行へ折り返す。
+     設計のタイルに横の余白は無く、札はタイルの幅いっぱいに中央ぞろえ。
+     border: 0 だけでは消えない（padding は別の指定）。 */
+  padding: 0;
   border: 0;
   border-radius: 8px;
-  background: var(--surface);
+  /* ★ タイルは本文の地より「暗い」（設計 暗03）。
+     本文が --bg-elevated（#202020）で、タイルが --bg（#141414）。
+     カードは面を明るくするのがふつうだが、この画面は逆で、
+     押せるところが窪んで見える。2026-09-06 まで --surface（#232323）を
+     敷いていたので、明暗が設計と反対だった。 */
+  background: var(--bg);
   color: var(--text);
   font: inherit;
   font-size: 16px;
+  /* font: inherit のあとに書くこと。先に書くと inherit に戻される */
+  font-weight: 500;
   line-height: 28px;
   text-align: center;
   text-decoration: none;
-  white-space: nowrap;
+  /* ★ nowrap をやめた（2026-09-06）。
+     サービスの品名は店が管理画面から変えられるので、
+     長い名前が来るとタイルからはみ出していた。
+     折り返せば 2 行まではタイルに収まる（32 + 8 + 56 = 96 < 112）。
+     設計に載っている 7 つはどれも 1 行に収まるので、見た目は変わらない。
+
+     ★ anywhere ではなく break-word。
+       anywhere は「最小幅の計算」まで変えるので、
+       収まるはずの札まで折り返す。実際「スタッフを呼ぶ」は
+       98px でタイル 106px に収まるのに 2 行になった。
+       break-word なら、本当にはみ出すときだけ折れる。 */
+  overflow-wrap: break-word;
   cursor: pointer;
+}
+
+/* 「スタッフを呼ぶ」だけ小さく太く（設計 暗03）。
+
+   ★ 理由は長さです。16px だと 112px になり、106px のタイルからはみ出す
+     （実測 6px）。設計はここだけ 14px Bold にして 1 行に収めています。
+     ほかの品と違い、この札は店が変えないので値を決め打ちにできます。 */
+.svc-tile--call {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
 }
 .svc-tile .ic { width: 32px; height: 32px; color: var(--accent); }
 .svc-tile:active { background: var(--bg-elevated); }
@@ -3941,9 +3979,14 @@ body.is-sending .staff-main {
 }
 .sheet-modal__foot .btn--outline { flex: 0 0 100px; }
 
-/* 呼びかけのタイルは 2 つしかないので、3 列だと右が空いて据わりが悪い */
-.svc-grid--calls { grid-template-columns: repeat(2, 1fr); }
-.svc-tile--call { background: var(--bg-elevated); }
+/* ★ ここにあった .svc-grid--calls と .svc-tile--call を消しました（2026-09-06）。
+     どちらもテンプレートから 1 度も使われていませんでした。
+
+     残しておくと実害が出ます。svc-tile--call は
+     「スタッフを呼ぶ」の札を小さくする指定として作り直したので、
+     ここに古い background が残っていると、
+     ファイルの下にあるぶん<b>あとから読まれて上書きされます</b>。
+     設計では地と同じ #141414 なのに、1 枚だけ #202020 で浮くことになります。 */
 
 /* --------------------------------------------------------------------------
    31-6. ホール画面に出る「お客さまからの呼び出し」
