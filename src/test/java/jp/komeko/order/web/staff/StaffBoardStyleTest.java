@@ -111,6 +111,27 @@ class StaffBoardStyleTest {
     }
 
     @Test
+    @DisplayName("★ 大分類タブの上余白は店舗端末だけ 16（お客さま側は 32 のまま）")
+    void theTabBarIsTighterOnTheStaffTerminal() throws Exception {
+        String css = Files.readString(APP_CSS);
+
+        // 店舗端末は上に席の帯（72px）が乗っている。32 のままだと
+        // 帯 → 空白 → タブと段が 3 つに見えて、画面の上 174px が
+        // 移動の道具で埋まる（設計 店04 410:4276 で 32 → 16 に詰められた）。
+        assertThat(rule(".page--seated:has(.staffbar) {"))
+                .as("店舗端末で上余白を詰めていない").contains("--tabbar-top: 16px;");
+
+        // お客さま側は 32 のまま。上にいるのが店名だけの細いヘッダーなので、
+        // そこから離して「ここから選ぶ」を始める。
+        // ★ この 2 つでちょうど 2 か所。3 つ目が現れたら、
+        //   どこかの画面だけ別の値になっている
+        assertThat(css.split("--tabbar-top: 32px;", -1).length - 1)
+                .as("お客さま側の 32 が消えている（または増えている）").isEqualTo(1);
+        assertThat(css.split("--tabbar-top:", -1).length - 1)
+                .as("上余白の出どころが 2 か所を超えた").isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("★ 送っても大分類タブが席の帯に潜り込まない")
     void theTabBarSticksBelowTheSeatBar() throws Exception {
         // .staffbar と .tabbar はどちらも sticky で、既定では両方 top:0。
