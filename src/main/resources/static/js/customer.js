@@ -43,9 +43,51 @@
        だから出す側に is-transient という印を付け、こちらはその印だけを見ます。
        色を変えても、新しい案内文を足しても、この処理は巻き込まれません。
      ------------------------------------------------------------------ */
+
+  /** 札を出したまま置いておく時間（ミリ秒）。読み切るための時間。 */
+  var NOTICE_HOLD_MS = 4000;
+
+  /**
+   * 消えるのにかける時間（ミリ秒）。長くするほどゆっくり薄くなる。
+   *
+   * ★ 0.3 秒から 0.9 秒にした（2026-09-06）。
+   *   0.3 秒はほぼ瞬時で、目の端に入っても「何か出ていた」としか分からない。
+   *   薄くなっていく過程が見えるほうが、消えたことに気づける。
+   *
+   * ★ 下の内容が動く時間でもある。
+   *   札は高さも 0 にするので、消えるあいだ下の品が上へ動く。
+   *   長くしすぎると、押そうとした品が動き続けて狙いにくくなる。
+   *   1 秒あたりが上限だと思っておくこと。
+   */
+  var NOTICE_FADE_MS = 900;
+
+  /**
+   * DOM から外すまでの待ち。
+   *
+   * ★ 必ず消える時間より後にすること。
+   *   短いと、透明になりきる前に要素が消えて下の内容がガクンと跳ね上がる。
+   *   もとは「0.3 秒の変化に 350ms 待ち」と別々の数字が書いてあり、
+   *   たまたま間に合っていただけだった。時間を延ばした瞬間に破綻する。
+   *   だから片方から導く。
+   */
+  var NOTICE_REMOVE_MS = NOTICE_FADE_MS + 50;
+
+  /* 動きを控えめにしたい人の設定（OS 側の指定）を尊重する。
+     消えること自体は必要なので、動かさずに消すだけにする。
+     ゆっくりにしたぶん、動きが苦手な人には 0.9 秒の変化が長く残るため。 */
+  var reduceMotion = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   document.querySelectorAll('.alert.is-transient').forEach(function (box) {
     setTimeout(function () {
-      box.style.transition = 'opacity .3s ease, max-height .3s ease, margin .3s ease';
+      if (reduceMotion) {
+        box.remove();
+        return;
+      }
+      box.style.transition =
+        'opacity ' + NOTICE_FADE_MS + 'ms ease, ' +
+        'max-height ' + NOTICE_FADE_MS + 'ms ease, ' +
+        'margin ' + NOTICE_FADE_MS + 'ms ease';
       box.style.overflow = 'hidden';
       box.style.maxHeight = box.offsetHeight + 'px';
       /* 次の描画まで待たないと、max-height が付いた瞬間に 0 になって
@@ -55,8 +97,8 @@
         box.style.maxHeight = '0';
         box.style.marginBlock = '0';
       });
-      setTimeout(function () { box.remove(); }, 350);
-    }, 4000);
+      setTimeout(function () { box.remove(); }, NOTICE_REMOVE_MS);
+    }, NOTICE_HOLD_MS);
   });
 
   /* ------------------------------------------------------------------

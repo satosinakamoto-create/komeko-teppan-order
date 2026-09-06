@@ -104,7 +104,13 @@
        ★ stroke を currentColor にしてあります。
          書き出しは #DD9A4E 決め打ちでしたが、それは --accent と同じ値です。
          色を字形に焼き付けると、テーマを変えたときにここだけ取り残されます。 */-->
-<svg th:fragment="ic_check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" aria-hidden="true" class="ic"><path d="M6.66667 20.8333L15.8333 30L33.3333 11.6667" stroke="currentColor" stroke-width="4.16667" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<!--/* ★ pathLength="1" は、線を引く動き（app.css の placed-check-draw）のためにあります。
+       これを付けると、実際の長さが何であれ「この線の全長は 1」として扱われるので、
+       CSS 側は stroke-dasharray: 1 / stroke-dashoffset: 1 と書くだけで済みます。
+       付けないと実寸（約 38.3）を CSS に書き写すことになり、
+       チェックの形を少しでも直した瞬間に、線が余ったり足りなくなったりします。
+       数えた長さを 2 箇所に置かないための指定です。 */-->
+<svg th:fragment="ic_check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" aria-hidden="true" class="ic"><path d="M6.66667 20.8333L15.8333 30L33.3333 11.6667" pathLength="1" stroke="currentColor" stroke-width="4.16667" stroke-linecap="round" stroke-linejoin="round"/></svg>
 
 </body>
 </html>

@@ -133,6 +133,37 @@ class TransientNoticeTest {
         }
 
         @Test
+        @DisplayName("★ 外すのは、消え終わったあと（途中で外すと下がガクンと跳ねる）")
+        void removesAfterTheFadeHasFinished() throws Exception {
+            String js = Files.readString(CUSTOMER_JS);
+
+            // 消える時間と、DOM から外すまでの待ちが別々の数字で書かれていると、
+            // 時間を延ばした瞬間に破綻する（0.3 秒の変化に 350ms 待ちで
+            // たまたま間に合っていた、というのが元の状態）。
+            // 片方から導いていることを固定する
+            assertThat(js).as("外すまでの待ちを、消える時間から導いていない")
+                    .contains("var NOTICE_REMOVE_MS = NOTICE_FADE_MS +");
+
+            // 実際に使われているのが導いた値であること。
+            // 定数を作っただけで生の数字を渡していては意味がない
+            assertThat(js).as("外すときに導いた値を使っていない")
+                    .contains("box.remove(); }, NOTICE_REMOVE_MS)");
+            assertThat(js).as("消える時間を transition に渡していない")
+                    .contains("NOTICE_FADE_MS + 'ms ease");
+        }
+
+        @Test
+        @DisplayName("動きを控えめにしたい人には、動かさずに消す")
+        void respectsReducedMotion() throws Exception {
+            String js = Files.readString(CUSTOMER_JS);
+
+            // ゆっくりにしたぶん、動きが苦手な人には変化が長く残る。
+            // 消えること自体は必要なので、動かさずに消すだけにする
+            assertThat(js).contains("prefers-reduced-motion");
+            assertThat(js).contains("box.remove()");
+        }
+
+        @Test
         @DisplayName("エラーは消さない（読み落とすと理由が分からなくなる）")
         void keepsErrors() throws Exception {
             String js = Files.readString(CUSTOMER_JS);

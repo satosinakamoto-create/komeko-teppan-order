@@ -4362,6 +4362,45 @@ body.is-sending .staff-main {
 }
 .placed__mark .ic { width: 40px; height: 40px; }
 
+/* チェックを線で引く。
+
+   注文が通った瞬間の画面なので、印が「描かれる」ほうが、
+   すでにそこにあるより「いま通った」ことが伝わる。
+
+   ★ 仕掛け
+     線を「全長ぶんの実線＋全長ぶんの空白」にして、その位置を端までずらすと
+     線が隠れる（stroke-dashoffset: 1）。ずらす量を 0 に戻すと、
+     根元から先端へ向かって現れる。これが「引いている」ように見える。
+
+   ★ 長さの 1 は SVG 側の pathLength="1" と対になっている。
+     あちらが「この線の全長は 1」と宣言しているので、
+     ここに実寸（約 38.3）を書き写さずに済む。
+     数えた長さを 2 箇所に置くと、チェックの形を直したときに必ずずれる。
+
+   ★ 0.12 秒待ってから引き始める。
+     画面が出た瞬間に始めると、描画の途中から見えることがある。
+     少し待つと、必ず「何も無いところに線が引かれる」ところから見える。 */
+@keyframes placed-check-draw {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+.placed__mark .ic path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: placed-check-draw 520ms cubic-bezier(.65, 0, .35, 1) 120ms forwards;
+}
+
+/* 動きを控えめにしたい人の設定（OS 側）を尊重する。
+   ここは飾りなので、動かさずに最初から引かれた状態で出す。
+   animation: none だけだと stroke-dashoffset: 1 が残って
+   チェックが消えたままになるので、0 に戻すことまでが対で必要。 */
+@media (prefers-reduced-motion: reduce) {
+  .placed__mark .ic path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
 .placed__title {
   margin: 0;
   font-size: 22px;

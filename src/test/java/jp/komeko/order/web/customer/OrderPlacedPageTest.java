@@ -159,6 +159,39 @@ class OrderPlacedPageTest {
     }
 
     @Test
+    @DisplayName("★ チェックが線で引かれる（長さの指定が 2 箇所に散らない）")
+    void drawsTheCheckMark() throws Exception {
+        Order now = place(soba, 1);
+
+        String page = html("/ordered/" + now.getPublicToken());
+
+        // 線を引く動きは、SVG 側の pathLength と CSS 側の dasharray が
+        // 対になって初めて成立する。
+        // pathLength="1" が「この線の全長は 1」と宣言しているので、
+        // CSS は実寸（約 38.3）を書き写さずに済む。
+        // ここが落ちると、CSS 側の 1 が「1 単位ぶんの点線」の意味になり、
+        // チェックが細切れの点線として出る
+        assertThat(page).as("線の長さを 1 として宣言していない").contains("pathLength=\"1\"");
+
+        String css = java.nio.file.Files.readString(
+                java.nio.file.Path.of("src/main/resources/static/css/app.css"));
+        assertThat(css).as("線を引く動きが無い").contains("@keyframes placed-check-draw");
+        assertThat(css).as("チェックに動きを割り当てていない").contains("placed-check-draw 520ms");
+        // 飾りの動きなので、控えめにしたい人には出したままにする。
+        // animation: none だけだと stroke-dashoffset: 1 が残って
+        // チェックが消えたままになる。0 に戻すところまでが対。
+        //
+        // 探す範囲をこの動きの前後に絞るのが要点。app.css には
+        // 別の目的の prefers-reduced-motion が先にあるので、
+        // ファイル全体で最初の 1 件を見ると、無関係な指定を読んで受かってしまう
+        int anim = css.indexOf("@keyframes placed-check-draw");
+        String region = css.substring(anim, Math.min(css.length(), anim + 1600));
+        assertThat(region).as("動きの設定を尊重していない").contains("prefers-reduced-motion");
+        assertThat(region).as("動きを止めたときにチェックが消えたままになる")
+                .contains("stroke-dashoffset: 0");
+    }
+
+    @Test
     @DisplayName("再読み込みしても同じ画面が出る（PRG）")
     void isReloadable() throws Exception {
         Order now = place(soba, 1);
