@@ -114,6 +114,25 @@ class DevPhonePreviewTest {
         }
 
         @Test
+        @DisplayName("★ 店舗端末（/staff/order）も枠に入れられる")
+        void canPreviewTheStaffTerminal() throws Exception {
+            // 店舗版は「店員のスマホで使う画面」なので、実寸で確かめられないと
+            // 作ったものが現場で使えるか分からない。
+            // 2026-09-06 まで行き先の一覧に無く、確認できなかった
+            String html = mockMvc.perform(get("/dev/phone"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(html).as("店舗端末を選べない").contains("/staff/order");
+
+            // 選んだら実際に枠へ入ること（知らない行き先として弾かれない）
+            String picked = mockMvc.perform(get("/dev/phone").param("path", "/staff/order"))
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(picked).as("枠に入らずメニューへ倒れている")
+                    .contains("src=\"/staff/order\"");
+        }
+
+        @Test
         @DisplayName("端末を選び直せる")
         void canPickAnotherDevice() throws Exception {
             String html = mockMvc.perform(get("/dev/phone").param("w", "440"))

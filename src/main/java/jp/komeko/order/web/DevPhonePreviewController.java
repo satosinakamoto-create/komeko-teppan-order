@@ -61,9 +61,20 @@ public class DevPhonePreviewController {
             new Device("iPhone 15 Pro Max（430×932）", 430, 932),
             new Device("iPhone 16 Pro Max（440×956）", 440, 956));
 
-    /** 枠の中に出せる、お客さま側の入口。 */
+    /**
+     * 枠の中に出せる行き先。
+     *
+     * <p><b>{@code /staff/order} も入れてあります（2026-09-06）。</b>
+     * 店舗版は「店員のスマホで使う画面」なので、実寸で確かめられないと
+     * 作ったものが現場で使えるか分かりません。
+     *
+     * <p>ただし {@code /staff/**} はログインが要ります。
+     * ログインしていないと枠の中にログイン画面が出るので、
+     * 先に別のタブでログインしてから開いてください
+     * （画面にもその案内を出しています）。
+     */
     private static final List<String> PATHS = List.of(
-            "/menu", "/cart", "/bill", "/service", "/");
+            "/menu", "/cart", "/bill", "/service", "/", "/staff/order");
 
     private final DiningTableRepository tables;
 
