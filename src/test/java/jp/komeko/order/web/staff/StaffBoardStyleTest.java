@@ -64,6 +64,32 @@ class StaffBoardStyleTest {
     }
 
     @Test
+    @DisplayName("★ 席の帯は高さ 72・幅いっぱい（設計 暗/席の帯）")
+    void seatBarFillsTheWidth() throws Exception {
+        String rule = rule(".staffbar {");
+
+        // ★ width:100% が無いと、flex コンテナが中身の幅まで縮む。
+        //   実測で 390 → 253px になり、3 つの文字が中央に寄った短い帯になった。
+        //   すぐ下のタブ帯（.tabbar）が同じ理由で同じ指定を持っている
+        assertThat(rule).as("帯が中身の幅に縮む").contains("width: 100%;");
+
+        // 43px だと下の大分類タブ（102px）に対して細すぎて「画面の一部」に見える。
+        // 店員が見失ってはいけない情報なので、帯として成立する高さにする
+        assertThat(rule).as("帯の高さが設計と違う")
+                .contains("min-height: calc(72px + env(safe-area-inset-top, 0px));");
+    }
+
+    @Test
+    @DisplayName("★ 番号は左右の文字より一段大きい（目が先にここへ行く）")
+    void seatNameIsLargerThanTheSideLabels() throws Exception {
+        // 帯の中でいちばん大事なのは番号。ここを読み違えると別の卓に送ることになる
+        assertThat(rule(".staffbar__seat {")).contains("font-size: 16px;");
+        // 左右（戻る・ログアウト）は 13px のまま。帯そのものが 13px で、
+        // 番号だけが上書きしている
+        assertThat(rule(".staffbar {")).contains("font-size: 13px;");
+    }
+
+    @Test
     @DisplayName("画面の上下は 40px、見出しの左右は 8px")
     void outerSpacing() throws Exception {
         assertThat(rule(".staff-order {")).contains("padding-block: 40px");

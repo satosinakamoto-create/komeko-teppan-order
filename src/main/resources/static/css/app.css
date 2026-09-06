@@ -4383,8 +4383,20 @@ body.is-sending .staff-main {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* ★ width:100% を明示する。
+     親（.page）の並べ方によっては flex コンテナが中身の幅まで縮み、
+     3 つの文字が中央に寄った短い帯になる（実測で 390 → 253px）。
+     すぐ下のタブ帯（.tabbar）が同じ理由で同じ指定を持っている。 */
+  width: 100%;
   max-width: var(--page-max);
   margin-inline: auto;
+  /* 高さ 72px（設計 暗/席の帯 410:4274）。
+     ★ 43px だと、下の大分類タブ（102px）に対して細すぎて
+       「画面の一部」に見える。72 あると、番号がひとつの塊として立つ。
+       店員が見失ってはいけない情報なので、帯として成立させる。
+     env(safe-area-inset-top) はノッチのぶん。
+     min-height にしているのは、そこを足しても中身が潰れないようにするため */
+  min-height: calc(72px + env(safe-area-inset-top, 0px));
   padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -4403,7 +4415,9 @@ body.is-sending .staff-main {
   flex: 1 0 0;
   min-width: 0;
   text-align: center;
-  font-size: 15px;
+  /* 16px は設計どおり。左右の 13px より一段大きくして、
+     目が先にここへ行くようにしてある */
+  font-size: 16px;
   font-weight: 700;
   color: var(--text);
 }
