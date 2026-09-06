@@ -19,7 +19,10 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <p class="small"><a th:href="@{/admin/items}">← 商品の一覧にもどる</a></p>
+  <!--/* 見出しの帯までの間は 28px（設計 315:2105 の本文 gap-28）。
+         p の既定の下余白（12px）のままだと、戻るリンクだけ帯に張り付いて見える。
+         .small の共通定義は触らず、この画面用の目印で持つ。 */-->
+  <p class="small formback"><a th:href="@{/admin/items}">← 商品の一覧にもどる</a></p>
 
   <!--/*
     ・enctype="multipart/form-data" … ファイルを送るために必須。付け忘れると画像が届きません

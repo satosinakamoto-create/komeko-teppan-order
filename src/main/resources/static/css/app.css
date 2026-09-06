@@ -405,7 +405,10 @@ hr {
   justify-content: center;
   gap: var(--sp-2);
   min-height: var(--tap);
-  padding: 0 var(--sp-4);
+  /* 左右 24px は設計のボタン部品（3:12 の px-24）。もとは 16px で、
+     Fable の検証（2026-09-07）で全ボタン 8px ずつ痩せていると分かった。
+     .btn--sm / .btn--lg は自前の padding-inline を持つので巻き込まれない。 */
+  padding: 0 var(--sp-5);
   /* ラベルを折り返さない。
      幅が足りないと「決定」が「決／定」と縦に割れる。
      日本語は1文字ずつ折り返せてしまうため、英語より起きやすい。
@@ -536,6 +539,19 @@ hr {
   font-size: 14px;
   line-height: 1.6;
 }
+
+/* もどるリンクと見出しの帯の間（設計 315:2105 の本文 gap-28）。
+   p の既定（12px）に任せると帯に張り付いて見える。この画面専用の目印 */
+.formback { margin-bottom: 28px; }
+
+/* カードの中の「見出し付きの塊」（写真・掲載・販売）だけ、
+   ラベルと中身の間を 10px にする（設計 319:2041 / 316:2015 の gap-10）。
+   入力欄のラベル（label 要素）は 8px のまま（.label の共通値）。
+   span か label かで書き分けているのは、設計がこの 2 種類で
+   間隔を分けているから（入力欄 8 ／ 塊の見出し 10）。 */
+.formcard span.label { margin-bottom: 10px; }
+/* チップと但し書きの間も 10px（設計 316:2015。共通の .help は 4px） */
+.formcard .statepick + .help { margin-top: 10px; }
 
 /* 入力カード（設計 316:1993）。見出しの帯は付けない */
 .formcard {
@@ -897,7 +913,10 @@ hr {
   font-weight: 700;
   letter-spacing: .06em;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  /* 入力枠との間は 8px（設計の入力欄部品 45:3110 の gap-8）。
+     もとは 6px で、Fable の検証（2026-09-07）で全欄 2px 詰まっていると分かった。
+     この値は全フォーム共通。 */
+  margin-bottom: 8px;
 }
 .label .req {
   color: var(--danger);

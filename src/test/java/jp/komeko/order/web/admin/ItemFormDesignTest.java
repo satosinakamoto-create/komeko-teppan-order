@@ -35,6 +35,21 @@ class ItemFormDesignTest {
         return css.substring(at, css.indexOf('}', at));
     }
 
+    /**
+     * 行頭から始まる定義を探す。
+     *
+     * <p>{@code rule(".label {")} は部分一致なので、
+     * {@code .formcard span.label {} のような<b>別の定義を先に拾う</b>
+     * （実際に拾って、このテスト自身が誤検知した）。
+     * 基準になる共通定義を確かめるときはこちらを使う。
+     */
+    private String topRule(String selector) throws Exception {
+        String css = Files.readString(CSS).replace("\r\n", "\n");
+        int at = css.indexOf("\n" + selector);
+        assertThat(at).as(selector + " が行頭に無い").isGreaterThan(-1);
+        return css.substring(at, css.indexOf('}', at));
+    }
+
     @Test
     @DisplayName("★ 入力カードは 角丸 12・内側 32・中の間 28（設計 316:1993）")
     void cardMetrics() throws Exception {
@@ -140,6 +155,37 @@ class ItemFormDesignTest {
         assertThat(java).contains("if (form.getSortOrder() == null) {");
         // 新規フォームは「どのカテゴリでも末尾になる番号」を入れておく
         assertThat(java).contains("form.setSortOrder(menuService.nextItemSortOrderAnywhere());");
+    }
+
+    @Test
+    @DisplayName("★ 検証（2026-09-07 Fable）で見つかった余白 4 件が設計値のまま")
+    void gapsFoundByVerification() throws Exception {
+        // 実装後に別モデルで検証し、設計 315:1983 との差として挙がったもの。
+        // 実測で 28 / 8 / 10 / 10 / 10 になったことを確認済み。
+        String css = Files.readString(CSS);
+
+        // もどる → 見出しの帯は 28（本文 gap-28）。この画面専用の目印で持つ
+        assertThat(rule(".formback {")).contains("margin-bottom: 28px;");
+        assertThat(Files.readString(HTML)).contains("class=\"small formback\"");
+
+        // ラベル → 入力枠は 8（入力欄部品 45:3110 の gap-8）。全フォーム共通
+        assertThat(topRule(".label {")).contains("margin-bottom: 8px;");
+
+        // カードの中の塊（写真・掲載・販売）だけ 10（319:2041 / 316:2015）
+        assertThat(css).contains(".formcard span.label { margin-bottom: 10px; }");
+        assertThat(css).contains(".formcard .statepick + .help { margin-top: 10px; }");
+    }
+
+    @Test
+    @DisplayName("★ ボタンの左右は 24px（設計のボタン部品 3:12）")
+    void buttonSidePadding() throws Exception {
+        // --sp-5 = 24px。もとは --sp-4（16px）で全ボタン 8px ずつ痩せていた。
+        // 変更後、/kitchen /kitchen/stock /hall /admin/items の 263 個を実測し、
+        // あふれ・折り返しゼロを確認済み。
+        // .btn--sm / .btn--lg は自前の padding-inline を持つので巻き込まれない
+        assertThat(topRule(".btn {")).contains("padding: 0 var(--sp-5);");
+        String css = Files.readString(CSS);
+        assertThat(css).contains(".btn--sm { min-height: 36px; font-size: .8125rem; padding-inline: var(--sp-3); }");
     }
 
     @Test
