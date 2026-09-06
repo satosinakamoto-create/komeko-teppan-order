@@ -52,6 +52,22 @@ public class CustomerModelAttributes {
     }
 
     /**
+     * 店舗の端末から開いているか（設計「店舗版スマホ注文」）。
+     *
+     * <p>同じメニュー画面を、お客さまと店員の両方が使います。
+     * 違うのは 3 つだけです。
+     * <ul>
+     *   <li>時価の品に金額を入れて積める（お客さまは「スタッフを呼ぶ」まで）</li>
+     *   <li>カートの送り先（入力者が記録される口へ行く）</li>
+     *   <li>上に「いまどの卓か／盤面へ戻る」の帯が出る</li>
+     * </ul>
+     */
+    @ModelAttribute("staffMode")
+    public boolean staffMode() {
+        return tableContext.isStaffMode();
+    }
+
+    /**
      * いま開いている伝票。
      *
      * <p>ヘッダーに「お席の合計」を出すために毎回引いています。

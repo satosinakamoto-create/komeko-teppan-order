@@ -67,16 +67,6 @@ public class OrderService {
      */
     private static final Duration CARRY_OVER_WINDOW = Duration.ofHours(6);
 
-    /**
-     * スタッフが時価の品に付けられる 1 品あたりの上限（円・税込）。
-     *
-     * <p>正しい値を決めるためのものではなく、<b>桁の打ち間違いを止める</b>ためのものです。
-     * この店のメニューで 1 品 10 万円に届くものはありません。
-     * 「0 を 1 つ余分に打った」の大半はここで止まります
-     * （6,800 → 68,000 のような間違いは通ります。それは人が読んで気づく領域です）。
-     */
-    private static final int STAFF_PRICE_LIMIT = 100_000;
-
     private final OrderRepository orderRepository;
     private final OrderNumberService orderNumberService;
     private final ShopSettingService shopSettingService;
@@ -148,6 +138,20 @@ public class OrderService {
      */
     @Transactional
     public Placed place(Cart cart, Long sessionId, String note) {
+        return place(cart, sessionId, note, null);
+    }
+
+    /**
+     * {@link #place} の本体。入力者を記録する版。
+     *
+     * <p>{@code placedBy} が null ならお客さまが自分で入れた注文、
+     * 名前が入っていれば店員が入れた注文です。
+     * <b>処理は 1 行も分岐しません。</b>記録する値が違うだけで、
+     * 営業時間の確認も、お会計との排他も、売り切れの扱いも同じです。
+     * ここを分けると、片方だけ直したときに<b>同じ注文なのに結果が違う</b>ことになります。
+     */
+    @Transactional
+    public Placed place(Cart cart, Long sessionId, String note, String placedBy) {
         if (cart.isEmpty()) {
             throw new OrderRejectedException("カートに商品が入っていません");
         }
@@ -229,7 +233,7 @@ public class OrderService {
         }
 
         // cart ではなく accepted を渡す。売り切れで落とした品を入れないため
-        Order saved = assembleAndSave(session, accepted, note, null, setting.getOrderNumberStart());
+        Order saved = assembleAndSave(session, accepted, note, placedBy, setting.getOrderNumberStart());
         return new Placed(saved, List.copyOf(soldOutNotices));
     }
 
@@ -296,6 +300,31 @@ public class OrderService {
 
         eventPublisher.publishOrderChanged(OrderEvent.created(saved.getId(), saved.getOrderNumber()));
         return saved;
+    }
+
+    /**
+     * 店員がカートの中身をまとめて注文にする（設計「店舗版スマホ注文」）。
+     *
+     * <p>お客さまの {@link #place} と<b>同じ処理</b>を通します。
+     * 営業時間・お会計との排他・売り切れの洗い替え・残数の引き当て・
+     * 注文番号・厨房への通知は 1 行も変えません。
+     * 変わるのは<b>入力者を記録すること</b>だけです。
+     *
+     * <p><b>なぜ 1 品ずつの {@link #placeByStaff} と別なのか</b><br>
+     * あちらは伝票の画面から 1 品だけ足す口で、押すたびに厨房へ 1 枚出ます。
+     * 着席したお客さまから 5 品まとめて受けると、厨房に伝票が 5 枚並びます。
+     * こちらはカートに積んでから 1 回で送るので、<b>厨房には 1 枚</b>で出ます。
+     *
+     * <p>時価の金額は、カートに積む時点ですでに入っています
+     * （{@code CartService#addByStaff}）。ここで金額を受け取らないのは、
+     * 「金額を入れるまで積めない」を門にしているからです。
+     * カートに ¥0 の時価が存在しない以上、ここで確かめるものはありません。
+     *
+     * @param staffName 入れた店員の名前。注文に残る（{@code placedBy}）
+     */
+    @Transactional
+    public Placed placeFromStaffCart(Cart cart, Long sessionId, String note, String staffName) {
+        return place(cart, sessionId, note, staffName);
     }
 
     /**
@@ -367,8 +396,11 @@ public class OrderService {
             throw new OrderRejectedException("「%s」は掲載を終了しています".formatted(item.getName()));
         }
 
-        boolean marketPriced = item.getPrice() <= 0;
-        int unitBasePrice = marketPriced ? requireStaffPrice(item, decidedPrice) : rejectStaffPrice(item, decidedPrice);
+        // 金額の判断は StaffPriceRule に集めてある。
+        // 店舗版スマホ（カートに積む側）も同じものを通るので、
+        // 片方だけ緩めて素通りする、ということが起きない
+        boolean marketPriced = StaffPriceRule.isMarketPriced(item);
+        int unitBasePrice = StaffPriceRule.unitPriceOf(item, decidedPrice);
 
         // 売り切れの扱いは時価かどうかで変わる（メソッドの説明を参照）
         if (!marketPriced && item.isSoldOut()) {
@@ -409,50 +441,6 @@ public class OrderService {
         return saved;
     }
 
-    /**
-     * 時価の品にスタッフが付けた金額を確かめる。
-     *
-     * <p>入力必須です。空のまま通すと 0 円の注文が伝票に載り、
-     * <b>お客さまは食べたのに請求されない</b>という形で店が損をします。
-     * しかも金額が 0 なので、伝票を見ても気づきにくい。
-     */
-    private static int requireStaffPrice(MenuItem item, Integer decidedPrice) {
-        if (decidedPrice == null) {
-            throw new OrderRejectedException(
-                    "「%s」は時価の品です。今日の金額を入力してください".formatted(item.getName()));
-        }
-        if (decidedPrice <= 0) {
-            throw new OrderRejectedException("金額は 1 円以上で入力してください");
-        }
-        // 桁を 1 つ多く打った事故を止める。この店の 1 品でここに届く値段は無い。
-        // 打ち間違いを完全には防げない（6,800 を 68,000 にする間違いは通る）が、
-        // 「0 を 1 つ余分に付けた」の大半はここで止まる
-        if (decidedPrice > STAFF_PRICE_LIMIT) {
-            throw new OrderRejectedException(
-                    "金額が大きすぎます（1 品 %,d 円まで）。桁をご確認ください".formatted(STAFF_PRICE_LIMIT));
-        }
-        return decidedPrice;
-    }
-
-    /**
-     * 時価でない品に金額が付いてきたら断る。
-     *
-     * <p><b>黙って捨てないのが要点です。</b>捨てると、スタッフは値引きしたつもりで
-     * 送信でき、画面には「入れました」と出ます。食い違いに気づくのはお会計のときで、
-     * そのときにはもうお客さまに別の金額を伝えたあとです。
-     *
-     * <p>値引きの手段としてここを開けないのは、単価が下がると
-     * その卓の小計から他の品の代金が引かれる形になり、
-     * 「どの品がいくらだったか」が伝票から読めなくなるためです（CLAUDE.md）。
-     */
-    private static int rejectStaffPrice(MenuItem item, Integer decidedPrice) {
-        if (decidedPrice != null) {
-            throw new OrderRejectedException(
-                    "「%s」は %,d 円の品です。この画面から金額は変更できません"
-                            .formatted(item.getName(), item.getPrice()));
-        }
-        return item.getPrice();
-    }
 
     // ========================================================================
     //  参照

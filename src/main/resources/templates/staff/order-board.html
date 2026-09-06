@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   番号の盤面（店舗版スマホ注文の入口）
+  ============================================================================
+   店員がスマホ・iPad から「どの卓の注文か」を決める画面。
+   ここで番号を押すことが、お客さまが QR を読むのと同じ意味になる。
+
+   ★ 空席も出す
+     着席したお客さまから最初の注文を受ける場面で、ここに出ていないと
+     「ご案内」のためにホール画面へ行くことになる。
+     押したら人数を聞いて、そのまま品選びへ進む。
+
+   ★ 人数・入店時刻・金額を添えるのはカウンター対策
+     札は組の前に置いてあるので、店員は目の前の札を読んで押すだけ。
+     ただし厨房など離れた場所から入れるときは、番号だけでは組を見分けられない。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/plain :: layout('注文を受ける', ~{::main})}">
+<body>
+<main class="theme-night staff-order">
+  <div class="container">
+
+    <div th:replace="~{fragments/common :: flash}"></div>
+
+    <div class="staff-order__head">
+      <h1 class="staff-order__title">注文を受ける</h1>
+      <a class="staff-order__out" th:href="@{/logout}">ログアウト</a>
+    </div>
+
+    <!--/* 送っていない品を抱えたまま戻ってきた場合。
+           出さないと、次の卓を押したときに初めて気づくことになる */-->
+    <div class="alert alert--warn" th:if="${pendingTableName != null}" role="alert">
+      <p class="mb-0">
+        <b th:text="${pendingTableName}">札2</b> に送っていない品が
+        <b th:text="${pendingCount}">2</b> 点あります。
+        <a th:href="@{/menu}">続きへ戻る</a>
+      </p>
+    </div>
+
+    <p class="staff-order__lead">お客さまの前にある番号を押してください。</p>
+
+    <div class="seat-grid">
+      <a class="seat" th:each="s : ${seats}"
+         th:classappend="${s.inUse()} ? 'seat--busy' : 'seat--free'"
+         th:href="@{/staff/order/seats/{id}(id=${s.table().id})}">
+        <span class="seat__name" th:text="${s.table().name}">札2</span>
+
+        <!--/* 使用中：人数・入店時刻・いまの金額。
+               この 3 つが「いま話している組はこれだ」の照合材料になる */-->
+        <span class="seat__meta" th:if="${s.inUse()}">
+          <span th:text="${s.guestCount()} + '名'">3名</span>
+          <span class="seat__dot">・</span>
+          <span th:text="${s.openedAt()} + '〜'">19:20〜</span>
+        </span>
+        <span class="seat__amount" th:if="${s.inUse()}"
+              th:text="'¥' + ${#numbers.formatInteger(s.amount(), 1, 'COMMA')}">¥3,150</span>
+
+        <span class="seat__free" th:unless="${s.inUse()}">空席</span>
+      </a>
+    </div>
+
+    <div th:if="${#lists.isEmpty(seats)}">
+      <div th:replace="~{fragments/common :: empty('膳', '卓が登録されていません')}"></div>
+    </div>
+
+  </div>
+</main>
+</body>
+</html>

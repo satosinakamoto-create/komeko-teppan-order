@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   送っていない品を持ったまま、別の番号を押したとき
+  ============================================================================
+   店員は卓を渡り歩く。「札2 に生ビール 2 つ積んだまま、呼ばれて札5 を開く」
+   が起こる。黙って持ち越すと、札2 のビールが札5 の伝票に化ける。
+
+   ★ 目立つほう（きつね色）が「札2 へ戻る」
+     積んだ品を送るのが本来やりたかったことで、捨てるのは戻せない。
+     取り返せるほうの間違いに倒してある。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/plain :: layout('番号を移りますか', ~{::main})}">
+<body>
+<main class="theme-night staff-order">
+  <div class="container">
+
+    <div class="staff-order__head">
+      <h1 class="staff-order__title">番号を移りますか</h1>
+    </div>
+
+    <div class="alert alert--warn">
+      <p class="mb-0">
+        <b th:text="${from}">札2</b> に送っていない品が
+        <b th:text="${count}">2</b> 点（<span
+          th:text="'¥' + ${#numbers.formatInteger(amount, 1, 'COMMA')}">¥1,160</span>）あります。
+      </p>
+    </div>
+
+    <p class="staff-order__lead">
+      <b th:text="${to.name}">札5</b> へ移ると、この品は<b>破棄されます</b>。
+    </p>
+
+    <div class="staff-order__actions">
+      <!--/* 戻って送るほうが主。捨てるのは戻せないので、こちらを目立たせない */-->
+      <a class="btn btn--primary btn--lg btn--block" th:href="@{/menu}">
+        <span th:text="${from}">札2</span> へ戻る
+      </a>
+      <a class="btn btn--outline btn--lg btn--block"
+         th:href="@{/staff/order/seats/{id}(id=${to.id}, discard=true)}">
+        破棄して <span th:text="${to.name}">札5</span> へ移る
+      </a>
+    </div>
+
+  </div>
+</main>
+</body>
+</html>

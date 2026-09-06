@@ -48,6 +48,21 @@
 
         現在地はきつね色。暗い地の上ではきつね色だけが押せる色なので、
         ここを他の色にすると「いまどこにいるか」が読めなくなる。 */-->
+  <!--/* ============ 店舗の端末で開いているときの帯 ============ 2026-09-06
+
+        お客さまの画面には出ません（staffMode のときだけ）。
+
+        ★ なぜ常に出すのか
+          店員は卓を渡り歩きます。品を選んでいる最中に
+          「これはどの卓だったか」が分からなくなるのが、この画面で
+          いちばん起きやすい事故です。番号を貼り付けたままにして、
+          送信の直前にも必ず目に入るようにしています。 */-->
+  <div class="staffbar" th:if="${staffMode}">
+    <a class="staffbar__back" th:href="@{/staff/order}">← 番号</a>
+    <span class="staffbar__seat" th:text="${tableName}">札2</span>
+    <a class="staffbar__out" th:href="@{/logout}">ログアウト</a>
+  </div>
+
   <nav class="tabbar" th:if="${seated}" aria-label="メニューの大分類"
        th:with="p=${currentPath} ?: ''">
     <a class="tabbar__item" th:href="@{/menu}"

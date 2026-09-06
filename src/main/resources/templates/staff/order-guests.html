@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   空席にご案内する（人数を聞く）
+  ============================================================================
+   空いている番号を押したときに出る。人数を入れたら伝票が開いて、
+   そのまま品選びへ進む（ご案内と最初の注文が 1 動線になる）。
+
+   ★ 人数を飛ばせない理由
+     テーブルチャージが「単価 × 人数」で計算されるため。
+     あとから直せるが（ホール画面）、0 のまま進むと請求が足りなくなる。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/plain :: layout('ご案内', ~{::main})}">
+<body>
+<main class="theme-night staff-order">
+  <div class="container">
+
+    <div class="staff-order__head">
+      <h1 class="staff-order__title" th:text="${table.name}">テーブル1</h1>
+      <a class="staff-order__out" th:href="@{/staff/order}">← 番号</a>
+    </div>
+
+    <p class="staff-order__lead">何名さまですか。</p>
+
+    <form th:action="@{/staff/order/seats/{id}/open(id=${table.id})}" method="post">
+      <!--/* 数字だけの大きなボタン。片手で押す前提なので、
+             選択肢を出してから決定、の 2 手にしない */-->
+      <div class="guest-grid">
+        <button class="guest" type="submit" name="guestCount"
+                th:each="n : ${guestOptions}" th:value="${n}"
+                th:text="${n}">2</button>
+      </div>
+    </form>
+
+    <p class="staff-order__note">
+      人数はテーブルチャージの計算に使います。あとからホール画面で直せます。
+    </p>
+
+  </div>
+</main>
+</body>
+</html>

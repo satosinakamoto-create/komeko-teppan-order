@@ -148,8 +148,12 @@
         <p class="mb-0" th:text="${rejectReason}">ただいま受付を停止しております</p>
       </div>
 
-      <!--/* ===== 注文フォーム ===== */-->
-      <form th:action="@{/checkout}" method="post" class="mt-6">
+      <!--/* ===== 注文フォーム =====
+             ★ 送り先は店員かどうかで変わる（設計「店舗版スマホ注文」）。
+               処理そのものは同じ（OrderService#place）で、
+               違うのは入力者が記録されることと、送ったあと盤面に戻ること。 */-->
+      <form th:action="${staffMode} ? @{/staff/order/submit} : @{/checkout}"
+            method="post" class="mt-6">
         <div class="field">
           <label class="label" for="note">ご要望（任意）</label>
           <textarea class="textarea" id="note" name="note" maxlength="200"

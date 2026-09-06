@@ -216,6 +216,27 @@ class AllScreensDumpTest {
                 .filter(TableSession::isOrderable)
                 .map(TableSession::getId)
                 .findFirst().orElse(null);
+        // ── 店舗版スマホ注文（2026-09-06）──
+        // 番号の盤面。ここから注文の動線が始まる
+        write("s10-staff-order-board",
+                mockMvc.perform(get("/staff/order").with(user("店長").roles("ADMIN")))
+                        .andReturn().getResponse().getContentAsString());
+
+        // 空席にご案内する画面（人数を聞く）。伝票の無い卓を 1 つ探す
+        tables.findAll().stream()
+                .filter(t -> tableSessions.findOpenSessionIds(t.getId()).isEmpty())
+                .findFirst()
+                .ifPresent(free -> {
+                    try {
+                        write("s11-staff-order-guests",
+                                mockMvc.perform(get("/staff/order/seats/" + free.getId())
+                                                .with(user("店長").roles("ADMIN")))
+                                        .andReturn().getResponse().getContentAsString());
+                    } catch (Exception e) {
+                        throw new IllegalStateException("ご案内の画面を撮れませんでした", e);
+                    }
+                });
+
         if (billId != null) {
             write("s03b-staff-order-pick",
                     mockMvc.perform(get("/hall/bills/" + billId + "/orders/new")

@@ -276,6 +276,14 @@ public class SecurityConfig {
                     .requestMatchers("/kitchen/**", "/hall/**",
                             "/api/kitchen/**", "/api/stream/**")
                         .hasAnyRole("STAFF", "ADMIN")
+                    // ── 店舗版スマホ注文もスタッフ以上 ──
+                    //   ★ 見学者（GUEST）には開けない。
+                    //     この画面から送った注文は本物の伝票に載り、請求額が動きます。
+                    //     公開デモで見学者が押せると、他の見学者の画面にも出ます。
+                    //     時価の品には金額まで入れられるので、なおさら閉じておきます。
+                    .requestMatchers("/staff/**")
+                        .access(new WebExpressionAuthorizationManager(
+                                "hasAnyRole('STAFF','ADMIN') and !hasRole('GUEST')"))
                     // ── 仕入れ・在庫もスタッフ以上 ──
                     //   買い出しに行くのは店長とは限らないので、STAFF でも登録できるようにする。
                     //   app.inventory.enabled=false のときはコントローラ自体が存在しないため、

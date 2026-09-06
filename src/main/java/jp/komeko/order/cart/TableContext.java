@@ -66,11 +66,53 @@ public class TableContext implements Serializable {
      */
     private Long sessionId;
 
+    /**
+     * 店舗の端末から卓を選んだか（設計「店舗版スマホ注文」）。
+     *
+     * <p><b>お客さまと店員で、同じメニュー画面の意味が変わるところがあります。</b>
+     * <ul>
+     *   <li>時価の品 … お客さまには「スタッフを呼ぶ」しか出せませんが、
+     *       店員はその場で金額を入れて積めます</li>
+     *   <li>送り先 … お客さまの注文は {@code /checkout}、
+     *       店員の注文は入力者を記録する口へ行きます</li>
+     *   <li>卓の替え方 … お客さまは QR を読み直すしかありませんが、
+     *       店員は盤面から次の卓へ移ります</li>
+     * </ul>
+     *
+     * <p><b>なぜ別のクラスを作らないのか</b><br>
+     * 分けると、メニュー・品選び・カートの 3 画面が
+     * 「どちらの入れ物を見るか」を自分で判断することになります。
+     * 判断の場所が増えるほど、片方だけ直したときのずれが起きます。
+     * 卓に着いていることは同じなので、入れ物も同じにして、
+     * <b>違うところだけをこの印で分けます</b>。
+     */
+    private boolean staffMode;
+
     /** 卓に入店した（QR を読んだ）。 */
     public void bind(Long tableId, String tableName, String accessToken) {
         this.tableId = tableId;
         this.tableName = tableName;
         this.accessToken = accessToken;
+        this.staffMode = false;
+    }
+
+    /**
+     * 店員が盤面から卓を選んだ。
+     *
+     * <p>QR を持たないので accessToken は入りません。
+     * 「卓に着いている」という点はお客さまと同じなので、
+     * メニューもカートもそのまま動きます。
+     */
+    public void bindByStaff(Long tableId, String tableName) {
+        this.tableId = tableId;
+        this.tableName = tableName;
+        this.accessToken = null;
+        this.staffMode = true;
+    }
+
+    /** 店舗の端末から選んだ卓か。 */
+    public boolean isStaffMode() {
+        return staffMode;
     }
 
     /** 卓の紐づけを外す（会計後や、別の卓の QR を読んだとき）。 */
@@ -79,6 +121,7 @@ public class TableContext implements Serializable {
         this.tableName = null;
         this.accessToken = null;
         this.sessionId = null;
+        this.staffMode = false;
     }
 
     /**

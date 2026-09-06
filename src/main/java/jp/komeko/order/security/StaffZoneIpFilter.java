@@ -45,6 +45,9 @@ public class StaffZoneIpFilter extends OncePerRequestFilter {
      */
     private static final String[] STAFF_PREFIXES = {
             "/kitchen", "/hall", "/admin", "/inventory", "/accountant",
+            // 店舗版スマホ注文（2026-09-06）。番号の盤面から本物の伝票に注文を送るので、
+            // 他のスタッフ画面と同じく接続元で閉じる
+            "/staff",
             "/api/stream", "/api/kitchen", "/h2-console"
     };
 

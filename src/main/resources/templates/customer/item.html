@@ -29,7 +29,91 @@
              注文に追加は枠線の控えめなボタンになっています。
              値段を聞いてから決める、という順番をボタンの強さで表しています。
     */-->
-    <article class="card mt-4 askstaff" th:if="${item.price <= 0}">
+    <!--/* ===== 時価の品：店員が金額を入れて積む（設計「店舗版スマホ注文」）=====
+
+           お客さまには金額を出せないので「スタッフを呼ぶ」で止まりますが、
+           店員は席で口頭で金額を伝えてから注文を受けるので、その場で入れます。
+
+           ★ 「金額を入れるまで積めない」の門です。
+             送る段で断るのではなく、ここで入れられない。
+             ¥0 の時価がカートに一瞬でも存在しなければ、送り忘れも、
+             お客さまの伝票画面に ¥0 が出ることも起きようがありません。
+             画面の required は近道でしかなく、本当の門はサーバ側
+             （CartService#addByStaff → StaffPriceRule）。 */-->
+    <article class="card mt-4 askstaff" th:if="${item.price <= 0 and staffMode}">
+      <div class="card__body">
+
+        <h1 class="askstaff__name mb-0" th:text="${item.name}">国産牛サーロインステーキ</h1>
+        <p class="askstaff__desc" th:if="${item.description}"
+           th:text="${item.description}">時価。仕入れ状況により価格が変わります。</p>
+
+        <hr class="askstaff__rule">
+
+        <form th:action="@{/staff/order/cart/add}" method="post" id="add-form"
+              th:attr="data-base-price=0">
+          <input type="hidden" name="menuItemId" th:value="${item.id}">
+
+          <div class="field">
+            <label class="label" for="price">今日の金額（税込・1 品あたり）</label>
+            <div class="row">
+              <span>¥</span>
+              <input class="input" type="number" id="price" name="price"
+                     min="1" max="100000" step="1" required
+                     inputmode="numeric" style="max-width:10rem" placeholder="6800">
+            </div>
+            <p class="help mt-2 mb-0">
+              お客さまにお伝えした金額を入れてください。ここで入れた金額がそのまま請求額になります。
+              <strong>入力した人の名前が注文に残ります。</strong>
+            </p>
+          </div>
+
+          <!--/* 選択肢（焼き加減など）。お客さま側とまったく同じ形。
+                 受け取り側の規則は CartController.mergeChoiceIds が持っている */-->
+          <section th:each="g : ${item.optionGroups}" class="mt-4">
+            <div class="row row--between">
+              <span class="label mb-0" th:text="${g.name}">焼き加減</span>
+              <span class="badge badge--rec" th:if="${g.required}">必須</span>
+            </div>
+            <div class="row row--wrap mt-2">
+              <label class="row" th:each="c : ${g.choices}" style="gap:6px">
+                <input th:if="${g.singleChoice}" type="radio"
+                       th:name="'single_' + ${g.id}" th:value="${c.id}"
+                       th:checked="${c.defaultSelected}" th:disabled="${c.soldOut}"
+                       th:required="${g.required}">
+                <input th:unless="${g.singleChoice}" type="checkbox"
+                       name="choiceIds" th:value="${c.id}"
+                       th:checked="${c.defaultSelected}" th:disabled="${c.soldOut}">
+                <span th:text="${c.name}">ミディアム</span>
+                <span class="badge badge--stop" th:if="${c.soldOut}">品切れ</span>
+              </label>
+            </div>
+          </section>
+
+          <div class="row row--between mt-6">
+            <span class="label mb-0" style="margin:0">数量</span>
+            <div class="qty">
+              <button type="button" class="qty__btn" data-qty-step="-1" aria-label="1つ減らす">−</button>
+              <input class="qty__value" type="number" name="quantity" id="quantity"
+                     value="1" min="1" max="20" inputmode="numeric" aria-label="個数">
+              <button type="button" class="qty__btn" data-qty-step="1" aria-label="1つ増やす">＋</button>
+            </div>
+          </div>
+
+          <div class="sheet-modal__foot mt-4">
+            <a class="btn btn--outline btn--lg" th:href="@{/menu}" data-close-modal>やめる</a>
+            <button type="submit" class="btn btn--primary btn--lg btn--block">注文リストに追加</button>
+          </div>
+        </form>
+
+        <!--/* 残数だけは時価でも尊重する。ここを緩めると売り越しになる。
+               時価の品の「売り切れ」は値段未定の印なので、それは通す */-->
+        <p class="askstaff__why mb-0" th:if="${item.outOfStock}">
+          残数が 0 です。数が増えたなら品切れ管理で残数を直してください。
+        </p>
+      </div>
+    </article>
+
+    <article class="card mt-4 askstaff" th:if="${item.price <= 0 and !staffMode}">
       <div class="card__body">
 
         <h1 class="askstaff__name mb-0" th:text="${item.name}">本日の日本酒（おまかせ）</h1>
@@ -176,8 +260,12 @@
            時価・おまかせの品は上の askstaff で完結しているので、こちらは出さない。
            両方出すと「注文に追加」が 2 つ並び、片方は金額入り、
            片方は金額なし、というちぐはぐな画面になる */-->
+    <!--/* ★ 送り先は店員かどうかで変わる（設計「店舗版スマホ注文」）。
+           店員の口は時価の金額も受け取れるうえ、入力者を記録する送信につながる。
+           ここを 1 つにまとめると、店員が積んだ品が
+           「お客さまが自分で入れた注文」として残ってしまう。 */-->
     <form th:if="${item.orderable and accepting and item.price > 0}"
-          th:action="@{/cart/add}" method="post"
+          th:action="${staffMode} ? @{/staff/order/cart/add} : @{/cart/add}" method="post"
           id="add-form" class="mt-6"
           th:attr="data-base-price=${item.price}">
 

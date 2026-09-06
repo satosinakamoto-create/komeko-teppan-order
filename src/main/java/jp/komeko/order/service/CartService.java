@@ -84,6 +84,87 @@ public class CartService {
     }
 
     /**
+     * 店員がカートに積む（設計「店舗版スマホ注文」）。
+     *
+     * <p>お客さま向けの {@link #addToCart} との違いは<b>2 つだけ</b>です。
+     *
+     * <ul>
+     *   <li><b>時価の品を積める。</b>お客さまの画面には金額が出せないので
+     *       「スタッフを呼ぶ」で止まりますが、店員はその場で金額を入れられます</li>
+     *   <li><b>時価の品の「売り切れ」を通す。</b>時価の品は価格 0 円のまま
+     *       注文されるのを防ぐため、はじめから売り切れとして登録されています
+     *       （{@code DataSeeder}）。つまりここでの売り切れは「今日はもう無い」ではなく
+     *       <b>「まだ値段が決まっていない」</b>の意味で、金額を入れる時点で解消されます</li>
+     * </ul>
+     *
+     * <p><b>ここが「金額を入れるまで積めない」の門です。</b>
+     * 送る段で断るのではなく、カートに入る前に止めます。
+     * ¥0 の時価がカートに一瞬でも存在しなければ、
+     * 送り忘れも、お客さまの伝票画面に ¥0 が出ることも起きようがありません。
+     * 判断そのものは {@link StaffPriceRule} が持っています
+     * （伝票の画面から 1 品ずつ入れる口と同じもの）。
+     *
+     * <p>時価でない品の売り切れ・残数は<b>お客さまと同じように断ります</b>。
+     * そちらは本当に品が無い意味なので、通すと厨房が作れないものが伝票に載ります。
+     *
+     * @param decidedPrice 時価の品に店員が付けた単価（税込）。時価でない品では null
+     */
+    @Transactional(readOnly = true)
+    public CartLine addByStaff(Cart cart, Long menuItemId, List<Long> choiceIds,
+                               int quantity, Integer decidedPrice) {
+        if (quantity < 1) {
+            throw new OrderRejectedException("個数は 1 以上を指定してください");
+        }
+        if (quantity > Cart.MAX_QUANTITY_PER_LINE) {
+            throw new OrderRejectedException(
+                    "一度に入れられるのは %d 個までです".formatted(Cart.MAX_QUANTITY_PER_LINE));
+        }
+
+        MenuItem item = menuService.itemWithOptions(menuItemId);
+        if (!item.isVisible()) {
+            throw new OrderRejectedException("「%s」は掲載を終了しています".formatted(item.getName()));
+        }
+
+        // 金額の門。時価なら必須、時価でない品への値付けは拒否
+        int unitBasePrice = StaffPriceRule.unitPriceOf(item, decidedPrice);
+
+        if (!StaffPriceRule.isMarketPriced(item) && item.isSoldOut()) {
+            throw new OrderRejectedException(
+                    "「%s」は売り切れです。出せる場合は品切れ管理から販売を再開してください"
+                            .formatted(item.getName()));
+        }
+        // 残数は時価でも尊重する。ここを緩めると売り越しになる。
+        // ただし本当の売り越し防止は注文確定時の条件付き UPDATE（OrderService 側）で、
+        // ここは早めに知らせるためのもの
+        if (item.isOutOfStock()) {
+            throw new OrderRejectedException(
+                    "「%s」は残数が 0 です。数が増えたなら品切れ管理で残数を直してください"
+                            .formatted(item.getName()));
+        }
+        if (item.isStockTracked() && quantity > item.getStockRemaining()) {
+            throw new OrderRejectedException(
+                    "「%s」は残り %d 点です。個数を変更してください"
+                            .formatted(item.getName(), item.getStockRemaining()));
+        }
+
+        Set<Long> selected = new LinkedHashSet<>(choiceIds == null ? List.of() : choiceIds);
+        List<CartOption> options = validateAndBuildOptions(item, selected);
+
+        // ★ 単価はマスタの価格ではなく、上で決めた値を使う。
+        //   時価の品はここが店員の入れた金額になる
+        CartLine line = new CartLine(
+                item.getId(),
+                item.getName(),
+                item.getImagePath(),
+                unitBasePrice,
+                item.getCookMinutes(),
+                options,
+                quantity);
+
+        return cart.add(line);
+    }
+
+    /**
      * 選択肢の検証だけを行い、注文明細に載せられる形にして返す。
      *
      * <p>スタッフが卓に代わって注文を入れる経路（{@code OrderService#placeByStaff}）から
@@ -168,13 +249,32 @@ public class CartService {
                 removed.add("「%s」はメニューから削除されたため、カートから外しました".formatted(line.getMenuItemName()));
                 continue;
             }
+            // ★ 店員が金額を付けた時価の品か（設計「店舗版スマホ注文」）。
+            //
+            //   マスタは 0 円（＝値段が未定の印）なのに、カートには金額が入っている。
+            //   この行だけ、下の 2 つの判断を変える必要がある。
+            //
+            //   これを見落とすと、店員が 6,800 円で受けたステーキが
+            //   送信のこの瞬間に「売り切れ」で落とされるか、0 円に書き戻される。
+            //   どちらも例外は出ず、お客さまの伝票で初めて分かる。
+            boolean pricedByStaff = item.getPrice() <= 0 && line.getBasePrice() > 0;
+
             if (!item.isOrderable()) {
-                // 手動の品切れフラグでも残数ゼロでも、お客さまへの言葉は同じ「売り切れ」
-                String reason = (item.isSoldOut() || item.isOutOfStock()) ? "売り切れ" : "取り扱い終了";
-                removed.add("「%s」は%sのため、カートから外しました".formatted(item.getName(), reason));
-                continue;
+                // ★ 時価の品は、はじめから売り切れとして登録されている
+                //   （価格 0 円のまま注文されるのを防ぐため。DataSeeder 参照）。
+                //   店員が金額を入れた時点でその理由は解消しているので、落とさない。
+                //   残数ゼロと掲載終了は、時価でも本当に出せないので今までどおり落とす。
+                boolean onlySoldOutFlag = item.isSoldOut() && !item.isOutOfStock() && item.isVisible();
+                if (!(pricedByStaff && onlySoldOutFlag)) {
+                    // 手動の品切れフラグでも残数ゼロでも、お客さまへの言葉は同じ「売り切れ」
+                    String reason = (item.isSoldOut() || item.isOutOfStock()) ? "売り切れ" : "取り扱い終了";
+                    removed.add("「%s」は%sのため、カートから外しました".formatted(item.getName(), reason));
+                    continue;
+                }
             }
-            if (item.getPrice() != line.getBasePrice()) {
+            // ★ 時価の品の 0 円は「値段」ではなく「未定」の印なので、比べる相手にならない。
+            //   ここで比べると「6,800円 → 0円 に変わりました」と出て注文が止まる
+            if (!pricedByStaff && item.getPrice() != line.getBasePrice()) {
                 changes.add("「%s」の価格が %,d円 → %,d円 に変わりました"
                         .formatted(item.getName(), line.getBasePrice(), item.getPrice()));
             }
@@ -211,8 +311,11 @@ public class CartService {
                 continue;
             }
 
+            // ★ 時価の品は、店員が入れた金額を持ち続ける。
+            //   item.getPrice()（＝0）で作り直すと、送信のこの瞬間に金額が消える
             rebuilt.add(new CartLine(item.getId(), item.getName(), item.getImagePath(),
-                    item.getPrice(), item.getCookMinutes(), options, line.getQuantity()));
+                    pricedByStaff ? line.getBasePrice() : item.getPrice(),
+                    item.getCookMinutes(), options, line.getQuantity()));
         }
 
         cart.replaceAll(rebuilt);
