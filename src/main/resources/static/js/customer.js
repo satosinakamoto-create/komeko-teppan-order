@@ -439,6 +439,7 @@
     if (!dialog || typeof dialog.showModal !== 'function') { return; }
 
     var targetLabel = dialog.querySelector('[data-confirm-target]');
+    var targetPhoto = dialog.querySelector('[data-confirm-photo]');
     var okButton = dialog.querySelector('[data-confirm-ok]');
     var cancelButton = dialog.querySelector('[data-confirm-cancel]');
     /* 「はい」が押されたときに送るフォーム */
@@ -460,6 +461,23 @@
       targetLabel.textContent = trigger.dataset.confirmAll
         || form.dataset.confirmName
         || '';
+
+      /* 写真は、ある品のときだけ出す（設計 暗26）。
+         飲み物には写真が無く、「注文を取り消す」（全部消す）にも
+         対応する 1 枚が無い。
+         ★ 出さないときは src も空にする。残したままだと、
+           次に写真のある品を開くまで前の品の写真が見えてしまう。 */
+      if (targetPhoto) {
+        var photo = trigger.dataset.confirmAll ? '' : (form.dataset.confirmImage || '');
+        if (photo) {
+          targetPhoto.src = photo;
+          targetPhoto.hidden = false;
+        } else {
+          targetPhoto.hidden = true;
+          targetPhoto.removeAttribute('src');
+        }
+      }
+
       dialog.showModal();
     });
 

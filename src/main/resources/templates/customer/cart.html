@@ -72,8 +72,12 @@
                      そのまま消える（確認は出ない）。
                      消えるのは注文前のカートの 1 行で、入れ直せるので、
                      動かない環境では確認より「消せること」を優先した。 */-->
+            <!--/* data-confirm-image は写真がある品にだけ付く。
+                   飲み物のように写真の無い品では属性ごと出ないので、
+                   確認は文字だけの姿になる（設計 暗26 の写真あり／なし） */-->
             <form class="order-row__del" th:action="@{/cart/remove}" method="post"
-                  th:attr="data-confirm-name=${line.menuItemName} + ' ×' + ${line.quantity}">
+                  th:attr="data-confirm-name=${line.menuItemName} + ' ×' + ${line.quantity},
+                           data-confirm-image=${line.imagePath} != null ? @{${line.imagePath}} : null">
               <input type="hidden" name="key" th:value="${line.key}">
               <button class="order-row__delbtn" type="submit"
                       th:attr="aria-label='「' + ${line.menuItemName} + '」を削除する'">
@@ -197,6 +201,16 @@
       <dialog class="confirm" id="confirm-remove" aria-labelledby="confirm-remove-title">
         <div class="confirm__box">
           <p class="confirm__title" id="confirm-remove-title">この項目を削除しますか</p>
+
+          <!--/* 写真がある品だけ出す（設計 暗26）。
+                 alt を空にしているのは、すぐ下に品名が出ているため。
+                 読み上げで同じことを 2 回言わせない。
+
+                 hidden で始めるのは、写真の無い品を選んだときに
+                 前の品の写真が残らないようにするため。
+                 src を空にすると、代わりに壊れた画像の印が出る端末がある */-->
+          <img class="confirm__photo" data-confirm-photo alt="" hidden>
+
           <p class="confirm__target" data-confirm-target>肉玉米粉そば ×1</p>
           <div class="confirm__actions">
             <button type="button" class="btn btn--primary btn--lg btn--block"

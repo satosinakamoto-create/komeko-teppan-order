@@ -73,6 +73,7 @@ class CartDeletePageTest {
 
     private MockHttpSession browser;
     private MenuItem soba;
+    private MenuItem drink;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -86,7 +87,15 @@ class CartDeletePageTest {
         shopSettingService.save(setting);
 
         Category category = categoryRepository.save(new Category("鉄板焼き", 10));
-        soba = menuItemRepository.save(new MenuItem(category, "肉玉米粉そば", 1180));
+
+        // 写真のある品。設計（暗26）の確認には写真が出る
+        MenuItem withPhoto = new MenuItem(category, "肉玉米粉そば", 1180);
+        withPhoto.setImagePath("/images/menu/okonomi.jpg");
+        soba = menuItemRepository.save(withPhoto);
+
+        // 写真の無い品。ドリンクは写真を持たないものが多く、
+        // そのときは文字だけの確認になる
+        drink = menuItemRepository.save(new MenuItem(category, "生ビール（中）", 580));
 
         DiningTable table = diningTableRepository.save(new DiningTable("3番テーブル", 4, 10));
         browser = new MockHttpSession();
@@ -142,6 +151,49 @@ class CartDeletePageTest {
                 .contains("data-confirm-name=\"肉玉米粉そば ×2\"");
         assertThat(page).as("確認そのものが無い").contains("id=\"confirm-remove\"");
         assertThat(page).contains("この項目を削除しますか");
+    }
+
+    @Test
+    @DisplayName("★ 写真のある品は、その写真を確認に出せる（設計 暗26）")
+    void carriesThePhotoWhenTheItemHasOne() throws Exception {
+        String page = cart();
+
+        // 文字だけより速い。「肉玉米粉そば ×1」を読んで確かめるより、
+        // 写真を見るほうが「これで合っている」と分かるのが早い
+        assertThat(page).as("写真を渡していない")
+                .contains("data-confirm-image=\"/images/menu/okonomi.jpg\"");
+        assertThat(page).as("確認に写真の置き場が無い").contains("data-confirm-photo");
+    }
+
+    @Test
+    @DisplayName("★ 写真の無い品には、写真の属性ごと付けない")
+    void omitsThePhotoWhenThereIsNone() throws Exception {
+        mockMvc.perform(post("/cart/add").with(csrf()).session(browser)
+                .param("menuItemId", String.valueOf(drink.getId()))
+                .param("quantity", "1"));
+
+        String page = cart();
+        int at = page.indexOf("生ビール");
+        String rowStart = page.substring(page.lastIndexOf("<form", at), at);
+
+        // 属性が空文字で付くと、JavaScript 側で「写真あり」と読めてしまい、
+        // 壊れた画像の印が出る端末がある。付けないのが正しい
+        assertThat(rowStart).as("写真の無い品に画像の属性が付いている")
+                .doesNotContain("data-confirm-image");
+    }
+
+    @Test
+    @DisplayName("★ 写真は隠した状態で置いてある（前の品の写真が残らない）")
+    void startsWithTheePhotoHidden() throws Exception {
+        String page = cart();
+        int at = page.indexOf("data-confirm-photo");
+        String tag = page.substring(page.lastIndexOf("<img", at), page.indexOf('>', at) + 1);
+
+        // 写真の無い品を選んだときに、前に開いた品の写真が残っていると、
+        // 別のものを消そうとしているように見える
+        assertThat(tag).as("最初から出ている").contains("hidden");
+        // alt は空。すぐ下に品名が出ているので、読み上げで 2 回言わせない
+        assertThat(tag).as("読み上げで品名を 2 回言うことになる").contains("alt=\"\"");
     }
 
     @Test

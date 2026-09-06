@@ -4244,6 +4244,24 @@ body.is-sending .staff-main {
   line-height: 1.6;
   text-align: center;
 }
+/* 消そうとしている品の写真（設計 暗26 / 377:2102）。
+
+   ★ 文字だけより速い。「肉玉米粉そば ×1」を読んで確かめるより、
+     写真を見るほうが「これで合っている」と分かるのが早い。
+     消す操作は取り消せないので、確かめるのが速いほど間違いが減る。
+
+   ★ 幅は決め打ちの 112px。ここは比で伸ばさない。
+     ダイアログの幅は端末で変わるが、写真が大きくなるとボタンが
+     画面の外へ出る。確かめる材料であって、見せる写真ではない。 */
+.confirm__photo {
+  display: block;
+  width: 112px;
+  height: 112px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.confirm__photo[hidden] { display: none; }
+
 .confirm__target {
   margin: 0;
   font-size: 13px;
