@@ -165,8 +165,10 @@ public class ServiceController {
 
         try {
             cartService.addToCart(cart, item.getId(), List.of(), 1);
+            // 文言は CartController が持っている。お食事から入れても
+            // おしぼりから入れても、同じ操作には同じ札を出す
             redirectAttributes.addFlashAttribute("flashSuccess",
-                    "注文リストに追加しました（まだ注文は確定していません）");
+                    CartController.ADDED_TO_CART_MESSAGE);
         } catch (RuntimeException e) {
             log.warn("サービスのご依頼を注文リストに入れられませんでした: {}", e.toString());
             redirectAttributes.addFlashAttribute("flashErrors",

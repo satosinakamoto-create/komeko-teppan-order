@@ -33,6 +33,31 @@ public class CartController {
     public static final String SINGLE_CHOICE_PREFIX = "single_";
 
     /**
+     * 品を注文リストに入れたときの札の文言（設計 暗25 / {@code 370:3959}）。
+     *
+     * <p><b>改行はデザインです。</b>設計では「注文リストに追加しました」と
+     * 「（まだ注文は確定していません）」が別々の行に置かれています。
+     * 幅まかせの折り返しに任せると「…確定し／ていません」のように
+     * 意味の切れない場所で折れ、しかも折り返す位置は端末の幅で変わります
+     * （390 と 360 で違う場所で折れる）。
+     * 出す側で切っておけば、どの端末でも同じ 2 行になります。
+     *
+     * <p>改行をそのまま出すのは {@code app.css} の
+     * {@code .theme-night .alert--success}（{@code white-space: pre-line}）です。
+     * 片方だけ直すと、改行が空白 1 個に潰れて 1 行に戻ります。
+     *
+     * <p><b>2 か所から使うので定数にしています。</b>
+     * お食事は {@link #add}、おしぼりなどのサービスは
+     * {@code ServiceController} から入ります。文言を書き写すと、
+     * 片方だけ直したときに<b>同じ操作なのに違う札が出ます</b>。
+     *
+     * <p>「追加した」だけでは注文が入ったと勘違いされるので、
+     * まだ確定していないことを必ず書き添えます。
+     */
+    public static final String ADDED_TO_CART_MESSAGE =
+            "注文リストに追加しました\n（まだ注文は確定していません）";
+
+    /**
      * チェックボックスとラジオ、2 通りの名前で届いた選択肢を 1 本のリストにまとめる。
      *
      * <p><b>なぜ 2 通りあるのか</b>は {@link #add} の説明を参照してください。
@@ -125,10 +150,7 @@ public class CartController {
             // メニューに戻せば続けて選べますし、画面下の固定バーに
             // 「注文リストを見る（N 点）」が出ているので、いつでも確認へ移れます。
             //
-            // 「追加した」だけでは注文が入ったと勘違いされるので、
-            // まだ確定していないことを必ず書き添えます。
-            redirectAttributes.addFlashAttribute("flashSuccess",
-                    "注文リストに追加しました（まだ注文は確定していません）");
+            redirectAttributes.addFlashAttribute("flashSuccess", ADDED_TO_CART_MESSAGE);
             return "redirect:/menu";
         } catch (OrderRejectedException e) {
             redirectAttributes.addFlashAttribute("flashErrors", e.getReasons());

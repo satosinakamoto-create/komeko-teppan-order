@@ -96,6 +96,43 @@ class TransientNoticeTest {
         }
 
         @Test
+        @DisplayName("★ 設計（暗25）の見た目が入っている：四辺を囲う・角丸 6・中央ぞろえ・改行を活かす")
+        void matchesTheDesign() throws Exception {
+            String css = Files.readString(Path.of("src/main/resources/static/css/app.css"));
+
+            int start = css.indexOf(".theme-night .alert--success");
+            assertThat(start).as("お客さま側の成功の札に、設計の指定が無い").isGreaterThan(-1);
+            String block = css.substring(start, css.indexOf('}', start));
+
+            // 左だけ 4px → 四辺 1px（.alert の border-left を上書きする）
+            assertThat(block).as("四辺を囲っていない").contains("border: 1px solid");
+            // --r-sm は 8px。設計は 6px なので、この札にだけ効かせている
+            assertThat(block).as("角丸が設計の 6px でない").contains("border-radius: 6px");
+            assertThat(block).as("中央ぞろえでない").contains("text-align: center");
+
+            // 色は書かない。--ok / --ok-soft が設計の #7fbf9a / #1e2a24 と同じなので、
+            // ここに hex を書くとテーマの色を変えたときにここだけ取り残される
+            assertThat(block).as("色を直書きしている").doesNotContain("#");
+
+            // 改行の指定は「箱」ではなく「中の p」に付ける。
+            // 箱に付けると、テンプレートの字下げまで行として数えられ、
+            // 上下に空行が 3 つずつ入って高さが 77 → 131px になる（実機で確認済み）
+            assertThat(css).as("改行が空白に潰れる")
+                    .contains(".theme-night .alert--success p { white-space: pre-line; }");
+            assertThat(block).as("改行の指定を箱に付けている。上下に空行が入る")
+                    .doesNotContain("white-space");
+        }
+
+        @Test
+        @DisplayName("★ 札の改行は、出す側が持っている（幅まかせにしない）")
+        void breaksTheLineOnPurpose() {
+            // 幅まかせだと「…確定し／ていません」のような場所で折れ、
+            // しかも折り返す位置は端末の幅で変わる（390 と 360 で別の場所）
+            assertThat(jp.komeko.order.web.customer.CartController.ADDED_TO_CART_MESSAGE)
+                    .isEqualTo("注文リストに追加しました\n（まだ注文は確定していません）");
+        }
+
+        @Test
         @DisplayName("エラーは消さない（読み落とすと理由が分からなくなる）")
         void keepsErrors() throws Exception {
             String js = Files.readString(CUSTOMER_JS);
@@ -191,6 +228,10 @@ class TransientNoticeTest {
             assertThat(menu).contains("注文リストに追加しました");
             assertThat(menu).as("1 回きりの報告に印が付いていない。ずっと居座る")
                     .contains("is-transient");
+            // 設計どおり 2 行で出す。改行は文言側が持っていて、
+            // th:text は文字として書き出すので HTML にもそのまま現れる
+            assertThat(menu).as("設計の改行が消えている")
+                    .contains("注文リストに追加しました\n（まだ注文は確定していません）");
         }
 
         @Test
