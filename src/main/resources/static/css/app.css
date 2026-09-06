@@ -4065,6 +4065,44 @@ body.is-sending .staff-main {
 .order-row:first-child { border-radius: 8px 8px 0 0; }
 .order-row:last-child { border-radius: 0 0 8px 8px; }
 
+/* この品を消す「−」（設計 暗06 / 383:2187）。
+
+   ★ 押せる面は行の高さいっぱい。
+     見た目の丸は 32px のままだが、的が 32×32 しかないと
+     指がずれたときに何も押せない。行の高さに合わせて伸ばしている。 */
+.order-row__del {
+  flex: none;
+  display: flex;
+  align-self: stretch;
+}
+.order-row__delbtn {
+  align-self: stretch;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.order-row__delmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+  /* 設計の #E8E8E8。--text（白）より一段落とした明るさで、
+     いまのトークンに同じ値が無い。線と文字で 2 回書かずに済むよう、
+     ここで 1 つ決めて両方から参照する */
+  --del-ink: #e8e8e8;
+  border: 1px solid var(--del-ink);
+  color: var(--del-ink);
+}
+
 .order-row__main {
   flex: 1 0 0;
   min-width: 0;
@@ -4164,10 +4202,62 @@ body.is-sending .staff-main {
   padding: 24px 16px calc(32px + env(safe-area-inset-bottom, 0px));
   background: var(--bg);
   border-top: 1px solid var(--border);
+  /* ボタンが 2 つ入る（注文する／取り消す）。間隔 12px は設計どおり。
+     0 だと 2 つが接して 1 つの塊に見え、送るつもりで取り消す事故になる */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 /* 帯のぶん、本文の下に逃げ場を作る。
-   これが無いと最後の行がボタンの下に隠れ、金額が読めないまま押すことになる */
-.submitbar-room { padding-bottom: 140px; }
+   これが無いと最後の行がボタンの下に隠れ、金額が読めないまま押すことになる。
+   ★ ボタンが 2 つになったぶん増やしてある（24+56+12+56+32 = 180）。
+     ここを直し忘れると、最後の行が帯の下に潜る */
+.submitbar-room { padding-bottom: 200px; }
+
+/* 削除の確認（設計 暗26 / 384:4011）。
+
+   ★ 幕は 60%。後ろを完全に隠さないのは、何が消えるのかが
+     見えていないと判断できないため。
+   ★ 色はトークンから取る。--surface は夜のテーマで #232323 で、
+     設計のダイアログの地と同じ値。 */
+.confirm {
+  width: 302px;
+  max-width: calc(100vw - 48px);
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+}
+.confirm::backdrop { background: rgba(0, 0, 0, .6); }
+.confirm__box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+}
+.confirm__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: center;
+}
+.confirm__target {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  text-align: center;
+}
+.confirm__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+}
 
 /* 確認画面の合計は、伝票と違って面を敷いた箱（設計 109:3766）。
    罫線ではなく面で区切るのは、上のカードと地続きに見せないため */

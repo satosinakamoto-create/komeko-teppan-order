@@ -417,6 +417,74 @@
   }
 
   /* ------------------------------------------------------------------
+     4-b. 消す前に確かめる（設計 暗26 この項目を削除しますか）
+     ------------------------------------------------------------------
+     注文リストの行の「−」と、下の帯の「注文を取り消す」に効かせる。
+
+     ★ なぜ確認が要るか
+       行の「−」は品名のすぐ左にあり、「変更」とは 1 行の中で隣り合う。
+       押し間違えても、消えたものは画面から消えるので
+       「何が入っていたか」を思い出す手がかりが残らない。
+
+     ★ 何を消すのかを必ず出す
+       行が 3 つ並んだ画面で「削除しますか」だけ出しても、
+       どれを消すつもりだったのか確かめようがない。
+
+     ★ JavaScript が動かないときは、確認せずにそのまま消える。
+       消えるのは注文前のカートの 1 行で、入れ直せる。
+       動かない環境では「確認」より「消せること」を優先した。
+     ------------------------------------------------------------------ */
+  (function () {
+    var dialog = document.getElementById('confirm-remove');
+    if (!dialog || typeof dialog.showModal !== 'function') { return; }
+
+    var targetLabel = dialog.querySelector('[data-confirm-target]');
+    var okButton = dialog.querySelector('[data-confirm-ok]');
+    var cancelButton = dialog.querySelector('[data-confirm-cancel]');
+    /* 「はい」が押されたときに送るフォーム */
+    var pending = null;
+
+    document.addEventListener('click', function (event) {
+      var trigger = event.target.closest('.order-row__delbtn, [data-confirm-all]');
+      if (!trigger) { return; }
+
+      var form = trigger.form;
+      if (!form) { return; }
+
+      /* ★ 行の「−」は <summary> の中にある。止めないと、
+         確認を出しながら行も開いてしまう */
+      event.preventDefault();
+      event.stopPropagation();
+
+      pending = form;
+      targetLabel.textContent = trigger.dataset.confirmAll
+        || form.dataset.confirmName
+        || '';
+      dialog.showModal();
+    });
+
+    cancelButton.addEventListener('click', function () {
+      pending = null;
+      dialog.close();
+    });
+
+    okButton.addEventListener('click', function () {
+      var form = pending;
+      pending = null;
+      dialog.close();
+      /* requestSubmit にすると submit イベントが飛ぶので、
+         5 節の二重送信よけがそのまま効く（form.submit() だと飛ばない） */
+      if (form) {
+        if (form.requestSubmit) { form.requestSubmit(); } else { form.submit(); }
+      }
+    });
+
+    /* Esc で閉じたときも、送る予定を消しておく。
+       残しておくと、次に開いた確認で前の行を消しかねない */
+    dialog.addEventListener('close', function () { pending = null; });
+  })();
+
+  /* ------------------------------------------------------------------
      5. 送信中であることを、押した瞬間に見せる
      ------------------------------------------------------------------
      公開デモは 1 リクエストにおよそ 1 秒かかる（無料枠の CPU）。
