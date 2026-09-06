@@ -23,8 +23,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.util.UriUtils;
 
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -390,6 +392,92 @@ public class AdminMenuItemController {
                        : "このカテゴリの中では、すでにいちばん下です");
         }
         return "redirect:/admin/items";
+    }
+
+    /**
+     * 掲載を切り替える（一覧の「掲載」の列を押したとき）。
+     *
+     * <p>止めると、卓の QR から開くメニューに出なくなります。
+     * カートに入っているぶんは {@code CartService#refresh} が落とします。
+     *
+     * <p>戻り先にタブと検索語を持ち帰ります。94 品ある画面なので、
+     * 素の一覧に戻すと「掲載停止」タブで 1 品止めたとたんに
+     * すべての品の一覧へ飛ばされ、続けて作業できません。
+     */
+    @PostMapping("/{id}/visibility")
+    public String toggleVisibility(@PathVariable("id") Long id,
+                                   @RequestParam(required = false) String tab,
+                                   @RequestParam(required = false) String q,
+                                   RedirectAttributes redirectAttributes) {
+        try {
+            boolean visible = menuService.toggleVisible(id);
+            String name = menuItemRepository.findById(id).map(MenuItem::getName).orElse("商品");
+            if (visible) {
+                redirectAttributes.addFlashAttribute("flashSuccess",
+                        "「%s」を掲載しました。各卓のメニューに出ます".formatted(name));
+            } else {
+                redirectAttributes.addFlashAttribute("flashInfo",
+                        "「%s」の掲載を止めました。各卓のメニューから消えます".formatted(name));
+            }
+        } catch (MenuService.MenuItemNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
+        }
+        return redirectToList(tab, q);
+    }
+
+    /**
+     * 販売（品切れ）を切り替える（一覧の「販売」の列を押したとき）。
+     *
+     * <p><b>2026-08-27 に消した口を、2026-09-07 に戻したものです。</b>
+     * 当時消した理由は 2 つで、いまはどちらも解けています。
+     * <ul>
+     *   <li>同じ値を切り替える口が 3 つあり、ここだけ他の部分集合だった
+     *       → 一覧に「掲載」「販売」の列ができ、<b>状態を見ている場所と
+     *       変える場所が同じ</b>になった。別の画面へ移動しなくてよい</li>
+     *   <li>価格 0 円（時価）の品を再開すると ¥0 で注文できた
+     *       → 危険そのものを {@code MenuService#toggleSoldOut} で閉じた。
+     *       厨房の品切れパネルからも同じように守られる</li>
+     * </ul>
+     */
+    @PostMapping("/{id}/sale")
+    public String toggleSale(@PathVariable("id") Long id,
+                             @RequestParam(required = false) String tab,
+                             @RequestParam(required = false) String q,
+                             RedirectAttributes redirectAttributes) {
+        try {
+            boolean soldOut = menuService.toggleSoldOut(id);
+            String name = menuItemRepository.findById(id).map(MenuItem::getName).orElse("商品");
+            if (soldOut) {
+                redirectAttributes.addFlashAttribute("flashInfo",
+                        "「%s」を品切れにしました。各卓のメニューから注文できなくなります".formatted(name));
+            } else {
+                redirectAttributes.addFlashAttribute("flashSuccess",
+                        "「%s」の販売を再開しました".formatted(name));
+            }
+        } catch (MenuService.PriceNotSetException e) {
+            // ここで断るのは意地悪ではなく、¥0 で売れてしまうのを止めるため。
+            // 何をすれば直るかまで書く（この画面には価格の入力欄が無い）
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(
+                    "「%s」は価格が入っていません。このまま販売を再開すると ¥0 で注文できてしまいます。先に商品名を押して、編集画面で価格を入れてください"
+                            .formatted(e.getItemName())));
+        } catch (MenuService.MenuItemNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
+        }
+        return redirectToList(tab, q);
+    }
+
+    /** 押した場所（タブと検索語）へ戻す。 */
+    private String redirectToList(String tab, String q) {
+        StringBuilder url = new StringBuilder("redirect:/admin/items");
+        String sep = "?";
+        if (tab != null && !tab.isBlank()) {
+            url.append(sep).append("tab=").append(UriUtils.encodeQueryParam(tab, StandardCharsets.UTF_8));
+            sep = "&";
+        }
+        if (q != null && !q.isBlank()) {
+            url.append(sep).append("q=").append(UriUtils.encodeQueryParam(q, StandardCharsets.UTF_8));
+        }
+        return url.toString();
     }
 
     // 品切れを切り替える POST /{id}/soldout は 2026-08-27 に削除しました。

@@ -231,13 +231,62 @@ public class MenuService {
         setTheirs.accept(mine);
     }
 
-    /** 品切れトグル（厨房からもワンタップで叩ける）。 */
+    /**
+     * 品切れトグル（厨房からも商品一覧からもワンタップで叩ける）。
+     *
+     * <p><b>★ 価格の入っていない品の「販売再開」は断ります（2026-09-07）。</b><br>
+     * {@link MenuItem#isOrderable()} は価格を見ません。掲載中かつ品切れでなければ
+     * 注文できます。時価の品は価格 0 で登録し、品切れにしておくことで
+     * お客さまからは注文できない状態にしています
+     * （金額はスタッフが店舗端末で決めて入れる）。
+     *
+     * <p>つまりここで品切れを外すと、<b>¥0 のまま注文できる品</b>ができます。
+     * 売上にも伝票にも 0 円で乗り、気づくのは会計のときです。
+     * この危険は 2026-08-27 に商品一覧の同じボタンを消した理由でもありました。
+     * ボタンを戻すにあたって、危険のほうをここで閉じます。
+     * 1 か所で閉じれば、厨房の品切れパネルからも同じように守られます。
+     */
     @Transactional
     public boolean toggleSoldOut(Long menuItemId) {
         MenuItem item = menuItemRepository.findById(menuItemId)
                 .orElseThrow(() -> new MenuItemNotFoundException(menuItemId));
+        if (item.isSoldOut() && item.getPrice() <= 0) {
+            throw new PriceNotSetException(item.getName());
+        }
         item.setSoldOut(!item.isSoldOut());
         return item.isSoldOut();
+    }
+
+    /**
+     * 掲載を切り替える（商品一覧からワンタップで叩ける）。
+     *
+     * <p>掲載を止めると、卓の QR から開くメニューにその品が出なくなります。
+     * すでにカートに入れているお客さまのぶんは
+     * {@code CartService#refresh} が落とします。
+     *
+     * <p>ここでは価格を見ません。掲載しても品切れのままなら注文はできないので、
+     * {@link #toggleSoldOut} と違って ¥0 で売れてしまう経路が無いためです。
+     */
+    @Transactional
+    public boolean toggleVisible(Long menuItemId) {
+        MenuItem item = menuItemRepository.findById(menuItemId)
+                .orElseThrow(() -> new MenuItemNotFoundException(menuItemId));
+        item.setVisible(!item.isVisible());
+        return item.isVisible();
+    }
+
+    /** 価格が入っていないまま販売を再開しようとしたとき。 */
+    public static class PriceNotSetException extends RuntimeException {
+        private final String itemName;
+
+        public PriceNotSetException(String itemName) {
+            super("「%s」は価格が入っていません".formatted(itemName));
+            this.itemName = itemName;
+        }
+
+        public String getItemName() {
+            return itemName;
+        }
     }
 
     /** 厨房の品切れ管理パネル用：注文可能性に関係する商品を並べて返す。 */

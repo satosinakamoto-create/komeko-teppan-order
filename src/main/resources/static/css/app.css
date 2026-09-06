@@ -491,6 +491,25 @@ hr {
    同じ「品切れ」でも、置かれる場所で必要な強さが違う。 */
 .badge--stop    { background: var(--danger-soft); color: var(--danger); border-color: currentColor; }
 
+/* バッジの形のまま押せるようにする（商品一覧の「掲載」「販売」）。
+
+   ★ button は font を継承しない。これが無いと、この 2 つだけ
+     OS のフォーム既定書体で描かれ、同じ 11px でも隣の列と字幅が揃わない。
+   ★ 形は .badge のまま。設計（08 商品）でもこの列はバッジで、
+     ボタンの形はしていない。押せることは色と手の形で伝える。 */
+.badge--act {
+  font: inherit;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  line-height: 1.7;
+  cursor: pointer;
+  /* 面と枠は .badge / .badge--gf / .badge--stop が決めるので、ここでは触らない */
+}
+.badge--act:hover  { filter: brightness(.95); }
+.badge--act:active { transform: translateY(1px); }
+.badge--act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -3117,6 +3136,20 @@ body.is-sending .staff-main {
 .page-head__spacer { flex: 1; }
 
 /* 探す。入力欄そのものが 64px の面になる */
+/* ★ 見出し・探す・表のあいだは 48px（設計 08 商品 17:965 の gap-48）。
+
+   実装では 3 つが<b>隙間ゼロで密着</b>していました（実測 0px）。
+   箱そのものの寸法（高さ 64・左右 12・角丸 6）は設計と合っていたので、
+   並べて見ないと気づけない類のずれです。
+
+   ★ .staff-main 側に gap を持たせないこと。
+     あそこは全部の管理画面が通る器で、いまは display:block。
+     flex にすると、各画面が使っている mt-4 などの margin と足し算になり、
+     20 画面以上の余白が一斉に変わります。
+     .searchbox と .tabtable はこの画面にしか無いので、こちら側で持ちます。 */
+.searchbox { margin-top: 48px; }
+.tabtable  { margin-top: 48px; }
+
 .searchbox {
   display: flex;
   align-items: center;

@@ -108,17 +108,43 @@
                   th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥1,180</span>
             <span th:unless="${item.price > 0}">時価</span>
           </td>
+          <!--/* ====== 掲載 ／ 販売 ======
+                 ★ 見た目はバッジのまま、押せるようにしてあります（2026-09-07）。
+                   設計（08 商品）でもこの 2 列はバッジで、ボタンの形はしていません。
+                   形を変えずに押せるようにしたのは、<b>状態を見ている場所と
+                   変える場所を同じにする</b>ためです。
+                   これまでは状態がここに出るのに、変えるには商品を開くか
+                   品切れ・残数の画面へ移る必要がありました。
+
+                 ★ 押した場所へ戻すため、タブと検索語を持たせています。 */-->
           <td>
-            <span class="badge badge--gf" th:if="${item.visible}">掲載中</span>
-            <span class="badge" th:unless="${item.visible}">掲載停止</span>
+            <form th:action="@{/admin/items/{id}/visibility(id=${item.id})}" method="post">
+              <input type="hidden" name="tab" th:value="${currentTab}">
+              <input type="hidden" name="q" th:value="${q}">
+              <button type="submit" class="badge badge--act badge--gf" th:if="${item.visible}"
+                      title="押すと掲載を止めます">掲載中</button>
+              <button type="submit" class="badge badge--act" th:unless="${item.visible}"
+                      title="押すと掲載します">掲載停止</button>
+            </form>
           </td>
           <td>
             <!--/* 掲載していない品の販売状態は意味を持たないので出さない。
                    メニューに無いものが「販売中」でも「品切れ」でもない */-->
-            <th:block th:if="${item.visible}">
-              <span class="badge badge--stop" th:if="${item.soldOut or item.outOfStock}">品切れ</span>
-              <span class="badge badge--gf" th:unless="${item.soldOut or item.outOfStock}">販売中</span>
-            </th:block>
+            <form th:if="${item.visible}" th:action="@{/admin/items/{id}/sale(id=${item.id})}" method="post">
+              <input type="hidden" name="tab" th:value="${currentTab}">
+              <input type="hidden" name="q" th:value="${q}">
+              <!--/* 残数ゼロの品切れはここでは押せません。
+                     手で立てたフラグではなく数の結果なので、
+                     ここで外しても次の注文で 0 に戻ります。
+                     数は「品切れ・残数」の画面で入れ直します。 */-->
+              <button type="submit" class="badge badge--act badge--stop"
+                      th:if="${item.soldOut}" title="押すと販売を再開します">品切れ</button>
+              <span class="badge badge--stop" th:if="${!item.soldOut and item.outOfStock}"
+                    title="残数が 0 です。数は「品切れ・残数」の画面で入れ直します">品切れ</span>
+              <button type="submit" class="badge badge--act badge--gf"
+                      th:unless="${item.soldOut or item.outOfStock}"
+                      title="押すと品切れにします">販売中</button>
+            </form>
             <span class="faint" th:unless="${item.visible}">—</span>
           </td>
           <!--/* 並び替え。
