@@ -11,10 +11,8 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">店舗設定</h1>
-    <span class="section-title__count">お客さんの画面・伝票の金額・待ち時間の計算に効きます</span>
-  </div>
+  <!--/* 見出しはフォームの中（page-head）に 1 つだけ置いています。
+         ここにもう 1 つあると「店舗設定」が縦に 2 回並びます。 */-->
 
   <!--/* ==========================================================
          受付の一時停止／再開
@@ -49,6 +47,23 @@
      ========================================================== */-->
   <form th:action="@{/admin/settings}" th:object="${form}" method="post" class="mt-6">
 
+    <!--/* ====== 見出しと保存 ====== 設計 12 店舗設定（45:3279）
+
+           ★ 保存をフォームの上に置いています。
+             「詳しい設定」を開くと縦に長くなるので、下だけに置くと
+             毎回いちばん下まで送ることになります。下にも同じものがあります。
+
+           ★ 「変更は次に来店する組から効きます」を見出しの隣に置いたのは、
+             ここがいちばん誤解の起きるところだからです。
+             チャージや税率を変えても、いま座っている卓の伝席は来店時の値のまま。
+             保存を押したあとに気づくのでは遅いので、押す前の位置に書きます。 */-->
+    <div class="page-head">
+      <h1 class="page-head__title">店舗設定</h1>
+      <span class="page-head__sub">変更は次に来店する組から効きます</span>
+      <span class="page-head__spacer"></span>
+      <button type="submit" class="btn btn--primary">保存する</button>
+    </div>
+
     <!--/* ===== 店舗の見せ方 ===== */-->
     <div class="card">
       <div class="card__head">店舗の見せ方</div>
@@ -70,17 +85,8 @@
           <p class="help">お客さんのメニュー画面で、店舗名の下に小さく出る一言です。</p>
         </div>
 
-        <div class="field">
-          <label class="label" for="pickupNotice">お客さまへのご案内</label>
-          <textarea class="textarea" id="pickupNotice" th:field="*{pickupNotice}"
-                    th:errorclass="is-error" maxlength="200"></textarea>
-          <p class="error" th:if="${#fields.hasErrors('pickupNotice')}" th:errors="*{pickupNotice}">エラー</p>
-          <p class="help">
-            卓の QR コードを読んだお客さまに、いちばん最初の画面（人数の選択画面）で出る案内文です。<br>
-            「お会計はお席の伝票にまとめてお付けします。ご退店時にレジへお越しください」のように、
-            <strong>会計のしかた</strong>を書いておくと問い合わせが減ります。
-          </p>
-        </div>
+        <!--/* お客さまへのご案内は「詳しい設定」へ移しました（2026-09-07 / 設計 12 店舗設定）。
+               一度書いたら年単位で変えない文なので、毎回目に入る場所に置く必要がありません。 */-->
 
       </div>
     </div>
@@ -110,34 +116,14 @@
           </p>
         </div>
 
-        <div class="field">
-          <label class="label" for="closedMessage">受付停止中のメッセージ</label>
-          <input class="input" type="text" id="closedMessage" th:field="*{closedMessage}"
-                 th:errorclass="is-error" maxlength="100">
-          <p class="error" th:if="${#fields.hasErrors('closedMessage')}" th:errors="*{closedMessage}">エラー</p>
-          <p class="help">受付を止めているあいだ、お客さんの画面に出る文章です。理由と再開の見込みを書くと親切です。</p>
-        </div>
+        <!--/* 受付停止中のメッセージ・24 時間受付・閉店時刻は「詳しい設定」へ移しました
+               （2026-09-07 / 設計 12 店舗設定）。
+               ★ 「注文を受け付ける」だけはここに残すこと。
+                 営業中に急いで押すのはこれだけで、畳んだ中にあると探すことになります。 */-->
 
-        <!--/* ===== 時刻で止めるかどうか。営業時間の入力欄より前に置く ===== */-->
-        <div class="field">
-          <label class="choice" for="alwaysOpen">
-            <input type="checkbox" id="alwaysOpen" th:field="*{alwaysOpen}">
-            <span class="choice__name">24 時間受付にする（時刻で受付を止めない）</span>
-          </label>
-          <p class="help">
-            ON のあいだは、開店時刻とラストオーダーによる自動停止をしません。
-            <strong>動作確認をしたいとき</strong>や、<strong>今夜だけ朝まで営業するとき</strong>に、
-            時刻を計算し直さずワンタップで対応できます。<br>
-            下の 3 つの時刻は消えません。OFF に戻せばそのまま元の営業時間に戻ります
-            （ON のあいだも、案内表示や売上グラフには使われます）。<br>
-            <strong>「今すぐ止める」は別のスイッチです。</strong>
-            24 時間受付にしていても、上の受付停止はいつでも効きます。
-          </p>
-        </div>
-
-        <div class="grid grid--3">
+        <div class="grid grid--2">
           <div class="field">
-            <label class="label" for="openTime">開店時刻<span class="req">必須</span></label>
+            <label class="label" for="openTime">営業開始<span class="req">必須</span></label>
             <input class="input" type="time" id="openTime" th:field="*{openTime}"
                    th:errorclass="is-error" required>
             <p class="error" th:if="${#fields.hasErrors('openTime')}" th:errors="*{openTime}">エラー</p>
@@ -155,13 +141,6 @@
             </p>
           </div>
 
-          <div class="field">
-            <label class="label" for="closeTime">閉店時刻<span class="req">必須</span></label>
-            <input class="input" type="time" id="closeTime" th:field="*{closeTime}"
-                   th:errorclass="is-error" required>
-            <p class="error" th:if="${#fields.hasErrors('closeTime')}" th:errors="*{closeTime}">エラー</p>
-            <p class="help">案内表示に使います。売上画面の時間帯グラフの範囲もこれを基準にします。</p>
-          </div>
         </div>
 
         <!--/* ===== 日をまたぐ営業の説明（居酒屋なのでここが本題） ===== */-->
@@ -206,17 +185,7 @@
             </p>
           </div>
 
-          <div class="field">
-            <label class="label" for="orderNumberStart">注文番号の開始</label>
-            <input class="input" type="number" id="orderNumberStart" th:field="*{orderNumberStart}"
-                   th:errorclass="is-error" min="1" step="1" inputmode="numeric">
-            <p class="error" th:if="${#fields.hasErrors('orderNumberStart')}" th:errors="*{orderNumberStart}">エラー</p>
-            <p class="help">
-              営業日ごとに、その日の 1 件目に振る番号です。101 にすると 3 桁で揃います。<br>
-              イートインではお客さまを番号でお呼びしませんが、厨房の伝票や
-              「何番の注文がまだ出ていない」といったスタッフ同士のやりとりに使います。
-            </p>
-          </div>
+          <!--/* 注文番号の開始は「詳しい設定」へ移しました（一度決めたら変えない値） */-->
 
         </div>
       </div>
@@ -345,6 +314,91 @@
     </div>
 
     <!--/* ===== 運用のしくみ（ここは丁寧に） ===== */-->
+    <!--/* ====== ここから下は「詳しい設定」（折りたたみ）======
+           設計 12 店舗設定（45:3279）は 8 項目しか描いていません。
+           実装には 26 項目あり、開くと 5,241px ありました。
+
+           ★ 消したのではなく畳んだだけです。
+             どれも動きに効く設定で、消せるものは 1 つもありません。
+             畳んだのは<b>変える頻度と、間違えたときの気づきやすさ</b>で分けた結果です。
+
+               上に出す … 営業のたびに触る。間違えてもすぐ気づく
+               畳む     … 開店時に一度決めたら年単位で触らない
+                          （＝毎回目に入ると、探すじゃまになる）
+
+           ★ 「注文を受け付ける」だけは畳んでいません。
+             営業中に急いで押すのはこれだけで、畳んだ中にあると探すことになります。
+
+           ★ 家賃・消費税・インボイスがここに居るのは暫定です。
+             性質としては「経理の設定」で、営業の設定とは別画面に出すのが筋です
+             （店主が触るものではなく、税理士と決めるもの）。
+             まず畳んで、別画面に出すかどうかはあとで決めます。 */-->
+    <details class="foldout mt-6">
+      <summary class="foldout__head">詳しい設定（一度決めたら、ふだんは触らないもの）</summary>
+
+    <!--/* ── 上から移してきたもの ── */-->
+    <div class="card mt-4">
+      <div class="card__head">お客さまへの案内と、受付の細かい設定</div>
+      <div class="card__body">
+
+        <div class="field">
+          <label class="label" for="pickupNotice">お客さまへのご案内</label>
+          <textarea class="textarea" id="pickupNotice" th:field="*{pickupNotice}"
+                    th:errorclass="is-error" maxlength="200"></textarea>
+          <p class="error" th:if="${#fields.hasErrors('pickupNotice')}" th:errors="*{pickupNotice}">エラー</p>
+          <p class="help">
+            卓の QR コードを読んだお客さまに、いちばん最初の画面（人数の選択画面）で出る案内文です。<br>
+            「お会計はお席の伝票にまとめてお付けします。ご退店時にレジへお越しください」のように、
+            <strong>会計のしかた</strong>を書いておくと問い合わせが減ります。
+          </p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="closedMessage">受付停止中のメッセージ</label>
+          <input class="input" type="text" id="closedMessage" th:field="*{closedMessage}"
+                 th:errorclass="is-error" maxlength="100">
+          <p class="error" th:if="${#fields.hasErrors('closedMessage')}" th:errors="*{closedMessage}">エラー</p>
+          <p class="help">受付を止めているあいだ、お客さんの画面に出る文章です。理由と再開の見込みを書くと親切です。</p>
+        </div>
+
+        <div class="field">
+          <label class="choice" for="alwaysOpen">
+            <input type="checkbox" id="alwaysOpen" th:field="*{alwaysOpen}">
+            <span class="choice__name">24 時間受付にする（時刻で受付を止めない）</span>
+          </label>
+          <p class="help">
+            ON のあいだは、営業開始とラストオーダーによる自動停止をしません。
+            <strong>動作確認をしたいとき</strong>や、<strong>今夜だけ朝まで営業するとき</strong>に、
+            時刻を計算し直さずワンタップで対応できます。<br>
+            時刻は消えません。OFF に戻せばそのまま元の営業時間に戻ります。<br>
+            <strong>「今すぐ止める」は別のスイッチです。</strong>
+            24 時間受付にしていても、上の受付停止はいつでも効きます。
+          </p>
+        </div>
+
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="label" for="closeTime">閉店時刻<span class="req">必須</span></label>
+            <input class="input" type="time" id="closeTime" th:field="*{closeTime}"
+                   th:errorclass="is-error" required>
+            <p class="error" th:if="${#fields.hasErrors('closeTime')}" th:errors="*{closeTime}">エラー</p>
+            <p class="help">案内表示に使います。売上画面の時間帯グラフの範囲もこれを基準にします。</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="orderNumberStart">注文番号の開始</label>
+            <input class="input" type="number" id="orderNumberStart" th:field="*{orderNumberStart}"
+                   th:errorclass="is-error" min="1" step="1" inputmode="numeric">
+            <p class="error" th:if="${#fields.hasErrors('orderNumberStart')}" th:errors="*{orderNumberStart}">エラー</p>
+            <p class="help">
+              営業日ごとに、その日の 1 件目に振る番号です。101 にすると 3 桁で揃います。
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <div class="card mt-6">
       <div class="card__head">お店の回し方に関わる設定</div>
       <div class="card__body">
@@ -481,6 +535,8 @@
 
       </div>
     </div>
+
+    </details>
 
     <div class="row mt-6">
       <button type="submit" class="btn btn--primary btn--lg">保存する</button>
