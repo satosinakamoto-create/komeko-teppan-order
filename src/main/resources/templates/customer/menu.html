@@ -121,8 +121,16 @@
                      名前の帯（66px）に入れると帯が伸びてカードの高さが崩れる */-->
               <span class="photo-card__badges"
                     th:replace="~{fragments/common :: allergens(${hero})}"></span>
+              <!--/* 品名と説明で 1 列、価格は右（設計 暗/写真カード の「品名と説明」）。
+                     説明が無い品は行ごと出さない。空の行を置くと、
+                     説明のある品と無い品でカードの高さが揃っているように見えて、
+                     実際には 21px ぶんの空白が入る */-->
               <div class="photo-card__bar">
-                <h3 class="photo-card__name" th:text="${hero.name}">肉玉米粉そば</h3>
+                <div class="photo-card__text">
+                  <h3 class="photo-card__name" th:text="${hero.name}">肉玉米粉そば</h3>
+                  <p class="photo-card__note" th:if="${hero.description}"
+                     th:text="${hero.description}">定番。豚肉と卵、米粉そば入り。</p>
+                </div>
                 <span class="photo-card__price"
                       th:insert="~{fragments/common :: price(${hero})}">¥1,180</span>
               </div>
@@ -154,6 +162,10 @@
                        「おすすめだから見た」ではなく「見たあとにおすすめと知る」になる */-->
                 <span th:replace="~{fragments/common :: allergens(${item})}"></span>
                 <span class="thumb__name" th:text="${item.name}">ねぎたっぷり米粉そば</span>
+                <!--/* 説明は品名と価格のあいだ（設計 暗/サムネイル 373:3999）。
+                       価格の下に置くと、金額を見たあとで説明を読む順になる */-->
+                <span class="thumb__note" th:if="${item.description}"
+                      th:text="${item.description}">青ねぎをたっぷりのせて。</span>
                 <span class="thumb__price"
                       th:insert="~{fragments/common :: price(${item})}">¥1,380</span>
               </a>

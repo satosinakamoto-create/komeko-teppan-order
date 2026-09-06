@@ -111,6 +111,28 @@ class StaffBoardStyleTest {
     }
 
     @Test
+    @DisplayName("★ 送っても大分類タブが席の帯に潜り込まない")
+    void theTabBarSticksBelowTheSeatBar() throws Exception {
+        // .staffbar と .tabbar はどちらも sticky で、既定では両方 top:0。
+        // 並んでいる間は正しく見えるが、指で少し送った瞬間に
+        // 大分類タブが席の帯の裏へ 72px 潜り込む（席の帯が z-index で勝つ）。
+        // アイコンが消えて文字だけが残り、その下には同じ 72px の隙間が空く。
+        //
+        // ★ 止まった画面を見比べても気づけない。
+        //   2026-09-06 の重なりを直したあと、スクロールして初めて見つかった。
+        String rule = rule(".page--seated:has(.staffbar) .tabbar {");
+
+        assertThat(rule).as("席の帯の高さぶん下げていない").contains("var(--staffbar-h)");
+        assertThat(rule).as("ノッチのぶんを足していない").contains("env(safe-area-inset-top, 0px)");
+
+        // ★ 大分類タブ 1 本ぶんを足さないこと。
+        //   それは position:fixed のカテゴリ帯（--sticky-top）の話。
+        //   こちらは sticky なので「すぐ上の帯 1 本」だけ下げる
+        assertThat(rule).as("カテゴリ帯の計算と混ざっている")
+                .doesNotContain("var(--tabbar-item-h)");
+    }
+
+    @Test
     @DisplayName("★ 変数の定義は 1 か所ずつ（2 か所に書くと片方が取り残される）")
     void barHeightsAreDefinedOnce() throws Exception {
         String css = Files.readString(APP_CSS);

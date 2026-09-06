@@ -2514,6 +2514,26 @@ body.theme-night { background-image: none; }
                      + var(--tabbar-top) + var(--tabbar-item-h));
 }
 
+/* ★ 大分類タブも、席の帯の<b>下</b>に貼り付けること。
+
+     .staffbar と .tabbar はどちらも sticky で、既定では両方 top:0。
+     並んでいる間は問題ないが、指で少し送った瞬間に大分類タブが
+     席の帯の裏へ 72px 潜り込む（席の帯のほうが z-index で勝っている）。
+     アイコンが消えて文字だけが残り、その下には潜ったぶんと同じ 72px の
+     隙間が空いて、本文がその奥を流れていく。
+
+     ★ 上の --sticky-top（カテゴリの帯の位置）とは別物。
+       あちらは position:fixed で「上にいる帯の高さの合計」を数える。
+       こちらは sticky なので「すぐ上の帯 1 本ぶん」だけ下げる。
+       混ぜて書くとどちらかが必ず合わなくなる。
+
+     ★ 見えているときは正しく、送った瞬間だけ壊れる。
+       止まった画面を見比べても気づけない類の崩れなので、
+       直したらスクロールした状態で確かめること。 */
+.page--seated:has(.staffbar) .tabbar {
+  top: calc(var(--staffbar-h) + env(safe-area-inset-top, 0px));
+}
+
 .tabs-slot {
   height: var(--tabs-h);
 }
@@ -3443,7 +3463,8 @@ body.is-sending .staff-main {
 /* --------------------------------------------------------------------------
    31-1. 写真カード（暗/写真カード 358x276）
 
-   その分類でいちばん見せたい 1 品。写真 358x210 ＋ 名前の帯 66。
+   その分類でいちばん見せたい 1 品。写真 358x210 ＋ 名前の帯。
+   帯は説明が無ければ 66、あれば 77（設計 品名と説明 373:2184 の 12＋53＋12）。
    -------------------------------------------------------------------------- */
 .photo-card {
   display: block;
@@ -3465,8 +3486,8 @@ body.is-sending .staff-main {
   object-fit: cover;
 }
 /* 写真の上に重ねるバッジ。fragments/common :: allergens が .menu-item__badges を出す。
-   帯（66px）の中に入れると帯が伸びてカードの高さが 276 → 304 に崩れるので、
-   写真の側に逃がしている */
+   帯の中に入れると帯が伸びてカードの高さが崩れるので、写真の側に逃がしている。
+   （帯の高さは説明の有無で 66 か 77。バッジを足すと、そのどちらでもなくなる） */
 .photo-card > .menu-item__badges {
   position: absolute;
   top: 12px;
@@ -3477,19 +3498,47 @@ body.is-sending .staff-main {
 
 .photo-card__bar {
   display: flex;
-  align-items: baseline;
+  /* ★ baseline ではなく flex-start（設計 名前の帯 の items-start）。
+     品名の下に説明が付いたので、baseline のままだと価格が
+     「列の最初の行」ではなく列全体の基準に引っぱられて位置が動く。
+     flex-start にしても、説明が無いときの帯の高さは 66 のまま変わらない
+     （価格の行送り 42 のほうが品名の 28 より高いので、そちらが帯を決める）。 */
+  align-items: flex-start;
   padding: 12px 16px;
 }
-.photo-card__name {
+/* 品名と説明で 1 列（設計 品名と説明 373:2184）。
+   縦に積むのはこの箱の仕事。品名そのものに flex を持たせない。 */
+.photo-card__text {
   flex: 1;
   /* これが無いと flex が縮まず、長い品名が価格を右へ押し出す */
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.photo-card__name {
   margin: 0;
   font-size: 20px;
   font-weight: 500;
   line-height: 28px;
   letter-spacing: 0;
-  /* 帯の高さ 66 は「品名が 1 行」の前提。2 行になるとカードが 276 → 304 に伸びる */
+  /* 帯の高さは「品名が 1 行」の前提。2 行になるとカードが伸びる */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* 説明は 13px（設計）。品名との差は 7px あるが、読み分けているのは
+   大きさより色。白と #9e9e9e で、どちらが品名かは一目で分かる。
+
+   ★ 1 行で切ること。説明は 300 字まで入るので、折り返しを許すと
+     カードの高さが品によって変わり、下のサムネイルの並びが上下にずれる。
+   ★ 行送り 21 は 13 × 1.6 の切り上げ。28 ＋ 4 ＋ 21 で、
+     設計の「品名と説明」の高さ 53 にちょうど収まる。 */
+.photo-card__note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 21px;
+  color: var(--text-muted);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3523,16 +3572,28 @@ body.is-sending .staff-main {
      設計のカードは 152px だが、あれは 390 の画面でスクロールバーのぶんを
      内側に空けた結果の数字。こちらは画面ごと縦に流れるので、
      内側に空ける必要がない。2 列を等分して、端をきちんと合わせる。 */
+/* ★ 行の高さいっぱいに伸ばして、価格を下端でそろえる。
+
+     以前は align-items: start（上端でそろえる）だった。品名も説明も
+     1 行か 2 行かで高さが変わるので、隣り合う 2 枚で価格の位置が最大 40px
+     ずれていた（実測でも ¥1,380 と ¥1,480 が 20px ずれた）。
+     価格は<b>隣と見比べる</b>ものなので、そろっていないと
+     どちらが高いのかを目で追えない。
+
+     start をやめても写真が潰れないよう、写真には flex: none を付けてある
+     （伸びる役は下の余白が引き受ける）。 */
 .thumb-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px 12px;
-  /* 上端でそろえる。stretch にすると写真の縦横比が崩れる */
-  align-items: start;
+  align-items: stretch;
 }
 
 .thumb {
   min-width: 0;
+  /* 行の高さいっぱいまで伸びる。中身が短い側に余白ができ、
+     その余白が価格を下へ押し下げる（下の margin-top: auto） */
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -3541,6 +3602,9 @@ body.is-sending .staff-main {
 }
 .thumb__img {
   display: block;
+  /* ★ 伸び縮みさせない。これが無いと、行の高さに合わせて写真が縦に潰れ、
+     aspect-ratio で決めた形が崩れる（stretch にした代償をここで払う） */
+  flex: none;
   width: 100%;
   /* 設計のカードは 152 x 158（写真の部分）。幅を決め打ちにせず比で持つ。
      こうしておくと 360 の端末でも 440 の端末でも、同じ形のまま伸び縮みする */
@@ -3564,7 +3628,26 @@ body.is-sending .staff-main {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+/* 説明は品名と価格のあいだ（設計 暗/サムネイル 373:3999）。
+
+   ★ 2 行で切る。写真カードと違って 1 行にしないのは、
+     2 列に並べたぶん 1 枚が細い（390 の端末で 173px）ので、
+     1 行では十数文字しか出ず、途中で切れた文が並ぶだけになるため。
+   ★ 2 行を超えると、隣の列と下端がそろわず並びがガタつく。
+     品名を 2 行で切っているのと同じ理由。 */
+.thumb__note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .thumb__price {
+  /* 余った高さを全部この上に寄せて、価格を下端に貼り付ける。
+     説明が 1 行の品と 2 行の品が隣り合っても、金額は同じ高さに並ぶ */
+  margin-top: auto;
   font-size: 16px;
   font-weight: 700;
   line-height: 1.6;
