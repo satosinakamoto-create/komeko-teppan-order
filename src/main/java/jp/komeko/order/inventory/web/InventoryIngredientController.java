@@ -90,9 +90,23 @@ public class InventoryIngredientController {
      * <b>いつも同じ場所に同じ食材がある</b>ほうが、毎日見る人には速いからです。
      * 注意が要るものはバッジで目立たせ、上部に件数を出します。
      */
+    /**
+     * 食材・在庫の一覧（設計 現04 441:2715）。
+     *
+     * @param q 食材名の一部。入っていれば名前で絞り込む（2026-09-07 に追加）
+     */
     @GetMapping
-    public String index(Model model) {
+    public String index(@RequestParam(required = false) String q, Model model) {
         List<StockLevel> levels = stockService.currentLevels();
+
+        String keyword = (q == null) ? "" : q.trim();
+        if (!keyword.isEmpty()) {
+            String needle = keyword.toLowerCase();
+            levels = levels.stream()
+                    .filter(l -> l.ingredient().getName() != null
+                            && l.ingredient().getName().toLowerCase().contains(needle))
+                    .toList();
+        }
 
         int attention = 0;
         for (StockLevel level : levels) {
@@ -101,6 +115,7 @@ public class InventoryIngredientController {
             }
         }
 
+        model.addAttribute("q", keyword);
         model.addAttribute("levels", levels);
         model.addAttribute("attentionCount", attention);
         model.addAttribute("today", purchaseService.today());
@@ -116,6 +131,27 @@ public class InventoryIngredientController {
             model.addAttribute("stocktakeForm", new StocktakeForm(businessToday()));
         }
         return "inventory/ingredients";
+    }
+
+    /**
+     * 棚卸し・廃棄を記録する（設計 現05 443:2940 / 2026-09-07）。
+     *
+     * <p>もとは一覧のいちばん下に置いていた 2 つのフォームを、専用ページに分けました。
+     * 一覧は「いま何がどれだけあるか」を読む画面で、記録は仕込みの前後に
+     * まとめてやる別の仕事です。
+     *
+     * @param ingredient 一覧の「記録する」から来たとき、その食材を選んだ状態で開く
+     */
+    @GetMapping("/record")
+    public String recordForm(@RequestParam(required = false) Long ingredient, Model model) {
+        model.addAttribute("levels", stockService.currentLevels());
+        model.addAttribute("today", purchaseService.today());
+        if (!model.containsAttribute("stocktakeForm")) {
+            StocktakeForm form = new StocktakeForm(businessToday());
+            form.setIngredientId(ingredient);
+            model.addAttribute("stocktakeForm", form);
+        }
+        return "inventory/ingredient-record";
     }
 
     /** 1 つの食材の詳細と、記録の履歴。 */
@@ -273,6 +309,14 @@ public class InventoryIngredientController {
     private String backTo(String origin, StocktakeForm form) {
         if ("detail".equals(origin) && form.getIngredientId() != null) {
             return "redirect:/inventory/ingredients/" + form.getIngredientId();
+        }
+        // 記録ページから来たら記録ページへ戻す（2026-09-07）。
+        // 仕込み後は何品も続けて記録するので、1 件ごとに一覧へ飛ばされると
+        // 毎回開き直すことになる。選んでいた食材も選び直させない
+        if ("record".equals(origin)) {
+            return form.getIngredientId() != null
+                    ? "redirect:/inventory/ingredients/record?ingredient=" + form.getIngredientId()
+                    : "redirect:/inventory/ingredients/record";
         }
         return "redirect:/inventory/ingredients";
     }

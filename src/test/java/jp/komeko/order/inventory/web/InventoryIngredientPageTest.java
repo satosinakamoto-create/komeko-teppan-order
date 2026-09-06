@@ -185,8 +185,11 @@ class InventoryIngredientPageTest {
         stockService.recordStocktake(ingredient.getId(), LocalDate.now().minusDays(1),
                 new BigDecimal("100"), null, null);
 
-        // 一覧の廃棄フォーム
-        mockMvc.perform(get("/inventory/ingredients"))
+        // 記録ページの廃棄フォーム
+        // （2026-09-07 に一覧から /record へ移した。設計 現05 443:2940。
+        //   このテストの守りたいこと＝「画面に必須項目の入力欄があること」は
+        //   場所が変わっても同じなので、行き先だけ差し替える）
+        mockMvc.perform(get("/inventory/ingredients/record"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("id=\"adDate\"")));
 

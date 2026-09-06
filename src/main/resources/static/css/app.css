@@ -3407,6 +3407,46 @@ body.is-sending .staff-main {
 .table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 160px; }
 .table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 360px; }
 
+/* ==========================================================================
+   厨房ボードの見出しカード（設計 現01 434:2045 / 2026-09-07 に実測合わせ）
+   実測との差は 3 つだけだった：上下 24→20、題 32→28、説明 14→13。
+   .griddle は厨房ボードにしか付いていないので、ここに書けば他画面は動かない。
+   ========================================================================== */
+.griddle .card__body { padding: 20px 24px; }
+.griddle h1 { font-size: 28px; }
+.griddle .small { font-size: 13px; }
+
+/* ==========================================================================
+   食材・在庫（設計 現04 441:2715 / 2026-09-07 の編集を反映）
+   ========================================================================== */
+/* この画面だけ縦の余白を 32 にする（設計で 64 → 32 に編集された）。
+   ★ 共通の --main-pad-y は触らない。全管理画面が一斉に動くため。
+     :has の中のクラスは食材・在庫の見出しにしか付いていない。
+     詳細度は (0,3,0) で、共通定義（.theme-desk .staff-main = 0,2,0）に勝つ */
+.theme-desk .staff-main:has(.inv-ingredients) { --main-pad-y: 32px; }
+
+/* 探す欄の低い版。
+   ★ 設計は高さ 40 だが 48 で止めている。CLAUDE.md「タップ領域は 48px 以上」。
+     商品フォームのチップ（設計 40 → 実装 48）と同じ判断 */
+.searchbox--slim { height: 48px; }
+
+/* 食材の表の寸法（設計 現04）。
+   行は上下 16（設計で 14 → 16 に編集された）、見出し行は上下 14。
+   列幅は設計どおり合計 1120 */
+.theme-desk .table--stock th { padding-top: 14px; padding-bottom: 14px; }
+.theme-desk .table--stock td { padding-top: 16px; padding-bottom: 16px; }
+.table--stock { table-layout: fixed; }
+.table--stock th:nth-child(1), .table--stock td:nth-child(1) { width: 240px; }
+.table--stock th:nth-child(2), .table--stock td:nth-child(2) { width: 100px; }
+.table--stock th:nth-child(3), .table--stock td:nth-child(3) { width: 120px; }
+.table--stock th:nth-child(4), .table--stock td:nth-child(4) { width: 130px; }
+.table--stock th:nth-child(5), .table--stock td:nth-child(5) { width: 270px; }
+.table--stock th:nth-child(6), .table--stock td:nth-child(6) { width: 140px; }
+.table--stock th:nth-child(7), .table--stock td:nth-child(7) { width: 120px; }
+
+/* 「記録する」は箱の無い文字リンク（設計 現04。もとは btn--sm --ghost の箱） */
+.reclink { font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+
 /* 品切れ・残数の「探す／カテゴリを選ぶ」（設計 現03 439:2496 / 2026-09-07）。
    2 つを横に並べる。狭い画面では縦に落ちる */
 .stockfind {

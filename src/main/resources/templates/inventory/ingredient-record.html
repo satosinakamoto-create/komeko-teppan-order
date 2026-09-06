@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<!--/*
+   棚卸し・廃棄を記録する（設計 現05 443:2940 / 2026-09-07）。
+
+   もとは食材・在庫の一覧のいちばん下に置いていた 2 つのフォームを、
+   専用のページに移したもの。一覧は「いま何がどれだけあるか」を読む画面で、
+   記録は仕込みの前後にまとめてやる別の仕事なので、画面を分けた。
+
+   一覧の「記録する」から来ると、その食材が選ばれた状態で開く
+   （?ingredient=<id>）。記録したあとはこのページに留まる。
+   仕込み後は何品も続けて記録するので、1 件ごとに一覧へ戻されると作業にならない。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('棚卸し・廃棄を記録する', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <p class="small"><a th:href="@{/inventory/ingredients}">← 食材・在庫にもどる</a></p>
+
+  <div class="section-title">
+    <h1 class="section-title__text">棚卸し・廃棄を記録する</h1>
+    <span class="section-title__count" th:text="${today} + ' 時点'">今日</span>
+  </div>
+
+  <!--/* 食材が 1 つも無ければ記録しようがない */-->
+  <div th:if="${levels.isEmpty()}" class="alert alert--info">
+    <p class="mb-0">
+      まだ食材が登録されていません。先に
+      <a th:href="@{/inventory/ingredients/new}">食材を追加</a>してください。
+    </p>
+  </div>
+
+  <th:block th:unless="${levels.isEmpty()}">
+  <!--/* ===== 棚卸し・廃棄の記録 ===== */-->
+  <div class="section-title">
+    <h2 class="section-title__text">棚卸し・廃棄を記録する</h2>
+  </div>
+
+  <div class="grid grid--2">
+
+    <form th:action="@{/inventory/ingredients/stocktake}" method="post"
+          th:object="${stocktakeForm}" class="card">
+      <input type="hidden" name="origin" value="record">
+      <div class="card__head">棚卸し（数え直す）</div>
+      <div class="card__body">
+        <div class="field">
+          <label class="label" for="stIngredient">食材</label>
+          <select class="select" id="stIngredient" th:field="*{ingredientId}">
+            <option value="">選んでください</option>
+            <option th:each="l : ${levels}" th:value="${l.ingredient().id}"
+                    th:text="${l.ingredient().name} + '（' + ${l.ingredient().unit.symbol} + '）'">キャベツ</option>
+          </select>
+        </div>
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="label" for="stQty">数えた量</label>
+            <input class="input" type="number" step="0.001" min="0" id="stQty" th:field="*{quantity}">
+          </div>
+          <div class="field">
+            <label class="label" for="stDate">数えた日</label>
+            <input class="input" type="date" id="stDate" th:field="*{takenOn}">
+          </div>
+        </div>
+        <p class="help">
+          <strong>営業が終わって、その日の仕入れを棚に入れ終えてから</strong>数えてください。
+          同じ日の仕入れは、数えた量にもう含まれているものとして計算します。
+        </p>
+        <button type="submit" class="btn btn--primary">棚卸しを記録する</button>
+      </div>
+    </form>
+
+    <form th:action="@{/inventory/ingredients/adjust}" method="post"
+          th:object="${stocktakeForm}" class="card">
+      <input type="hidden" name="origin" value="record">
+      <div class="card__head">廃棄・まかない（減らす）</div>
+      <div class="card__body">
+        <div class="field">
+          <label class="label" for="adIngredient">食材</label>
+          <select class="select" id="adIngredient" th:field="*{ingredientId}">
+            <option value="">選んでください</option>
+            <option th:each="l : ${levels}" th:value="${l.ingredient().id}"
+                    th:text="${l.ingredient().name} + '（' + ${l.ingredient().unit.symbol} + '）'">キャベツ</option>
+          </select>
+        </div>
+        <!--/* ★ 日付欄を忘れないこと。
+               2026-08-31 のUI監査で、このフォームに takenOn の入力欄が無く、
+               サーバ側の「日付を入力してください」に必ず弾かれて
+               廃棄の記録がブラウザから一度も成功しない状態が見つかった。
+               テストは .param("takenOn", ...) を自分で付けていたので素通りした。
+               フォームを写して作るときは、Form クラスの必須項目と突き合わせること。 */-->
+        <div class="grid grid--3">
+          <div class="field">
+            <label class="label" for="adQty">減らす量</label>
+            <input class="input" type="number" step="0.001" min="0" id="adQty" th:field="*{quantity}">
+            <p class="help">正の数で入力してください</p>
+          </div>
+          <div class="field">
+            <label class="label" for="adDate">日付</label>
+            <input class="input" type="date" id="adDate" th:field="*{takenOn}">
+          </div>
+          <div class="field">
+            <label class="label" for="adReason">理由</label>
+            <select class="select" id="adReason" th:field="*{reason}">
+              <option th:each="r : ${reasons}" th:value="${r}" th:text="${r.label}">廃棄</option>
+            </select>
+          </div>
+        </div>
+        <p class="help">
+          捨てた分を棚卸しでつじつま合わせせず、理由つきで残します。
+          あとから「先月いくら捨てたか」が出せるようになります。<br>
+          <strong>棚卸しをした日の廃棄をあとから入れないでください</strong>
+          （数えた量に織り込み済みなので、二重に引かれます）。
+          棚卸しより前の廃棄も入力不要です。
+        </p>
+        <button type="submit" class="btn">この内容で記録する</button>
+      </div>
+    </form>
+  </div>
+
+  </th:block>
+
+</main>
+</body>
+</html>
