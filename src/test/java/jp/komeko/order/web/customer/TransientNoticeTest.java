@@ -103,7 +103,10 @@ class TransientNoticeTest {
             // 2026-09-06: 条件を色（.alert--success）から印（.is-transient）に移した。
             // 「ご注文をキャンセルしました」は info（青）で、同じ 1 回きりの報告なのに
             // 左に線を引いた別の形で出ていた。設計（暗28）で両方が同じ札になったため。
-            int start = css.indexOf(".theme-night .alert.is-transient {");
+            // ★ セレクタは 2 行に分かれている（is-transient と is-notice が同じ形を使う）。
+            //   「.theme-night .alert.is-transient {」で探すと、
+            //   末尾が「,」の行には一致しない
+            int start = css.indexOf(".theme-night .alert.is-transient");
             assertThat(start).as("1 回きりの札に、設計の指定が無い").isGreaterThan(-1);
             String block = css.substring(start, css.indexOf('}', start));
 
@@ -111,6 +114,11 @@ class TransientNoticeTest {
             // 青（キャンセル）がまた別の形で出る
             assertThat(css).as("色で選ぶ形に戻っている")
                     .doesNotContain(".theme-night .alert--success {");
+
+            // 同じ形を、消えない札（店舗端末の「送っていない品があります」）も使う。
+            // 形は 1 か所で決めておかないと、片方だけ直したときに見た目が割れる
+            assertThat(css).as("消えない札が同じ形を使えなくなっている")
+                    .contains(".theme-night .alert.is-notice {");
 
             // 左だけ 4px → 四辺 1px（.alert の border-left を上書きする）
             assertThat(block).as("四辺を囲っていない").contains("border: 1px solid");
@@ -125,8 +133,10 @@ class TransientNoticeTest {
             // 改行の指定は「箱」ではなく「中の p」に付ける。
             // 箱に付けると、テンプレートの字下げまで行として数えられ、
             // 上下に空行が 3 つずつ入って高さが 77 → 131px になる（実機で確認済み）
+            // こちらも 2 行に分かれている（is-notice の p にも同じ指定が要る）
             assertThat(css).as("改行が空白に潰れる")
-                    .contains(".theme-night .alert.is-transient p { white-space: pre-line; }");
+                    .contains(".theme-night .alert.is-transient p,")
+                    .contains(".theme-night .alert.is-notice p { white-space: pre-line; }");
             assertThat(block).as("改行の指定を箱に付けている。上下に空行が入る")
                     .doesNotContain("white-space");
         }

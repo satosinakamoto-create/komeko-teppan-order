@@ -1554,7 +1554,20 @@ body.theme-night { background-image: none; }
 
    ★ 角丸 6px は設計の値。--r-sm は 8px なので、そこだけ合いません。
      トークンを 6 に変えると全画面の角が変わるため、この札にだけ効かせています。 */
-.theme-night .alert.is-transient {
+/* ★ 「札」の形は 2 つの印から呼ばれます（2026-09-06 に is-notice を足した）。
+
+     is-transient … 1 回きりの報告（数秒で消える）
+     is-notice    … 消えないが、同じ札の形で出すもの
+                    （店舗端末の「送っていない品があります」など）
+
+   どちらも「押した結果」や「いま手が要る状態」を短く伝えるものなので、
+   形は同じにしてあります。違うのは消えるかどうかだけです。
+
+   ★ 常設の案内（お持ちする卓・お会計の場所・公開デモの説明）には
+     どちらも付けません。あちらは読ませる文章で、
+     中央ぞろえにすると行頭が揃わず読みにくくなります。 */
+.theme-night .alert.is-transient,
+.theme-night .alert.is-notice {
   /* 左だけの 4px をやめ、四辺を 1px で囲う。
      border の一括指定なので、.alert の border-left もこれで上書きされる */
   border: 1px solid currentColor;
@@ -1571,7 +1584,8 @@ body.theme-night { background-image: none; }
      行として数えられ、上下に空行が 3 つずつ入って高さが 77 → 131px になる。
      <p> の中身は th:text がまるごと差し替えるので、
      余計な空白が入り込む余地がない。 */
-.theme-night .alert.is-transient p { white-space: pre-line; }
+.theme-night .alert.is-transient p,
+.theme-night .alert.is-notice p { white-space: pre-line; }
 
 /* --------------------------------------------------------------------------
    上の大分類タブ（お食事／ドリンク／サービス／伝票・会計）

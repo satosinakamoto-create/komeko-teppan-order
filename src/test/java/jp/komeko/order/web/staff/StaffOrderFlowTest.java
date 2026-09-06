@@ -165,6 +165,23 @@ class StaffOrderFlowTest {
         }
 
         @Test
+        @DisplayName("★ 送っていない品を抱えたまま戻ると、盤面に札が出る")
+        void warnsAboutUnsentItemsOnTheBoard() throws Exception {
+            select(seatA);
+            add(beer, 2, null);
+
+            String page = mockMvc.perform(get("/staff/order").session(terminal))
+                    .andReturn().getResponse().getContentAsString();
+
+            // 出さないと、次の卓を押したときに初めて気づくことになる
+            assertThat(page).contains("送っていない品");
+            assertThat(page).contains("カウンター札2");
+            // 設計（暗/お知らせの札）の形。四辺 1px・角丸 6・中央ぞろえ。
+            // is-transient（1 回きりで消える札）と形は同じで、こちらは消えない
+            assertThat(page).as("札の形になっていない").contains("is-notice");
+        }
+
+        @Test
         @DisplayName("★ 使用中の番号には人数・入店時刻・金額が出る（隣の組と見分ける材料）")
         void busySeatsCarryEnoughToTellThemApart() throws Exception {
             select(seatA);
@@ -261,6 +278,8 @@ class StaffOrderFlowTest {
 
             assertThat(page).contains("カウンター札2").contains("カウンター札5");
             assertThat(page).as("破棄されることを書いていない").contains("破棄");
+            // 盤面の警告と同じ札の形にそろえてある（設計 暗/お知らせの札）
+            assertThat(page).as("札の形になっていない").contains("is-notice");
             assertThat(billOf(seatB).getSubtotalAmount()).as("移る前に載ってしまった").isZero();
         }
 

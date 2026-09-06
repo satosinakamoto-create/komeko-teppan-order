@@ -20,7 +20,9 @@
       <h1 class="staff-order__title">番号を移りますか</h1>
     </div>
 
-    <div class="alert alert--warn">
+    <!--/* is-notice は「札の形」の印（設計 暗/お知らせの札 412:4315）。
+           盤面の警告と同じ形にそろえてある */-->
+    <div class="alert alert--warn is-notice">
       <p class="mb-0">
         <b th:text="${from}">札2</b> に送っていない品が
         <b th:text="${count}">2</b> 点（<span

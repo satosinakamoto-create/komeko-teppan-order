@@ -29,8 +29,13 @@
     </div>
 
     <!--/* 送っていない品を抱えたまま戻ってきた場合。
-           出さないと、次の卓を押したときに初めて気づくことになる */-->
-    <div class="alert alert--warn" th:if="${pendingTableName != null}" role="alert">
+           出さないと、次の卓を押したときに初めて気づくことになる。
+
+           ★ is-notice は「札の形」の印（設計 暗/お知らせの札 412:4315）。
+             四辺 1px・角丸 6・中央ぞろえ。
+             is-transient（1 回きりで消える札）と形は同じで、
+             こちらは消えません。品を送るまで手が要る状態が続くためです。 */-->
+    <div class="alert alert--warn is-notice" th:if="${pendingTableName != null}" role="alert">
       <p class="mb-0">
         <b th:text="${pendingTableName}">札2</b> に送っていない品が
         <b th:text="${pendingCount}">2</b> 点あります。
