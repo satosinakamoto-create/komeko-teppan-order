@@ -121,6 +121,32 @@ class BillLayoutStyleTest {
     }
 
     @Test
+    @DisplayName("★ タブ帯の左右は 8px（現在地の面が画面の端まで届かない）")
+    void tabBarHasSidePadding() throws Exception {
+        // 0 にすると、選択中の面（#202020）が画面の端まで届いて
+        // 帯そのものと地続きに見え、どれが選ばれているのか分かりにくくなる
+        assertThat(rule(".tabbar {"))
+                .as("タブ帯の左右余白が設計と違う")
+                .contains("env(safe-area-inset-top, 0px)) 8px 0;");
+    }
+
+    @Test
+    @DisplayName("★ 伝票に「追加でご注文する」と自動更新の但し書きを出さない")
+    void billHasNoExtraButtonOrNote() throws Exception {
+        String html = Files.readString(
+                Path.of("src/main/resources/templates/customer/bill.html"));
+        // ★ コメントを外してから見る。外した経緯として文言を書き残してあるので、
+        //   そのまま探すと自分の説明文に一致する
+        String markup = html.replaceAll("(?s)<!--/\\*.*?\\*/-->", "");
+
+        // タブ帯に「お食事」「ドリンク」が常に出ているので、
+        // 同じ場所へ行く口が 2 つある状態だった。
+        // 主操作（お会計をお願いする）のすぐ下だと、押し間違いの的も増える
+        assertThat(markup).as("追加注文のボタンが戻っている").doesNotContain("追加でご注文する");
+        assertThat(markup).as("自動更新の但し書きが戻っている").doesNotContain("画面は自動で更新されます");
+    }
+
+    @Test
     @DisplayName("会計済みの伝票も、同じ締めの線を持つ")
     void closedBillUsesTheSameLines() throws Exception {
         // .bill-lines を付け忘れると、合計から線が消えて明細と地続きに見える

@@ -1603,7 +1603,11 @@ body.theme-night { background-image: none; }
   width: 100%;
   max-width: var(--page-max);
   margin-inline: auto;
-  padding: calc(var(--tabbar-top) + env(safe-area-inset-top, 0px)) 0 0;
+  /* 左右 8px は設計（暗/大分類タブ 71:3438 の px-8）。
+     0 にすると、選択中の面（#202020）が画面の端まで届いて
+     帯そのものと地続きに見え、どれが選ばれているのか分かりにくくなる。
+     8px 空けると、面が「タブ 1 つぶん」として見える。 */
+  padding: calc(var(--tabbar-top) + env(safe-area-inset-top, 0px)) 8px 0;
   background: var(--bg);
   /* ★ 下の罫線は border ではなく内側の影で描く。
      border だと箱の外に 1px 足されるので、この帯の高さが
@@ -1620,7 +1624,8 @@ body.theme-night { background-image: none; }
   justify-content: center;
   gap: 4px;
   height: var(--tabbar-item-h);
-  /* 左右は 0。子は flex:1 なので 390 ÷ 4 = 97.5px を自分で取る（設計どおり） */
+  /* 左右は 0。子は flex:1 なので、帯の左右 8px を引いた
+     (390 − 16) ÷ 4 = 93.5px を自分で取る */
   padding: 10px 0;
   /* 角は丸めない。選択中の面（#202020）が下のカテゴリ帯と地続きに見えるのが
      設計の意図で、上角を丸めるとその繋がりが切れる */
