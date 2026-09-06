@@ -36,3 +36,6 @@ Thumbs.db
 
 # Tomcat のアクセスログ（開発時の切り分け用。実行のたびに増える）
 data/tomcat/
+
+# 叩き役の実行ログ（マシンごとの記録なので共有しない）
+tools/keep-render-awake.log
