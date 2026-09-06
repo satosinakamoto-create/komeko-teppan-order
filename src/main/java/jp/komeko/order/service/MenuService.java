@@ -139,6 +139,21 @@ public class MenuService {
                 .stream().map(Category::getSortOrder).toList());
     }
 
+    /**
+     * どのカテゴリに入れても末尾になる並び番号。
+     *
+     * <p>新規登録の画面では、まだカテゴリが選ばれていません。
+     * それでも並びの欄は出す（設計 08-2）ので、開いた時点で
+     * <b>意味のある数字</b>が入っている必要があります。
+     * 0 や 10 を入れておくと、触らずに保存した品が
+     * <b>看板メニューの上に割り込みます</b>。
+     */
+    @Transactional(readOnly = true)
+    public int nextItemSortOrderAnywhere() {
+        return nextSortOrder(menuItemRepository.findAllForAdmin()
+                .stream().map(MenuItem::getSortOrder).toList());
+    }
+
     /** そのカテゴリに新しく足す商品に付ける並び順。 */
     @Transactional(readOnly = true)
     public int nextItemSortOrder(Long categoryId) {

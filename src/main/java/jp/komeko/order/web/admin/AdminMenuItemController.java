@@ -221,11 +221,23 @@ public class AdminMenuItemController {
     //  新規・編集フォームの表示
     // ========================================================================
 
-    /** 新規登録フォーム。 */
+    /**
+     * 新規登録フォーム。
+     *
+     * <p><b>並びの欄は新規でも出します</b>（2026-09-07 / 設計 08-2 に「95」が入っている）。
+     * 出すからには、開いた時点で意味のある数字が入っていないといけません。
+     * 0 のままだと、触らずに保存した品が<b>看板メニューの上に割り込みます</b>。
+     * 店主が気づいて直すまで、お客さまにはその並びで見えます。
+     *
+     * <p>カテゴリはまだ選ばれていないので、ここでは「どのカテゴリでも末尾になる番号」
+     * を入れておきます。カテゴリを選んだあと保存すると、
+     * {@code create} がそのカテゴリの末尾へ付け直します。
+     */
     @GetMapping("/new")
     @Transactional(readOnly = true)
     public String createForm(Model model) {
         MenuItemForm form = new MenuItemForm();
+        form.setSortOrder(menuService.nextItemSortOrderAnywhere());
         model.addAttribute("itemForm", form);
         prepareForm(model, form);
         return "admin/item-form";
@@ -296,10 +308,14 @@ public class AdminMenuItemController {
         MenuItem item = new MenuItem(category, form.getName().trim(),
                 form.getPrice() == null ? 0 : form.getPrice());
         applyForm(item, form);
-        // 並び順は新規フォームで聞いていないので、そのカテゴリの末尾に付ける。
-        // 既定の 0 のままだと、追加した品が看板メニューの上に割り込みます。
-        // 店主が気づいて直すまで、お客さまにはその並びで見えています。
-        item.setSortOrder(menuService.nextItemSortOrder(category.getId()));
+        // ★ 並びは画面で聞くようになりました（2026-09-07 / 設計 08-2 に欄がある）。
+        //   打たれた数字をそのまま使います。ここで無条件に上書きすると、
+        //   <b>入力できるのに反映されない欄</b>になります。
+        //   空で来たときだけ、そのカテゴリの末尾へ付けます
+        //   （0 のままだと、追加した品が看板メニューの上に割り込みます）。
+        if (form.getSortOrder() == null) {
+            item.setSortOrder(menuService.nextItemSortOrder(category.getId()));
+        }
         item.setImagePath(storedImagePath);
         menuItemRepository.save(item);
 

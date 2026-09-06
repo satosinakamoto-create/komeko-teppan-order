@@ -41,35 +41,60 @@
              商品名・カテゴリ・価格の 3 つ（設計の但し書きどおり）。
              押せないボタンを出しているのは、そこに何があるかを先に見せるためです。
              隠すと、何をすれば出てくるのかが分かりません。 */-->
-    <div class="page-head">
-      <h1 class="page-head__title"
-          th:text="${itemForm.id == null and #strings.isEmpty(itemForm.name)} ? '新しい商品'
-                   : (${#strings.isEmpty(itemForm.name)} ? ${pageTitle} : ${itemForm.name})">新しい商品</h1>
-      <span class="badge badge--draft" th:if="${itemForm.draft or itemForm.id == null}">編集中</span>
-      <span class="page-head__spacer"></span>
-      <button class="btn" type="submit" name="action" value="draft">下書きのまま保存</button>
-      <button class="btn btn--primary" type="submit" name="action" value="publish"
-              th:disabled="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}">
-        掲載する
-      </button>
+    <!--/* 寸法は設計データそのものから取っています（画面写真の目分量ではなく）。
+             本文の間        … 28px
+             題              … 28px Bold
+             編集中の札      … 幅 86 ／ 上下 6・左右 8 ／ 角丸 4
+                               面 #edeefc（状態/案内 薄）／ 文字 #4e5ba6 14px
+             ボタン          … 高さ 48 ／ 左右 24 ／ 角丸 4、間 12
+             掲載する（無効）… 不透明度 40% */-->
+    <div class="formhead">
+      <div class="formhead__left">
+        <div class="formhead__title">
+          <h1 class="formhead__name"
+              th:text="${itemForm.id == null and #strings.isEmpty(itemForm.name)} ? '新しい商品'
+                       : (${#strings.isEmpty(itemForm.name)} ? ${pageTitle} : ${itemForm.name})">新しい商品</h1>
+          <span class="statetag" th:if="${itemForm.draft or itemForm.id == null}">編集中</span>
+        </div>
+        <p class="formhead__note"
+           th:text="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}
+                    ? '商品名・カテゴリ・価格 を入れると、掲載できるようになります'
+                    : '必要な項目がそろいました。「掲載する」でお客さまの画面に出ます'">
+          商品名・カテゴリ・価格 を入れると、掲載できるようになります
+        </p>
+      </div>
+      <div class="formhead__actions">
+        <button class="btn" type="submit" name="action" value="draft">下書きのまま保存</button>
+        <button class="btn btn--primary" type="submit" name="action" value="publish"
+                th:disabled="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}">
+          掲載する
+        </button>
+      </div>
     </div>
-    <p class="page-head__note"
-       th:text="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}
-                ? '商品名・カテゴリ・価格 を入れると、掲載できるようになります'
-                : '必要な項目がそろいました。「掲載する」でお客さまの画面に出ます'">
-      商品名・カテゴリ・価格 を入れると、掲載できるようになります
-    </p>
 
-    <!--/* ====== 基本 ====== */-->
-    <section class="card">
-      <div class="card__head">基本情報</div>
-      <div class="card__body">
+    <!--/* ====== 入力カード ====== 設計 316:1993
+           枠線 1px・角丸 12・内側 32・中の間 28。見出しの帯は付けません
+           （設計に無く、付けると「基本情報」という要らない章立てが生まれる）。
+
+           ★ 4 つの入力のラベルは<b>補足色</b>です（設計 316:1994 など）。
+             写真・掲載・販売のラベルだけ本文色。
+             入力欄は中身が主役、下の 3 つは見出しとして読ませたい、という分け方。 */-->
+    <div class="formcard">
+
+      <div class="formrow">
+        <div class="field">
+          <label class="label label--soft" for="name">商品名<span class="req">必須</span></label>
+          <input class="input" type="text" th:field="*{name}" maxlength="60"
+                 placeholder="例：肉玉米粉そば"
+                 th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
+          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
+        </div>
 
         <div class="field">
-          <label class="label" for="categoryId">カテゴリ<span class="req">必須</span></label>
+          <label class="label label--soft" for="categoryId">カテゴリ<span class="req">必須</span></label>
           <select class="select" th:field="*{categoryId}"
                   th:classappend="${#fields.hasErrors('categoryId')} ? 'is-error'">
-            <option value="">— 選んでください —</option>
+            <option value="">選んでください</option>
             <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}">米粉ガレット</option>
           </select>
           <p class="help" th:if="${categories.isEmpty()}">
@@ -77,49 +102,65 @@
           </p>
           <p class="error" th:if="${#fields.hasErrors('categoryId')}" th:errors="*{categoryId}">エラー内容</p>
         </div>
+      </div>
 
+      <div class="formrow">
         <div class="field">
-          <label class="label" for="name">商品名<span class="req">必須</span></label>
-          <input class="input" type="text" th:field="*{name}" maxlength="60"
-                 placeholder="例：コンプレット"
-                 th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
-          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
+          <label class="label label--soft" for="price">価格（税込）<span class="req">必須</span></label>
+          <input class="input" type="number" th:field="*{price}" min="0" max="1000000"
+                 inputmode="numeric" placeholder="例：1,180"
+                 th:classappend="${#fields.hasErrors('price')} ? 'is-error'">
+          <p class="help">日本は総額表示が義務なので、税込の金額を入れます。</p>
+          <p class="error" th:if="${#fields.hasErrors('price')}" th:errors="*{price}">エラー内容</p>
         </div>
 
-        <!--/* 説明・調理時間・おすすめ・アレルゲンは下の「詳しい設定」へ移しました
-               （2026-09-07 / 設計 08-2）。ここに残すのは、商品を思いついた時点で
-               決まっている 4 つ（商品名・カテゴリ・価格・並び）だけです。 */-->
-        <div class="grid grid--3">
-          <div class="field">
-            <label class="label" for="price">価格（税込・円）<span class="req">必須</span></label>
-            <input class="input" type="number" th:field="*{price}" min="0" max="1000000"
-                   inputmode="numeric" placeholder="例：1,180"
-                   th:classappend="${#fields.hasErrors('price')} ? 'is-error'">
-            <p class="help">日本は総額表示が義務なので、税込の金額を入れます。</p>
-            <p class="error" th:if="${#fields.hasErrors('price')}" th:errors="*{price}">エラー内容</p>
-          </div>
+        <!--/* ★ 並びは設計どおり<b>新規でも出します</b>（2026-09-07 に直しました）。
+               それまでは編集のときだけ出していましたが、設計には最初から「95」が
+               入っています。新規のときは、そのカテゴリの末尾の番号をあらかじめ
+               入れておくので、触らなければ末尾に付きます。 */-->
+        <div class="field">
+          <label class="label label--soft" for="sortOrder">並び</label>
+          <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
+                 inputmode="numeric"
+                 th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
+          <p class="help">同じカテゴリの中で、小さいほど先に出ます。</p>
+          <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
+        </div>
+      </div>
 
-          <!--/* 並び順は編集のときだけ聞きます（2026-09-05）。
-                 新規登録では、そのカテゴリの末尾に自動で付きます。
-                 既定の 0 のままだと、追加した品が看板メニューの上に割り込み、
-                 店主が気づいて直すまで、お客さまにはその並びで見えていました。
+      <!--/* ====== 写真 ====== 設計 319:2041
+             見本 160×120・破線・角丸 8。カードの中に入れます（設計どおり）。
+             別カードに分けていたのを畳みました。
 
-                 ひとつ動かすだけなら、商品一覧の上下ボタンのほうが速い。
-                 ここに数字を残しているのは「まとめて並べ直す」ときのためです。 */-->
-          <div class="field" th:if="${itemForm.id != null}">
-            <label class="label" for="sortOrder">並び順<span class="req">必須</span></label>
-            <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
-                   inputmode="numeric"
-                   th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
-            <p class="help">
-              同じカテゴリの中で、小さいほど先に表示されます。
-              ひとつ動かすだけなら、<a th:href="@{/admin/items}">商品一覧</a>の上下ボタンのほうが速いです。
-            </p>
-            <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
+             ★ input[type=file] は見た目を整えられないので、label をボタンの形にして
+               本体は隠します。label と for で結んであるので、これで押せます
+               （display:none にすると押せなくなるので .visually-hidden を使う）。 */-->
+      <div class="field">
+        <span class="label">写真</span>
+        <div class="photopick">
+          <img class="photopick__preview" th:if="${itemForm.currentImagePath != null}"
+               th:src="${itemForm.currentImagePath}" alt="いまの商品写真">
+          <span class="photopick__empty" th:if="${itemForm.currentImagePath == null}">写真なし</span>
+
+          <div class="photopick__side">
+            <div class="photopick__buttons">
+              <label class="btn" for="image"
+                     th:text="${itemForm.currentImagePath == null} ? '写真を選ぶ' : '写真を変える'">写真を選ぶ</label>
+              <label class="btn photopick__erase" th:if="${itemForm.currentImagePath != null}">
+                <input type="checkbox" name="removeImage" value="true">
+                <span>写真を消す</span>
+              </label>
+            </div>
+            <input class="visually-hidden" type="file" id="image" name="image"
+                   accept="image/jpeg,image/png,image/webp">
+            <p class="help mb-0">JPEG・PNG／1枚 5MB まで</p>
+            <p class="help mb-0">スマホで撮ったままの写真で入ります。無くても掲載できます</p>
+            <p class="error" th:if="${#fields.hasErrors('image')}" th:errors="*{image}">エラー内容</p>
           </div>
         </div>
+      </div>
 
-        <hr class="rule">
+      <hr class="formcard__rule">
 
         <!--/* ====== 掲載 ／ 販売 ====== 設計 08-2 の 2 段のセグメント
 
@@ -128,79 +169,63 @@
                  ここを決めずに書くと、実装のたびに解釈が変わります。
                  ラジオの役目は「いまどの状態か」を見せることと、
                  掲載を止めた状態のまま保存できるようにすることです。 */-->
-        <div class="field">
-          <span class="label">掲載</span>
-          <div class="statepick">
-            <label class="statepick__item">
-              <input type="radio" th:field="*{publishState}" value="draft">
-              <span>編集中</span>
-            </label>
-            <label class="statepick__item">
-              <input type="radio" th:field="*{publishState}" value="published">
-              <span>掲載中</span>
-            </label>
-            <label class="statepick__item">
-              <input type="radio" th:field="*{publishState}" value="hidden">
-              <span>掲載停止</span>
-            </label>
-          </div>
-          <p class="help"
-             th:text="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}
-                      ? '商品名・カテゴリ・価格 がそろうまで「掲載中」は選べません'
-                      : '「掲載中」にすると、お客さまのメニューに並びます'">
-            商品名・カテゴリ・価格 がそろうまで「掲載中」は選べません
-          </p>
-        </div>
+      <!--/* ★ ラジオとボタン（上の「下書きのまま保存」「掲載する」）は
+             同じ値を触ります。<b>ボタンが勝ちます</b>。
+             ラジオの役目は「いまどの状態か」を見せることと、
+             掲載を止めた状態のまま保存できるようにすることです。
 
-        <div class="field">
-          <span class="label">販売</span>
-          <div class="statepick">
-            <label class="statepick__item">
-              <input type="radio" th:field="*{soldOut}" value="false">
-              <span>販売中</span>
-            </label>
-            <label class="statepick__item">
-              <input type="radio" th:field="*{soldOut}" value="true">
-              <span>品切れ</span>
-            </label>
-          </div>
-          <p class="help">掲載してから、その日の品切れを切り替えられます。</p>
+           ★ 中身がそろうまで「掲載中」は選べません（設計の但し書きどおり）。
+             押せない選択肢は消さずに灰色で出します。
+             消すと、何をすれば出てくるのかが分かりません。 */-->
+      <div class="field"
+           th:with="notReady=${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}">
+        <span class="label">掲載</span>
+        <div class="statepick">
+          <label class="statepick__item">
+            <input type="radio" th:field="*{publishState}" value="draft">
+            <span>編集中</span>
+          </label>
+          <label class="statepick__item">
+            <input type="radio" th:field="*{publishState}" value="published" th:disabled="${notReady}">
+            <span>掲載中</span>
+          </label>
+          <label class="statepick__item">
+            <input type="radio" th:field="*{publishState}" value="hidden" th:disabled="${notReady}">
+            <span>掲載停止</span>
+          </label>
         </div>
-
+        <p class="help"
+           th:text="${notReady}
+                    ? '商品名・カテゴリ・価格 がそろうまで「掲載中」は選べません'
+                    : '「掲載中」にすると、お客さまのメニューに並びます'">
+          商品名・カテゴリ・価格 がそろうまで「掲載中」は選べません
+        </p>
       </div>
-    </section>
 
-    <!--/* ====== 画像 ====== */-->
-    <section class="card mt-6">
-      <div class="card__head">商品画像</div>
-      <div class="card__body">
-
-        <div class="field">
-          <span class="label">いまの画像</span>
-          <img class="menu-item__thumb" th:if="${itemForm.currentImagePath != null}"
-               th:src="${itemForm.currentImagePath}" alt="現在の商品画像">
-          <p class="help mb-0" th:if="${itemForm.currentImagePath == null}">まだ登録されていません。</p>
+      <div class="field">
+        <span class="label">販売</span>
+        <div class="statepick">
+          <label class="statepick__item">
+            <input type="radio" th:field="*{soldOut}" value="false">
+            <span>販売中</span>
+          </label>
+          <!--/* まだメニューに出ていない品を「品切れ」にしても意味がありません。
+                 設計でも押せない見た目になっています */-->
+          <label class="statepick__item">
+            <input type="radio" th:field="*{soldOut}" value="true"
+                   th:disabled="${itemForm.draft or itemForm.id == null}">
+            <span>品切れ</span>
+          </label>
         </div>
-
-        <div class="field">
-          <label class="label" for="image">画像を選ぶ</label>
-          <input class="input" type="file" id="image" name="image"
-                 accept="image/jpeg,image/png,image/webp"
-                 th:classappend="${#fields.hasErrors('image')} ? 'is-error'">
-          <p class="help">
-            JPEG / PNG / WebP、5MB まで。選ばなければ今の画像のままです。
-            正方形に近い写真がきれいに収まります。
-          </p>
-          <p class="error" th:if="${#fields.hasErrors('image')}" th:errors="*{image}">エラー内容</p>
-        </div>
-
-        <label class="choice" th:if="${itemForm.currentImagePath != null}">
-          <input type="checkbox" name="removeImage" value="true">
-          <span class="choice__name">いまの画像を削除する（画像なしに戻す）</span>
-        </label>
-
+        <p class="help"
+           th:text="${itemForm.draft or itemForm.id == null}
+                    ? 'メニューに載せてから、品切れにできます'
+                    : '掲載してから、その日の品切れを切り替えられます'">
+          メニューに載せてから、品切れにできます
+        </p>
       </div>
-    </section>
+
+    </div>
 
     <!--/* ====== 詳しい設定（折りたたみ）======
            設計 08-2 のカードには 商品名・カテゴリ・価格・並び・写真 しかありません。
