@@ -2841,86 +2841,18 @@ body.is-sending .staff-main {
 }
 
 /* --------------------------------------------------------------------------
-   29. 品切れ・残数パネルのカテゴリチップ（2026-08-26）
+   29. 品切れ・残数パネル
    --------------------------------------------------------------------------
-   /kitchen/stock は 14 カテゴリ・94 品の表が縦に並ぶ画面。
-   「材料が切れた 1 品を止める」という目的の決まった作業なので、
-   目的地（カテゴリの見出し）へ 1 タップで飛べる照準を上に置く。
+   カテゴリのチップ（.stock-nav / .stock-chip）は 2026-09-07 に外しました。
 
-   ★ お客さま側の .tabs をそのまま流用してはいけない
-     .tabs は overflow-x: auto ＋ scrollbar-width: none。
-     390px の画面でタブがはみ出したうえにスクロールバーも消えるため、
-     右端のタブは「存在しないもの」になってしまっている（既知の不具合）。
-     チップが 14 個あるここで同じ作りにすると、被害はさらに大きい。
-     だから .stock-nav は横スクロールを一切持たず、flex-wrap で折り返す。
-     縦は伸びるが、縦は指で送れる。横に隠れたものは指で送れない。
+   14 個の札を折り返して並べ、押すと見出しへ飛ぶ作りでしたが、
+   飛んでも<b>ページの中を移動するだけ</b>で、目的の行に着くまで
+   残り 13 カテゴリぶんを通り過ぎていました
+   （実測の高さ：1024px で 4 段 216px ／ 390px で 10 段 552px）。
 
-   ★ 折り返しの代償（2026-08-26 に実測した値。次に触る人へ）
-       1024px（厨房のタブレット）… 4 段 / 高さ 216px
-        768px                      … 4 段 / 高さ 216px
-        390px（スマホ）            … 10 段 / 高さ 552px
-     390px ではサイドバーが 64px の帯になり、チップの入る幅が 271px しか
-     残らないため段数が跳ね上がる。それでも 14 個すべてが 1 画面
-     （844px のうち上から 249〜801px）に収まっており、隠れるチップは無い。
-     この画面の主戦場は 1024px のタブレットなので、この代償は許容する。
-     ここを縮めたくなったら、段数ではなく「品数のバッジを消す」から検討すること
-     （どのカテゴリが大きいかは、探す前の判断材料として効いている）。
+   いまは「カテゴリを 1 つ選ぶ → その中だけ出す」に変えたので、
+   通り過ぎるものがありません。選択の UI は .catpick（8 節）にあります。
    -------------------------------------------------------------------------- */
-.stock-nav {
-  display: flex;
-  /* ここが肝。絶対に overflow-x: auto にしない */
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin: var(--sp-4) 0 var(--sp-2);
-  /* 「▲ カテゴリ一覧」で戻ってきたとき、1 段目のチップが
-     画面の上端で切れないように余白を取る（下の .section-title[id] と同じ理由） */
-  scroll-margin-top: 24px;
-}
-
-.stock-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  /* CLAUDE.md の約束「タップ領域は 48px 以上」。
-     濡れた手・急いでいる手でも押せる高さを、文字サイズと無関係に確保する */
-  min-height: var(--tap);
-  padding: 0 14px;
-  /* 親（.staff-main）の幅を超えない保険。
-     カテゴリ名が極端に長くても、横スクロールを発生させない */
-  max-width: 100%;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-full);
-  background: var(--surface);
-  color: var(--text);
-  font-size: .875rem;
-  font-weight: 600;
-  text-decoration: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.stock-chip:hover,
-.stock-chip:focus-visible {
-  border-color: var(--accent);
-  color: var(--text);
-}
-
-/* 名前は 1 行。長すぎる名前だけ「…」で詰める（チップ自体は折り返さない）。
-   min-width: 0 が無いと flex の子は縮まないので、省略記号が効かない */
-.stock-chip__name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* カテゴリの品数。押す判断の材料ではないので、いちばん弱い色にする */
-.stock-chip__count {
-  flex: none;
-  font-size: .75rem;
-  font-weight: 400;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-}
 
 /* ── 飛んだ先で見出しが隠れないようにする ──
    アンカーで飛ぶと、対象の「上端」が画面の上端にぴったり合う。
@@ -3351,6 +3283,82 @@ body.is-sending .staff-main {
 .table--cats th:nth-child(2), .table--cats td:nth-child(2) { width: 200px; }
 .table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 160px; }
 .table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 360px; }
+
+/* 品切れ・残数の「探す／カテゴリを選ぶ」（設計 現03 439:2496 / 2026-09-07）。
+   2 つを横に並べる。狭い画面では縦に落ちる */
+.stockfind {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 48px;
+}
+@media (max-width: 900px) {
+  .stockfind { grid-template-columns: 1fr; }
+}
+
+/* カテゴリの選択。押すと下に一覧が出る（details）。
+   ★ JavaScript は使わない。開閉はブラウザが持っている機能で、
+     切られていても「閉じない」だけで中のリンクは押せる。 */
+.catpick {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+}
+.catpick__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 探す欄（64px）と高さをそろえる。並べたときに段差があると
+     「片方は入力欄、片方はボタン」に見えて種類が違うものだと誤解される */
+  min-height: 62px;
+  padding: 0 14px;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--text);
+  list-style: none;
+}
+.catpick__head::-webkit-details-marker { display: none; }
+/* 開いているかを示す丸。閉じているときは枠だけ、開くと塗る */
+.catpick__mark {
+  width: 12px; height: 12px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-muted);
+}
+.catpick[open] .catpick__mark { background: var(--accent); border-color: var(--accent); }
+.catpick[open] .catpick__head { border-bottom: 1px solid var(--border); }
+
+.catpick__list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  /* 14 個あるので、長くなったらこの中だけスクロールさせる。
+     ページごと伸びると、下にある表が押し出されて見えなくなる */
+  max-height: 320px;
+  overflow-y: auto;
+}
+.catpick__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* CLAUDE.md の「タップ領域は 48px 以上」 */
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 4px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 15px;
+}
+.catpick__item:hover { background: var(--accent-soft); }
+.catpick__item.is-active { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.catpick__count {
+  flex: none;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.catpick__item.is-active .catpick__count { color: var(--accent); }
 
 /* 構成比の棒（注文履歴の「売れた商品」）。
 

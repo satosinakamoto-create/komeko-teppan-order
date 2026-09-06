@@ -13,21 +13,23 @@
    すでに厨房ボードに乗っている注文は自動では消えません。
    焼けないと分かった時点で、ボード側からキャンセルしてください。
 
-   ・カテゴリごとに見出しでまとめる（探す時間を減らす）
-   ・画面のいちばん上にカテゴリのチップを並べ、1 タップで見出しへ飛べるようにする
+   ・カテゴリを 1 つ選び、その中の品だけを出す
+   ・名前で探すときはカテゴリをまたぐ
    ・状態は色つきのチップで一目で分かるようにする
    ・ボタンの文言は「いま押すとどうなるか」を書く（品切れにする／販売再開）
 
-   ── なぜ「チップ＋アンカーリンク」なのか（2026-08-26） ──
-   掲載中の商品は 94 品あり、14 カテゴリぶんの表が縦に並びます。
-   ここへ来る厨房の人は「豚ロースが切れた」と目的が決まった状態で来るので、
-   必要なのは選択肢を見せるナビゲーションではなく、狙った場所へ一息で届く照準です。
-   14 カテゴリなら 1 タップで到達できるため、まずはチップで十分と判断しました。
+   ── なぜ 1 カテゴリずつにしたのか（2026-09-07 / 設計 現03 439:2496）──
+   それまでは 14 カテゴリ 94 品を 1 ページに縦に並べ、上にカテゴリの札を
+   14 個折り返して置いていました。札は見出しへ飛ぶための目印で、
+   押しても<b>ページの中を移動するだけ</b>です。
 
-   お客さま側のメニューで使っている「スワイプで隣のカテゴリへ」は採りません。
-   あれは<b>目的が決まっていない探索</b>（何を頼もうかな）に効くパターンで、
-   目的が決まっている厨房の作業とは状況が違います。
-   同じ理由で、検索欄も今回は入れていません（打つより押すほうが速い品数です）。
+   この画面を開く理由は「いまこの品を止めたい」「今日の数を入れたい」で、
+   対象はたいてい 1 つのカテゴリの中にあります。
+   残りの 13 カテゴリぶんは、目的の行に着くまで通り過ぎるだけでした。
+
+   探すほうは逆にカテゴリを無視します。
+   「たこ焼」と打つ人は、それがどのカテゴリにあるかを覚えていません
+   （覚えていたらカテゴリから辿ります）。
 
    商品マスタそのものの編集（価格・説明・画像）は管理画面の担当なので、
    ここには置きません。厨房で必要な操作だけに絞っています。
@@ -68,66 +70,67 @@
     <div th:replace="~{fragments/common :: empty('—', '掲載中の商品がありません')}"></div>
   </div>
 
-  <!--/* ===== カテゴリのチップ（見出しへのショートカット） =====
+  <!--/* ===== 探す ／ カテゴリを選ぶ ===== 設計 現03（439:2496 / 2026-09-07）
 
-         ★ 1. なぜ横スクロールではなく「折り返し」なのか
-           お客さま側の .tabs は overflow-x:auto ＋ scrollbar-width:none で作ってあり、
-           タブ 5 個（合計 488px）が 390px の画面からはみ出したまま、
-           スクロールバーも消えているため 5 個目「ドリンク」の存在に気づけません。
-           隠れているものは、無いのと同じです。
-           14 個ならもっとひどくなるので、ここは必ず flex-wrap で折り返します
-           （.stock-nav。app.css の 29 章）。全部が同時に見えることを最優先します。
+         ★ 一度に出すのはカテゴリ 1 つぶんだけにしました。
+           それまでは 14 カテゴリ 94 品を 1 ページに並べ、上に札を 14 個置いて
+           見出しへ飛ばしていました。札を押しても<b>ページの中を移動するだけ</b>で、
+           目的の行に着くまで残りの 13 カテゴリぶんを通り過ぎていました。
 
-         ★ 2. なぜ id にカテゴリ名ではなく「カテゴリの id」を使うのか
-           - 日本語を id にすると URL に %E7%B1%B3… という長い列が出て読めません。
-           - 「何番目か」の連番だと、カテゴリを 1 つ増やしただけで
-             #cat-3 の指す先が別のカテゴリにずれます。
-             ブックマークや、厨房どうしで送り合った URL が静かに嘘になります。
-           カテゴリの id はデータが消えない限り変わらないので、これを使います。
+           この画面を開く理由は「いまこの品を止めたい」「今日の数を入れたい」で、
+           対象はたいてい 1 つのカテゴリの中にあります。
 
-         ★ 3. なぜチップ自体を sticky（画面に貼り付け）にしないのか
-           2026-08-26 の実測で、チップ列の高さは
-             1024px → 4 段 216px ／ 768px → 4 段 216px ／ 390px → 10 段 552px
-           でした。390px でこれを常時貼り付けると、844px の画面の 3 分の 2 が
-           「もう用の済んだナビ」で埋まります。飛んだあとに見たいのは表であって
-           チップではないので、貼り付けません。
-           （sticky にする場合は、貼り付いた高さぶんだけ
-             scroll-margin-top も増やさないと見出しが裏に潜ります。
-             その高さは折り返し段数しだいで変わるので、決め打ちできません。
-             「貼り付けない」はこの厄介ごとを丸ごと避ける選択でもあります）
-           代わりに各カテゴリの見出しへ「▲ カテゴリ一覧」を置き、
-           1 タップでこのチップ列まで戻れるようにしてあります
-           （＝上へ戻る手段は用意する、という条件を満たす形）。
-  */-->
-  <nav class="stock-nav" id="stock-nav" aria-label="カテゴリへ移動"
-       th:if="${!categoryGroups.isEmpty()}">
-    <a class="stock-chip" th:each="g : ${categoryGroups}"
-       th:href="'#cat-' + ${g.id()}">
-      <span class="stock-chip__name" th:text="${g.name()}">米粉ガレット</span>
-      <span class="stock-chip__count" th:text="${g.items().size()}">4</span>
-    </a>
-  </nav>
+         ★ カテゴリは <details> で開きます。JavaScript は使いません。
+           開閉はブラウザが持っている機能で、切っていても閉じないだけです
+           （中のリンクは常に押せる）。
 
-  <!--/* ===== カテゴリごとの一覧 =====
-         categoryGroups は StockCategory（record）のリストです。
-         record のアクセサは getXxx() ではないので、
-         Thymeleaf でも ${g.id()} のように括弧付きで呼びます。
+         ★ 探すときはカテゴリを無視します。
+           「たこ焼」と打った人は、それがどのカテゴリにあるかを覚えていません。
+           覚えていたらカテゴリから辿ります。 */-->
+  <div class="stockfind" th:if="${!categoryGroups.isEmpty()}">
 
-         見出しの div に id を振り、上のチップの href（#cat-3）と対にします。
-         見出しがヘッダーやチップの下に潜らないよう、
-         app.css で .section-title[id] に scroll-margin-top を入れています。
-  */-->
-  <th:block th:each="g : ${categoryGroups}">
+    <form class="searchbox" method="get" th:action="@{/kitchen/stock}" role="search">
+      <span class="searchbox__icon" aria-hidden="true">
+        <th:block th:replace="~{fragments/icons :: ic_magnifying_glass}"/>
+      </span>
+      <input class="searchbox__input" type="search" name="q" placeholder="商品を探す"
+             th:value="${q}" aria-label="商品を探す">
+    </form>
 
-    <!--/* 見出しに「▲ カテゴリ一覧」へ戻るリンクを置いていた時期がありますが、外しました。
-           14 個ぶん置くと、48px のタップ領域が見出しの行高そのものを押し上げ、
-           実測で 1024px なら +280px、390px なら +647px ページが伸びます。
-           削るはずだったスクロールを、出口のほうが増やしていました。
-           チップは <a href="#cat-N"> なので履歴に積まれ、ブラウザの戻るで
-           元の位置に復元されます。同じ機能を 14 個ぶんの高さで作り直す必要はありません。 */-->
-    <div class="section-title" th:id="'cat-' + ${g.id()}">
-      <h2 class="section-title__text" th:text="${g.name()}">米粉ガレット</h2>
-      <span class="section-title__count" th:text="${g.items().size()} + ' 品'">4 品</span>
+    <details class="catpick" th:attr="open=${#strings.isEmpty(q)} ? null : null">
+      <summary class="catpick__head">
+        <span class="catpick__mark" aria-hidden="true"></span>
+        <span th:text="${selectedName} ?: 'カテゴリを選ぶ'">広島風お好み焼き</span>
+      </summary>
+      <div class="catpick__list">
+        <a th:each="g : ${categoryGroups}" class="catpick__item"
+           th:classappend="${selectedId != null and selectedId == g.id()} ? 'is-active'"
+           th:href="@{/kitchen/stock(category=${g.id()})}">
+          <span th:text="${g.name()}">米粉ガレット</span>
+          <span class="catpick__count" th:text="${g.items().size()}">4</span>
+        </a>
+      </div>
+    </details>
+
+  </div>
+
+  <!--/* 探した結果が 0 件のときは、表ごと出さずに理由を書く。
+         空の表を出すと「カテゴリの選び方を間違えた」ように見える */-->
+  <div th:if="${!#strings.isEmpty(q) and rows.isEmpty()}" class="mt-4">
+    <div th:replace="~{fragments/common :: empty('—', '当てはまる商品がありません')}"></div>
+    <p class="center">
+      <a class="btn btn--sm" th:href="@{/kitchen/stock}">カテゴリから選び直す</a>
+    </p>
+  </div>
+
+  <!--/* ===== 選んだカテゴリ（または検索結果）の一覧 =====
+         rows は MenuItem のリストです。カテゴリの束ね（categoryGroups）は
+         上の選択肢を作るためだけに使い、表には出しません。 */-->
+  <th:block th:unless="${rows.isEmpty()}">
+
+    <div class="section-title">
+      <h2 class="section-title__text" th:text="${heading}">広島風お好み焼き</h2>
+      <span class="section-title__count" th:text="${rows.size()} + ' 品'">5 品</span>
     </div>
 
     <div class="card">
@@ -147,7 +150,7 @@
           <!--/* id は「押した行に戻る」ための目印（下のスクリプトと KitchenController の
                  redirectToItem が使う）。JS が動かない環境ではこの目印だけが効き、
                  押した行が画面の頭に来る。 */-->
-          <tr th:each="item : ${g.items()}" th:id="'item-' + ${item.id}">
+          <tr th:each="item : ${rows}" th:id="'item-' + ${item.id}">
 
             <!--/* .wrap … この列だけ折り返しを許す。
                    .table は既定で white-space:nowrap です（狭い端末で崩さないため）。
@@ -190,6 +193,10 @@
             <td>
               <form th:action="@{/kitchen/stock/{id}/stock(id=${item.id})}" method="post"
                     class="row" style="gap: 6px">
+                <!--/* 押した場所へ戻すため、見ていたカテゴリ（または検索語）を持ち帰る。
+                       持たせないと、1 品押すたびに先頭のカテゴリへ飛ばされる */-->
+                <input type="hidden" name="category" th:value="${selectedId}">
+                <input type="hidden" name="q" th:value="${q}">
                 <input class="input" type="number" name="stockCount"
                        min="0" max="999" inputmode="numeric"
                        style="width: 90px"
@@ -205,6 +212,8 @@
                    ボタンは .btn のまま使い、高さ 48px 以上を確保しています。 */-->
             <td>
               <form th:action="@{/kitchen/stock/{id}/toggle(id=${item.id})}" method="post">
+                <input type="hidden" name="category" th:value="${selectedId}">
+                <input type="hidden" name="q" th:value="${q}">
                 <button type="submit" class="btn"
                         th:classappend="${item.soldOut} ? 'btn--ok' : 'btn--danger'"
                         th:text="${item.soldOut} ? '販売再開' : '品切れにする'">品切れにする</button>

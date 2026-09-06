@@ -377,8 +377,31 @@ public class KitchenController {
      * （{@code itemsForSoldOutPanel()} は「カテゴリ順 → 商品の並び順」で返ってくるので、
      * その順に詰めれば見出しの順序もそのまま正しくなります）
      */
+    /**
+     * 品切れ・残数の画面。<b>一度に出すのはカテゴリ 1 つぶんだけ</b>（設計 現03 / 2026-09-07）。
+     *
+     * <p><b>なぜ全部を一度に出すのをやめたか</b><br>
+     * それまでは 14 カテゴリ 94 品を 1 ページに縦に並べ、上にカテゴリの札を
+     * 14 個折り返して置いていました。札は見出しへ飛ぶための目印で、
+     * 押しても<b>ページの中を移動するだけ</b>です。
+     *
+     * <p>この画面を開く理由は「いまこの品を止めたい」「今日の数を入れたい」で、
+     * 対象はたいてい 1 つのカテゴリの中にあります。
+     * 残りの 13 カテゴリぶんは、目的の行に着くまでスクロールで通り過ぎるだけでした。
+     *
+     * <p>いまはカテゴリを 1 つ選ぶと、その中の品だけが出ます。
+     *
+     * <p><b>探すときはカテゴリを無視します。</b>
+     * 「たこ焼」と打った人は、それがどのカテゴリにあるかを覚えていません。
+     * 覚えていたらカテゴリから辿ります。だから検索はカテゴリをまたぎます。
+     *
+     * @param category 選んだカテゴリの id。未指定なら先頭のカテゴリ
+     * @param q        商品名の一部。入っていればカテゴリを無視して全体から探す
+     */
     @GetMapping("/stock")
-    public String stock(Model model) {
+    public String stock(@RequestParam(required = false) Long category,
+                        @RequestParam(required = false) String q,
+                        Model model) {
         List<MenuItem> items = menuService.itemsForSoldOutPanel();
 
         // カテゴリ id で束ねる。名前で束ねると、同じ名前のカテゴリを 2 つ作られたときに
@@ -388,18 +411,45 @@ public class KitchenController {
         for (MenuItem item : items) {
             // category は EntityGraph で一緒に読み込み済みなので、ここで触っても
             // LazyInitializationException にはならない（open-in-view: false のため要注意な箇所）
-            Category category = item.getCategory();
-            itemsByCategoryId.computeIfAbsent(category.getId(), key -> new ArrayList<>()).add(item);
-            categoryNames.putIfAbsent(category.getId(), category.getName());
+            Category itemCategory = item.getCategory();
+            itemsByCategoryId.computeIfAbsent(itemCategory.getId(), key -> new ArrayList<>()).add(item);
+            categoryNames.putIfAbsent(itemCategory.getId(), itemCategory.getName());
         }
 
         List<StockCategory> categoryGroups = new ArrayList<>();
         itemsByCategoryId.forEach((categoryId, list) ->
                 categoryGroups.add(new StockCategory(categoryId, categoryNames.get(categoryId), list)));
 
+        String keyword = (q == null) ? "" : q.trim();
+
+        // 探しているときは、選んだカテゴリではなく全体から拾う
+        List<MenuItem> rows;
+        String heading;
+        StockCategory selected = null;
+        if (!keyword.isEmpty()) {
+            String needle = keyword.toLowerCase();
+            rows = items.stream()
+                    .filter(i -> i.getName() != null && i.getName().toLowerCase().contains(needle))
+                    .toList();
+            heading = "「%s」に当てはまる商品".formatted(keyword);
+        } else {
+            // 未指定なら先頭。空の画面から始めると、何を押せばよいのか分からない
+            selected = categoryGroups.stream()
+                    .filter(g -> g.id().equals(category))
+                    .findFirst()
+                    .orElse(categoryGroups.isEmpty() ? null : categoryGroups.get(0));
+            rows = (selected == null) ? List.of() : selected.items();
+            heading = (selected == null) ? "" : selected.name();
+        }
+
         long soldOutCount = items.stream().filter(MenuItem::isSoldOut).count();
 
         model.addAttribute("categoryGroups", categoryGroups);
+        model.addAttribute("selectedId", selected == null ? null : selected.id());
+        model.addAttribute("selectedName", selected == null ? null : selected.name());
+        model.addAttribute("heading", heading);
+        model.addAttribute("rows", rows);
+        model.addAttribute("q", keyword);
         model.addAttribute("itemCount", items.size());
         model.addAttribute("soldOutCount", soldOutCount);
         return "kitchen/stock";
@@ -427,6 +477,8 @@ public class KitchenController {
     @PostMapping("/stock/{itemId}/stock")
     public String setStock(@PathVariable Long itemId,
                            @RequestParam(required = false) Integer stockCount,
+                           @RequestParam(required = false) Long category,
+                           @RequestParam(required = false) String q,
                            RedirectAttributes redirectAttributes) {
         try {
             String name = menuService.setStock(itemId, stockCount);
@@ -444,7 +496,7 @@ public class KitchenController {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/kitchen/stock";
         }
-        return redirectToItem(itemId);
+        return redirectToItem(itemId, category, q);
     }
 
     /**
@@ -458,7 +510,10 @@ public class KitchenController {
      * 毎回いちばん上に着地し、「続けて何品も」ができません。
      */
     @PostMapping("/stock/{itemId}/toggle")
-    public String toggleSoldOut(@PathVariable Long itemId, RedirectAttributes redirectAttributes) {
+    public String toggleSoldOut(@PathVariable Long itemId,
+                                @RequestParam(required = false) Long category,
+                                @RequestParam(required = false) String q,
+                                RedirectAttributes redirectAttributes) {
         try {
             boolean soldOut = menuService.toggleSoldOut(itemId);
             // 商品名まで出したいので、トグル後の状態をもう一度読み直して名前を取る。
@@ -476,7 +531,7 @@ public class KitchenController {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
             return "redirect:/kitchen/stock";
         }
-        return redirectToItem(itemId);
+        return redirectToItem(itemId, category, q);
     }
 
     /**
@@ -505,10 +560,33 @@ public class KitchenController {
      * 成功した操作を失敗に見せてしまわないようにするためです。
      */
     private String redirectToItem(Long itemId) {
-        if (itemId == null) {
-            return "redirect:/kitchen/stock";
+        return redirectToItem(itemId, null, null);
+    }
+
+    /**
+     * 押した行へ戻す。<b>見ていたカテゴリ（または検索語）も持ち帰ること。</b>
+     *
+     * <p>一度に 1 カテゴリしか出さなくなったので（2026-09-07）、
+     * 素の {@code /kitchen/stock} に戻すと<b>先頭のカテゴリ</b>に着地します。
+     * 「鉄板おつまみ」を 3 品続けて品切れにしたい人が、
+     * 1 品押すたびに「広島風お好み焼き」へ飛ばされることになります。
+     */
+    private String redirectToItem(Long itemId, Long categoryId, String q) {
+        StringBuilder url = new StringBuilder("redirect:/kitchen/stock");
+        String sep = "?";
+        if (categoryId != null) {
+            url.append(sep).append("category=").append(categoryId);
+            sep = "&";
         }
-        return "redirect:/kitchen/stock#item-" + itemId;
+        if (q != null && !q.isBlank()) {
+            url.append(sep).append("q=")
+                    .append(org.springframework.web.util.UriUtils.encodeQueryParam(
+                            q, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        if (itemId != null) {
+            url.append("#item-").append(itemId);
+        }
+        return url.toString();
     }
 
     // ========================================================================
