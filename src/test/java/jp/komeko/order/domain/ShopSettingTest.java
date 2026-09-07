@@ -240,16 +240,22 @@ class ShopSettingTest {
         }
 
         @Test
-        @DisplayName("割増率を 0% にすると、深夜でも対象にならない")
-        void zeroPercentDisablesSurcharge() {
-            // 深夜料金をとらない運用に切り替えたときに、
-            // 「0% を掛ける」のではなく「そもそも対象外」と判定させておくと、
-            // 伝票の表示（深夜料金の行を出すか）も素直に書ける。
+        @DisplayName("★ 割増率が 0% でも、判定は窓だけを見る（2026-09-07 に反転）")
+        void rateDoesNotAffectTheWindowCheck() {
+            // 以前はここで「率 0 なら深夜でも対象にならない」を固定していた。
+            // だがこのメソッドは伝票の再計算に判定役として渡されるもので、
+            // 現在の率を見ると、営業中に率を 10→0 に変えた瞬間、
+            // 率 10 をコピーして開いている OPEN 伝票からも深夜料金が消えた
+            // （全体点検 #3。LateNightRateSnapshotTest が経路ごと固定している）。
+            // かけるかどうか・何%かは伝票側のスナップショットの仕事。
+            // 率 0 の店では伝票の率も 0 なので、true を返しても金額は付かない。
             ShopSetting setting = lateNightShopSetting();
             setting.setLateNightSurchargePercent(0);
 
-            assertThat(setting.isLateNight(at(23, 30))).isFalse();
-            assertThat(setting.isLateNight(at(1, 0))).isFalse();
+            assertThat(setting.isLateNight(at(23, 30))).isTrue();
+            assertThat(setting.isLateNight(at(1, 0))).isTrue();
+            // 窓の外は従来どおり対象外
+            assertThat(setting.isLateNight(at(12, 0))).isFalse();
         }
 
         @Test

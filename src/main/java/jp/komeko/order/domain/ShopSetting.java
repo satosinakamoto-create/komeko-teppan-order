@@ -569,11 +569,20 @@ public class ShopSetting {
      * <b>どちらも「日をまたぐかもしれない時刻の範囲」</b>という同じ形をしています。
      * 同じ形のものを同じ道具で扱えるようにしておくと、
      * 営業時間を 24 時間に変えても深夜料金の実装は 1 行も変わりません。
+     *
+     * <p><b>ここでは「窓の中か」だけを見る。割増率は見ない（2026-09-07 に変更）。</b><br>
+     * 以前は {@code lateNightSurchargePercent <= 0} で即 false にしていた。
+     * だがこのメソッドは伝票の再計算に判定役（{@link jp.komeko.order.domain.LateNightPolicy}）
+     * として渡されるもので、<b>かけるかどうか・何%かは伝票が来店時点で
+     * コピーした率が決める</b>（{@code TableSession#recalculate} の
+     * {@code lateNightSurchargePercent > 0} 分岐）。
+     * 現在の率をここで見ると、営業中に率を 10→0 に変えた瞬間、
+     * 率 10 をコピーして開いている伝票からも深夜料金が消えていた
+     * （「設定変更は既存の伝票に影響しない」の穴。全体点検 #3）。
+     * 率 0 の店では、伝票側のスナップショットが 0 なので、
+     * ここが true を返しても金額は付かない。役割を分けても損はない。
      */
     public boolean isLateNight(LocalDateTime at) {
-        if (lateNightSurchargePercent <= 0) {
-            return false;
-        }
         // 開始ちょうど（23:00）から深夜。終了ちょうど（5:00）は、もう深夜ではない
         return isBetweenExcludingEnd(at.toLocalTime(), lateNightStartTime, lateNightEndTime);
     }
