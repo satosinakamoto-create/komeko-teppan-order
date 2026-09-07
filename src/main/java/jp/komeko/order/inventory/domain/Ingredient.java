@@ -44,6 +44,17 @@ public class Ingredient {
     private IngredientUnit unit = IngredientUnit.GRAM;
 
     /**
+     * 探すときの分類（野菜・肉…）。<b>null は「まだ決めていない」</b>。
+     *
+     * <p>NOT NULL にして OTHER を既定にすると、分類し忘れた食材と
+     * 本当にその他な食材が同じ棚に混ざり、片付けようがなくなります。
+     * 空を許して「未分類」として集めるほうが、あとから直せます。
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 20)
+    private IngredientCategory category;
+
+    /**
      * 残量がこれを下回ったら警告する量。null なら日数だけで警告する。
      *
      * <p>「あと何日もつか」は消費のペースが分かって初めて出せる数字です。
@@ -126,6 +137,19 @@ public class Ingredient {
 
     public void setUnit(IngredientUnit unit) {
         this.unit = unit;
+    }
+
+    public IngredientCategory getCategory() {
+        return category;
+    }
+
+    public void setCategory(IngredientCategory category) {
+        this.category = category;
+    }
+
+    /** 画面に出す分類名。決めていなければ「未分類」。 */
+    public String getCategoryLabel() {
+        return category == null ? "未分類" : category.getLabel();
     }
 
     public BigDecimal getLowThresholdQty() {

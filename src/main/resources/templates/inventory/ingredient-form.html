@@ -43,6 +43,26 @@
         </div>
       </div>
 
+      <!--/* 分類（設計 現04 の「カテゴリーから検索」で使う）。
+             必須にしていないのは、仕込み中に食材を足すことがあり、
+             そこで分類を考えさせて手が止まるより、名前と単位だけで
+             登録できるほうが現場に合うため。決めていないものは
+             一覧の「未分類」に集まるので、あとからまとめて直せる */-->
+      <div class="grid grid--2">
+        <div class="field">
+          <label class="label" for="category">分類（任意）</label>
+          <select class="select" id="category" th:field="*{category}">
+            <option value="">未分類</option>
+            <option th:each="c : ${categories}" th:value="${c}"
+                    th:text="${c.label}">野菜</option>
+          </select>
+          <p class="help">
+            食材が増えたときに「カテゴリーから検索」で絞り込むために使います
+          </p>
+        </div>
+        <div class="field"></div>
+      </div>
+
       <div class="grid grid--2">
         <div class="field">
           <label class="label" for="lowThresholdQty">警告残量（任意）</label>

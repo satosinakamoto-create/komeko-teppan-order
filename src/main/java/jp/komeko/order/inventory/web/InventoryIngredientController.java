@@ -2,6 +2,7 @@ package jp.komeko.order.inventory.web;
 
 import jakarta.validation.Valid;
 import jp.komeko.order.inventory.domain.Ingredient;
+import jp.komeko.order.inventory.domain.IngredientCategory;
 import jp.komeko.order.inventory.domain.IngredientUnit;
 import jp.komeko.order.inventory.domain.ItemAlias;
 import jp.komeko.order.inventory.domain.StocktakeReason;
@@ -22,7 +23,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 食材マスタと在庫の画面（{@code /inventory/ingredients}）。
@@ -77,6 +81,7 @@ public class InventoryIngredientController {
     public void commonAttributes(Model model) {
         model.addAttribute("units", IngredientUnit.values());
         model.addAttribute("reasons", StocktakeReason.values());
+        model.addAttribute("categories", IngredientCategory.values());
     }
 
     // ========================================================================
@@ -93,11 +98,15 @@ public class InventoryIngredientController {
     /**
      * 食材・在庫の一覧（設計 現04 441:2715）。
      *
-     * @param q 食材名の一部。入っていれば名前で絞り込む（2026-09-07 に追加）
+     * @param q        食材名の一部。入っていれば名前で絞り込む（2026-09-07 に追加）
+     * @param category 分類。入っていればその分類だけに絞る（2026-09-07 に追加）
      */
     @GetMapping
-    public String index(@RequestParam(required = false) String q, Model model) {
-        List<StockLevel> levels = stockService.currentLevels();
+    public String index(@RequestParam(required = false) String q,
+                        @RequestParam(required = false) String category,
+                        Model model) {
+        List<StockLevel> all = stockService.currentLevels();
+        List<StockLevel> levels = all;
 
         String keyword = (q == null) ? "" : q.trim();
         if (!keyword.isEmpty()) {
@@ -107,6 +116,20 @@ public class InventoryIngredientController {
                             && l.ingredient().getName().toLowerCase().contains(needle))
                     .toList();
         }
+
+        // 分類で絞る。"NONE" は「未分類」（分類を決めていない食材）を集める。
+        // 読めない値が来たら黙って全件に倒す。URL を手で打ち替えられても
+        // 400 にせず、必ず何かが表示される側に寄せる（月の指定と同じ考え）
+        CategoryPick pick = CategoryPick.of(category);
+        if (pick != null) {
+            levels = levels.stream().filter(l -> pick.matches(l.ingredient().getCategory())).toList();
+        }
+
+        // 選択肢は「その分類の食材が 1 つ以上あるもの」だけ出す。
+        // 空の分類まで並べると、押しても 0 件の行き止まりが増える
+        model.addAttribute("categoryGroups", CategoryGroup.from(all));
+        model.addAttribute("selectedCategory", pick == null ? null : pick.key());
+        model.addAttribute("selectedCategoryName", pick == null ? null : pick.label());
 
         int attention = 0;
         for (StockLevel level : levels) {
@@ -131,6 +154,87 @@ public class InventoryIngredientController {
             model.addAttribute("stocktakeForm", new StocktakeForm(businessToday()));
         }
         return "inventory/ingredients";
+    }
+
+    /**
+     * 選ばれている分類。{@code NONE} は「未分類」を表す特別な値。
+     *
+     * <p>enum に UNCLASSIFIED を足さなかったのは、DB に入れたくないためです。
+     * 未分類は「値が無い（null）」であって、分類の 1 種類ではありません。
+     * 画面の絞り込みでだけ必要な概念なので、ここに閉じ込めています。
+     */
+    private record CategoryPick(IngredientCategory category, boolean unclassified) {
+
+        /** 未分類を表す URL の値。 */
+        static final String NONE = "NONE";
+
+        static CategoryPick of(String raw) {
+            if (raw == null || raw.isBlank()) {
+                return null;
+            }
+            if (NONE.equals(raw)) {
+                return new CategoryPick(null, true);
+            }
+            try {
+                return new CategoryPick(IngredientCategory.valueOf(raw), false);
+            } catch (IllegalArgumentException ignored) {
+                // 読めない分類は「絞り込みなし」に倒す。404 にすると
+                // 古いブックマークを踏んだだけで行き止まりになる
+                return null;
+            }
+        }
+
+        boolean matches(IngredientCategory value) {
+            return unclassified ? value == null : category == value;
+        }
+
+        String key() {
+            return unclassified ? NONE : category.name();
+        }
+
+        String label() {
+            return unclassified ? "未分類" : category.getLabel();
+        }
+    }
+
+    /**
+     * 絞り込みに出す分類 1 つぶん（名前と件数）。
+     *
+     * @param key   URL に載せる値
+     * @param name  画面に出す名前
+     * @param count その分類の食材の数
+     */
+    public record CategoryGroup(String key, String name, int count) {
+
+        /**
+         * 食材のある分類だけを、enum の並び順で作る。最後に「未分類」。
+         *
+         * <p>空の分類を出さないのは、押しても 0 件の行き止まりが増えるからです。
+         * 未分類だけは 0 件でも出しません（片付いた状態で行を残す意味がない）。
+         */
+        static List<CategoryGroup> from(List<StockLevel> levels) {
+            Map<IngredientCategory, Integer> counts = new EnumMap<>(IngredientCategory.class);
+            int none = 0;
+            for (StockLevel level : levels) {
+                IngredientCategory c = level.ingredient().getCategory();
+                if (c == null) {
+                    none++;
+                } else {
+                    counts.merge(c, 1, Integer::sum);
+                }
+            }
+            List<CategoryGroup> groups = new ArrayList<>();
+            for (IngredientCategory c : IngredientCategory.values()) {
+                Integer n = counts.get(c);
+                if (n != null && n > 0) {
+                    groups.add(new CategoryGroup(c.name(), c.getLabel(), n));
+                }
+            }
+            if (none > 0) {
+                groups.add(new CategoryGroup(CategoryPick.NONE, "未分類", none));
+            }
+            return groups;
+        }
     }
 
     /**
@@ -200,7 +304,7 @@ public class InventoryIngredientController {
             return "inventory/ingredient-form";
         }
         Ingredient saved = ingredientService.create(form.getName().trim(), form.getUnit(),
-                form.getLowThresholdQty(), form.getCostOverride(), form.getMemo());
+                form.getCategory(), form.getLowThresholdQty(), form.getCostOverride(), form.getMemo());
         redirect.addFlashAttribute("flashSuccess",
                 "食材「" + saved.getName() + "」を登録しました。棚卸しをすると在庫の計算が始まります");
         return "redirect:/inventory/ingredients/" + saved.getId();
@@ -218,7 +322,7 @@ public class InventoryIngredientController {
         if (bindingResult.hasErrors()) {
             return detail(id, model);
         }
-        ingredientService.update(id, form.getName().trim(), form.getUnit(),
+        ingredientService.update(id, form.getName().trim(), form.getUnit(), form.getCategory(),
                 form.getLowThresholdQty(), form.getCostOverride(),
                 form.getSortOrder(), form.isActive(), form.getMemo());
         redirect.addFlashAttribute("flashSuccess", "食材を更新しました");

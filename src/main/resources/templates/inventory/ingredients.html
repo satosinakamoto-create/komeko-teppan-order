@@ -35,29 +35,66 @@
          同じ情報は行の「少ない」「マイナス」のバッジが持っていて、
          知らせは件数を言い直していただけ。 */-->
 
-  <!--/* ===== 探す ===== 設計 現04 の「食材を探す」。
-         ★ 設計の高さは 40 だが、48 にしている。
+  <!--/* ===== しぼり込み ===== 設計 現04 の「探す」と「カテゴリーから検索」。
+         2 つを横に並べる。品切れ・残数（現03）と同じ形。
+
+         ★ 検索欄の高さは設計 40 だが 48 にしている。
            CLAUDE.md の「タップ領域は 48px 以上」を割るため
            （商品フォームのチップと同じ判断。設計 40 に合わせたければ規約側の相談）。 */-->
-  <form class="searchbox searchbox--slim" method="get" th:action="@{/inventory/ingredients}"
-        role="search" th:if="${!levels.isEmpty() or !#strings.isEmpty(q)}">
-    <span class="searchbox__icon" aria-hidden="true">
-      <th:block th:replace="~{fragments/icons :: ic_magnifying_glass}"/>
-    </span>
-    <input class="searchbox__input" type="search" name="q" placeholder="食材を探す"
-           th:value="${q}" aria-label="食材を探す">
-  </form>
+  <!--/* 並べ方は品切れ・残数（現03）で作った .stockfind をそのまま使う。
+         同じ役目の道具は同じ形にする。設計 現04 は 2 つの間を 42、高さ 64 で
+         描いているが、現03 側は 16／48。2 画面で見た目が違うほうが困るので
+         既存に寄せた（42／64 にしたいなら現03 と一緒に動かす話にする）。 */-->
+  <div class="stockfind" th:if="${!levels.isEmpty() or !#strings.isEmpty(q) or selectedCategory != null}">
+    <form class="searchbox searchbox--slim" method="get" th:action="@{/inventory/ingredients}"
+          role="search">
+      <span class="searchbox__icon" aria-hidden="true">
+        <th:block th:replace="~{fragments/icons :: ic_magnifying_glass}"/>
+      </span>
+      <input class="searchbox__input" type="search" name="q" placeholder="食材を探す"
+             th:value="${q}" aria-label="食材を探す">
+      <!--/* いま選んでいる分類を持ち回る。落とすと、名前で探した瞬間に
+             分類の絞り込みが黙って外れる */-->
+      <input type="hidden" name="category" th:if="${selectedCategory != null}"
+             th:value="${selectedCategory}">
+    </form>
+
+    <!--/* details なので JavaScript が要らない。店内 LAN で確実に開く。
+           分類がまだ 1 つも付いていないうちは出さない（押しても未分類しか無い） */-->
+    <details class="catpick" th:if="${!#lists.isEmpty(categoryGroups)}">
+      <summary class="catpick__head">
+        <span class="catpick__mark" aria-hidden="true"></span>
+        <span th:text="${selectedCategoryName} ?: 'カテゴリーから検索'">カテゴリーから検索</span>
+      </summary>
+      <div class="catpick__list">
+        <a class="catpick__item" th:classappend="${selectedCategory == null} ? 'is-active'"
+           th:href="@{/inventory/ingredients(q=${#strings.isEmpty(q)} ? null : ${q})}">
+          <span>すべて</span>
+        </a>
+        <a th:each="g : ${categoryGroups}" class="catpick__item"
+           th:classappend="${selectedCategory != null and selectedCategory == g.key()} ? 'is-active'"
+           th:href="@{/inventory/ingredients(category=${g.key()}, q=${#strings.isEmpty(q)} ? null : ${q})}">
+          <span th:text="${g.name()}">野菜</span>
+          <span class="catpick__count" th:text="${g.count()}">4</span>
+        </a>
+      </div>
+    </details>
+  </div>
 
   <!--/* 探して 0 件のとき。空の表は「登録が無い」と見分けが付かない */-->
-  <div th:if="${!#strings.isEmpty(q) and levels.isEmpty()}" class="alert alert--info">
+  <div th:if="${(!#strings.isEmpty(q) or selectedCategory != null) and levels.isEmpty()}"
+       class="alert alert--info">
     <p class="mb-0">
-      「<span th:text="${q}">キャベツ</span>」に当てはまる食材がありません。
+      <span th:if="${!#strings.isEmpty(q)}">「<span th:text="${q}">キャベツ</span>」</span>
+      <span th:if="${!#strings.isEmpty(q) and selectedCategory != null}">の</span>
+      <span th:if="${selectedCategory != null}">「<span th:text="${selectedCategoryName}">野菜</span>」</span>
+      に当てはまる食材がありません。
       <a th:href="@{/inventory/ingredients}">すべて表示に戻す</a>
     </p>
   </div>
 
   <!--/* ── 在庫の表 ── */-->
-  <div th:if="${levels.isEmpty() and #strings.isEmpty(q)}" class="empty-state">
+  <div th:if="${levels.isEmpty() and #strings.isEmpty(q) and selectedCategory == null}" class="empty-state">
     <div class="empty-state__mark">
       <th:block th:replace="~{fragments/icons :: ic_package}"/>
     </div>

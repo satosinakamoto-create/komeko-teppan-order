@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jp.komeko.order.inventory.domain.Ingredient;
+import jp.komeko.order.inventory.domain.IngredientCategory;
 import jp.komeko.order.inventory.domain.IngredientUnit;
 import org.springframework.format.annotation.NumberFormat;
 
@@ -25,6 +26,15 @@ public class IngredientForm {
 
     @NotNull(message = "単位を選んでください")
     private IngredientUnit unit = IngredientUnit.GRAM;
+
+    /**
+     * 探すときの分類。<b>必須にしません。</b>
+     *
+     * <p>仕込み中に食材を足すことがあり、そこで分類を考えさせて手が止まるより、
+     * 名前と単位だけで登録できるほうが現場に合います。
+     * 決めていないものは一覧で「未分類」に集まるので、あとからまとめて直せます。
+     */
+    private IngredientCategory category;
 
     /** 残量がこれを下回ったら警告。空欄なら量では警告しない。 */
     @DecimalMin(value = "0", message = "警告残量は0以上で入力してください")
@@ -59,6 +69,7 @@ public class IngredientForm {
         IngredientForm form = new IngredientForm();
         form.name = ingredient.getName();
         form.unit = ingredient.getUnit();
+        form.category = ingredient.getCategory();
         form.lowThresholdQty = ingredient.getLowThresholdQty();
         form.costOverride = ingredient.getCostOverride();
         form.sortOrder = ingredient.getSortOrder();
@@ -81,6 +92,14 @@ public class IngredientForm {
 
     public void setUnit(IngredientUnit unit) {
         this.unit = unit;
+    }
+
+    public IngredientCategory getCategory() {
+        return category;
+    }
+
+    public void setCategory(IngredientCategory category) {
+        this.category = category;
     }
 
     public BigDecimal getLowThresholdQty() {

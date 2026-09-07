@@ -2,6 +2,7 @@ package jp.komeko.order.inventory.service;
 
 import jp.komeko.order.inventory.domain.AliasText;
 import jp.komeko.order.inventory.domain.Ingredient;
+import jp.komeko.order.inventory.domain.IngredientCategory;
 import jp.komeko.order.inventory.domain.IngredientUnit;
 import jp.komeko.order.inventory.domain.ItemAlias;
 import jp.komeko.order.inventory.repository.IngredientRepository;
@@ -83,10 +84,16 @@ public class IngredientService {
         return found.isPresent() && !found.get().getId().equals(excludeId);
     }
 
+    /**
+     * 食材を登録する。
+     *
+     * @param category 探すときの分類。null は「まだ決めていない」（未分類）
+     */
     @Transactional
-    public Ingredient create(String name, IngredientUnit unit, BigDecimal lowThreshold,
-                             BigDecimal costOverride, String memo) {
+    public Ingredient create(String name, IngredientUnit unit, IngredientCategory category,
+                             BigDecimal lowThreshold, BigDecimal costOverride, String memo) {
         Ingredient ingredient = new Ingredient(name, unit);
+        ingredient.setCategory(category);
         ingredient.setLowThresholdQty(lowThreshold);
         ingredient.setCostOverride(normalizeCostOverride(costOverride));
         ingredient.setMemo(memo);
@@ -104,11 +111,13 @@ public class IngredientService {
      * どの記録が換算済みか分からなくなって傷が深くなります。
      */
     @Transactional
-    public void update(Long id, String name, IngredientUnit unit, BigDecimal lowThreshold,
-                       BigDecimal costOverride, int sortOrder, boolean active, String memo) {
+    public void update(Long id, String name, IngredientUnit unit, IngredientCategory category,
+                       BigDecimal lowThreshold, BigDecimal costOverride,
+                       int sortOrder, boolean active, String memo) {
         ingredients.findById(id).ifPresent(ingredient -> {
             ingredient.setName(name);
             ingredient.setUnit(unit);
+            ingredient.setCategory(category);
             ingredient.setLowThresholdQty(lowThreshold);
             ingredient.setCostOverride(normalizeCostOverride(costOverride));
             ingredient.setSortOrder(sortOrder);
