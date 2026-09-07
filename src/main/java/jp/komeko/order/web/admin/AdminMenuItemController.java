@@ -406,18 +406,23 @@ public class AdminMenuItemController {
      * オプションのグループと選択肢は {@code cascade = ALL} で一緒に消えます。
      */
     @PostMapping("/{id}/delete")
-    @Transactional
     public String delete(@PathVariable("id") Long id, RedirectAttributes redirectAttributes) {
-        MenuItem item = menuItemRepository.findById(id)
-                .orElseThrow(() -> new MenuService.MenuItemNotFoundException(id));
+        // ★ @Transactional をここに付けないこと（2026-09-07 に外した）。
+        //   DB の削除は menuService.deleteItem のトランザクションで確定させ、
+        //   画像ファイルはそれが返ってきたあと（＝コミット後）にだけ消す。
+        //   以前はこのメソッド全体が 1 トランザクションで、ファイル削除が先に
+        //   走っていたため、コミットが FK 違反で失敗すると
+        //   「商品は残っているのに写真だけ消えた」が起きていた
+        MenuService.DeletedItem deleted = menuService.deleteItem(id);
+        imageStorageService.delete(deleted.imagePath());
 
-        String name = item.getName();
-        String imagePath = item.getImagePath();
-        menuItemRepository.delete(item);
-        imageStorageService.delete(imagePath);
-
-        log.info("商品を削除しました: {}", name);
-        redirectAttributes.addFlashAttribute("flashSuccess", "商品「%s」を削除しました".formatted(name));
+        log.info("商品を削除しました: {}（レシピ {} 行）", deleted.name(), deleted.recipeLines());
+        String message = "商品「%s」を削除しました".formatted(deleted.name());
+        if (deleted.recipeLines() > 0) {
+            // レシピを付けた本人が「消えた」と気づけるように、黙って消さない
+            message += "。レシピも一緒に削除しました（%d 行）".formatted(deleted.recipeLines());
+        }
+        redirectAttributes.addFlashAttribute("flashSuccess", message);
         return "redirect:/admin/items";
     }
 

@@ -33,10 +33,72 @@ public class MenuService {
 
     private final CategoryRepository categoryRepository;
     private final MenuItemRepository menuItemRepository;
+    /**
+     * レシピの後始末用（在庫モジュール側のリポジトリ）。
+     *
+     * <p>{@code ObjectProvider} で受けるのは、在庫モジュールの都合で
+     * この Bean が条件付きにされても、商品の削除まで壊れないようにするため
+     * （{@code AdminSalesController} の {@code PurchaseService} と同じ受け方）。
+     * 無いときはレシピの後始末を飛ばすだけでよい——リポジトリが
+     * 存在しなかった環境には、消すべきレシピ行も存在しないからです。
+     */
+    private final org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeLineRepository> recipeLineRepositoryProvider;
 
-    public MenuService(CategoryRepository categoryRepository, MenuItemRepository menuItemRepository) {
+    public MenuService(CategoryRepository categoryRepository, MenuItemRepository menuItemRepository,
+                       org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeLineRepository> recipeLineRepositoryProvider) {
         this.categoryRepository = categoryRepository;
         this.menuItemRepository = menuItemRepository;
+        this.recipeLineRepositoryProvider = recipeLineRepositoryProvider;
+    }
+
+    // ========================================================================
+    //  商品の削除
+    // ========================================================================
+
+    /**
+     * 削除した商品の控え。フラッシュメッセージと画像の後始末に使う。
+     *
+     * @param name        商品名
+     * @param imagePath   画像の公開パス。無ければ null
+     * @param recipeLines 一緒に消したレシピの行数。0 なら文言に出さない
+     */
+    public record DeletedItem(String name, String imagePath, int recipeLines) {
+    }
+
+    /**
+     * 商品を削除する。<b>レシピも一緒に消す。</b>
+     *
+     * <p>{@code recipe_line.menu_item_id} は NOT NULL の外部キー（V4）なので、
+     * レシピ行を残したまま商品を消すとコミット時に FK 違反で落ちます
+     * （2026-09-07 の全体点検で発覚。レシピ付き商品は削除できなかった）。
+     * カテゴリや卓のような「止める門」にはしません。レシピは原価計算のための
+     * 付属データで、商品が消えるなら一緒に消えるのが自然だからです。
+     * ただし黙って消さず、消した行数を返して画面に知らせます。
+     *
+     * <p><b>画像ファイルはここでは消しません。</b>ファイル削除はロールバック
+     * できないので、このトランザクションが確定したあとに呼び出し側で消します。
+     * 逆順にすると「DB は失敗して商品が残ったのに、写真だけ消えた」が起きます
+     * （実際に起きる状態だった）。
+     */
+    @Transactional
+    public DeletedItem deleteItem(Long id) {
+        MenuItem item = menuItemRepository.findById(id)
+                .orElseThrow(() -> new MenuItemNotFoundException(id));
+
+        int recipeLines = 0;
+        jp.komeko.order.inventory.repository.RecipeLineRepository recipes =
+                recipeLineRepositoryProvider.getIfAvailable();
+        if (recipes != null) {
+            recipeLines = recipes.findByMenuItem(id).size();
+            if (recipeLines > 0) {
+                recipes.deleteByMenuItemId(id);
+            }
+        }
+
+        String name = item.getName();
+        String imagePath = item.getImagePath();
+        menuItemRepository.delete(item);
+        return new DeletedItem(name, imagePath, recipeLines);
     }
 
     /** お客さん向け：表示 ON のカテゴリ一覧。 */
