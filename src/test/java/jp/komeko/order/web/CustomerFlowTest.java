@@ -165,21 +165,15 @@ class CustomerFlowTest {
             // 当てずっぽうのトークンで別の卓の伝票が開けないこと、
             // そして 500 エラーではなくきちんと案内ページが出ることを確認する。
             //
-            // 【申し送り・既知の不具合】2026-08-16 のレビュー時点で、このテストは落ちます。
-            //   GlobalExceptionHandler が 404 に変換しているのは
-            //     MenuService.MenuItemNotFoundException
-            //     OrderService.OrderNotFoundException
-            //   の 2 つだけで、TableService.TableNotFoundException が入っていません。
-            //   そのため未知のトークンは 404 ではなく 500（例外がそのまま外へ）になります。
-            //   直し方（GlobalExceptionHandler の担当へ）:
-            //     handleNotFound の @ExceptionHandler に
-            //     TableService.TableNotFoundException.class を足す
-            //     （合わせて TableService.SessionNotFoundException.class も）。
-            //   「知らない QR を読んだら案内ページ」はお客さんに見せるべき正しい挙動なので、
-            //   期待値は 404 のまま残します（テスト側を 500 に合わせて直さないこと）。
+            // 2026-09-07 から、案内は共通の error/message（無地レイアウト・
+            // 「メニューに戻る」付き）ではなく、お客さま側レイアウトの専用ページ。
+            // QR を作り直したあとの旧 QR は必ずこの道を通るので、
+            // 席に着いている人に合わせた見た目と文言にした。
+            // メニューへ誘導しないのは、卓に紐づいていないので注文まで
+            // 進めず、余計に迷わせるだけだから（TableEntryUnavailableTest 参照）。
             mockMvc.perform(get("/t/{token}", "no-such-token-1234"))
                     .andExpect(status().isNotFound())
-                    .andExpect(view().name("error/message"));
+                    .andExpect(view().name("customer/table-unavailable"));
         }
 
         @Test

@@ -5,14 +5,18 @@ import jp.komeko.order.cart.TableContext;
 import jp.komeko.order.domain.DiningTable;
 import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
+import jp.komeko.order.service.OrderRejectedException;
 import jp.komeko.order.service.ShopSettingService;
 import jp.komeko.order.service.TableService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDateTime;
@@ -164,5 +168,47 @@ public class TableEntryController {
             }
         }
         return null;
+    }
+
+    // ========================================================================
+    //  使えない QR の案内（2026-09-07 の全体点検 #2）
+    // ========================================================================
+    //
+    //   getByAccessToken が投げる 2 つの例外を、このコントローラの範囲だけ
+    //   専用の案内ページに変える。GlobalExceptionHandler の共通ページ
+    //   （error/message）でも 404/400 にはなっていたが、
+    //     ・無地レイアウトで、席に着いたお客さまへのトンマナではない
+    //     ・「メニューに戻る」が付くが、卓に紐づいていないので行き止まり
+    //     ・利用停止卓は「ご注文を承れませんでした」——注文していない人に
+    //       このタイトルは文脈がずれる
+    //   の 3 点が残っていた。QR を作り直すと貼り替え前の旧 QR は必ず
+    //   ここを通るので、専用の案内にする価値がある。
+    //   他のコントローラの同じ例外は、これまでどおり共通ページに落ちる。
+    //
+    //   ★ @ExceptionHandler の描画では @ControllerAdvice の @ModelAttribute が
+    //     効き直さない（モデルが作り直される）。layout/customer が使う
+    //     ${shop} だけは自分で入れること。入れ忘れると案内ページ自体が
+    //     500 になり、元の木阿弥になる。
+
+    /** 無効トークン（旧 QR）。もう存在しない入口なので 404。 */
+    @ExceptionHandler(TableService.TableNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public String staleQr(Model model) {
+        model.addAttribute("shop", shopSettingService.currentReadOnly());
+        model.addAttribute("message",
+                "この QR は現在使われていません。お手数ですがスタッフにお声がけください");
+        return "customer/table-unavailable";
+    }
+
+    /**
+     * 利用停止の卓。席そのものは実在するので 404 にはせず、
+     * 例外が持っているお客さま向けの文言（TableService.getByAccessToken）を
+     * そのまま出す。投げる側の文言は変えない（点検の約束）。
+     */
+    @ExceptionHandler(OrderRejectedException.class)
+    public String tableUnavailable(OrderRejectedException e, Model model) {
+        model.addAttribute("shop", shopSettingService.currentReadOnly());
+        model.addAttribute("message", e.getMessage());
+        return "customer/table-unavailable";
     }
 }

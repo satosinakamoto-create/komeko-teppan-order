@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!--/*
+   使えない QR を読んだお客さまへの案内（2026-09-07 の全体点検 #2）。
+
+   ここに来るのは 2 通り。
+     ・QR を作り直したあとの、貼り替え前の旧 QR（無効トークン／404）
+     ・利用停止にした卓の QR（案内文つき／200）
+
+   もとはどちらも 500 の汎用エラーページに落ちていた。
+   席に着いた直後のお客さまが最初に見る画面になり得るので、
+   「エラー」ではなく「案内」として出す。
+
+   ボタンは置かない。この人は席にいて、次にやるべきことは
+   スタッフを呼ぶことだけ。メニューへ誘導しても卓に紐づいていないので
+   注文まで進めず、余計に迷わせる。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/customer :: layout('ご案内', ~{::main})}">
+<body>
+<main>
+  <div class="container">
+
+    <div class="empty-state mt-6">
+      <div class="empty-state__mark" aria-hidden="true">席</div>
+      <p class="lead" th:text="${message}">この席はただいまご利用いただけません。スタッフにお声がけください</p>
+      <p class="help">
+        お手数をおかけして申し訳ありません。<br>
+        お近くのスタッフがすぐにご案内いたします。
+      </p>
+    </div>
+
+  </div>
+</main>
+</body>
+</html>
