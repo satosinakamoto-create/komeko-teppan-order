@@ -38,6 +38,9 @@ public class IngredientForm {
 
     /** 残量がこれを下回ったら警告。空欄なら量では警告しない。 */
     @DecimalMin(value = "0", message = "警告残量は0以上で入力してください")
+    // 列は precision=12, scale=3（Ingredient.lowThresholdQty）
+    @jakarta.validation.constraints.Digits(integer = 9, fraction = 3,
+            message = "警告残量が大きすぎます。整数は 9 桁まで・小数は 3 桁までで入力してください")
     @NumberFormat(pattern = "#.###")
     private BigDecimal lowThresholdQty;
 
@@ -50,6 +53,10 @@ public class IngredientForm {
      */
     @DecimalMin(value = "0", inclusive = false,
             message = "単価を固定する場合は0より大きい値を。固定をやめるときは空欄にしてください")
+    // 列は precision=12, scale=4（Ingredient.costOverride）。
+    // 小数を 1 桁多く取っているぶん、整数は 8 桁までしか入らない
+    @jakarta.validation.constraints.Digits(integer = 8, fraction = 4,
+            message = "単価が大きすぎます。整数は 8 桁まで・小数は 4 桁までで入力してください")
     @NumberFormat(pattern = "#.####")
     private BigDecimal costOverride;
 

@@ -109,6 +109,13 @@ public class InventoryRecipeController {
                     java.util.List.of("1品あたりの量は0より大きい値で入力してください"));
             return "redirect:/inventory/recipes/" + menuItemId;
         }
+        // ★ 桁あふれもここで弾く。@RequestParam には @Digits が効かない
+        //   （新規追加側は RecipeLineForm の @Digits が受け持つ）
+        if (QuantityDigits.overflows(qtyPerItem)) {
+            redirect.addFlashAttribute("flashErrors",
+                    java.util.List.of("1品あたりの量が大きすぎます。" + QuantityDigits.LIMIT_NOTE));
+            return "redirect:/inventory/recipes/" + menuItemId;
+        }
         recipeService.updateLine(lineId, qtyPerItem, memo);
         redirect.addFlashAttribute("flashSuccess", "分量を直しました");
         return "redirect:/inventory/recipes/" + menuItemId;
@@ -132,6 +139,9 @@ public class InventoryRecipeController {
 
         @NotNull(message = "1品あたりの量を入力してください")
         @DecimalMin(value = "0.001", message = "1品あたりの量は0より大きい値を入れてください")
+        // 列は precision=12, scale=3（RecipeLine.qtyPerItem）
+        @jakarta.validation.constraints.Digits(integer = 9, fraction = 3,
+                message = "1品あたりの量が大きすぎます。整数は 9 桁まで・小数は 3 桁までで入力してください")
         private BigDecimal qtyPerItem;
 
         @Size(max = 100, message = "メモは100文字以内で入力してください")

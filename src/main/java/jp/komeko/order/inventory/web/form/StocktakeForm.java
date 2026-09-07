@@ -32,6 +32,10 @@ public class StocktakeForm {
 
     @NotNull(message = "数量を入力してください")
     @DecimalMin(value = "0", message = "数量は0以上で入力してください")
+    // 列は precision=12, scale=3（Stocktake.quantity）。上限が無いと
+    // 13 桁で DB の桁あふれがそのまま 500 になる（2026-09-07 の全体点検 #4）
+    @jakarta.validation.constraints.Digits(integer = 9, fraction = 3,
+            message = "数量が大きすぎます。整数は 9 桁まで・小数は 3 桁までで入力してください")
     @NumberFormat(pattern = "#.###")
     private BigDecimal quantity;
 

@@ -449,6 +449,13 @@ public class InventoryIngredientController {
                     List.of("1個あたりの量は 0 より大きい値で入力してください"));
             return "redirect:/inventory/ingredients";
         }
+        // ★ 桁あふれもここで弾く。@RequestParam には @Digits が効かない
+        //   （列は precision=12, scale=3。あふれると 500 になる）
+        if (QuantityDigits.overflows(qtyPerUnit)) {
+            redirect.addFlashAttribute("flashErrors",
+                    List.of("1個あたりの量が大きすぎます。" + QuantityDigits.LIMIT_NOTE));
+            return "redirect:/inventory/ingredients";
+        }
         ItemAlias alias = ingredientService.relearnQuantity(id, qtyPerUnit);
         if (alias == null) {
             redirect.addFlashAttribute("flashErrors", List.of("その紐付けは見つかりませんでした"));
