@@ -47,9 +47,17 @@
 
     <div class="seat-grid">
       <a class="seat" th:each="s : ${seats}"
-         th:classappend="${s.inUse()} ? 'seat--busy' : 'seat--free'"
+         th:classappend="${s.closing()} ? 'seat--busy seat--closing'
+                         : (${s.inUse()} ? 'seat--busy' : 'seat--free')"
          th:href="@{/staff/order/seats/{id}(id=${s.table().id})}">
         <span class="seat__name" th:text="${s.table().name}">札2</span>
+
+        <!--/* お会計待ちの印（卓 3/3）。お客さまがスマホから会計を頼むと
+               ここに出る。ホール画面を見ていない店員が気づくための印で、
+               会計の操作はここからさせない（会計はホール画面の仕事）。
+               色はホールの「お会計待ち」バッジ（badge--stop）と同じ意味に
+               そろえる——同じ状態が画面ごとに違う色だと、対応が覚えられない */-->
+        <span class="badge badge--stop" th:if="${s.closing()}">お会計待ち</span>
 
         <!--/* 使用中：人数・入店時刻・いまの金額。
                この 3 つが「いま話している組はこれだ」の照合材料になる */-->

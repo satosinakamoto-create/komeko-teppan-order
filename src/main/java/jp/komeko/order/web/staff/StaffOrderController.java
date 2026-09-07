@@ -107,6 +107,18 @@ public class StaffOrderController {
         public int amount() {
             return bill == null ? 0 : bill.getTotalAmount();
         }
+
+        /**
+         * お会計待ちか（卓 3/3。2026-09-07）。
+         *
+         * <p>お客さまがスマホから会計を頼むと伝票が CLOSING になるが、
+         * それはホール画面にしか出ていなかった。番号盤面しか見ていない
+         * 店員は気づけず、お客さまが待ち続ける穴があった。
+         * ここに印を出す。<b>印だけ</b>で、会計の操作はホール画面の仕事。
+         */
+        public boolean closing() {
+            return bill != null && bill.isClosing();
+        }
     }
 
     /**

@@ -5277,6 +5277,9 @@ body.is-sending .staff-main {
    空席は枠だけにして、使用中の卓が先に目に入るようにする */
 .seat--busy { background: var(--surface); border: 1px solid var(--accent); }
 .seat--free { background: var(--bg); border: 1px solid var(--border); }
+/* お会計待ちの札（卓 3/3。2026-09-07）。バッジだけだと小さな画面で
+   埋もれるので、札の縁も同じ意味の色にする（ホールの badge--stop と同系） */
+.seat--closing { border-color: var(--danger); background: var(--danger-soft); }
 .seat__name { font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
 .seat__meta { font-size: 13px; color: var(--text-muted); }
 .seat__dot { opacity: .5; }
