@@ -3425,10 +3425,26 @@ body.is-sending .staff-main {
      詳細度は (0,3,0) で、共通定義（.theme-desk .staff-main = 0,2,0）に勝つ */
 .theme-desk .staff-main:has(.inv-ingredients) { --main-pad-y: 32px; }
 
-/* 探す欄の低い版。
-   ★ 設計は高さ 40 だが 48 で止めている。CLAUDE.md「タップ領域は 48px 以上」。
-     商品フォームのチップ（設計 40 → 実装 48）と同じ判断 */
-.searchbox--slim { height: 48px; }
+/* 見出しの帯（設計 441:2852）。左右 40・上下 16 の内側に題・日付・ボタンを並べる。
+   ★ ボタンは右端。margin-left:auto で押し出す。
+     .theme-snow が .section-title::after（右へ抜ける罫線＝すきま役）を
+     消しているので、これが無いとボタンが日付のすぐ隣に居座る。
+   ★ 左右 40 は設計どおり。表（左右 0）より一段内側に入る。 */
+.stockpage .inv-ingredients {
+  align-items: center;
+  gap: 16px;
+  padding: 16px 40px;
+  margin: 0 0 16px;
+}
+.stockpage .inv-ingredients .btn { margin-left: auto; }
+
+/* しぼり込み（設計 466:5915）。2 つの間は 42。上の間隔は見出しの 16 に任せる。
+   ★ 高さは素の .searchbox が 64 で設計どおりなので、何も足さない。
+     以前は .searchbox--slim で 48 に落としていたが、設計が 64 だったので外した
+     （品切れ・残数も素の .searchbox なので、2 画面で高さがそろう）。 */
+.stockpage .stockfind { gap: 42px; margin-top: 0; }
+/* しぼり込みと表の間は 16 */
+.stockpage > .table-wrap { margin-top: 16px; }
 
 /* 食材の表の寸法（設計 現04）。見出し行は上下 14、列幅は合計 1120 */
 .theme-desk .table--stock th { padding-top: 14px; padding-bottom: 14px; }
@@ -3485,6 +3501,12 @@ body.is-sending .staff-main {
 @media (max-width: 900px) {
   .stockfind { grid-template-columns: 1fr; }
 }
+/* ★ 中に入れた探す欄の上マージンを消す（2026-09-07 に修正）。
+     .searchbox は単独で置かれる前提で margin-top:48px を持っている。
+     grid の中だとこれがセルの中で効き、行の高さが 64 → 112 に伸びて、
+     探す欄だけ 48px 下にずれていた。間隔は外側（.stockfind）で決める。
+     品切れ・残数（現03）でも同じずれ方をしていた。 */
+.stockfind .searchbox { margin-top: 0; }
 
 /* カテゴリの選択。押すと下に一覧が出る（details）。
    ★ JavaScript は使わない。開閉はブラウザが持っている機能で、
@@ -3517,6 +3539,14 @@ body.is-sending .staff-main {
 }
 .catpick[open] .catpick__mark { background: var(--accent); border-color: var(--accent); }
 .catpick[open] .catpick__head { border-bottom: 1px solid var(--border); }
+
+/* ★ 閉じているあいだは中身を出さない（2026-09-07 に修正）。
+     details の中身はブラウザが隠してくれるが、こちらで display を
+     指定すると<b>その指定が勝って開きっぱなしになる</b>。
+     下の display:flex がまさにそれで、「押すと下に一覧が出る」はずの
+     カテゴリ選択が、最初から一覧を出したままになっていた。
+     品切れ・残数（現03）でも同じ状態だった。 */
+.catpick:not([open]) .catpick__list { display: none; }
 
 .catpick__list {
   display: flex;

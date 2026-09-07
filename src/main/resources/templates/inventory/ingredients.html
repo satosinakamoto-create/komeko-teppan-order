@@ -15,7 +15,9 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('食材・在庫', ~{::main})}">
 <body>
-<main>
+<!--/* stockpage は CSS の目印。この画面だけ見出し・しぼり込み・表の間隔を
+       設計 現04（441:2715）の値にする。共通クラスは触らない */-->
+<main class="stockpage">
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
@@ -41,12 +43,11 @@
          ★ 検索欄の高さは設計 40 だが 48 にしている。
            CLAUDE.md の「タップ領域は 48px 以上」を割るため
            （商品フォームのチップと同じ判断。設計 40 に合わせたければ規約側の相談）。 */-->
-  <!--/* 並べ方は品切れ・残数（現03）で作った .stockfind をそのまま使う。
-         同じ役目の道具は同じ形にする。設計 現04 は 2 つの間を 42、高さ 64 で
-         描いているが、現03 側は 16／48。2 画面で見た目が違うほうが困るので
-         既存に寄せた（42／64 にしたいなら現03 と一緒に動かす話にする）。 */-->
+  <!--/* 並べ方は品切れ・残数（現03）で作った .stockfind を使う。
+         間だけこの画面は 42（設計 466:5915）。高さは素の .searchbox が
+         もともと 64 で設計どおりなので、--slim（48 に落とす）を外した。 */-->
   <div class="stockfind" th:if="${!levels.isEmpty() or !#strings.isEmpty(q) or selectedCategory != null}">
-    <form class="searchbox searchbox--slim" method="get" th:action="@{/inventory/ingredients}"
+    <form class="searchbox" method="get" th:action="@{/inventory/ingredients}"
           role="search">
       <span class="searchbox__icon" aria-hidden="true">
         <th:block th:replace="~{fragments/icons :: ic_magnifying_glass}"/>

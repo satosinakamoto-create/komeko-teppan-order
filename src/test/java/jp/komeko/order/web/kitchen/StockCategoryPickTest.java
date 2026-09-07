@@ -133,6 +133,29 @@ class StockCategoryPickTest {
     }
 
     @Test
+    @DisplayName("★ 閉じているあいだはカテゴリ一覧を出さない（2026-09-07 に直した）")
+    void closedPickerHidesItsList() throws Exception {
+        // details の中身はブラウザが隠してくれるが、こちらで display を指定すると
+        // その指定が勝って開きっぱなしになる。.catpick__list の display:flex が
+        // まさにそれで、「押すと下に一覧が出る」はずが最初から出たままだった。
+        // 品切れ・残数と食材・在庫の両方で起きていた
+        String css = Files.readString(Path.of("src/main/resources/static/css/app.css"));
+        assertThat(css).as("閉じたときに隠す指定が無い")
+                .contains(".catpick:not([open]) .catpick__list { display: none; }");
+    }
+
+    @Test
+    @DisplayName("★ 横に並べた探す欄が 48px 下にずれない（2026-09-07 に直した）")
+    void searchboxInsideTheGridHasNoTopMargin() throws Exception {
+        // .searchbox は単独で置かれる前提で margin-top:48px を持っている。
+        // grid（.stockfind）の中だとこれがセルの中で効き、行の高さが 64 → 112 に
+        // 伸びて、探す欄だけ下にずれ、隣のカテゴリ欄と段差になっていた
+        String css = Files.readString(Path.of("src/main/resources/static/css/app.css"));
+        assertThat(css).as("並べたときの上マージンを消していない")
+                .contains(".stockfind .searchbox { margin-top: 0; }");
+    }
+
+    @Test
     @DisplayName("使わなくなったカテゴリの札は残していない")
     void oldChipsAreGone() throws Exception {
         assertThat(Files.readString(Path.of("src/main/resources/templates/kitchen/stock.html")))

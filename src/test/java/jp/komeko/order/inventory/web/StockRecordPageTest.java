@@ -188,8 +188,17 @@ class StockRecordPageTest {
         assertThat(css).contains(".theme-desk .staff-main:has(.inv-ingredients) { --main-pad-y: 32px; }");
         assertThat(Files.readString(LIST)).contains("section-title inv-ingredients");
 
-        // 検索は 48。設計は 40 だが、タップ 48px の下限（CLAUDE.md）で止めた
-        assertThat(css).contains(".searchbox--slim { height: 48px; }");
+        // 探す欄は素の .searchbox（64px）。設計 466:5915 が 64 だったので、
+        // 48 に落としていた --slim を外した。この画面だけの版は持たない
+        // 規則そのものを見る。裸の ".searchbox--slim" だと、外した経緯を書いた
+        // コメントに一致して必ず落ちる（card__head の件と同じ罠）
+        assertThat(css).doesNotContain(".searchbox--slim {");
+        assertThat(Files.readString(LIST)).doesNotContain("searchbox--slim");
+        assertThat(css).contains("  height: 64px;");
+        // しぼり込みは 2 つ並び、間は 42（設計 466:5915）
+        assertThat(css).contains(".stockpage .stockfind { gap: 42px; margin-top: 0; }");
+        // 見出しは左右 40・上下 16、ボタンは右端
+        assertThat(css).contains(".stockpage .inv-ingredients .btn { margin-left: auto; }");
 
         // 行の上下 9（2026-09-07 に 16 から変更）。
         // 「記録する」がボタン（高さ 54）になり、行の高さはボタンで決まるようになった。
