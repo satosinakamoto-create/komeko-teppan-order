@@ -188,9 +188,19 @@ public class HallController {
             occupiedTableIds.add(bill.getDiningTable().getId());
         }
 
+        // 伝票の無い卓を「片付け待ち」と「空席」に分ける（4 状態目。2026-09-07）。
+        // 片付け待ちを空席に混ぜると、会計直後の卓に次の組を二重に案内できてしまう。
+        // 在席の判定はこれまでどおり伝票から。needsCleanup は
+        // 伝票からは導けない事実（卓の上が片付いたか）だけを受け持つ
+        List<DiningTable> cleanupTables = new ArrayList<>();
         List<DiningTable> vacantTables = new ArrayList<>();
         for (DiningTable table : tables) {
-            if (!occupiedTableIds.contains(table.getId())) {
+            if (occupiedTableIds.contains(table.getId())) {
+                continue;
+            }
+            if (table.isNeedsCleanup()) {
+                cleanupTables.add(table);
+            } else {
                 vacantTables.add(table);
             }
         }
@@ -213,6 +223,8 @@ public class HallController {
         model.addAttribute("bills", bills);
         model.addAttribute("tableOrders", tableOrdersOf(bills));
         model.addAttribute("vacantTables", vacantTables);
+        model.addAttribute("cleanupTables", cleanupTables);
+        model.addAttribute("cleanupCount", cleanupTables.size());
         model.addAttribute("occupiedCount", bills.size());
         model.addAttribute("vacantCount", vacantTables.size());
         model.addAttribute("guestTotal", guestTotal);
@@ -757,9 +769,33 @@ public class HallController {
             log.info("ホールからご案内: 卓={} 人数={}",
                     bill.getDiningTable().getName(), bill.getGuestCount());
 
+        } catch (TableService.TableNotReadyException e) {
+            // 片付け待ちの卓へご案内しようとした。スタッフには次の一手まで言う
+            redirectAttributes.addFlashAttribute("flashErrors",
+                    List.of(messageOf(e), "盤面の「片付け完了」を押すとご案内できます"));
+
         } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
 
+        } catch (TableService.TableNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+        }
+        return "redirect:/hall";
+    }
+
+    /**
+     * 片付け完了。卓を空席（ご案内できる状態）に戻す。
+     *
+     * <p>会計済み（片付け待ち）は伝票ではなく卓の旗なので、
+     * ここは伝票を触らない。旗を下ろすだけ。
+     */
+    @PostMapping("/tables/{tableId}/cleaned")
+    public String markCleaned(@PathVariable Long tableId,
+                              RedirectAttributes redirectAttributes) {
+        try {
+            DiningTable table = tableService.markCleaned(tableId);
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    "「%s」を片付け完了にしました。ご案内できます".formatted(table.getName()));
         } catch (TableService.TableNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
         }

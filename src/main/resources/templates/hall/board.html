@@ -240,6 +240,36 @@
     </div>
   </article>
 
+  <!--/* ===== 会計済み（片付け待ち） ===== 卓の 4 状態目（2026-09-07）
+         会計は済んだが、まだ皿が残っている卓。空席に混ぜると
+         次の組を二重に案内できてしまうので、必ず別の枠に出す。
+         1 卓も無ければ枠ごと出さない（呼び出しの callbar と同じ判断）。 */-->
+  <th:block th:unless="${cleanupTables.isEmpty()}">
+    <div class="section-title">
+      <h2 class="section-title__text">片付け待ち</h2>
+      <span class="section-title__count" th:text="${cleanupCount} + ' 卓'">1 卓</span>
+    </div>
+
+    <div class="grid grid--3">
+      <article class="billcard billcard--cleanup" th:each="table : ${cleanupTables}">
+        <div class="billcard__head">
+          <span class="billcard__table" th:text="${table.name}">3番テーブル</span>
+          <!--/* 「止まっている」赤（お会計待ち）とも「進行中」緑（調理中）とも
+                 別の色。会計は済んでいる＝お金の話は終わっている卓なので、
+                 案内系の紺で出す */-->
+          <span class="badge badge--cleanup">会計済み</span>
+        </div>
+        <p class="billcard__meta">片付けがすんだら、次の組をご案内できます</p>
+        <!--/* 片付け完了も書き込みなので見学者には出さない（ご案内と同じ線）。
+               枠ごと消しても、見出しと説明が残るので抜け殻にはならない */-->
+        <form th:action="@{/hall/tables/{id}/cleaned(id=${table.id})}" method="post"
+              sec:authorize="!hasRole('GUEST')">
+          <button type="submit" class="btn btn--block">片付け完了</button>
+        </form>
+      </article>
+    </div>
+  </th:block>
+
   <!--/* ===== 空席（ここからご案内する） ===== */-->
   <div class="section-title">
     <h2 class="section-title__text">空席</h2>

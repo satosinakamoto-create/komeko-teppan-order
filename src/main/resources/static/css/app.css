@@ -4014,6 +4014,13 @@ body.is-sending .staff-main {
      チップと検索欄で同じ判断をしている */
 .hallboard .billcard .btn { font-size: 14px; border-radius: 4px; }
 
+/* 会計済み（片付け待ち）の卓（4 状態目。2026-09-07）。
+   在席（薄グレー面＋緑ボタン）とも空席（薄い empty-state）とも
+   見分けが付くよう、案内系の紺で縁取る。赤（お会計待ち）を使わないのは、
+   お金の話はもう終わっている卓だから。 */
+.hallboard .billcard--cleanup { border-color: var(--info); background: var(--info-soft); }
+.badge--cleanup { background: var(--info-soft); color: var(--info); border-color: currentColor; }
+
 @media (max-width: 960px) {
   .statrow { grid-template-columns: 1fr; }
   .monthnav { padding: 16px; height: auto; flex-wrap: wrap; }

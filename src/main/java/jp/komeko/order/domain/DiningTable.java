@@ -50,6 +50,24 @@ public class DiningTable {
     @Column(nullable = false)
     private boolean active = true;
 
+    /**
+     * 会計は済んだが、まだ片付いていない（＝次の組をご案内できない）。
+     *
+     * <p><b>「在席かどうか」はこれまでどおり伝票から導出します。</b>
+     * ここに持つのは<b>伝票からは導けない現実の事実</b>——テーブルの上が
+     * 片付いたかどうか——だけです（HallController の「卓に使用中フラグを
+     * 持たせない」の方針と矛盾しません。あちらは伝票で分かることの話）。
+     *
+     * <p>立てるのは会計（closeSession・設定で ON のとき）、
+     * 下ろすのはホールの「片付け完了」と、会計取消（reopen＝在席に戻るので
+     * 片付け待ちではなくなる）。ズレても「片付け完了」を押せば直る。
+     *
+     * <p>DEFAULT FALSE を書くのは V12 と同じ理由（既存の行を埋めるため。
+     * dev は ddl-auto: update がこの定義で列を足す）。
+     */
+    @Column(name = "needs_cleanup", nullable = false, columnDefinition = "boolean default false")
+    private boolean needsCleanup = false;
+
     @Column(nullable = false)
     private int sortOrder = 0;
 
@@ -98,6 +116,14 @@ public class DiningTable {
 
     public boolean isActive() {
         return active;
+    }
+
+    public boolean isNeedsCleanup() {
+        return needsCleanup;
+    }
+
+    public void setNeedsCleanup(boolean needsCleanup) {
+        this.needsCleanup = needsCleanup;
     }
 
     public void setActive(boolean active) {

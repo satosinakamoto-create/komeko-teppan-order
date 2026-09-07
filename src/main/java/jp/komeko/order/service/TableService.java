@@ -206,6 +206,18 @@ public class TableService {
         }
 
         DiningTable table = getById(tableId);
+
+        // ★ 片付け待ちの卓には新しい伝票を開かない（4 状態目の門）。
+        //   前の組の皿が残る卓に次の組を通すと、片付けと注文が卓の上で衝突する。
+        //   スタッフには盤面の「片付け完了」への導線をホール側の catch が足す。
+        //   お客さまが片付け前の卓で QR を読んだ場合は、TableEntryController の
+        //   例外ハンドラが案内ページ（customer/table-unavailable）に変える
+        if (table.isNeedsCleanup()) {
+            throw new TableNotReadyException(
+                    "「%s」は片付け待ちです。お手数ですがスタッフにお声がけください"
+                            .formatted(table.getName()));
+        }
+
         ShopSetting setting = shopSettingService.current();
         LocalDateTime now = LocalDateTime.now();
 
@@ -419,10 +431,30 @@ public class TableService {
         session.setLateNightWaived(wouldApply && !applyLateNight);
 
         session.close(LocalDateTime.now(), setting::isLateNight, staffName, note, paymentMethod);
+        // ★ 会計した卓を「片付け待ち」にする（設定で ON のとき。既定 ON）。
+        //   会計しても卓はすぐには使えない。片付け完了を押すまで
+        //   盤面で空席に見せない（空席に見えると次の組を二重に案内できてしまう）
+        if (setting.isCleanupAfterCheckout()) {
+            session.getDiningTable().setNeedsCleanup(true);
+        }
         log.info("会計しました: 卓={} 人数={} 合計={}円 支払={}",
                 session.getDiningTable().getName(), session.getGuestCount(),
                 session.getTotalAmount(), paymentMethod.getLabel());
         return session;
+    }
+
+    /**
+     * 片付け完了。卓を空席（ご案内できる状態）に戻す。
+     *
+     * <p>盤面の「片付け完了」ボタンから。開いている伝票があっても
+     * エラーにはしない——旗を下ろすだけで、在席の表示は伝票が決める。
+     */
+    @Transactional
+    public DiningTable markCleaned(Long tableId) {
+        DiningTable table = getById(tableId);
+        table.setNeedsCleanup(false);
+        log.info("片付け完了: 卓={}", table.getName());
+        return table;
     }
 
     /**
@@ -488,6 +520,9 @@ public class TableService {
             return session;
         }
         session.reopen();
+        // 在席に戻るので片付け待ちではなくなる。旗を残すと、
+        // 開いている伝票と片付け待ちが同じ卓に同居する意味不明な状態になる
+        session.getDiningTable().setNeedsCleanup(false);
         refresh(session);
         log.warn("会計を取り消しました: 卓={} 操作者={}", session.getDiningTable().getName(), staffName);
         return session;
@@ -546,6 +581,20 @@ public class TableService {
     }
 
     // ── 例外 ─────────────────────────────────────────────────────
+
+    /**
+     * 片付け待ちの卓にご案内しようとした。
+     *
+     * <p>{@link jp.komeko.order.service.OrderRejectedException} の子にしているのは、
+     * お客さまが片付け前の卓で QR を読んだとき、TableEntryController の
+     * 既存ハンドラ（customer/table-unavailable）にそのまま乗せるため。
+     * ホール側はこの型で捕まえて「片付け完了を押す」導線を足す。
+     */
+    public static class TableNotReadyException extends jp.komeko.order.service.OrderRejectedException {
+        public TableNotReadyException(String message) {
+            super(message);
+        }
+    }
 
     public static class TableNotFoundException extends RuntimeException {
         public TableNotFoundException(Object key) {

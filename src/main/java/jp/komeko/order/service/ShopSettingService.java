@@ -77,6 +77,7 @@ public class ShopSettingService {
         setting.setShopName(form.getShopName());
         setting.setTagline(form.getTagline());
         setting.setAcceptingOrders(form.isAcceptingOrders());
+        setting.setCleanupAfterCheckout(form.isCleanupAfterCheckout());
         setting.setClosedMessage(form.getClosedMessage());
         setting.setAlwaysOpen(form.isAlwaysOpen());
         setting.setOpenTime(form.getOpenTime());

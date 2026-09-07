@@ -49,6 +49,17 @@ public class ShopSetting {
     @Column(nullable = false)
     private boolean acceptingOrders = true;
 
+    /**
+     * 会計のあとに「片付け待ち」を挟むか（既定 ON）。
+     *
+     * <p>会計しても卓はすぐには使えない。ON の店では、会計した卓が
+     * ホール盤面で「片付け待ち」になり、「片付け完了」を押すまで
+     * ご案内できない。OFF の店では従来どおり会計＝即空席。
+     * DEFAULT TRUE は V15 と同じ値（dev は ddl-auto がこの定義で足す）。
+     */
+    @Column(name = "cleanup_after_checkout", nullable = false, columnDefinition = "boolean default true")
+    private boolean cleanupAfterCheckout = true;
+
     /** 受付停止中にお客さんの画面に出すメッセージ。 */
     @Size(max = 100)
     @Column(length = 100)
@@ -393,6 +404,14 @@ public class ShopSetting {
 
     public boolean isAcceptingOrders() {
         return acceptingOrders;
+    }
+
+    public boolean isCleanupAfterCheckout() {
+        return cleanupAfterCheckout;
+    }
+
+    public void setCleanupAfterCheckout(boolean cleanupAfterCheckout) {
+        this.cleanupAfterCheckout = cleanupAfterCheckout;
     }
 
     public void setAcceptingOrders(boolean acceptingOrders) {

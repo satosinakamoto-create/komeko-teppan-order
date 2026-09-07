@@ -166,6 +166,12 @@ class ThankYouPageTest {
         TableSession firstBill = tableService.currentSession(table.getId()).orElseThrow();
         tableService.closeSession(firstBill.getId(), false, "店長", null, SettlementMethod.CASH);
 
+        // 片付け完了を挟む（2026-09-07 の 4 状態目）。
+        // 会計した卓は片付け待ちになり、そのままでは次の組をご案内できない。
+        // このテストの本題（他人の伝票を見せない）はその先の話なので、
+        // 現実の手順どおりスタッフが片付けてから 2 組目を通す
+        tableService.markCleaned(table.getId());
+
         // 2 組目：同じ席に入り、別の金額で会計する
         MockHttpSession second = seat(4);
         order(1);

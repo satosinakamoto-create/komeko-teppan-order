@@ -116,6 +116,19 @@
           </p>
         </div>
 
+        <!--/* 会計後の片付け待ち（卓の 4 状態目。2026-09-07 / 店主と合意済み）。 */-->
+        <div class="field">
+          <label class="choice" for="cleanupAfterCheckout">
+            <input type="checkbox" id="cleanupAfterCheckout" th:field="*{cleanupAfterCheckout}">
+            <span class="choice__name">会計のあとに「片付け待ち」を挟む</span>
+          </label>
+          <p class="help">
+            ON にすると、会計した卓はホール盤面で「片付け待ち」になり、
+            「片付け完了」を押すまで次の組をご案内できません。<br>
+            OFF にすると、会計した卓はすぐ空席に戻ります。
+          </p>
+        </div>
+
         <!--/* 受付停止中のメッセージ・24 時間受付・閉店時刻は「詳しい設定」へ移しました
                （2026-09-07 / 設計 12 店舗設定）。
                ★ 「注文を受け付ける」だけはここに残すこと。
