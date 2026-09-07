@@ -96,6 +96,18 @@
         </div>
 
         <div class="field">
+          <label class="label" for="area">エリア（任意）</label>
+          <input class="input" type="text" th:field="*{area}" maxlength="20"
+                 placeholder="例：カウンター"
+                 th:classappend="${#fields.hasErrors('area')} ? 'is-error'">
+          <p class="help">
+            カウンター・小上がり など、店内の場所のまとまりです。
+            入れるとホール・会計の盤面がエリアごとに区切られます。空欄でも構いません。
+          </p>
+          <p class="error" th:if="${#fields.hasErrors('area')}" th:errors="*{area}">エラー内容</p>
+        </div>
+
+        <div class="field">
           <span class="label">この席を使うか</span>
           <label class="choice">
             <input type="checkbox" th:field="*{active}">
@@ -150,6 +162,14 @@
                      th:classappend="${errs != null and errs.containsKey('name')} ? 'is-error'">
               <p class="error" th:if="${errs != null and errs.containsKey('name')}"
                  th:text="${errs.get('name')}">エラー内容</p>
+            </div>
+
+            <div class="field" style="flex:1 1 120px;margin-bottom:0">
+              <label class="label" th:for="'tbl-area-' + ${t.id}">エリア</label>
+              <input class="input" type="text" name="area" maxlength="20"
+                     placeholder="カウンター"
+                     th:id="'tbl-area-' + ${t.id}"
+                     th:value="${editing ? editForm.area : t.area}">
             </div>
 
             <div class="field" style="flex:0 1 100px;margin-bottom:0">

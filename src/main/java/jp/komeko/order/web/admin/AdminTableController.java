@@ -105,10 +105,11 @@ public class AdminTableController {
 
         String name = form.getName().trim();
         try {
-            DiningTable created = tableService.createTable(name, form.getCapacity(), form.getSortOrder());
+            DiningTable created = tableService.createTable(
+                    name, form.getCapacity(), form.getSortOrder(), form.getArea());
             if (!form.isActive()) {
                 tableService.updateTable(created.getId(), name,
-                        form.getCapacity(), form.getSortOrder(), false);
+                        form.getCapacity(), form.getSortOrder(), false, form.getArea());
             }
         } catch (IllegalArgumentException e) {
             // 卓名の重複。画面全体の警告ではなく、原因になった入力欄の下に出したいので
@@ -158,7 +159,8 @@ public class AdminTableController {
 
         String name = form.getName().trim();
         try {
-            tableService.updateTable(id, name, form.getCapacity(), form.getSortOrder(), form.isActive());
+            tableService.updateTable(id, name, form.getCapacity(), form.getSortOrder(),
+                    form.isActive(), form.getArea());
         } catch (TableService.TableNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors",
                     List.of("卓が見つかりませんでした（すでに削除された可能性があります）"));

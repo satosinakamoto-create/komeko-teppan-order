@@ -74,16 +74,31 @@ public class TableService {
         return table;
     }
 
+    /** エリア未設定で卓を作る（テストと既存呼び出し向けの薄い委譲）。 */
     @Transactional
     public DiningTable createTable(String name, int capacity, int sortOrder) {
-        if (tableRepository.existsByName(name)) {
-            throw new IllegalArgumentException("同じ名前の卓がすでにあります: " + name);
-        }
-        return tableRepository.save(new DiningTable(name, capacity, sortOrder));
+        return createTable(name, capacity, sortOrder, null);
     }
 
     @Transactional
+    public DiningTable createTable(String name, int capacity, int sortOrder, String area) {
+        if (tableRepository.existsByName(name)) {
+            throw new IllegalArgumentException("同じ名前の卓がすでにあります: " + name);
+        }
+        DiningTable table = new DiningTable(name, capacity, sortOrder);
+        table.setArea(normalizeArea(area));
+        return tableRepository.save(table);
+    }
+
+    /** エリアを変えない更新（既存呼び出し向けの薄い委譲）。 */
+    @Transactional
     public void updateTable(Long id, String name, int capacity, int sortOrder, boolean active) {
+        updateTable(id, name, capacity, sortOrder, active, getById(id).getArea());
+    }
+
+    @Transactional
+    public void updateTable(Long id, String name, int capacity, int sortOrder,
+                            boolean active, String area) {
         DiningTable table = getById(id);
         if (!table.getName().equals(name) && tableRepository.existsByName(name)) {
             throw new IllegalArgumentException("同じ名前の卓がすでにあります: " + name);
@@ -92,6 +107,21 @@ public class TableService {
         table.setCapacity(capacity);
         table.setSortOrder(sortOrder);
         table.setActive(active);
+        table.setArea(normalizeArea(area));
+    }
+
+    /**
+     * エリアの空白入力を null にそろえる。
+     *
+     * <p>空文字と空白だけを別の値として保存すると、盤面のグループ分けで
+     * 「その他」「（空文字）」「（空白）」が別の見出しになってしまう。
+     * 未設定は null 1 種類に倒す。
+     */
+    private static String normalizeArea(String area) {
+        if (area == null || area.isBlank()) {
+            return null;
+        }
+        return area.trim();
     }
 
     /**

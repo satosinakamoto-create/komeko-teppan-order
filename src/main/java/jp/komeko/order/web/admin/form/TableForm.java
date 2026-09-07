@@ -71,6 +71,13 @@ public class TableForm {
      */
     private boolean active = true;
 
+    /**
+     * エリア（カウンター・小上がり など）。空 OK。
+     * enum にしないのは、エリア名は店の言葉で店主が決めるものだから。
+     */
+    @Size(max = 20, message = "エリアは20文字以内で入力してください")
+    private String area;
+
     public TableForm() {
     }
 
@@ -127,6 +134,14 @@ public class TableForm {
 
     public void setSortOrder(Integer sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public String getArea() {
+        return area;
+    }
+
+    public void setArea(String area) {
+        this.area = area;
     }
 
     public boolean isActive() {

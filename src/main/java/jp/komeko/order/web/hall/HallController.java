@@ -223,6 +223,13 @@ public class HallController {
         model.addAttribute("bills", bills);
         model.addAttribute("tableOrders", tableOrdersOf(bills));
         model.addAttribute("vacantTables", vacantTables);
+        // エリアごとの区切り（卓 2/3。2026-09-07）。
+        // 全卓が未設定なら name=null の 1 グループになり、見出しは出ない
+        //（導入前と見た目が変わらない）。エリアの並びは卓の並び順に従う
+        model.addAttribute("billGroups",
+                groupByArea(tables, bills, bill -> bill.getDiningTable()));
+        model.addAttribute("vacantGroups",
+                groupByArea(tables, vacantTables, table -> table));
         model.addAttribute("cleanupTables", cleanupTables);
         model.addAttribute("cleanupCount", cleanupTables.size());
         model.addAttribute("occupiedCount", bills.size());
@@ -805,6 +812,60 @@ public class HallController {
     // ========================================================================
     //  内部ヘルパー
     // ========================================================================
+
+    /**
+     * エリアの 1 区切り。{@code name} が null なら見出しを出さない
+     * （全卓が未設定のときの、従来どおりの 1 グループ）。
+     */
+    public record AreaGroup<T>(String name, List<T> items) {
+    }
+
+    /** 未設定のエリアをまとめる見出し。 */
+    private static final String AREA_OTHERS = "その他";
+
+    /**
+     * 項目をエリアごとに区切る（卓 2/3）。
+     *
+     * <p>エリアの並びは卓の並び順（sortOrder）に従い、未設定は「その他」として
+     * 最後にまとめる。<b>全卓が未設定なら name=null の 1 グループ</b>を返し、
+     * テンプレートは見出しを描かない——エリアを使わない店では
+     * 導入前と見た目が変わらないようにするため。
+     * 空のグループは返さない（空の見出しだけが並ぶのを防ぐ）。
+     *
+     * @param tables  エリアの語彙と並びの源（稼働中の全卓・並び順ソート済み）
+     * @param items   区切りたいもの（伝票 or 卓）
+     * @param tableOf 項目からその卓を取り出す関数
+     */
+    private <T> List<AreaGroup<T>> groupByArea(List<DiningTable> tables, List<T> items,
+                                               java.util.function.Function<T, DiningTable> tableOf) {
+        boolean hasAreas = tables.stream().anyMatch(DiningTable::hasArea);
+        if (!hasAreas) {
+            return List.of(new AreaGroup<>(null, items));
+        }
+
+        // 卓の並び順どおりにエリア名を集める（LinkedHashMap で出現順を保つ）
+        Map<String, List<T>> byArea = new java.util.LinkedHashMap<>();
+        for (DiningTable table : tables) {
+            if (table.hasArea()) {
+                byArea.putIfAbsent(table.getArea(), new ArrayList<>());
+            }
+        }
+        byArea.put(AREA_OTHERS, new ArrayList<>());
+
+        for (T item : items) {
+            DiningTable table = tableOf.apply(item);
+            String key = table.hasArea() ? table.getArea() : AREA_OTHERS;
+            byArea.computeIfAbsent(key, k -> new ArrayList<>()).add(item);
+        }
+
+        List<AreaGroup<T>> groups = new ArrayList<>();
+        byArea.forEach((name, list) -> {
+            if (!list.isEmpty()) {
+                groups.add(new AreaGroup<>(name, list));
+            }
+        });
+        return groups;
+    }
 
     /**
      * 在席の伝票を「卓ごとの注文」の形に組み替える。

@@ -46,6 +46,18 @@ public class DiningTable {
     @Column(nullable = false, unique = true, length = 36)
     private String accessToken;
 
+    /**
+     * エリア（カウンター・小上がり など）。空なら未設定。
+     *
+     * <p><b>enum にしない。</b>エリア名は店の言葉で店主が決めるもので、
+     * コードが先に語彙を決めるとそれに合わせて店が呼び方を変えることになる。
+     * ホール盤面はこの値ごとに見出しで区切る（未設定は「その他」にまとめ、
+     * 全卓未設定なら見出し自体を出さない）。
+     */
+    @Size(max = 20, message = "エリアは20文字以内で入力してください")
+    @Column(length = 20)
+    private String area;
+
     /** false にすると QR を読んでも注文できない（席の一時撤去・貸切など）。 */
     @Column(nullable = false)
     private boolean active = true;
@@ -116,6 +128,19 @@ public class DiningTable {
 
     public boolean isActive() {
         return active;
+    }
+
+    public String getArea() {
+        return area;
+    }
+
+    public void setArea(String area) {
+        this.area = area;
+    }
+
+    /** エリアが設定されているか（空白だけも未設定扱い）。 */
+    public boolean hasArea() {
+        return area != null && !area.isBlank();
     }
 
     public boolean isNeedsCleanup() {

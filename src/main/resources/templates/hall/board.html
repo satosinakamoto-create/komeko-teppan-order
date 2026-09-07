@@ -101,7 +101,12 @@
     <div th:replace="~{fragments/common :: empty('席', 'ただいまご案内中のお客さまはいません')}"></div>
   </div>
 
-  <div class="grid grid--3" th:unless="${bills.isEmpty()}">
+  <!--/* エリアごとの区切り（卓 2/3。2026-09-07）。
+         全卓が未設定なら name=null の 1 グループが来て、見出しは描かれない
+         （エリアを使わない店では導入前と見た目が変わらない）。 */-->
+  <th:block th:unless="${bills.isEmpty()}" th:each="g : ${billGroups}">
+  <h3 class="areahead" th:if="${g.name() != null}" th:text="${g.name()}">カウンター</h3>
+  <div class="grid grid--3">
 
     <!--/* 伝票カード 1 枚（設計 現02 の「ホール/伝票カード」453:5744）。
            見出し帯・本体・足の 3 段に分かれた .card ではなく、
@@ -110,7 +115,7 @@
 
            stayMinutes（滞在時間）はサーバが描いた値をそのまま出します。
            ブラウザ側で 1 分ずつ足していくとサーバとズレる一方なので行いません。 */-->
-    <article class="billcard" th:each="bill : ${bills}">
+    <article class="billcard" th:each="bill : ${g.items()}">
 
       <div class="billcard__head">
         <span class="billcard__table" th:text="${bill.diningTable.name}">3番テーブル</span>
@@ -152,6 +157,7 @@
 
     </article>
   </div>
+  </th:block>
 
   <!--/* ===== 卓ごとの注文 =====
          「どの卓が何を頼んでいるか」を 1 画面で見るための一覧です。
@@ -280,11 +286,14 @@
     <div th:replace="~{fragments/common :: empty('満', '空いている卓はありません')}"></div>
   </div>
 
-  <div class="grid grid--3" th:unless="${vacantTables.isEmpty()}">
+  <!--/* エリアごとの区切りは在席の伝票と同じ仕組み（billGroups の説明参照） */-->
+  <th:block th:unless="${vacantTables.isEmpty()}" th:each="g : ${vacantGroups}">
+  <h3 class="areahead" th:if="${g.name() != null}" th:text="${g.name()}">カウンター</h3>
+  <div class="grid grid--3">
 
     <!--/* 空席のカードは、在席のカードと見分けがつくよう薄めに出します。
            .empty-state は「中身が無い」ことを表す共通クラスです。 */-->
-    <article class="card" th:each="table : ${vacantTables}" style="opacity:.8">
+    <article class="card" th:each="table : ${g.items()}" style="opacity:.8">
 
       <div class="card__body empty-state" style="padding-top:1.25rem;padding-bottom:1.25rem">
         <div class="empty-state__mark" aria-hidden="true"
@@ -319,6 +328,7 @@
 
     </article>
   </div>
+  </th:block>
 
   <!--/* ===== 本日の会計済み =====
          締めたあとの伝票は上の一覧から消えるため、ここに残しておかないと
