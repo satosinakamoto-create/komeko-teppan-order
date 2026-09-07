@@ -127,6 +127,39 @@ public class IngredientService {
         });
     }
 
+    /** 分類がまだ決まっていない食材（一括分類の画面用）。 */
+    @Transactional(readOnly = true)
+    public List<Ingredient> unclassifiedIngredients() {
+        return ingredients.findByActiveTrueAndCategoryIsNullOrderBySortOrderAscNameAsc();
+    }
+
+    /**
+     * 分類をまとめて付ける（一括分類の画面から）。
+     *
+     * <p>選ばれた行だけを更新する。<b>null（あとで決める）で上書きはしない</b>——
+     * この画面の仕事は「付ける」だけで、外すのは個別の編集画面の仕事。
+     *
+     * @return 実際に付けた件数（存在しない id は数えない）
+     */
+    @Transactional
+    public int assignCategories(Map<Long, IngredientCategory> assignments) {
+        int updated = 0;
+        for (Map.Entry<Long, IngredientCategory> entry : assignments.entrySet()) {
+            if (entry.getValue() == null) {
+                continue;
+            }
+            Ingredient ingredient = ingredients.findById(entry.getKey()).orElse(null);
+            if (ingredient != null) {
+                ingredient.setCategory(entry.getValue());
+                updated++;
+            }
+        }
+        if (updated > 0) {
+            log.info("食材の分類をまとめて付けました: {} 件", updated);
+        }
+        return updated;
+    }
+
     /**
      * 単価固定の 0 以下を「固定なし」に倒す。
      *

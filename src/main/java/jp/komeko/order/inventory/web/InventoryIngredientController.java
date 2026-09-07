@@ -128,6 +128,10 @@ public class InventoryIngredientController {
         // 選択肢は「その分類の食材が 1 つ以上あるもの」だけ出す。
         // 空の分類まで並べると、押しても 0 件の行き止まりが増える
         model.addAttribute("categoryGroups", CategoryGroup.from(all));
+        // 一括分類への入口。未分類が 0 件なら出さない
+        //（片付いた店の画面に案内が居座らないように）
+        model.addAttribute("unclassifiedCount",
+                all.stream().filter(l -> l.ingredient().getCategory() == null).count());
         model.addAttribute("selectedCategory", pick == null ? null : pick.key());
         model.addAttribute("selectedCategoryName", pick == null ? null : pick.label());
 
@@ -235,6 +239,59 @@ public class InventoryIngredientController {
             }
             return groups;
         }
+    }
+
+    // ========================================================================
+    //  未分類の食材にまとめて分類を付ける（2026-09-07）
+    // ========================================================================
+
+    /**
+     * 一括分類の画面。未分類（category が null）の食材だけを並べる。
+     *
+     * <p>分類（V14）を後から足したので、既存の食材は全部未分類で始まる。
+     * 1 件ずつ編集画面を開くと 12 往復になるところを、保存 1 回で片付ける。
+     */
+    @GetMapping("/categorize")
+    public String categorizeForm(Model model) {
+        model.addAttribute("unclassified", ingredientService.unclassifiedIngredients());
+        return "inventory/ingredient-categorize";
+    }
+
+    /**
+     * まとめて保存する。
+     *
+     * <p>行ごとの select は {@code cat-<食材id>} という名前で届く。
+     * 空のまま（あとで決める）の行は触らない——勝手に OTHER で埋めると、
+     * 「分類し忘れ」と「本当にその他」が混ざる（IngredientCategory の約束）。
+     * 読めない値（改ざん・古い画面）は黙って飛ばす。エラーにしても
+     * 直せるものが無い。
+     */
+    @PostMapping("/categorize")
+    public String categorize(@RequestParam Map<String, String> params,
+                             RedirectAttributes redirect) {
+        Map<Long, IngredientCategory> assignments = new java.util.HashMap<>();
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (!entry.getKey().startsWith("cat-") || entry.getValue() == null
+                    || entry.getValue().isBlank()) {
+                continue;
+            }
+            try {
+                assignments.put(Long.valueOf(entry.getKey().substring("cat-".length())),
+                        IngredientCategory.valueOf(entry.getValue()));
+            } catch (IllegalArgumentException ignored) {
+                // id が数字でない・知らない分類。直せるものが無いので飛ばす
+            }
+        }
+
+        int updated = ingredientService.assignCategories(assignments);
+        if (updated > 0) {
+            redirect.addFlashAttribute("flashSuccess",
+                    updated + " 件に分類を付けました");
+        } else {
+            redirect.addFlashAttribute("flashInfo",
+                    "分類を選んだ行がありませんでした（空のままの行は変更しません）");
+        }
+        return "redirect:/inventory/ingredients/categorize";
     }
 
     /**

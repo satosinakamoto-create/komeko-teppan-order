@@ -82,6 +82,15 @@
     </details>
   </div>
 
+  <!--/* 一括分類への入口（2026-09-07）。未分類が 0 件なら出さない
+         ——片付いた店の画面に案内が居座らないように */-->
+  <div th:if="${unclassifiedCount > 0}" class="alert alert--info">
+    <p class="mb-0">
+      分類が決まっていない食材が <b th:text="${unclassifiedCount}">12</b> 件あります。
+      <a th:href="@{/inventory/ingredients/categorize}">まとめて分類する →</a>
+    </p>
+  </div>
+
   <!--/* 探して 0 件のとき。空の表は「登録が無い」と見分けが付かない */-->
   <div th:if="${(!#strings.isEmpty(q) or selectedCategory != null) and levels.isEmpty()}"
        class="alert alert--info">

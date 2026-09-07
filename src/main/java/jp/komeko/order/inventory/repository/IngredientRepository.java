@@ -12,6 +12,9 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
     /** 使っている食材を並び順で。画面の一覧はこれ。 */
     List<Ingredient> findByActiveTrueOrderBySortOrderAscNameAsc();
 
+    /** 分類がまだ決まっていない食材（一括分類の画面用）。 */
+    List<Ingredient> findByActiveTrueAndCategoryIsNullOrderBySortOrderAscNameAsc();
+
     /** 使わなくなったものも含めた全件。管理画面の「すべて表示」用。 */
     List<Ingredient> findAllByOrderBySortOrderAscNameAsc();
 

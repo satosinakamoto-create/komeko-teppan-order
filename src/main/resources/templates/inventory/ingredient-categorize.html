@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<!--/*
+   未分類の食材にまとめて分類を付ける（2026-09-07）。
+
+   分類（V14）を後から足したので、既存の食材は全部「未分類」で始まる。
+   1 件ずつ編集画面を開いて付けると 12 往復になるところを、
+   一覧で select を並べて保存 1 回で片付けるための画面。
+
+   ★ 空のまま（あとで決める）の行は保存しても変更されない。
+     勝手に「その他」で埋めると、分類し忘れと本当にその他が混ざる。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('食材の分類をまとめて付ける', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <p class="small"><a th:href="@{/inventory/ingredients}">← 食材・在庫にもどる</a></p>
+
+  <div class="section-title">
+    <h1 class="section-title__text">食材の分類をまとめて付ける</h1>
+    <span class="section-title__count"
+          th:text="${unclassified.size()} + ' 件が未分類'">12 件が未分類</span>
+  </div>
+
+  <!--/* 全部片付いたとき。空の表を出して「壊れた？」と思わせない */-->
+  <div th:if="${unclassified.isEmpty()}" class="empty-state">
+    <div class="empty-state__mark" aria-hidden="true">済</div>
+    <p class="lead">全部片付きました</p>
+    <p class="help">未分類の食材はありません。新しく登録した食材が未分類のままだと、またここに並びます。</p>
+    <a class="btn btn--primary" th:href="@{/inventory/ingredients}">食材・在庫へもどる</a>
+  </div>
+
+  <form th:unless="${unclassified.isEmpty()}" method="post"
+        th:action="@{/inventory/ingredients/categorize}">
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+        <tr>
+          <th>食材</th>
+          <th>単位</th>
+          <th>分類</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="i : ${unclassified}">
+          <td th:text="${i.name}">キャベツ</td>
+          <td th:text="${i.unit.label} + '（' + ${i.unit.symbol} + '）'">グラム（g）</td>
+          <td>
+            <!--/* 名前は cat-<id>。POST 側がこの形で拾う */-->
+            <select class="select" th:name="'cat-' + ${i.id}"
+                    th:aria-label="${i.name} + ' の分類'">
+              <option value="" selected>あとで決める</option>
+              <option th:each="c : ${categories}" th:value="${c}"
+                      th:text="${c.label}">野菜</option>
+            </select>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="help">
+      選んだ行だけが保存されます。「あとで決める」のままの行は変わりません。
+    </p>
+
+    <button type="submit" class="btn btn--primary">選んだ分類を保存する</button>
+  </form>
+
+</main>
+</body>
+</html>
