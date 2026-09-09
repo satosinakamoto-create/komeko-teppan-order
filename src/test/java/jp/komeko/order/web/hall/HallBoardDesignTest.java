@@ -126,8 +126,12 @@ class HallBoardDesignTest {
         // 混ざると 1 列だけ枠と余白が違って見える。
         // ★ 引用符ごと比べる。"card__head" だけで探すと billcard__head に
         //   部分一致して、必ず失敗する（.label / .btn でも同じ罠を踏んでいる）
+        // 区切りの終端は「空席」の見出し
+        // （2026-09-09 に「卓ごとの注文」を削除したので、そこを目印にできない）
+        // ★ 検索の開始位置を from にすること。「空席」は上の数字カードにも
+        //   出てくるので、頭から探すと在席の伝票より前を指してしまう
         int from = html.indexOf("在席の伝票");
-        int to = html.indexOf("卓ごとの注文");
+        int to = html.indexOf("空席", from);
         assertThat(from).isGreaterThan(0);
         assertThat(to).isGreaterThan(from);
         assertThat(html.substring(from, to)).doesNotContain("\"card__head\"");

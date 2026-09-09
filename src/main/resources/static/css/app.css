@@ -3531,13 +3531,33 @@ body.is-sending .staff-main {
 }
 .catpick__head::-webkit-details-marker { display: none; }
 /* 開いているかを示す丸。閉じているときは枠だけ、開くと塗る */
+/* 開閉のしるし。下向きの三角（設計 466:5911 と同じ形。2026-09-09 に丸から変更）。
+   丸だと「選択済みの印」に見えて、押すと開くことが伝わらなかった。
+   三角は開くと上を向くので、いまの状態も一目で分かる。
+   ★ border で三角を描いているので、開いたときに border-color を
+     一括で変えないこと（4 辺すべてが塗られて三角が四角になる） */
 .catpick__mark {
-  width: 12px; height: 12px;
+  width: 0; height: 0;
   flex: none;
-  border-radius: 50%;
-  border: 1.5px solid var(--text-muted);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--text-muted);
+  border-bottom: 0 solid transparent;
 }
-.catpick[open] .catpick__mark { background: var(--accent); border-color: var(--accent); }
+/* 開いたら上向き。★ transform: rotate は使わない。
+   幅 0・高さ 0 の箱では効かず（実測で identity のまま）、
+   色だけ変わって向きが変わらない状態になった。
+   塗る辺を上下で入れ替えるほうが確実。 */
+.catpick[open] .catpick__mark {
+  border-top: 0 solid transparent;
+  border-bottom: 6px solid var(--accent);
+}
+
+/* 品切れ／販売再開のボタン（2026-09-09）。
+   文言の長さが違う（6 字 と 4 字）ので、幅を決めておかないと押すたびに
+   ボタンの大きさが変わり、行ごと動いて次の品を押し間違える。
+   6 字が収まる幅で固定する。 */
+.stock-toggle { min-width: 148px; white-space: nowrap; }
 .catpick[open] .catpick__head { border-bottom: 1px solid var(--border); }
 
 /* ★ 閉じているあいだは中身を出さない（2026-09-07 に修正）。

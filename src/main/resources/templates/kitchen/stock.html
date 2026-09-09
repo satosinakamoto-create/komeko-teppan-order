@@ -214,7 +214,11 @@
               <form th:action="@{/kitchen/stock/{id}/toggle(id=${item.id})}" method="post">
                 <input type="hidden" name="category" th:value="${selectedId}">
                 <input type="hidden" name="q" th:value="${q}">
-                <button type="submit" class="btn"
+                <!--/* 文言が「品切れにする」(6 字)と「販売再開」(4 字)で長さが違うため、
+                       そのままだと押すたびにボタンの幅が変わって行が動いた。
+                       .stock-toggle で幅を固定し、押しても同じ場所・同じ大きさに保つ
+                       （2026-09-09）。 */-->
+                <button type="submit" class="btn stock-toggle"
                         th:classappend="${item.soldOut} ? 'btn--ok' : 'btn--danger'"
                         th:text="${item.soldOut} ? '販売再開' : '品切れにする'">品切れにする</button>
               </form>

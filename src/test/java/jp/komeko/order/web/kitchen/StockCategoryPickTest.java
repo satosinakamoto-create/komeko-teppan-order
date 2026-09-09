@@ -156,6 +156,38 @@ class StockCategoryPickTest {
     }
 
     @Test
+    @DisplayName("★ 開閉のしるしは下向きの三角（2026-09-09 に丸から変更）")
+    void markIsATriangle() throws Exception {
+        // 丸だと「選択済みの印」に見えて、押すと開くことが伝わらなかった。
+        // border で三角を描いているので、開いたときに border-color を
+        // 一括で変えると 4 辺が塗られて三角が四角になる。そこも固定する
+        String css = Files.readString(Path.of("src/main/resources/static/css/app.css"));
+        assertThat(css).contains("border-top: 6px solid var(--text-muted);");
+        assertThat(css).as("丸のままになっている")
+                .doesNotContain(".catpick__mark {\n  width: 12px; height: 12px;");
+        assertThat(css).as("開いたときに三角が潰れる書き方")
+                .doesNotContain(".catpick[open] .catpick__mark { background: var(--accent); border-color: var(--accent); }");
+        // 開いたら上を向く（いまの状態が一目で分かる）。
+        // ★ transform: rotate は使わない。幅 0・高さ 0 の箱では効かず、
+        //   色だけ変わって向きが変わらなかった（2026-09-09 に実測）。
+        //   塗る辺を上下で入れ替える
+        assertThat(css).contains("border-bottom: 6px solid var(--accent);");
+    }
+
+    @Test
+    @DisplayName("★ 品切れ／販売再開のボタンは押しても大きさが変わらない")
+    void toggleButtonKeepsItsWidth() throws Exception {
+        // 文言が「品切れにする」(6 字) と「販売再開」(4 字) で長さが違うため、
+        // 幅を決めておかないと押すたびにボタンが縮んで行ごと動き、
+        // 次の品を押し間違える
+        String html = Files.readString(Path.of("src/main/resources/templates/kitchen/stock.html"));
+        assertThat(html).contains("btn stock-toggle");
+
+        String css = Files.readString(Path.of("src/main/resources/static/css/app.css"));
+        assertThat(css).contains(".stock-toggle { min-width: 148px; white-space: nowrap; }");
+    }
+
+    @Test
     @DisplayName("使わなくなったカテゴリの札は残していない")
     void oldChipsAreGone() throws Exception {
         assertThat(Files.readString(Path.of("src/main/resources/templates/kitchen/stock.html")))
