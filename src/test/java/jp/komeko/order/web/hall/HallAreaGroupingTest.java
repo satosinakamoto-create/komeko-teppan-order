@@ -75,6 +75,19 @@ class HallAreaGroupingTest {
                 .andReturn().getResponse().getContentAsString();
     }
 
+    /**
+     * ご案内の入力画面（2026-09-11）。
+     *
+     * <p>盤面から「空席」の枠を外したので、<b>伝票の無い卓はこちらに出ます</b>。
+     * エリアの区切り自体は無くなっておらず、2 画面に分かれただけです
+     * （盤面＝在席の伝票、こちら＝空席と片付け待ち）。
+     */
+    private String seatForm() throws Exception {
+        return mockMvc.perform(get("/hall/seat/new"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+    }
+
     @Test
     @WithMockUser(roles = "STAFF")
     @DisplayName("★ エリアを設定すると、その見出しの下に卓が出る（未設定は「その他」）")
@@ -86,24 +99,28 @@ class HallAreaGroupingTest {
         table("エリアN" + n, 320, null);
         tableService.openSession(counter.getId(), 2);
 
-        String html = board();
+        // 盤面には在席の卓が出る。ただし<b>エリアの区切りは出さない</b>
+        //（2026-09-12）。列そのものが「状態」になったので、その中をさらに
+        // エリアで割ると、細い 1 列に見出しが二重に積み上がって逆に探しにくい
+        String board = board();
+        assertThat(board).as("在席の卓名が出ていない").contains("エリアC" + n);
+        assertThat(board).as("盤面にエリア見出しが残っている").doesNotContain("areahead");
 
-        // 見出しが出る（在席の伝票＝カウンター、空席＝小上がり／その他）
-        assertThat(html).contains("areahead");
-        assertThat(html).contains(">カウンター</h3>");
-        assertThat(html).contains(">小上がり</h3>");
-        assertThat(html).as("未設定の卓が「その他」にまとまっていない")
+        // エリアの区切りはご案内の入力画面に残っている
+        String form = seatForm();
+        assertThat(form).contains("areahead");
+        assertThat(form).contains(">小上がり</h3>");
+        assertThat(form).as("未設定の卓が「その他」にまとまっていない")
                 .contains(">その他</h3>");
 
-        // 並びは卓の並び順（カウンター → 小上がり）、その他は最後
-        int atZashiki = html.indexOf(">小上がり</h3>");
-        int atOthers = html.indexOf(">その他</h3>");
+        // 並びは卓の並び順（小上がり → その他）。その他は最後
+        int atZashiki = form.indexOf(">小上がり</h3>");
+        int atOthers = form.indexOf(">その他</h3>");
         assertThat(atZashiki).isLessThan(atOthers);
 
         // 卓名が本文に出ていること（見出しだけの空騒ぎでない）
-        assertThat(html).contains("エリアC" + n);
-        assertThat(html).contains("エリアZ" + n);
-        assertThat(html).contains("エリアN" + n);
+        assertThat(form).contains("エリアZ" + n);
+        assertThat(form).contains("エリアN" + n);
     }
 
     @Test
@@ -114,14 +131,16 @@ class HallAreaGroupingTest {
         table("素の卓A" + n, 330, null);
         table("素の卓B" + n, 340, null);
 
-        String html = board();
-
         // 見出しの器そのものが無いこと。「その他」だけが出るのもダメ
         //（設定していない店の画面が理由もなく 1 行増える）
-        assertThat(html).doesNotContain("areahead");
-        assertThat(html).doesNotContain(">その他</h3>");
+        //
+        // 卓はどちらも空席なので、確かめる場所はご案内の入力画面のほう。
+        // 盤面（在席の伝票）には、そもそも 1 卓も出ない
+        String form = seatForm();
+        assertThat(form).doesNotContain("areahead");
+        assertThat(form).doesNotContain(">その他</h3>");
         // 卓は従来どおり出ている
-        assertThat(html).contains("素の卓A" + n);
+        assertThat(form).contains("素の卓A" + n);
     }
 
     @Test

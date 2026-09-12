@@ -141,8 +141,16 @@
       <div class="field">
         <span class="label">写真</span>
         <div class="photopick">
+          <!--/* ★ @{} で包むこと（2026-09-13 に直した）。
+                 素の ${…} だと Spring の URL 書き換えを通らないので、
+                 /images/menu/xxx.jpg が<b>ハッシュの付かない URL</b>のまま出ます。
+                 静的ファイルは Cache-Control: max-age=365日 で返るため、
+                 一度その URL を掴んだブラウザは写真を差し替えても
+                 最大 1 年ふるいままになります（URL が変わらないので届けようがない）。
+                 アップロード写真（/uploads/）は別のハンドラでハッシュ対象外なので、
+                 @{} を通しても値は変わりません。害はありません。 */-->
           <img class="photopick__preview" th:if="${itemForm.currentImagePath != null}"
-               th:src="${itemForm.currentImagePath}" alt="いまの商品写真">
+               th:src="@{${itemForm.currentImagePath}}" alt="いまの商品写真">
           <span class="photopick__empty" th:if="${itemForm.currentImagePath == null}">写真なし</span>
 
           <div class="photopick__side">

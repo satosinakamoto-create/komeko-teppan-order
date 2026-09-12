@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   ホール画面のモーダルで使い回す部品（2026-09-12）
+  ============================================================================
+   ・このファイル自体は画面として開きません。th:replace から呼ぶだけです。
+   ・ご案内（人数→卓）とお会計（注文の確認→お会計）で、同じステップ表示を使います。
+     伝票ごとにモーダルを描くので、書き写すと同じ markup が卓の数だけ増えます。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--/*
+   進み具合の表示。
+   「全体で 2 段階のうち、いま何番目か」を開いた瞬間に分かるようにするための部品です。
+
+   current … いまいる段（1 か 2）
+   label1  … 1 段目の名前
+   label2  … 2 段目の名前
+
+   ★ 済んだ段は ✓ にして薄く、いまの段は濃い太字、これからの段は薄い。
+     つなぎ線も進んだぶんだけ色を変えるので、「戻れる」ことも見て分かります。
+*/-->
+<div th:fragment="step(current, label1, label2)" class="steps2">
+
+  <span class="steps2__item" th:classappend="${current == 1} ? 'is-current' : 'is-done'">
+    <span class="steps2__dot" th:text="${current == 1} ? '1' : '✓'">1</span>
+    <span class="steps2__label" th:text="${label1}">人数を選ぶ</span>
+  </span>
+
+  <span class="steps2__link" th:classappend="${current == 2} ? 'is-done'"></span>
+
+  <span class="steps2__item" th:classappend="${current == 2} ? 'is-current' : 'is-next'">
+    <span class="steps2__dot">2</span>
+    <span class="steps2__label" th:text="${label2}">卓を選ぶ</span>
+  </span>
+
+</div>
+
+</body>
+</html>

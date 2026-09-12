@@ -22,7 +22,9 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -128,6 +130,22 @@ public class DemoDataSeeder implements ApplicationRunner {
      */
     private final EntityManager entityManager;
 
+    /**
+     * デモデータの投入を<b>自分のトランザクションで</b>走らせるための道具。
+     *
+     * <p>{@code @Transactional} を {@code run()} に付けていたときは、
+     * 中で例外を握りつぶしても<b>アプリが起動しませんでした</b>。
+     * 入れ子の {@code @Transactional}（TableService の各メソッド）が例外を投げた時点で
+     * トランザクションが rollback-only になり、commit のときに
+     * {@code UnexpectedRollbackException} へ化けて外へ飛ぶためです。
+     * 「アプリは通常どおり起動します」とログに書きながら起動しない、という
+     * いちばん困る形になっていました（2026-09-11 と 09-12 に 2 回踏みました）。
+     *
+     * <p>ここで自前のトランザクションにしておけば、失敗しても
+     * <b>ロールバックされるのはデモデータの投入だけ</b>で、起動は続きます。
+     */
+    private final TransactionTemplate transactionTemplate;
+
     /** true のときだけデモデータを入れる。既定は false（うっかり動かないように）。 */
     private final boolean enabled;
 
@@ -138,7 +156,9 @@ public class DemoDataSeeder implements ApplicationRunner {
                           OrderService orderService,
                           ShopSettingService shopSettingService,
                           EntityManager entityManager,
+                          PlatformTransactionManager transactionManager,
                           @Value("${app.demo-data:false}") boolean enabled) {
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.tableRepository = tableRepository;
         this.menuItemRepository = menuItemRepository;
         this.tableService = tableService;
@@ -160,14 +180,25 @@ public class DemoDataSeeder implements ApplicationRunner {
      * {@code LazyInitializationException}（DB との接続がもう無い）で起動が止まりました。
      * {@code run()} は Spring が外から呼ぶので、こちらに付ければ確実に効きます。
      */
+    /**
+     * ★ {@code @Transactional} は付けません（2026-09-12）。
+     *
+     * <p>付けていたときは、下の catch で例外を握りつぶしても起動が止まりました。
+     * 入れ子の {@code @Transactional} が例外を投げた時点でトランザクションが
+     * rollback-only になり、この {@code run()} の commit で
+     * {@code UnexpectedRollbackException} に化けて外へ飛ぶためです。
+     *
+     * <p>代わりに {@link #transactionTemplate} で自分のトランザクションを張ります。
+     * こうすると失敗しても<b>ロールバックされるのは投入だけ</b>で、
+     * ログの「アプリは通常どおり起動します」が本当になります。
+     */
     @Override
-    @Transactional
     public void run(ApplicationArguments args) {
         if (!enabled) {
             return;
         }
         try {
-            seed();
+            transactionTemplate.executeWithoutResult(status -> seed());
         } catch (RuntimeException e) {
             // ★ デモデータの投入に失敗しても、アプリは起動させる。
             //
@@ -190,6 +221,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 
         int cleaned = closeLeftoverSessions();
         int created = fillLiveScene();
+        int awaiting = markSomeAwaitingCheckout();
         int closed = closeEarlierGuests();
 
         log.warn("""
@@ -198,6 +230,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                  デモデータを「営業中」の状態にそろえました。
                    ・前の営業日の伝票を片付け: {} 卓
                    ・営業中の伝票を追加: {} 卓（厨房ボードの 3 列が埋まります）
+                   ・お会計待ちにした卓: {} 卓（ホール盤面の 3 列が埋まります）
                    ・会計済みの組を追加: {} 組（本日の売上に数字が出ます）
                    ・時価の品を 3 通りの状態にしました
                        サーロイン ¥3,800 … 当日価格を入れて販売再開（正しい運用）
@@ -207,7 +240,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 
                  片付けたいときは ホール画面（/hall）から会計してください。
                 ============================================================
-                """, cleaned, created, closed, STAGE_TABLE);
+                """, cleaned, created, awaiting, closed, STAGE_TABLE);
     }
 
     /**
@@ -563,9 +596,55 @@ public class DemoDataSeeder implements ApplicationRunner {
                 completeOrder(order);
             }
             tableService.closeSession(session.getId(), true, "デモ", "前の営業日の片付け", SettlementMethod.CASH);
+
+            // ★ 会計しただけでは卓は「片付け待ち」で止まります（2026-09-07 に足した 4 状態目）。
+            //   ここがやっているのは「前の営業日の片付け」なので、
+            //   皿も下げ終わったことにして旗を下ろします。
+            //
+            //   下ろさないと、すぐ下の fillLiveScene() が同じ卓に次の組を通そうとして
+            //   TableNotReadyException（「〜は片付け待ちです」）になります。
+            //   しかもこの例外は run() の catch では受け止めきれません。
+            //   入れ子の @Transactional が例外を投げた時点でトランザクションが
+            //   rollback-only になり、commit のときに UnexpectedRollbackException へ化けて、
+            //   「アプリは通常どおり起動します」と書いてあるのに起動ごと落ちます
+            //   （2026-09-11 に実際に踏みました）。
+            tableService.markCleaned(session.getDiningTable().getId());
             cleaned++;
         }
         return cleaned;
+    }
+
+    /**
+     * 何卓かを「お会計待ち」にする（2026-09-12）。
+     *
+     * <p>ホール盤面は 在卓／お会計待ち／バッシング の 3 列です。
+     * これが無いと<b>真ん中の列がいつも空</b>で、3 列そろった状態を確認できません。
+     * 厨房ボードの 3 レーンを埋めるのと同じ理由です。
+     *
+     * <p>撮影用の卓（{@value #STAGE_TABLE}）は避けます。お会計待ちにすると
+     * その卓からは注文できなくなり、QR を読んで試せなくなるためです。
+     *
+     * <p>すでにお会計待ちの卓があれば、それを数に入れて余計に増やしません
+     * （同じ日に何度起動しても、真ん中の列が伸び続けないように）。
+     */
+    private int markSomeAwaitingCheckout() {
+        final int target = 2;
+        int done = 0;
+        for (TableSession session : tableService.openSessions()) {
+            if (done >= target) {
+                break;
+            }
+            if (session.isClosing()) {
+                done++;          // すでにお会計待ち。そのまま数える
+                continue;
+            }
+            if (STAGE_TABLE.equals(session.getDiningTable().getName())) {
+                continue;
+            }
+            tableService.startCheckout(session.getId());
+            done++;
+        }
+        return done;
     }
 
     /**
@@ -591,6 +670,20 @@ public class DemoDataSeeder implements ApplicationRunner {
             }
             if (STAGE_TABLE.equals(table.getName())
                     || tableService.currentSession(table.getId()).isPresent()) {
+                continue;
+            }
+            // ★ 片付け待ちの卓は埋めない（2026-09-12）。
+            //
+            //   openSession が TableNotReadyException で弾くので、通そうとすると
+            //   その例外で起動ごと落ちます（run() の catch では止まりません。
+            //   入れ子の @Transactional が投げた時点で rollback-only になるため）。
+            //
+            //   前回の実行で残った旗はここに来ます。closeLeftoverSessions が
+            //   下ろすのは「自分がこの回に会計した卓」だけなので、それでは足りません。
+            //
+            //   埋めずに残すのは都合もよくて、盤面の「バッシング」列に
+            //   中身が無いと、3 列そろった状態を確認できません。
+            if (table.isNeedsCleanup()) {
                 continue;
             }
 
@@ -690,6 +783,12 @@ public class DemoDataSeeder implements ApplicationRunner {
             }
             if (STAGE_TABLE.equals(table.getName())
                     || tableService.currentSession(table.getId()).isPresent()) {
+                continue;
+            }
+            // ★ 片付け待ちの卓は使わない（2026-09-12）。
+            //   fillLiveScene と同じ理由。openSession が弾いて起動ごと落ちる。
+            //   卓を開ける場所を増やしたら、ここの 1 行も必ず一緒に足すこと
+            if (table.isNeedsCleanup()) {
                 continue;
             }
             TableSession session = tableService.openSession(table.getId(), 2 + closed);

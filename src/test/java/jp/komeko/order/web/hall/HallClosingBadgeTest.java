@@ -114,23 +114,40 @@ class HallClosingBadgeTest {
                 .andReturn().getResponse().getContentAsString();
     }
 
+    /**
+     * 盤面の「お会計待ち」の列だけを切り出す。
+     *
+     * <p><b>3 列にしてから（2026-09-12）、「お会計待ち」という文字は
+     * 列の見出しとして常に出ています。</b>
+     * HTML 全体に {@code doesNotContain("お会計待ち")} と書くと、
+     * 卓が 1 つも無くても必ず失敗します。列で切ってから中身を見ること。
+     */
+    private String closingLane(String board) {
+        int from = board.indexOf("lane--closing");
+        assertThat(from).as("お会計待ちの列が無い").isGreaterThan(0);
+        int to = board.indexOf("lane--cleanup", from);
+        return to > from ? board.substring(from, to) : board.substring(from);
+    }
+
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("★ お会計待ちにすると、一覧にバッジが出る")
+    @DisplayName("★ お会計待ちにすると、その列へ移ってバッジが出る")
     void boardShowsClosingBadge() throws Exception {
-        // ご案内中のあいだは出ていないこと。
-        // 最初から出ていたら、このテストは何も守っていない
-        assertThat(html("/hall"))
-                .as("ご案内中の卓にバッジが出てしまっている")
-                .doesNotContain("お会計待ち");
+        // ご案内中のあいだは、お会計待ちの列に入っていないこと。
+        // 最初から入っていたら、このテストは何も守っていない
+        assertThat(closingLane(html("/hall")))
+                .as("ご案内中の卓がお会計待ちの列に出てしまっている")
+                .doesNotContain("3番テーブル");
 
         tableService.startCheckout(bill.getId());
 
         String board = html("/hall");
         assertThat(board).as("卓名").contains("3番テーブル");
-        assertThat(board).as("★ バッジの文字").contains("お会計待ち");
+
+        String lane = closingLane(board);
+        assertThat(lane).as("★ お会計待ちの列に移っていない").contains("3番テーブル");
         // 「止まっている」を表す既存のしるし（品切れと同じ）を使っている
-        assertThat(board).as("バッジの見た目の指定").contains("badge badge--stop");
+        assertThat(lane).as("バッジの見た目の指定").contains("badge badge--stop");
     }
 
     @Test
@@ -184,15 +201,18 @@ class HallClosingBadgeTest {
 
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("再開すると、バッジも消える")
+    @DisplayName("再開すると、在席の列へ戻る")
     void badgeDisappearsAfterResume() throws Exception {
         tableService.startCheckout(bill.getId());
         tableService.resumeOrdering(bill.getId());
 
         assertThat(tableService.getSession(bill.getId()).getStatus())
                 .isEqualTo(SessionStatus.OPEN);
-        assertThat(html("/hall"))
-                .as("再開したのにバッジが残っている")
-                .doesNotContain("お会計待ち");
+
+        String board = html("/hall");
+        assertThat(closingLane(board))
+                .as("再開したのにお会計待ちの列に残っている")
+                .doesNotContain("3番テーブル");
+        assertThat(board).as("在席の列にも居ない（どこからも消えた）").contains("3番テーブル");
     }
 }

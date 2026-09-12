@@ -26,31 +26,40 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/plain :: layout('ログイン', ~{::main})}">
 <body>
-<main class="page">
+<!--/* loginpage は CSS の目印。この画面だけの寸法は app.css の 36 節にあります
+       （設計 現08 ログイン 641:5267 / 2026-09-12）。
+
+       ★ 2026-09-12 まで、寸法は style 属性で直接書いてありました。
+         「app.css は自分の担当ではないので触らない」という理由でしたが、
+         いまは画面ごとに目印を付けて app.css に書く形（.hallboard /
+         .kitchenboard / .soldoutpage）で揃っているので、そちらに移しました。
+         同じ値が HTML と CSS に散らないほうが、あとで設計と突き合わせやすいためです。 */-->
+<main class="page loginpage">
 
   <!--/*
      縦センタリング。
      .page が min-height:100dvh の縦フレックス、.page__body が flex:1 なので、
      この div は画面の残り全部の高さを持ちます。そこへ grid + align-content:center を
-     かけると、中身が上下の中央に来ます。
-     app.css は自分の担当ファイルではない（他の担当と衝突する）ため、
-     この画面だけで必要な微調整は style 属性で書いています。
+     かけると、中身が上下の中央に来ます（36 節）。
   */-->
-  <div class="container page__body"
-       style="display:grid;align-content:center;justify-items:center;gap:var(--sp-5)">
+  <div class="container page__body loginpage__body">
 
-    <!--/* ===== 見出し（明朝体で和の佇まいを出す） ===== */-->
-    <div class="center">
-      <h1 class="serif mb-0" style="letter-spacing:.22em;font-size:1.375rem">米粉と鉄板</h1>
-      <p class="tiny faint mb-0" style="letter-spacing:.3em">店舗管理</p>
+    <!--/* ===== 店名 =====
+           お客さま側の「のれん」ではなく、スタッフが使う道具の見出しにします。
+           もとは明朝の指定（.serif）＋字間 .22em でしたが、
+           .theme-snow が --font-serif をゴシックに潰しているので明朝にはならず、
+           広い字間だけが残って「お客さま側の画面」に見えていました。
+           設計では 24px 太字・字間 2px です。 */-->
+    <div class="loginpage__brand">
+      <h1 class="loginpage__name">米粉と鉄板</h1>
+      <p class="loginpage__role">店舗管理</p>
     </div>
 
     <!--/*
-       カード本体。
-       width:min(400px, 100%) は「画面が広ければ 400px、狭ければ画面いっぱい」。
-       スマホでは端まで、PC では細長くなりすぎない、という両立の書き方です。
+       カード本体。幅は設計どおり 400px（狭い画面では端まで）。
+       ログインは入力が 2 つしかないので、広げても空白が増えるだけです。
     */-->
-    <div class="card" style="width:min(400px, 100%)">
+    <div class="card loginpage__card">
       <div class="card__body stack">
 
         <!--/*
@@ -111,10 +120,12 @@
           </div>
 
           <!--/*
-             .btn--lg は高さ 56px。厨房では濡れた手や手袋で操作することもあるので、
-             タップ領域は大きめに取ります（最低 48px が目安）。
+             高さは 48px（設計 現08）。--tap の下限ちょうどです。
+             もとは .btn--lg（56px）で「濡れた手でも押せるように」としていましたが、
+             この画面を触るのは開店前にログインする 1 回だけで、
+             鉄板の前で押すボタンではありません。厨房ボードの操作ボタンは 56px のままです。
           */-->
-          <button type="submit" class="btn btn--primary btn--block btn--lg">ログイン</button>
+          <button type="submit" class="btn btn--primary btn--block">ログイン</button>
         </form>
 
         <!--/*
@@ -135,7 +146,7 @@
           </div>
 
           <form th:action="@{/login/guest}" method="post">
-            <button type="submit" class="btn btn--block btn--lg">ゲストで参加する</button>
+            <button type="submit" class="btn btn--block">ゲストで参加する</button>
           </form>
 
           <p class="tiny faint mb-0 center">
@@ -144,19 +155,21 @@
           </p>
         </div>
 
-      </div>
-
-      <!--/* ===== 初回セットアップ向けの注記 ===== */-->
-      <div class="card__foot center">
-        <p class="tiny faint mb-0">
+        <!--/* ===== 初回セットアップ向けの注記 =====
+               2026-09-12 に .card__foot（カードの外に付く帯）から
+               カードの中へ移しました。設計 現08 では、入力欄・ボタンと同じ
+               32px の内側にあり、間隔も同じ 20px です。
+               帯にすると罫線が 1 本増え、注記だけが別の箱に見えていました。 */-->
+        <p class="loginpage__note">
           初期アカウントはサーバのログに出力されます。<br>
           ログイン後、管理画面 → スタッフ管理 からパスワードを変更してください。
         </p>
+
       </div>
     </div>
 
     <!--/* お客さん向けメニューへの出口。QR を読み損ねたときの逃げ道にもなります。 */-->
-    <p class="tiny mb-0"><a th:href="@{/}">お客様向けメニューを見る</a></p>
+    <p class="loginpage__link"><a th:href="@{/}">お客様向けメニューを見る</a></p>
 
   </div>
 </main>

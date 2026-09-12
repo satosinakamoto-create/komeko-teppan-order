@@ -30,10 +30,108 @@
   <!--/* 直前の操作結果（成功・お知らせ・エラー）を 1 回だけ表示する共通部品 */-->
   <div th:replace="~{fragments/common :: flash}"></div>
 
+  <!--/* 見出しの右端に「＋ 新規お客様」を置く（2026-09-12。設計 現02）。
+         以前は 3 列の上に単独で置いていたが、他の管理画面（商品・食材など）は
+         見出しの右に「追加」を置く形なので、そちらに合わせた。
+
+         ★ 書き込みの入口なので見学者（ROLE_GUEST）には出さない。
+           SecurityConfig 側でも /hall の POST はゲストに閉じてある。 */-->
   <div class="section-title">
     <h1 class="section-title__text">ホール・会計</h1>
     <span class="section-title__count">卓ごとの伝票とお会計</span>
+    <button type="button" class="btn section-title__action"
+            sec:authorize="!hasRole('GUEST')"
+            data-open-modal="seat-modal">＋ 新規お客様</button>
   </div>
+
+  <!--/* ===== ご案内のモーダル（2 段階。2026-09-12） =====
+
+         ① 人数を選ぶ → ② 卓を選ぶ の 2 画面。
+         1 画面に両方を並べると、卓が 10 以上ある店で縦に伸びて
+         「ご案内する」が画面の外に出ます。選ぶものを 1 つずつにする狙いもあります。
+
+         ★ フォームは 1 つのままで、中の枠（ペイン）だけ入れ替えます。
+           2 つに分けると、1 枚目で選んだ人数を持ち越す仕掛けが別に要ります。
+
+         ★ ここには確認ダイアログを出しません。
+           ご案内は伝票を開くだけで、間違えても閉じられます。
+           途中のボタンで止めると、肝心のお会計で確認が読まれなくなります。 */-->
+  <dialog class="hallmodal" id="seat-modal" aria-label="新規お客様" sec:authorize="!hasRole('GUEST')">
+    <form class="hallmodal__box" th:action="@{/hall/seat}" method="post" data-panes>
+
+      <!--/* ── ① 人数を選ぶ ── */-->
+      <section class="hallmodal__pane" data-pane="1">
+        <div th:replace="~{hall/fragments :: step(1, '人数を選ぶ', '卓を選ぶ')}"></div>
+
+        <div class="hallmodal__head">
+          <h2 class="hallmodal__title">新規お客様</h2>
+          <button type="button" class="hallmodal__close" data-close-modal aria-label="閉じる">✕</button>
+        </div>
+
+        <div class="hallmodal__field">
+          <span class="hallmodal__label">何名様</span>
+          <!--/* 人数はお客さま側（table-start.html）と同じ 1〜8 ＋ 9 名以上の入力。
+                 初期値は 2 名。卓の定員を初期値にすると、2 名で 4 人掛けに座ったときに
+                 テーブルチャージを 2 名分多く頂いてしまう */-->
+          <div class="chiprow">
+            <label class="chip" th:each="n : ${guestOptions}" th:if="${n <= 8}">
+              <input type="radio" name="guestCount" th:value="${n}"
+                     th:checked="${n == defaultGuestCount}" required>
+              <span th:text="${n} + ' 名'">2 名</span>
+            </label>
+          </div>
+          <div class="hallmodal__row">
+            <span class="hallmodal__hint">9 名以上のとき</span>
+            <input class="input" type="number" name="guestCountOther" min="9" max="20"
+                   inputmode="numeric" placeholder="人数" data-guest-other>
+            <button type="button" class="btn" data-guest-other-apply>決定</button>
+          </div>
+        </div>
+
+        <div class="hallmodal__foot">
+          <button type="button" class="btn hallmodal__sub" data-close-modal>やめる</button>
+          <button type="button" class="btn hallmodal__main" data-pane-next="2">次へ</button>
+        </div>
+      </section>
+
+      <!--/* ── ② 卓を選ぶ ── */-->
+      <section class="hallmodal__pane" data-pane="2" hidden>
+        <div th:replace="~{hall/fragments :: step(2, '人数を選ぶ', '卓を選ぶ')}"></div>
+
+        <div class="hallmodal__head">
+          <h2 class="hallmodal__title">どの卓</h2>
+          <!--/* 1 枚目で選んだ人数をここに出す。戻らなくても確かめられる */-->
+          <span class="hallmodal__sup" data-guest-echo>2 名さま</span>
+          <button type="button" class="hallmodal__close" data-close-modal aria-label="閉じる">✕</button>
+        </div>
+
+        <div class="hallmodal__field">
+          <span class="hallmodal__label">どの卓</span>
+
+          <div th:if="${seatTables.isEmpty()}" class="hallmodal__empty">ご案内できる卓がありません</div>
+
+          <!--/* 高さを決めて中だけ動かす。卓が増えてもモーダルの高さは変わらない */-->
+          <div class="scrollbox scrollbox--seat" th:unless="${seatTables.isEmpty()}">
+            <label class="seatrow" th:each="table : ${seatTables}">
+              <input type="radio" name="tableId" th:value="${table.id}" required>
+              <span class="seatrow__name" th:text="${table.name}">テーブル4</span>
+              <span class="seatrow__gap"></span>
+              <span class="badge badge--cleanup" th:if="${table.needsCleanup}">バッシング</span>
+              <span class="seatrow__seats" th:text="'定員 ' + ${table.capacity} + ' 名'">定員 4 名</span>
+            </label>
+          </div>
+        </div>
+
+        <p class="hallmodal__note">バッシング中の卓を選ぶと、バッシング完了も同時に記録します</p>
+
+        <div class="hallmodal__foot">
+          <button type="button" class="btn hallmodal__sub" data-pane-prev="1">← 戻る</button>
+          <button type="submit" class="btn hallmodal__main">ご案内する</button>
+        </div>
+      </section>
+
+    </form>
+  </dialog>
 
   <!--/* ===== お客さまからの呼び出し =====
 
@@ -96,156 +194,302 @@
 
   </div>
 
-  <!--/* ===== 在席の伝票 ===== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">在席の伝票</h2>
-    <span class="section-title__count" th:text="${occupiedCount} + ' 卓'">3 卓</span>
-  </div>
+  <!--/* ===== 3 列：在卓／お会計待ち／バッシング（2026-09-12） =====
 
-  <div th:if="${bills.isEmpty()}">
-    <div th:replace="~{fragments/common :: empty('席', 'ただいまご案内中のお客さまはいません')}"></div>
-  </div>
+         厨房ボードの「受付・調理中・提供待ち」と同じ考え方で、
+         列そのものを<b>いま何をすべき卓か</b>にします。
+         以前は在席の伝票が 1 つの枠に混ざっていたので、
+         お会計待ちの卓を見つけるにはカードの札を 1 枚ずつ読む必要がありました。
 
-  <!--/* エリアごとの区切り（卓 2/3。2026-09-07）。
-         全卓が未設定なら name=null の 1 グループが来て、見出しは描かれない
-         （エリアを使わない店では導入前と見た目が変わらない）。 */-->
-  <th:block th:unless="${bills.isEmpty()}" th:each="g : ${billGroups}">
-  <h3 class="areahead" th:if="${g.name() != null}" th:text="${g.name()}">カウンター</h3>
-  <div class="grid grid--3">
+         .board / .lane は厨房ボードと同じクラスをそのまま借りています
+         （新しいクラスを増やさない。色だけ .hallboard 側で上書き）。
 
-    <!--/* 伝票カード 1 枚（設計 現02 の「ホール/伝票カード」453:5744）。
-           見出し帯・本体・足の 3 段に分かれた .card ではなく、
-           上下 24・左右 16 の平らな 1 枚にする。卓名から金額までを
-           途切れずに目で降りられるようにするための形。
+         ★ 在席とお会計待ちのカードは、ボタン以外まったく同じ形です。
+           片方だけ直すと列によって見え方がずれるので、必ず両方直すこと。
 
-           stayMinutes（滞在時間）はサーバが描いた値をそのまま出します。
-           ブラウザ側で 1 分ずつ足していくとサーバとズレる一方なので行いません。 */-->
-    <article class="billcard" th:each="bill : ${g.items()}">
+         stayMinutes（滞在時間）はサーバが描いた値をそのまま出します。
+         ブラウザ側で 1 分ずつ足していくとサーバとズレる一方なので行いません。 */-->
+  <div class="board">
 
-      <div class="billcard__head">
-        <span class="billcard__table" th:text="${bill.diningTable.name}">3番テーブル</span>
-        <!--/* お会計待ちの卓は、レジに向かう前に一覧で分かる必要があります。
-               この卓のスマホからは注文できない状態なので、
-               気づかないまま放っておくと、お客さまが注文できずに待ちます。 */-->
-        <!--/* badge--stop は「止まっている」ことを表す既存のしるし（品切れと同じ）。
-               新しいクラスを足さずに済むうえ、意味も合っています。 */-->
-        <span class="badge badge--stop" th:if="${bill.closing}">お会計待ち</span>
-        <!--/* 未提供（受付・調理中）の品が残っている卓は、ひと目で分かるようにする。
-               会計してしまう前に気づけることが大事なので、一覧の段階から出します。 */-->
-        <span class="badge badge--rec" th:if="${bill.hasPendingOrders()}">調理中あり</span>
+    <!--/* ── 在席 ───────────────────────────────────────── */-->
+    <section class="lane lane--seated">
+      <div class="lane__head">
+        <span>在卓</span>
+        <span class="count" th:text="${seatedCount}">3</span>
       </div>
+      <div class="lane__body">
+        <p class="lane__empty" th:if="${seatedBills.isEmpty()}">ご案内中のお客さまはいません</p>
 
-      <p class="billcard__meta">
-        <span th:text="${bill.guestCount} + ' 名'">4 名</span>
-        <span> ／ </span>
-        <span th:text="'滞在 ' + ${bill.stayMinutes} + ' 分'">滞在 62 分</span>
-      </p>
+        <article class="billcard billcard--seated" th:each="bill : ${seatedBills}">
+          <div class="billcard__head">
+            <span class="billcard__table" th:text="${bill.diningTable.name}">3番テーブル</span>
+            <!--/* 未提供（受付・調理中）の品が残っている卓は、ひと目で分かるようにする。
+                   会計してしまう前に気づけることが大事なので、一覧の段階から出します。 */-->
+            <span class="badge badge--rec" th:if="${bill.hasPendingOrders()}">調理中あり</span>
+          </div>
 
-      <p class="billcard__label">現在のご請求額</p>
+          <p class="billcard__meta">
+            <span th:text="${bill.guestCount} + ' 名'">4 名</span>
+            <span> ／ </span>
+            <span th:text="'滞在 ' + ${bill.stayMinutes} + ' 分'">滞在 62 分</span>
+          </p>
 
-      <!--/* 金額と注記は横並び（設計どおり）。
-             縦に積むとカードが 1 行ぶん伸びて、1 画面に入る卓が減る */-->
-      <div class="billcard__amount">
-        <b class="billcard__yen">¥<span
-              th:text="${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">11,044</span></b>
-        <span class="billcard__note"
-              th:if="${bill.lateNightApplied}"
-              th:text="'深夜料金 ' + ${bill.lateNightSurchargePercent} + '% を含む'">深夜料金 10% を含む</span>
-        <span class="billcard__note"
-              th:unless="${bill.lateNightApplied}"
-              th:text="'テーブルチャージ ¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')} + ' を含む'">
-          テーブルチャージ ¥1,800 を含む</span>
+          <p class="billcard__label">現在のご請求額</p>
+
+          <!--/* 金額と注記は横並び（設計どおり）。
+                 縦に積むとカードが 1 行ぶん伸びて、1 画面に入る卓が減る */-->
+          <div class="billcard__amount">
+            <b class="billcard__yen">¥<span
+                  th:text="${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">11,044</span></b>
+            <span class="billcard__note"
+                  th:if="${bill.lateNightApplied}"
+                  th:text="'深夜料金 ' + ${bill.lateNightSurchargePercent} + '% を含む'">深夜料金 10% を含む</span>
+            <span class="billcard__note"
+                  th:unless="${bill.lateNightApplied}"
+                  th:text="'テーブルチャージ ¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')} + ' を含む'">
+              テーブルチャージ ¥1,800 を含む</span>
+          </div>
+
+          <button type="button" class="btn btn--block billcard__action"
+                  th:data-open-modal="'bill-modal-' + ${bill.id}">伝票を見る／お会計</button>
+        </article>
       </div>
+    </section>
 
-      <a class="btn btn--primary btn--block"
-         th:href="@{/hall/bills/{id}(id=${bill.id})}">伝票を見る／お会計</a>
+    <!--/* ── お会計待ち ─────────────────────────────────── */-->
+    <section class="lane lane--closing">
+      <div class="lane__head">
+        <span>お会計待ち</span>
+        <span class="count" th:text="${closingCount}">1</span>
+      </div>
+      <div class="lane__body">
+        <p class="lane__empty" th:if="${closingBills.isEmpty()}">お会計待ちの卓はありません</p>
 
-    </article>
+        <article class="billcard billcard--closing" th:each="bill : ${closingBills}">
+          <div class="billcard__head">
+            <span class="billcard__table" th:text="${bill.diningTable.name}">3番テーブル</span>
+            <span class="badge badge--stop">お会計待ち</span>
+            <!--/* ★ お会計待ちでも「調理中あり」は必ず出す。
+                   まだ厨房に残っている品がある卓を締めてしまうと、
+                   出していない料理の代金を頂くことになる。
+                   列が分かれても、この警告だけは消してはいけない */-->
+            <span class="badge badge--rec" th:if="${bill.hasPendingOrders()}">調理中あり</span>
+          </div>
+
+          <p class="billcard__meta">
+            <span th:text="${bill.guestCount} + ' 名'">4 名</span>
+            <span> ／ </span>
+            <span th:text="'滞在 ' + ${bill.stayMinutes} + ' 分'">滞在 62 分</span>
+          </p>
+
+          <p class="billcard__label">現在のご請求額</p>
+
+          <div class="billcard__amount">
+            <b class="billcard__yen">¥<span
+                  th:text="${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">11,044</span></b>
+            <span class="billcard__note"
+                  th:if="${bill.lateNightApplied}"
+                  th:text="'深夜料金 ' + ${bill.lateNightSurchargePercent} + '% を含む'">深夜料金 10% を含む</span>
+            <span class="billcard__note"
+                  th:unless="${bill.lateNightApplied}"
+                  th:text="'テーブルチャージ ¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')} + ' を含む'">
+              テーブルチャージ ¥1,800 を含む</span>
+          </div>
+
+          <!--/* ★ ここは「完了」ボタンにしない。
+                 会計を締めるには支払方法が要る（TableService.closeSession は
+                 未選択だと弾く）ので、1 回押しただけでは終われない。
+                 押しても完了しないボタンを「完了」と書くのがいちばん危ない */-->
+          <button type="button" class="btn btn--block billcard__action"
+                  th:data-open-modal="'bill-modal-' + ${bill.id}">お会計へ進む</button>
+        </article>
+      </div>
+    </section>
+
+    <!--/* ── 片付け待ち ─────────────────────────────────── */-->
+    <section class="lane lane--cleanup">
+      <div class="lane__head">
+        <span>バッシング</span>
+        <span class="count" th:text="${cleanupCount}">1</span>
+      </div>
+      <div class="lane__body">
+        <p class="lane__empty" th:if="${cleanupTables.isEmpty()}">バッシング中の卓はありません</p>
+
+        <!--/* ★ この列だけカードの中身が違います。
+               会計が済んだ卓には<b>伝票がありません</b>。
+               人数も滞在も金額も、出す先そのものが無いので出しません。
+               設計（540:3509）には ¥17,280 が描かれていますが、
+               それは他のカードからのコピーで、実データにはあたりません */-->
+        <article class="billcard billcard--cleanup" th:each="table : ${cleanupTables}">
+          <div class="billcard__head">
+            <span class="billcard__table" th:text="${table.name}">3番テーブル</span>
+            <span class="badge badge--cleanup">バッシング</span>
+          </div>
+
+          <p class="billcard__meta">片付けがすんだら、次の組をご案内できます</p>
+
+          <!--/* 片付け完了は書き込みなので見学者には出さない（ご案内と同じ線）。
+                 枠ごと消しても、卓名と案内文が残るので抜け殻にはならない */-->
+          <form th:action="@{/hall/tables/{id}/cleaned(id=${table.id})}" method="post"
+                sec:authorize="!hasRole('GUEST')">
+            <button type="submit" class="btn btn--block billcard__action">バッシング完了</button>
+          </form>
+        </article>
+      </div>
+    </section>
+
   </div>
-  </th:block>
 
-  <!--/* ===== 会計済み（片付け待ち） ===== 卓の 4 状態目（2026-09-07）
-         会計は済んだが、まだ皿が残っている卓。空席に混ぜると
-         次の組を二重に案内できてしまうので、必ず別の枠に出す。
-         1 卓も無ければ枠ごと出さない（呼び出しの callbar と同じ判断）。 */-->
-  <th:block th:unless="${cleanupTables.isEmpty()}">
-    <div class="section-title">
-      <h2 class="section-title__text">片付け待ち</h2>
-      <span class="section-title__count" th:text="${cleanupCount} + ' 卓'">1 卓</span>
-    </div>
+  <!--/* ===== お会計のモーダル（伝票ごと・2 段階。2026-09-12） =====
 
-    <div class="grid grid--3">
-      <article class="billcard billcard--cleanup" th:each="table : ${cleanupTables}">
-        <div class="billcard__head">
-          <span class="billcard__table" th:text="${table.name}">3番テーブル</span>
-          <!--/* 「止まっている」赤（お会計待ち）とも「進行中」緑（調理中）とも
-                 別の色。会計は済んでいる＝お金の話は終わっている卓なので、
-                 案内系の紺で出す */-->
-          <span class="badge badge--cleanup">会計済み</span>
+         ① ご注文の確認 → ② お会計 の 2 画面。
+         レジで読み上げるときに「何を頼んだか」を確かめてから金額に進みます。
+
+         ★ 伝票ごとに 1 枚ずつ描いています。
+           中身が卓ごとに違うので、1 枚を使い回すと開くたびに中身を
+           取りに行く仕掛け（JS とエンドポイント）が要ります。
+           このプロジェクトは SSE 以外ほぼサーバー描画なので、そちらに寄せました。
+
+         ★ 確認ダイアログは<b>最後の「お会計（伝票を締める）」だけ</b>に出します。
+           途中のボタンは何も記録しないので、そこで止めると
+           「とりあえず OK を押す」癖がついて、肝心の最後が読まれなくなります。 */-->
+  <th:block sec:authorize="!hasRole('GUEST')" th:each="bill : ${bills}">
+  <dialog class="hallmodal" th:id="'bill-modal-' + ${bill.id}"
+          th:aria-label="${bill.diningTable.name} + ' のお会計'">
+    <form class="hallmodal__box" th:action="@{/hall/bills/{id}/close(id=${bill.id})}"
+          method="post" data-panes>
+
+      <!--/* ── ① ご注文の確認 ── */-->
+      <section class="hallmodal__pane" data-pane="1">
+        <div th:replace="~{hall/fragments :: step(1, 'ご注文の確認', 'お会計')}"></div>
+
+        <div class="hallmodal__head">
+          <h2 class="hallmodal__title" th:text="${bill.diningTable.name}">カウンター2</h2>
+          <span class="hallmodal__sup"
+                th:text="${bill.guestCount} + ' 名 ／ 滞在 ' + ${bill.stayMinutes} + ' 分'">2 名 ／ 滞在 96 分</span>
+          <button type="button" class="hallmodal__close" data-close-modal aria-label="閉じる">✕</button>
         </div>
-        <p class="billcard__meta">片付けがすんだら、次の組をご案内できます</p>
-        <!--/* 片付け完了も書き込みなので見学者には出さない（ご案内と同じ線）。
-               枠ごと消しても、見出しと説明が残るので抜け殻にはならない */-->
-        <form th:action="@{/hall/tables/{id}/cleaned(id=${table.id})}" method="post"
-              sec:authorize="!hasRole('GUEST')">
-          <button type="submit" class="btn btn--block">片付け完了</button>
-        </form>
-      </article>
-    </div>
-  </th:block>
 
-  <!--/* ===== 空席（ここからご案内する） ===== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">空席</h2>
-    <span class="section-title__count" th:text="${vacantCount} + ' 卓'">5 卓</span>
-  </div>
+        <div class="hallmodal__field">
+          <div class="hallmodal__row hallmodal__row--label">
+            <span class="hallmodal__label">ご注文</span>
+            <span class="hallmodal__label" th:text="${bill.billableOrders.size()} + ' 件'">3 件</span>
+          </div>
 
-  <div th:if="${vacantTables.isEmpty()}">
-    <div th:replace="~{fragments/common :: empty('満', '空いている卓はありません')}"></div>
-  </div>
+          <!--/* 高さを決めて中だけ動かす。注文が増えてもモーダルの高さは変わらない。
+                 キャンセルした注文は出しません（金額を確かめる画面なので、
+                 請求に乗らないものを並べると読み上げと合わなくなる） */-->
+          <div class="scrollbox scrollbox--lines">
+            <th:block th:each="order : ${bill.billableOrders}">
+              <div class="lineitem" th:each="line : ${order.lines}">
+                <div class="lineitem__row">
+                  <span class="lineitem__name" th:text="${line.menuItemName}">国産砂肝の鉄板塩たれ焼</span>
+                  <span class="lineitem__qty" th:text="'× ' + ${line.quantity}">× 1</span>
+                  <span class="lineitem__gap"></span>
+                  <span class="lineitem__price"
+                        th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥880</span>
+                </div>
+                <p class="lineitem__opt" th:if="${!line.options.isEmpty()}"
+                   th:text="${line.optionSummary}">ソース / ねぎマヨ</p>
+              </div>
+            </th:block>
+          </div>
+        </div>
 
-  <!--/* エリアごとの区切りは在席の伝票と同じ仕組み（billGroups の説明参照） */-->
-  <th:block th:unless="${vacantTables.isEmpty()}" th:each="g : ${vacantGroups}">
-  <h3 class="areahead" th:if="${g.name() != null}" th:text="${g.name()}">カウンター</h3>
-  <div class="grid grid--3">
+        <div class="hallmodal__total">
+          <span>ご請求額</span>
+          <b th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥17,280</b>
+        </div>
 
-    <!--/* 空席のカードは、在席のカードと見分けがつくよう薄めに出します。
-           .empty-state は「中身が無い」ことを表す共通クラスです。 */-->
-    <article class="card" th:each="table : ${g.items()}" style="opacity:.8">
+        <div class="hallmodal__foot">
+          <button type="button" class="btn hallmodal__sub" data-close-modal>やめる</button>
+          <button type="button" class="btn hallmodal__main" data-pane-next="2">会計する</button>
+        </div>
+      </section>
 
-      <div class="card__body empty-state" style="padding-top:1.25rem;padding-bottom:1.25rem">
-        <div class="empty-state__mark" aria-hidden="true"
-             th:text="${#strings.substring(table.name, 0, 1)}">3</div>
-        <p class="mb-0" th:text="${table.name}">3番テーブル</p>
-        <p class="tiny faint mb-0" th:text="'席数 ' + ${table.capacity}">席数 4</p>
-      </div>
+      <!--/* ── ② お会計 ── */-->
+      <section class="hallmodal__pane" data-pane="2" hidden>
+        <div th:replace="~{hall/fragments :: step(2, 'ご注文の確認', 'お会計')}"></div>
 
-      <!--/* ご案内フォーム。
-             th:action で書くと CSRF トークンの hidden 項目が自動で入ります。
-             素の action="..." にすると 403 になるので注意してください。
+        <div class="hallmodal__head">
+          <h2 class="hallmodal__title">お会計（伝票を締める）</h2>
+          <span class="hallmodal__sup"
+                th:text="${bill.diningTable.name} + ' ／ ' + ${bill.guestCount} + ' 名 ／ 滞在 ' + ${bill.stayMinutes} + ' 分'">
+            カウンター2 ／ 2 名 ／ 滞在 96 分</span>
+          <button type="button" class="hallmodal__close" data-close-modal aria-label="閉じる">✕</button>
+        </div>
 
-             人数の初期値は 2 名です。卓の席数を初期値にすると、
-             2 名で 4 人掛けに座ったときにテーブルチャージを 2 名分多く
-             頂いてしまうためです（あとから伝票画面で直せます）。 */-->
-      <!--/* ご案内（伝票を開く）も書き込みなので、見学者（ROLE_GUEST）には出さない。
-             SecurityConfig 側でも /hall の POST はゲストに閉じてある。
-             フォームだけ消すと card__foot が中身のない灰色の帯として残るので、枠ごと消す */-->
-      <div class="card__foot" sec:authorize="!hasRole('GUEST')">
-        <form th:action="@{/hall/tables/{id}/open(id=${table.id})}" method="post" class="row row--wrap">
-          <label class="visually-hidden" th:for="'guests-' + ${table.id}">人数</label>
-          <select class="select" name="guestCount"
-                  th:id="'guests-' + ${table.id}" style="max-width:7rem">
-            <option th:each="n : ${guestOptions}"
-                    th:value="${n}"
-                    th:text="${n} + ' 名'"
-                    th:selected="${n == defaultGuestCount}">2 名</option>
-          </select>
-          <button type="submit" class="btn btn--ok">ご案内</button>
-        </form>
-      </div>
+        <!--/* 金額はすべて TableSession が計算した値をそのまま出します。
+               画面側で足し算を書くと計算式が 2 箇所に増え、請求額がズレます */-->
+        <div class="sumbox">
+          <div class="sumbox__row">
+            <span>小計</span>
+            <span th:text="'¥' + ${#numbers.formatInteger(bill.subtotalAmount, 1, 'COMMA')}">¥16,380</span>
+          </div>
+          <div class="sumbox__row">
+            <span>テーブルチャージ</span>
+            <span th:text="'¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')}">¥900</span>
+          </div>
+          <div class="sumbox__row" th:if="${bill.lateNightApplied}">
+            <span th:text="'深夜料金 ' + ${bill.lateNightSurchargePercent} + '%'">深夜料金 10%</span>
+            <span th:text="'¥' + ${#numbers.formatInteger(bill.lateNightAmount, 1, 'COMMA')}">¥1,728</span>
+          </div>
+          <div class="sumbox__line"></div>
+          <div class="sumbox__row sumbox__row--total">
+            <span>ご請求額</span>
+            <b th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥17,280</b>
+          </div>
+          <div class="sumbox__row sumbox__row--tax">
+            <span>内消費税</span>
+            <span th:text="'¥' + ${#numbers.formatInteger(bill.taxAmount, 1, 'COMMA')}">¥1,571</span>
+          </div>
+        </div>
 
-    </article>
-  </div>
+        <!--/* 深夜料金。チェックを外すとパラメータ自体が送られず、
+               サーバ側は「送られてこなかった＝適用しない」として受け取ります */-->
+        <div class="hallmodal__field" th:if="${bill.lateNightSurchargePercent > 0}">
+          <label class="checkline">
+            <input type="checkbox" name="applyLateNight" value="true"
+                   th:checked="${checkoutViews[bill.id].lateNightDefault()}">
+            <span th:text="'深夜料金を適用する（' + ${bill.lateNightSurchargePercent} + '%）'">深夜料金を適用する（10%）</span>
+          </label>
+          <p class="hallmodal__note">外すと深夜料金なしで締めます（内訳より安くなります）</p>
+        </div>
+
+        <!--/* お支払い方法。既定で選んでおかないのは、押し忘れたぶんが
+               現金売上に化けるのを防ぐためです。選ぶまで締められません */-->
+        <div class="hallmodal__field">
+          <span class="hallmodal__label">お支払い方法</span>
+          <div class="payrow">
+            <label class="payopt">
+              <input type="radio" name="paymentMethod" value="CASH" required>
+              <span>現金</span>
+            </label>
+            <label class="payopt">
+              <input type="radio" name="paymentMethod" value="CARD" required>
+              <span>カード</span>
+            </label>
+          </div>
+          <p class="hallmodal__note">どちらか選ばないと締められません</p>
+        </div>
+
+        <div class="hallmodal__foot">
+          <button type="button" class="btn hallmodal__sub" data-pane-prev="1">← 戻る</button>
+          <!--/* ★ 確認ダイアログはここだけ。
+                 チェックを外した瞬間に読み上げる金額が変わるよう、
+                 深夜料金あり／なしの両方を持たせて JS 側で選びます
+                 （画面に描いた時点の金額を固定で出すと、外してから押したときに
+                   ダイアログの金額と実際に締まる金額が食い違う） */-->
+          <button type="submit" class="btn hallmodal__main hallmodal__main--danger"
+                  th:data-table="${bill.diningTable.name}"
+                  th:data-total-with="${#numbers.formatInteger(checkoutViews[bill.id].totalIfLateNightApplied(), 1, 'COMMA')}"
+                  th:data-total-without="${#numbers.formatInteger(bill.totalWithoutLateNight, 1, 'COMMA')}"
+                  onclick="return komekoConfirmClose(this);">お会計（伝票を締める）</button>
+        </div>
+      </section>
+
+    </form>
+  </dialog>
   </th:block>
 
   <!--/* ===== 本日の会計済み =====
@@ -302,8 +546,11 @@
     注文が入ると自動で画面が更新されます。すぐ確認したいときは端末の再読み込みを押してください。
   </p>
 
-  <!--/* SSE を受け取って画面を読み直すスクリプト。defer なので HTML を描き終えてから動きます */-->
+  <!--/* SSE を受け取って画面を読み直すスクリプト。defer なので HTML を描き終えてから動きます。
+         モーダルの開閉とペイン切替もこの中です（開いているあいだは読み直しません）。 */-->
   <script th:src="@{/js/hall.js}" defer></script>
+  <!--/* 会計を締める前の確認ダイアログ。伝票ページと同じものを読み込みます */-->
+  <script th:src="@{/js/hall-checkout.js}" defer></script>
 </main>
 </body>
 </html>

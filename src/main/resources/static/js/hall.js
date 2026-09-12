@@ -86,6 +86,125 @@
      ページ内のどのフォームの送信でも確実に呼ばれます。 */
   document.addEventListener('submit', cancelReload, true);
 
+  /* ==================================================================
+     モーダル（2026-09-12）
+     ==================================================================
+     ★ 開いているあいだはリロードを止めます。
+       この画面は 45 秒ごと・注文が入るたびに読み直します。
+       支払方法を選んでいる最中にページが張り直されると、
+       チェックが戻って「押したつもりの内容と違う額で締まる」事故になります。
+       会計画面（bill.html）でこのスクリプトを読み込んでいないのと同じ理由です。
+     ================================================================== */
+
+  function openModals() {
+    return document.querySelectorAll('dialog.hallmodal[open]');
+  }
+
+  /** モーダルが開いているあいだは予約しない。閉じたときに掛け直す */
+  var baseScheduleReload = scheduleReload;
+  scheduleReload = function (delayMs) {
+    if (openModals().length > 0) {
+      return;
+    }
+    baseScheduleReload(delayMs);
+  };
+
+  /** ペイン（段）を切り替える。フォームは 1 つのまま、表示だけ入れ替える */
+  function showPane(form, index) {
+    var panes = form.querySelectorAll('[data-pane]');
+    for (var i = 0; i < panes.length; i++) {
+      panes[i].hidden = (panes[i].getAttribute('data-pane') !== String(index));
+    }
+    var box = form.closest('dialog');
+    if (box) { box.scrollTop = 0; }
+  }
+
+  /** 1 枚目で選んだ人数を 2 枚目の見出しに持ち越す */
+  function echoGuests(form) {
+    var echo = form.querySelector('[data-guest-echo]');
+    if (!echo) { return; }
+    var other = form.querySelector('[data-guest-other]');
+    var picked = form.querySelector('input[name="guestCount"]:checked');
+    var n = (other && other.value) ? other.value : (picked ? picked.value : '');
+    echo.textContent = n ? (n + ' 名さま') : '';
+  }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest ? e.target.closest('[data-open-modal],[data-close-modal],[data-pane-next],[data-pane-prev],[data-guest-other-apply]') : null;
+    if (!el) { return; }
+
+    /* 開く */
+    var openId = el.getAttribute('data-open-modal');
+    if (openId) {
+      var dlg = document.getElementById(openId);
+      if (dlg && dlg.showModal) {
+        cancelReload();
+        var f = dlg.querySelector('[data-panes]');
+        if (f) { showPane(f, 1); }
+        dlg.showModal();
+      }
+      return;
+    }
+
+    /* 閉じる。閉じたらリロードの予約を掛け直す */
+    if (el.hasAttribute('data-close-modal')) {
+      var owner = el.closest('dialog');
+      if (owner) { owner.close(); }
+      baseScheduleReload(FALLBACK_MS);
+      return;
+    }
+
+    /* 次へ／戻る */
+    var next = el.getAttribute('data-pane-next');
+    var prev = el.getAttribute('data-pane-prev');
+    if (next || prev) {
+      var form = el.closest('[data-panes]');
+      if (!form) { return; }
+      if (next) {
+        /* 人数を選ばずに進ませない。サーバ側でも既定値は入るが、
+           押した場所で気づけたほうが速い */
+        var other = form.querySelector('[data-guest-other]');
+        var picked = form.querySelector('input[name="guestCount"]:checked');
+        if (form.querySelector('input[name="guestCount"]') && !picked && !(other && other.value)) {
+          alert('何名さまかを選んでください。');
+          return;
+        }
+        echoGuests(form);
+      }
+      showPane(form, next || prev);
+      return;
+    }
+
+    /* 9 名以上の「決定」。チップの選択を外して、入力した数を使う */
+    if (el.hasAttribute('data-guest-other-apply')) {
+      var form2 = el.closest('[data-panes]');
+      var input = form2.querySelector('[data-guest-other]');
+      var v = parseInt(input.value, 10);
+      if (!v || v < 9) { input.focus(); return; }
+      var radios = form2.querySelectorAll('input[name="guestCount"]');
+      for (var j = 0; j < radios.length; j++) { radios[j].checked = false; }
+      echoGuests(form2);
+    }
+  });
+
+  /* チップを選び直したら、9 名以上の入力は捨てる（両方送らない） */
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.name === 'guestCount') {
+      var form = e.target.closest('[data-panes]');
+      if (!form) { return; }
+      var other = form.querySelector('[data-guest-other]');
+      if (other) { other.value = ''; }
+      echoGuests(form);
+    }
+  });
+
+  /* Esc で閉じたときもリロードを掛け直す */
+  document.addEventListener('close', function (e) {
+    if (e.target && e.target.matches && e.target.matches('dialog.hallmodal')) {
+      baseScheduleReload(FALLBACK_MS);
+    }
+  }, true);
+
   /* ------------------------------------------------------------------
      SSE の購読
      ------------------------------------------------------------------ */

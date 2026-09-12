@@ -211,13 +211,19 @@ class StockRecordPageTest {
     }
 
     @Test
-    @DisplayName("厨房ボードの見出し（現01）：上下 20・題 28・説明 13")
+    @DisplayName("厨房ボードの見出し（設計 現01 552:6627）：上下 20・題 28・説明 13")
     void kitchenHeadingMetrics() throws Exception {
-        // 実測との差はこの 3 つだけだった（他は全て一致）。
-        // .griddle は厨房ボードにしか付いていないので、他画面は動かない
+        // 2026-09-12 に .griddle 単体から .kitchenboard 配下（app.css 33 節）へ移した。
+        // 厨房ボードの値をひとところに集めるため。同じ値が 2 箇所にあると
+        // 必ず片方だけ古くなる（食材・在庫の card__head で実際に踏んでいる）
         String css = Files.readString(CSS);
-        assertThat(css).contains(".griddle .card__body { padding: 20px 24px; }");
-        assertThat(css).contains(".griddle h1 { font-size: 28px; }");
-        assertThat(css).contains(".griddle .small { font-size: 13px; }");
+        assertThat(css).contains(".kitchenboard .griddle .card__body { padding: 20px 24px; }");
+        assertThat(css).contains(".kitchenboard .griddle h1 { font-size: 28px; }");
+        assertThat(css).contains(".kitchenboard .griddle .small { font-size: 13px; color: #828282; }");
+
+        // 移す前の定義が残っていないこと。
+        // 残っていると「どちらが効いているのか」を読む人が追えなくなる
+        assertThat(css).as("移動前の .griddle 単体の定義が残っている")
+                .doesNotContain("\n.griddle h1 {");
     }
 }

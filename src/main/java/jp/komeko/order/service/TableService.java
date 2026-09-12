@@ -355,6 +355,33 @@ public class TableService {
         return sessions;
     }
 
+    /**
+     * ホール盤面のモーダル用：<b>注文の明細まで読んだ</b>伝票の一覧（2026-09-12）。
+     *
+     * <p>盤面のお会計モーダルに「何を頼んだか」を出すために要ります。
+     * {@link #openSessions()} が読むのは注文までで、明細は遅延のままです。
+     * {@code open-in-view: false} なので、描画のときにはもう DB 接続がありません。
+     * ここで触っておかないと、テンプレートで {@code order.lines} を書いた瞬間に
+     * {@code LazyInitializationException} で画面ごと落ちます。
+     *
+     * <p><b>なぜ JOIN FETCH を重ねないか</b><br>
+     * 伝票→注文→明細は {@code List} が 2 段なので、まとめて fetch すると
+     * {@code MultipleBagFetchException} になります（CLAUDE.md の JPA の項）。
+     * 注文までは {@code @EntityGraph}、明細は {@code Order.lines} の
+     * {@code @BatchSize(50)} に任せて、ここでは触るだけにします。
+     * 卓が 10・注文が 30 でも、明細の問い合わせは 1 回にまとまります。
+     */
+    @Transactional(readOnly = true)
+    public List<TableSession> openSessionsWithLines() {
+        List<TableSession> sessions = openSessions();
+        for (TableSession session : sessions) {
+            for (Order order : session.getOrders()) {
+                order.getLines().size();   // ここで初めて明細が読まれる（まとめ読み）
+            }
+        }
+        return sessions;
+    }
+
     /** 管理画面用：その営業日の伝票（新しい順）。 */
     @Transactional(readOnly = true)
     public List<TableSession> sessionsOf(LocalDate businessDate) {
@@ -485,6 +512,46 @@ public class TableService {
         table.setNeedsCleanup(false);
         log.info("片付け完了: 卓={}", table.getName());
         return table;
+    }
+
+    /**
+     * 片付け待ちなら片付け完了にしてから、伝票を開く（「＋新規お客様」の一手）。
+     *
+     * <p><b>なぜ 2 つを 1 つのメソッドにまとめるのか</b><br>
+     * 皿を下げる人と席へ通す人は同じだからです。以前は盤面で
+     * 「片付け完了」を押してから「ご案内」を押す 2 手でしたが、
+     * 2 手目を忘れると卓が空席のまま放置されました。
+     *
+     * <p><b>途中で失敗したときに旗だけ下りるのを防ぐため、1 つの取引にしています。</b>
+     * 別々に呼ぶと、営業時間外などで {@link #openSession} が弾かれたときに
+     * 「片付け完了だけ記録されて、誰も座っていない」状態が残ります。
+     * ここでまとめておけば、伝票が開けなければ旗も元に戻ります。
+     *
+     * <p>片付け完了は<b>人の判断</b>なので、まとめても記録は今までどおり残します
+     * （ログと、呼び出し側へ返す {@link SeatResult#markedCleaned()}）。
+     */
+    @Transactional
+    public SeatResult seat(Long tableId, int guestCount) {
+        DiningTable table = getById(tableId);
+
+        boolean markedCleaned = table.isNeedsCleanup();
+        if (markedCleaned) {
+            table.setNeedsCleanup(false);
+            log.info("片付け完了: 卓={}（ご案内と同時）", table.getName());
+        }
+
+        // 旗を下ろしたあとに呼ぶこと。openSession は needsCleanup を見て弾くので、
+        // 順番を逆にすると、この直後に自分で TableNotReadyException を踏む
+        return new SeatResult(openSession(tableId, guestCount), markedCleaned);
+    }
+
+    /**
+     * {@link #seat} の結果。
+     *
+     * @param bill          開いた（またはすでに開いていた）伝票
+     * @param markedCleaned このご案内で片付け完了も記録したか。画面の文言を変えるために返す
+     */
+    public record SeatResult(TableSession bill, boolean markedCleaned) {
     }
 
     /**

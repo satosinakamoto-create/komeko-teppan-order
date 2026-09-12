@@ -20,7 +20,10 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('厨房ボード', ~{::main})}">
 <body>
-<main>
+<!--/* .kitchenboard は「この画面だけに効く寸法」を掛けるための目印です（app.css 33 節）。
+       .board / .lane / .ticket はホール盤面と共用の部品なので、
+       設計（現01 厨房ボード 552:6627）に寄せる値は共通側ではなくここに書きます。 */-->
+<main class="kitchenboard">
 
   <!--/* 直前の操作結果（成功・お知らせ・エラー）を 1 回だけ表示する共通部品 */-->
   <div th:replace="~{fragments/common :: flash}"></div>
@@ -28,7 +31,9 @@
   <!--/* ===== 見出しと稼働状況 ===== */-->
   <section class="card griddle mt-4">
     <div class="card__body row row--between row--wrap">
-      <div>
+      <!--/* 題と説明は横並び（設計 現01）。縦に積むと帯が 2 行ぶんの高さになり、
+             稼働状況のチップの位置も下がります。狭い画面では折り返します。 */-->
+      <div class="griddle__title">
         <h1 class="mb-0">厨房ボード</h1>
         <p class="small muted mb-0">左から右へ、ボタンを押して状態を進めます</p>
       </div>
@@ -92,14 +97,12 @@
                  .ticket__num はもともと 3 桁の番号を大きく出すための見た目
                  （数字用フォント・1.75rem）なので、
                  「カウンター2」のような日本語が入ると横にはみ出します。
-                 app.css は共用ファイルで勝手に触れないため、
-                 この画面の都合ぶんだけ inline style で
-                 文字サイズを落とし、書体を本文用（--font-sans）に戻しています。
+                 以前はその調整を inline style でここに書いていましたが、
+                 2026-09-12 に app.css の 33 節（.kitchenboard）へ移しました。
+                 設計の「卓名 20px 太字」と同じ値が 2 箇所にあると必ず片方だけ古くなるためです。
           */-->
           <div class="ticket__head">
-            <span class="ticket__num"
-                  style="font-family: var(--font-sans); font-size: 1.25rem; letter-spacing: .02em; word-break: break-all;"
-                  th:text="${order.tableName}">3番テーブル</span>
+            <span class="ticket__num" th:text="${order.tableName}">3番テーブル</span>
 
             <!--/* 注文番号。厨房の控えや伝票と突き合わせるときだけ使うので小さく併記する */-->
             <span class="ticket__name" th:text="'#' + ${order.orderNumber}">#101</span>
@@ -188,19 +191,25 @@
                      文言のほうは前から「いまいるレーンで意味が変わる」を見ていました
                      （下の COOKING の分岐）。同じ原則を見た目にも適用した、というのがこの式です。
 
-                     ・標準の一手     … btn--primary（スタッフ側テーマでは黒の塗り）
-                     ・提供済みにする … さらに btn--lg。伝票を閉じる最後の確定操作なので、
-                                        押し間違えないよう指のサイズで区別する
-                     ・それ以外       … 無印の .btn（枠線だけ）。飛ばす・戻すは例外操作
+                     ・標準の一手 … btn--primary（草緑 #0b7a1a の塗り）
+                     ・それ以外   … 無印の .btn（白地に薄い枠）。飛ばす・戻すは例外操作
 
-                     btn--ok（緑）はこの画面では使いません。緑は「完了・良い結果」の色で、
-                     押すべき一手の目印ではないためです。レーンごとに主ボタンの色が
-                     変わると「塗ってあるのが次の一手」という一番速い読み方も崩れます。
-                     CLAUDE.md「アクセント色は押せるもの・熱いものだけに使う」にも沿います。 */-->
+                     ★ 2026-09-12 に 2 点変えました（設計 現01 厨房ボード 552:6627 に合わせた）。
+
+                       1. 色。以前ここには「緑は完了の色なので主ボタンには使わない」と
+                          書いてありましたが、ホール盤面の色を決め直したときに
+                          **緑＝押せる**（--action）／**赤＝押したら戻しにくい**（--action-danger）
+                          という区分に変わりました。厨房の主ボタンもその緑です。
+                          表の見出しのティール（--accent）とは別の色なので、
+                          「塗ってある＝押せる」の読み方は崩れません。
+
+                       2. 大きさ。「提供済みにする」だけ btn--lg で一段大きくしていましたが、
+                          設計は 3 レーンとも操作ボタンを 56px でそろえています。
+                          レーンごとにボタンの高さが変わると、ボードを縦に流し読みしたときの
+                          行の位置がそろわないほうが読みにくい、という判断です。
+                          押し間違えの防止は、キャンセルを下段に分けて赤枠にすることで担保します。 */-->
               <button type="submit" class="btn"
-                      th:classappend="${order.status.isPrimaryNext(next)}
-                                        ? (${next.name() == 'COMPLETED'} ? 'btn--primary btn--lg' : 'btn--primary')
-                                        : ''">
+                      th:classappend="${order.status.isPrimaryNext(next)} ? 'btn--primary' : ''">
                 <!--/* ボタンの文言はイートインの動きに合わせています。
                        OrderStatus の staffLabel（「お渡し可」「受渡済」）は
                        テイクアウト時代の言葉のままで、他の画面も使っているため変更できません。
@@ -236,7 +245,10 @@
                  「状態を進める」と違い、伝票から品が消える＝残る変更なので、
                  公開デモの「表示のみ・状態を進める操作だけ」の約束の外にある。
                  SecurityConfig 側でも POST を弾いている（二重の守り） */-->
-          <div class="ticket__actions mt-4" th:unless="${order.status.closed}"
+          <!--/* 上の操作との間は .ticket の gap（12px）が作ります。
+                 以前は mt-4 を付けていましたが、カードの中の間隔を 1 箇所
+                 （app.css 33 節の .kitchenboard .ticket の gap）で決める形にしたので外しました。 */-->
+          <div class="ticket__actions" th:unless="${order.status.closed}"
                sec:authorize="!hasRole('GUEST')">
             <form th:each="next : ${order.status.allowedNext()}"
                   th:if="${next.name() == 'CANCELED'}"

@@ -21,11 +21,17 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('ダッシュボード', ~{::main})}">
 <body>
-<main class="sheet">
+<!--/* dashpage は CSS の目印。この画面だけの寸法は app.css の 38 節にあります
+       （設計 01 ダッシュボード 15:319 / 2026-09-12）。
+       ★ .sheet は売上画面（admin/sales.html）と共用なので、共通側は触りません。 */-->
+<main class="sheet dashpage">
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="page-head page-head--bare">
+  <!--/* 見出しの帯は左右 40px の内側余白を持つ（設計 15:319 の 16/40）。
+         以前は .page-head--bare で余白を 0 にしていましたが、設計では
+         ホール・品切れ・食材と同じ「見出し／ページ」の形でした。 */-->
+  <div class="page-head">
     <h1 class="page-head__title">ダッシュボード</h1>
     <span class="page-head__sub" th:text="${todayLabel} + ' の営業'">2026年9月5日(金) の営業</span>
   </div>

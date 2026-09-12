@@ -76,9 +76,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("厨房ボードのボタンの強弱")
 class KitchenBoardButtonStyleTest {
 
-    /** 主ボタン（スタッフ側テーマでは黒の塗り）。 */
+    /** 主ボタン（スタッフ側テーマでは草緑 #0b7a1a の塗り）。 */
     private static final String PRIMARY = "btn--primary";
-    /** 最後の確定操作だけを大きくする修飾。 */
+    /**
+     * 一段大きくする修飾。
+     *
+     * <p><b>この画面では、どのボタンにも付いてはいけません</b>（2026-09-12）。
+     * 以前は「提供済みにする」だけ付けて指のサイズで区別していましたが、
+     * 設計（現01 厨房ボード 552:6627）は 3 レーンとも操作ボタンを 56px でそろえています。
+     * レーンごとにボタンの高さが変わると、ボードを横に見比べたときに
+     * 行の位置がそろわず、かえって読みにくい、という判断です。
+     * 押し間違えの防止は、キャンセルを下段に分けて赤枠にすることで担保しています。
+     */
     private static final String LARGE = "btn--lg";
 
     @Autowired
@@ -163,7 +172,7 @@ class KitchenBoardButtonStyleTest {
 
         // 飛ばし技はアクセント色を持たない。緑（btn--ok）で目立たせていたのをやめた箇所。
         assertThat(buttons.get("READY")).doesNotContain("btn--ok");
-        // 大きくしてよいのは伝票を閉じる最後の確定操作だけ
+        // この画面のボタンは大きさで差を付けない（LARGE の説明を参照）
         assertThat(buttons.get("COOKING")).doesNotContain(LARGE);
     }
 
@@ -183,15 +192,16 @@ class KitchenBoardButtonStyleTest {
 
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("提供待ちレーンでは「提供済みにする」が主ボタンかつ大。「調理中に戻す」は副")
-    void readyLaneKeepsCompleteAsTheLargePrimaryButton() throws Exception {
+    @DisplayName("提供待ちレーンでは「提供済みにする」が主ボタン。「調理中に戻す」は副")
+    void readyLaneMakesCompleteThePrimaryButton() throws Exception {
         orderService.changeStatus(placed.getId(), OrderStatus.COOKING, "厨房スタッフ");
         orderService.changeStatus(placed.getId(), OrderStatus.READY, "厨房スタッフ");
 
         Map<String, String> buttons = statusButtonClasses();
 
-        // 伝票を閉じる最後の確定操作。指のサイズで区別する意図は壊さない。
-        assertThat(buttons.get("COMPLETED")).contains(PRIMARY).contains(LARGE);
+        assertThat(buttons.get("COMPLETED")).contains(PRIMARY);
+        // 大きさで差を付けない（3 レーンとも 56px）。LARGE の説明を参照。
+        assertThat(buttons.get("COMPLETED")).doesNotContain(LARGE);
 
         // 同じ COOKING でも、ここでは「焼き直すために一段戻す」操作なので副。
         // 受付レーンの COOKING（主ボタン）と見た目が違うことが、

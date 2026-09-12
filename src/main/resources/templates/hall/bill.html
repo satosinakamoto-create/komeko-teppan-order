@@ -415,25 +415,11 @@
           <p class="help mb-0">締めたあと、この画面に実際のご請求額が表示されます。</p>
         </div>
 
-        <script>
-          function komekoConfirmClose(button) {
-            var checkbox = button.form.querySelector('input[name="applyLateNight"]');
-            var applied = checkbox ? checkbox.checked : false;
-            var total = applied ? button.dataset.totalWith : button.dataset.totalWithout;
-            var suffix = applied ? '（深夜料金 込み）' : '（深夜料金 なし）';
-            // 支払い方法はサーバ側でも必須にしてあるが、送ってから
-            // 「選んでください」と返されるより、押した場所で気づけたほうが速い。
-            var paid = button.form.querySelector('input[name="paymentMethod"]:checked');
-            if (!paid) {
-              alert('お支払い方法（現金／カード）を選んでください。');
-              return false;
-            }
-            var paidLabel = paid.value === 'CARD' ? 'カード' : '現金';
-            return confirm(button.dataset.table + ' のお会計を締めます。\n'
-              + 'ご請求額 ¥' + total + ' ' + suffix + '\n'
-              + 'お支払い ' + paidLabel + '\n\nよろしいですか？');
-          }
-        </script>
+        <!--/* komekoConfirmClose は /js/hall-checkout.js にあります（2026-09-12）。
+               盤面のお会計モーダルからも同じ関数を呼ぶので、直書きをやめました。
+               読み上げる金額や文言が画面によって違うのは、現場でいちばん
+               信用を失う壊れ方なので、必ず 1 か所に置いてください。 */-->
+        <script th:src="@{/js/hall-checkout.js}" defer></script>
       </form>
     </div>
 

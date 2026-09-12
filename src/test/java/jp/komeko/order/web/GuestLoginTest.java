@@ -218,8 +218,10 @@ class GuestLoginTest {
         // その印でホール（会計）の書き込みと注文キャンセルだけを閉じる。
 
         @ParameterizedTest(name = "{0} は見学者には拒否される")
+        // /hall/seat は「＋新規お客様」からのご案内（2026-09-11 に
+        // /hall/tables/{id}/open と /cleaned を 1 本にまとめた口）
         @ValueSource(strings = {"/hall/bills/1/close", "/hall/bills/1/reopen",
-                                "/hall/bills/1/guests", "/hall/tables/1/open",
+                                "/hall/bills/1/guests", "/hall/seat",
                                 "/hall/bills/1/orders/1/late-night",
                                 "/kitchen/orders/1/cancel"})
         @WithMockUser(roles = {"STAFF", "GUEST"})

@@ -126,12 +126,13 @@ class HallBoardDesignTest {
         // 混ざると 1 列だけ枠と余白が違って見える。
         // ★ 引用符ごと比べる。"card__head" だけで探すと billcard__head に
         //   部分一致して、必ず失敗する（.label / .btn でも同じ罠を踏んでいる）
-        // 区切りの終端は「空席」の見出し
-        // （2026-09-09 に「卓ごとの注文」を削除したので、そこを目印にできない）
-        // ★ 検索の開始位置を from にすること。「空席」は上の数字カードにも
-        //   出てくるので、頭から探すと在席の伝票より前を指してしまう
-        int from = html.indexOf("在席の伝票");
-        int to = html.indexOf("空席", from);
+        // 区切りは「在席の列のはじまり」から「本日の会計済み」まで。
+        // 2026-09-09 に「卓ごとの注文」、09-11 に「空席」の枠、
+        // 09-12 に「在席の伝票」の見出しごと 3 列へ組み替えたので、
+        // 文字ではなく列のクラス名を目印にする。
+        // 会計済みの一覧は会計取消の入口なので残り続ける
+        int from = html.indexOf("lane--seated");
+        int to = html.indexOf("本日の会計済み", from);
         assertThat(from).isGreaterThan(0);
         assertThat(to).isGreaterThan(from);
         assertThat(html.substring(from, to)).doesNotContain("\"card__head\"");
@@ -168,7 +169,7 @@ class HallBoardDesignTest {
     }
 
     @Test
-    @DisplayName("★ 設計の寸法（見出し28／節20+字間2／数字28／カード上下24左右16）")
+    @DisplayName("★ 設計の寸法（見出し28／節20+字間2／数字28／カード余白24全周）")
     void designMetrics() throws Exception {
         String css = Files.readString(CSS).replace("\r\n", "\n");
 
@@ -176,7 +177,17 @@ class HallBoardDesignTest {
         // .theme-snow が字間を 0 に落とすので、節見出しだけ開け直している
         assertThat(css).contains(".hallboard h2.section-title__text { font-size: 20px; letter-spacing: 2px; }");
         assertThat(css).contains(".theme-desk .hallboard .stat__value { font-size: 28px; }");
-        assertThat(css).contains("padding: 24px 16px;");
+
+        // カードの内側は 24 全周（2026-09-12 に 24/16 から変更。設計 540:3509）。
+        // ★ 素の "padding: 24px;" で探さないこと。他の部品にも同じ値があるので、
+        //   .hallboard .billcard の宣言ブロックを切り出してから確かめる
+        int at = css.indexOf(".hallboard .billcard {");
+        assertThat(at).as(".hallboard .billcard の指定が無い").isGreaterThan(0);
+        String cardBlock = css.substring(at, css.indexOf("}", at));
+        assertThat(cardBlock).contains("padding: 24px;");
+        assertThat(cardBlock).contains("border-radius: 6px;");
+        // 卓名は設計どおり 24px（18px から上げた）
+        assertThat(css).contains(".hallboard .billcard__table { font-size: 24px;");
         // 列の間 16・行の間 24（設計の伝票の列どうしの空き）
         assertThat(css).contains(".hallboard .grid--3 { gap: 24px 16px; }");
         // 本文の縦余白 64→32。共通の変数は触らず、この画面だけ絞る
@@ -185,13 +196,28 @@ class HallBoardDesignTest {
     }
 
     @Test
-    @DisplayName("ボタンの高さは 48 のまま（設計の 44 より規約を優先する）")
-    void tapTargetWinsOverTheDesign() throws Exception {
-        // CLAUDE.md「タップ領域は 48px 以上」。チップ・検索欄と同じ判断で、
-        // ここだけ設計に従わない。従うと 44px になる
+    @DisplayName("★ カードのボタンは設計どおり 44px（2026-09-12 に 48px から変更）")
+    void cardButtonFollowsTheDesignHeight() throws Exception {
+        // このテストは 2026-09-11 まで逆のこと（48px を守る）を書いていた。
+        // 2026-09-12 に「Figma を正とする」とユーザーが決めたので、設計に合わせた。
+        //
+        // ★ CLAUDE.md の「タップ領域は 48px 以上」は廃止していない。
+        //   例外はこのカードのボタン 1 か所だけ。ほかは var(--tap) のまま。
+        //   もし店のタブレットで押しにくければ、min-height の行を消せば 48px に戻る
         String css = Files.readString(CSS).replace("\r\n", "\n");
-        assertThat(css).contains(".hallboard .billcard .btn { font-size: 14px; border-radius: 4px; }");
-        assertThat(css).doesNotContain(".hallboard .billcard .btn { height: 44px");
+
+        int at = css.indexOf(".hallboard .billcard .btn {");
+        assertThat(at).as(".hallboard .billcard .btn の指定が無い").isGreaterThan(0);
+        String block = css.substring(at, css.indexOf("}", at));
+        assertThat(block).contains("min-height: 44px;");
+        // 文字は 15px（＝基底の .btn と同じ .9375rem）。2026-09-12 に 14px から戻した。
+        // 値を 2 か所に持たないなら、この上書き自体を消して .btn に任せてもよい
+        assertThat(block).contains("font-size: 15px;");
+        assertThat(block).contains("border-radius: 4px;");
+
+        // 例外はここだけ。共通の .btn は 48px（--tap）のまま
+        assertThat(css).as("共通のボタンまで小さくしている")
+                .contains("min-height: var(--tap);");
     }
 
     @Test
