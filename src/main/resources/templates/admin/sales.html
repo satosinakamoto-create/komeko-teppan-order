@@ -38,15 +38,20 @@
          同居します。2026-09-13 までは「対象の月」のバーと bare の題で
          2 段に分かれていました。帯 1 本にすると縦が 100px で済み、
          「どの月を見ているか」が題の行から目を離さずに読めます。 */-->
+  <!--/* 月ナビの置き場所は題のすぐ隣（2026-09-13 店主指示）。
+         デザイン（文字リンク・月 24px 太字）は設計 14 売上（17:1038）のまま、
+         配置だけ Figma 07 トi18（737:7983）に合わせて左へ寄せた。
+         設計 17:1038 は右端置きだが、「どの月を見ているか」は題とひと続きで
+         読む情報なので、題の隣のほうが視線が往復しない。 */-->
   <div class="page-head">
     <h1 class="page-head__title">売上</h1>
-    <span class="page-head__spacer"></span>
     <nav class="monthnav" aria-label="月の切り替え">
       <span class="monthnav__label">対象の月</span>
       <a class="monthnav__go" th:href="@{/admin/sales(month=${prevMonthIso}, span=${span})}">← 前月</a>
       <span class="monthnav__value" th:text="${monthLabel}">2026-08</span>
       <a class="monthnav__go" th:href="@{/admin/sales(month=${nextMonthIso}, span=${span})}">翌月 →</a>
     </nav>
+    <span class="page-head__spacer"></span>
   </div>
 
   <!--/* ====== 3 つの数字 ====== */-->

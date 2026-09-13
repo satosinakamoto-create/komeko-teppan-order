@@ -74,6 +74,27 @@ class SalesRenderToneTest {
     }
 
     @Test
+    @DisplayName("★ 月ナビは題のすぐ隣（左寄せ）。デザインは 14 売上・配置はトi18（2026-09-13 店主指示）")
+    void monthNavSitsNextToTheTitle() throws Exception {
+        String html = Files.readString(HTML);
+
+        // 「デザインだけ 14 売上、配置をトi18 売上に」という指示。
+        //   デザイン＝17:1038 の文字リンク式（対象の月・緑リンク・月 24px 太字）→ 触らない
+        //   配置　＝Figma 07 トi18（737:7983）＝題のすぐ隣。右端に置くのをやめる
+        // 実装上は spacer（のばす）を月ナビの後ろへ動かすだけ
+        int title = html.indexOf("page-head__title\">売上");
+        int nav = html.indexOf("class=\"monthnav\"");
+        int spacer = html.indexOf("page-head__spacer");
+        assertThat(title).isGreaterThan(0);
+        assertThat(nav).as("月ナビは題の直後").isGreaterThan(title);
+        assertThat(spacer).as("のばすは月ナビの後ろ（月ナビを左に寄せる）").isGreaterThan(nav);
+
+        // 題と月ナビの間はトi18 の 24px（共通の .page-head は 16）
+        String css = css();
+        assertThat(css).contains(".salespage .page-head { gap: 24px; }");
+    }
+
+    @Test
     @DisplayName("★ 地は白、カードとパネルは角丸 0・#e3e3e3・影なし")
     void toneMatchesTheDashboard() throws Exception {
         String css = css();
