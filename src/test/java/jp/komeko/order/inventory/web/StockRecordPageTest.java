@@ -188,13 +188,14 @@ class StockRecordPageTest {
         assertThat(css).contains(".theme-desk .staff-main:has(.inv-ingredients) { --main-pad-y: 32px; }");
         assertThat(Files.readString(LIST)).contains("section-title inv-ingredients");
 
-        // 探す欄は素の .searchbox（64px）。設計 466:5915 が 64 だったので、
-        // 48 に落としていた --slim を外した。この画面だけの版は持たない
+        // 探す欄は素の .searchbox。この画面だけの版（--slim）は持たない。
         // 規則そのものを見る。裸の ".searchbox--slim" だと、外した経緯を書いた
         // コメントに一致して必ず落ちる（card__head の件と同じ罠）
+        // ★ 高さは 64 → 48（2026-09-13、店主指示で統一）。
+        //   設計 466:5915 は 64 でしたが、品切れだけ 48 で 2 種類あったのを
+        //   ボタン・タップの床と同じ 48 に一本化した（SearchBoxHeightTest が正）
         assertThat(css).doesNotContain(".searchbox--slim {");
         assertThat(Files.readString(LIST)).doesNotContain("searchbox--slim");
-        assertThat(css).contains("  height: 64px;");
         // しぼり込みは 2 つ並び、間は 42（設計 466:5915）
         assertThat(css).contains(".stockpage .stockfind { gap: 42px; margin-top: 0; }");
         // 見出しは左右 40・上下 16、ボタンは右端
@@ -211,14 +212,19 @@ class StockRecordPageTest {
     }
 
     @Test
-    @DisplayName("厨房ボードの見出し（設計 現01 552:6627）：上下 20・題 28・説明 13")
+    @DisplayName("厨房ボードの見出し（設計 現01 552:6627）：上下 20・題 32・説明 13")
     void kitchenHeadingMetrics() throws Exception {
         // 2026-09-12 に .griddle 単体から .kitchenboard 配下（app.css 33 節）へ移した。
         // 厨房ボードの値をひとところに集めるため。同じ値が 2 箇所にあると
         // 必ず片方だけ古くなる（食材・在庫の card__head で実際に踏んでいる）
+        //
+        // ★ 題は 28px → 32px（2026-09-13）。設計は 28px でしたが、
+        //   他のページの題（.page-head__title）は 32px で、この画面だけ一段
+        //   小さいままでした。店主の指示で Render にそろえる際に統一しています
+        //   （RenderAlignedTypeTest）。
         String css = Files.readString(CSS);
         assertThat(css).contains(".kitchenboard .griddle .card__body { padding: 20px 24px; }");
-        assertThat(css).contains(".kitchenboard .griddle h1 { font-size: 28px; }");
+        assertThat(css).contains(".kitchenboard .griddle h1 { font-size: 32px; line-height: 36px; }");
         assertThat(css).contains(".kitchenboard .griddle .small { font-size: 13px; color: #828282; }");
 
         // 移す前の定義が残っていないこと。

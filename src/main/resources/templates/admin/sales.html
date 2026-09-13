@@ -29,20 +29,24 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('売上', ~{::main})}">
 <body>
-<main class="sheet">
+<main class="sheet salespage">
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <!--/* ====== 月を移る ====== */-->
-  <nav class="monthnav" aria-label="月の切り替え">
-    <span class="monthnav__label">対象の月</span>
-    <a class="monthnav__go" th:href="@{/admin/sales(month=${prevMonthIso}, span=${span})}">← 前月</a>
-    <span class="monthnav__value" th:text="${monthLabel}">2026-08</span>
-    <a class="monthnav__go" th:href="@{/admin/sales(month=${nextMonthIso}, span=${span})}">翌月 →</a>
-  </nav>
-
-  <div class="page-head page-head--bare">
+  <!--/* ====== 見出しの帯 ======
+         設計 14 売上（17:1038）は、題「売上」と月ナビが 1 本の帯（16/40）に
+         同居します。2026-09-13 までは「対象の月」のバーと bare の題で
+         2 段に分かれていました。帯 1 本にすると縦が 100px で済み、
+         「どの月を見ているか」が題の行から目を離さずに読めます。 */-->
+  <div class="page-head">
     <h1 class="page-head__title">売上</h1>
+    <span class="page-head__spacer"></span>
+    <nav class="monthnav" aria-label="月の切り替え">
+      <span class="monthnav__label">対象の月</span>
+      <a class="monthnav__go" th:href="@{/admin/sales(month=${prevMonthIso}, span=${span})}">← 前月</a>
+      <span class="monthnav__value" th:text="${monthLabel}">2026-08</span>
+      <a class="monthnav__go" th:href="@{/admin/sales(month=${nextMonthIso}, span=${span})}">翌月 →</a>
+    </nav>
   </div>
 
   <!--/* ====== 3 つの数字 ====== */-->

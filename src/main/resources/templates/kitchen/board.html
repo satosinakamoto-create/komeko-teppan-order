@@ -248,7 +248,13 @@
           <!--/* 上の操作との間は .ticket の gap（12px）が作ります。
                  以前は mt-4 を付けていましたが、カードの中の間隔を 1 箇所
                  （app.css 33 節の .kitchenboard .ticket の gap）で決める形にしたので外しました。 */-->
-          <div class="ticket__actions" th:unless="${order.status.closed}"
+          <!--/* ★ ticket__cancel を外さないこと。
+                 タブレット幅（1140px 以下）では、この入れ物ごと伝票の右上へ動かして
+                 「✕」1 文字にします（app.css 35-7 節）。理由は高さです。
+                 実測で 1024×768 のレーンに入る伝票は 1.7 枚しかなく、
+                 その内訳でいちばん大きかったのが、全伝票に必ず付くこの 48px の行でした。
+                 クラスが 1 つ増えるだけで、PC 幅の見た目は 1px も変わりません。 */-->
+          <div class="ticket__actions ticket__cancel" th:unless="${order.status.closed}"
                sec:authorize="!hasRole('GUEST')">
             <form th:each="next : ${order.status.allowedNext()}"
                   th:if="${next.name() == 'CANCELED'}"
@@ -260,7 +266,14 @@
               <button type="submit" class="btn btn--danger"
                       th:attr="data-table=${order.tableName},data-number=${order.orderNumber}"
                       onclick="return confirm(this.dataset.table + ' の注文（#' + this.dataset.number + '）をキャンセルします。お会計からも取り除かれます。よろしいですか？');">
-                キャンセル
+                <!--/* ★ 「キャンセル」の語を消さないこと。
+                       タブレット幅では見た目が ✕ だけになりますが、消しているのは
+                       見た目だけです（app.css で位置だけずらして隠す）。
+                       display:none にすると読み上げからも消え、
+                       目の見えない人には何のボタンか分からなくなります。
+                       ✕ のほうは飾りなので aria-hidden で読み上げから外します。 */-->
+                <span class="ticket__cancel-mark" aria-hidden="true">✕</span>
+                <span class="ticket__cancel-label">キャンセル</span>
               </button>
             </form>
           </div>

@@ -67,7 +67,10 @@ class TopbarDesignTest {
         // --topbar-h と --brand-w は .staff-frame の 1 か所で決める。
         // .staff-shell の min-height、.sb の top と height、[id] の scroll-margin-top が
         // すべてこの変数を読んでいるので、ここを直せば全部が追従する
-        assertThat(css).contains("--topbar-h: 88px;");
+        // ★ 88px → 56px（2026-09-13）。設計 287:5547 は 88px でしたが、
+        //   店主の指示で Render のダッシュボード（実測 56px）にそろえています。
+        //   値の根拠は RenderAlignedTypeTest に書いてあります
+        assertThat(css).contains("--topbar-h: 56px;");
         assertThat(css).contains("--brand-w: 264px;");
 
         int at = css.indexOf(".topbar {");
@@ -82,8 +85,36 @@ class TopbarDesignTest {
         assertThat(brandAt).as(".topbar__brand の指定が無い").isGreaterThan(0);
         String brand = css.substring(brandAt, css.indexOf("}", brandAt));
         assertThat(brand).contains("width: var(--brand-w);");
-        assertThat(brand).contains("height: 56px;");
-        assertThat(brand).contains("padding: 0 16px;");
+        // 帯が 56px になったので、中の店名ブロックは 40px（上下に 8px ずつ）
+        assertThat(brand).contains("height: 40px;");
+        // 左右の余白は変数。設計幅では 16px です（下の alignsWithTheSidebarText を参照）
+        assertThat(brand).contains("padding: 0 var(--brand-pad-x);");
+        assertThat(css).contains("--brand-pad-x: 16px;");
+    }
+
+    @Test
+    @DisplayName("★ 店名の文字とサイドバーの項目名の左端をそろえる（広い画面でも）")
+    void alignsWithTheSidebarText() throws Exception {
+        String css = css();
+
+        // 設計（287:5547 と 432:2046）は、アイコンではなく<b>文字の列</b>をそろえています。
+        //   店名     … 余白 16 ＋ ロゴ 28 ＋ すきま 10 ＝ 54px
+        //   サイドバー … 余白 12 ＋ 項目の余白 12 ＋ アイコン 20 ＋ すきま 10 ＝ 54px
+        // ロゴ（28px）とアイコン（20px）で大きさが違うので、中心は 4px ずれます。
+        // そろえているのは中心ではなく、その右にくる文字の頭です。
+        //
+        // ★ 32 節がサイドバー側（--sb-pad / --sb-item-pad / アイコン）だけを
+        //   大きくしていたため、広い画面でこの関係が壊れていました。
+        //   実測：1432px で 0px ／ 1920px で -6px ／ 2560px で -12px。
+        //   店名側の余白も一緒に動かして、54px の関係を保ちます。
+        int at = css.indexOf("@media (min-width: 1440px)");
+        assertThat(at).as("32 節の 1440px の段が無い").isGreaterThan(0);
+        String wide = css.substring(at);
+
+        // 1440px: サイドバー 14 ＋ 14 ＋ アイコン 22 ＋ 10 ＝ 60 → 60 - 28 - 10 = 22
+        assertThat(wide).contains("--brand-pad-x: 22px;");
+        // 2000px: 16 ＋ 16 ＋ 24 ＋ 10 ＝ 66 → 66 - 28 - 10 = 28
+        assertThat(wide).contains("--brand-pad-x: 28px;");
     }
 
     @Test
@@ -92,7 +123,7 @@ class TopbarDesignTest {
         String css = css();
 
         assertThat(css).contains("border-bottom: 1px solid #e8e8e8;");
-        assertThat(css).contains(".topbar__brand-sub  { display: block; font-size: 11px; color: #828282; }");
+        assertThat(css).contains(".topbar__brand-sub  { display: block; font-size: 12px; color: #828282; }");
         assertThat(css).contains(".topbar__brand-caret { font-size: 12px; color: #828282; flex: none; }");
         assertThat(css).contains(".topbar__day-label { font-size: 13px; color: #828282; }");
         assertThat(css).contains(".topbar__divider { width: 1px; height: 20px; background: #e8e8e8; flex: none; }");
@@ -124,8 +155,9 @@ class TopbarDesignTest {
 
         assertThat(css).contains(".topbar__dot { width: 10px; height: 10px;");
         assertThat(css).contains(".topbar__pending .ic { width: 20px; height: 20px; flex: none; }");
-        assertThat(css).contains(".topbar__pending-count { font-size: 17px; font-weight: 700;");
-        assertThat(css).contains(".topbar__day-value { font-size: 17px; font-weight: 700;");
+        // 17px → 16px（2026-09-13）。帯の主要な文字は Render に合わせて 16px でそろえた
+        assertThat(css).contains(".topbar__pending-count { font-size: 16px; font-weight: 700;");
+        assertThat(css).contains(".topbar__day-value { font-size: 16px; font-weight: 700;");
     }
 
     @Test
