@@ -2410,12 +2410,23 @@ body.theme-night { background-image: none; }
 }
 
 /* --------------------------------------------------------------------------
-   画面そのものが狭いとき（スマホ・縦向きタブレット）だけ帯に畳む。
+   幅が足りないときは帯（64px）に畳む。
 
-   畳む条件はここだけになった（画面ごとの判断は 2026-09-05 に廃止）。
-   理由が「幅が足りない」1 つなので、どの画面でも同じように畳まれる。
+   ★ 境目は 1380px（2026-09-13 に 960px から引き上げ）。
+     もとは「960px 以下は全画面／1380px 以下は盤面だけ」の 2 本立てでしたが、
+     Figma 07 の iPad 版を店主と見て「iPad は全画面アイコンだけ」に決めたので、
+     1 本にまとめました。1380px は iPad 横の最大（12.9 型の 1366px）を含む線です。
+
+     これで 1025〜1380px のノート PC でも管理画面のサイドバーが畳まれます。
+     iPad（1024）の本文が 712 → 912px に広がり、商品の表が横スクロールなしで
+     「販売」列まで見えるようになるのが狙いです。
+
+   ★ 畳む条件は「幅が足りない」の 1 つだけにすること。
+     画面ごとの出し分け（:has(.kitchenboard) など）は 2026-09-13 に廃止しました。
+     同じ幅なのに画面によってサイドバーの姿が変わると、行き来したときに
+     本文の開始位置が動いて読み手が迷います。
    -------------------------------------------------------------------------- */
-@media (max-width: 960px) {
+@media (max-width: 1380px) {
   .staff-shell {
     --sb-w: 64px;
     --sb-pad: 12px 8px;
@@ -2434,6 +2445,11 @@ body.theme-night { background-image: none; }
   .topbar__brand { padding: 0; justify-content: center; margin-right: 12px; }
   .topbar__brand-text,
   .topbar__brand-caret { display: none; }
+}
+
+/* 本文の余白は、ほんとうに狭いときだけ詰める（スマホ級）。
+   1024px の iPad では 40 節の一段下げ（上下 48）が効くので、ここは触らない */
+@media (max-width: 960px) {
   .staff-main { padding: 16px 16px 40px; }
 }
 
@@ -3460,6 +3476,14 @@ body.is-sending .staff-main {
   font-size: 14px;
   color: var(--text);
 }
+/* 角と枠は Render のトンマナへ（2026-09-13）。
+   ★ .theme-desk の中だけで書くこと。素の .searchbox は
+     お客さま側では使っていないが、同じ流儀にそろえておく。
+     枠の #e3e3e3 は表の罫と同じ値（白地で 2 種類の濃さを混ぜない） */
+.theme-desk .searchbox { border-radius: 0; border-color: #e3e3e3; }
+/* 札。★ 素の .badge は丸のまま（お客さま側のメニューのチップで使っている）。
+   CLAUDE.md「管理画面だけ変えたいときは .theme-desk 配下に書く」 */
+.theme-desk .badge { border-radius: 0; }
 .searchbox__input::placeholder { color: var(--text-muted); }
 .searchbox__input:focus { outline: none; }
 .searchbox:focus-within { border-color: var(--accent); }
@@ -3493,8 +3517,10 @@ body.is-sending .staff-main {
   width: 136px;
   height: 56px;
   padding: 0 18px;
-  /* 上だけ角丸。下は表とつながるので丸めない */
-  border-radius: 8px 8px 0 0;
+  /* 角は落とす（2026-09-13、Figma 07 のトンマナ）。
+     もとは上だけ 8px の角丸で「表とつながる紙」の形にしていたが、
+     表の見出しも札も角 0 にしたので、ここだけ丸いと浮く */
+  border-radius: 0;
   background: var(--surface-sunken, #eef1f4);
   border: 1px solid var(--border);
   border-bottom: 0;
@@ -6773,57 +6799,16 @@ body.is-sending .staff-main {
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   35-1. 厨房・ホールのサイドバーを帯にする
+   35-1. サイドバーの畳みは 21 節へ移した（2026-09-13）
    --------------------------------------------------------------------------
-   2026-09-05 に「画面ごとに畳む」のをやめた経緯が 2170 行にあります。
-   ナビが画面ごとに別物になると、いまどこにいるのか読み直すことになる、
-   という判断でした。今回それを<b>この 2 画面に限って</b>戻します。
+   ここには「厨房・ホールだけ 1380px 以下で畳む」という :has の帯がありました。
+   Figma 07 の iPad 版を店主と見て「iPad は全画面アイコンだけ」に決めたので、
+   21 節（@media max-width: 1380px）の素の .staff-shell に一本化しています。
 
-   当時と理由が違います。あれは「立って使うから文字より面積」という好みの話で、
-   いま分かっているのは<b>264px を払うと 3 列が物理的に入らない</b>ことです。
-   iPad Pro 11 横で 1 列 283px、必要なのは 331px。
-   ナビの一貫性は、盤面が読めてはじめて意味を持ちます。
-
-   ★ 1380px 以下のときだけ畳みます。
-     設計（Figma）は 1432px で、サイドバーは文字つきの 264px で描いてあります。
-     その幅なら 264px でも 3 列が入る（1120px の盤面が収まる）ので、
-     設計どおりの画面を崩す理由がありません。畳むのは足りないときだけ。
-     境目の 1380px は「264px のままで 1 列 341px を確保できる下限」
-     （341×3 ＋ 32 ＋ 264 ＋ 48 ＝ 1367px）から取っています。
-
-   ★ レイアウト（staff.html）は 1 行も触っていません。:has で中身を見て判定します。
-     .staff-shell:has(…) は (0,2,0) で、素の .staff-shell (0,1,0) に勝ちます。
-     32 節の @media (min-width: 1440px) が --sb-w: 300px を書いていますが、
-     あちらも (0,1,0) なので、詳細度で負けません。 */
-@media (max-width: 1380px) {
-  .staff-shell:has(.kitchenboard),
-  .staff-shell:has(.hallboard) {
-    --sb-w: 64px;
-    --sb-pad: 12px 8px;
-    --sb-text: none;
-    --sb-item-pad: 0;
-    --sb-item-justify: center;
-    --sb-brand-justify: center;
-    --sb-brand-pad: 4px;
-    --sb-account-dir: column;
-    --sb-account-pad: 8px 0 0;
-    --sb-account-gap: 6px;
-  }
-  /* 店名ブロックも同じ幅に。264px のままだと細い帯の上に太い店名が乗り、
-     右端がそろわない（960px 以下の畳みと同じ手当て） */
-  .staff-frame:has(.kitchenboard),
-  .staff-frame:has(.hallboard) { --brand-w: 64px; }
-  .staff-frame:has(.kitchenboard) .topbar__brand,
-  .staff-frame:has(.hallboard) .topbar__brand {
-    padding: 0;
-    justify-content: center;
-    margin-right: 12px;
-  }
-  .staff-frame:has(.kitchenboard) .topbar__brand-text,
-  .staff-frame:has(.kitchenboard) .topbar__brand-caret,
-  .staff-frame:has(.hallboard) .topbar__brand-text,
-  .staff-frame:has(.hallboard) .topbar__brand-caret { display: none; }
-}
+   当時ここに書いた理由（264px を払うと 3 列が物理的に入らない。
+   iPad Pro 11 横で 1 列 283px、必要なのは 331px）はそのまま生きていて、
+   それが全画面に広がっただけです。境目の 1380px も当時の計算のまま
+   （341×3 ＋ 32 ＋ 264 ＋ 48 ＝ 1367px を切り上げ）。 */
 
 /* --------------------------------------------------------------------------
    35-2. 列は常に 3 つ。足りなければ縮む
