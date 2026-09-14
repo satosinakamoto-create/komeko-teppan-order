@@ -30,7 +30,13 @@
     ・th:object                     … 以下の *{...} がこのオブジェクトの項目を指すようになる
     送信先は新規と編集で変わるので、条件式で切り替えています。
   */-->
+  <!--/* data-draft … 下書き保存（/js/form-draft.js）の目印。新規だけに付ける。
+         編集はサーバに保存済みの値が正で、古い下書きで上書きすると
+         保存済みの内容を壊す事故になる（2026-09-14、店主の指示で追加）。
+         きっかけ：初期設定で品名・価格・写真まで入れたあと
+         「先にカテゴリを作ってください」を踏むと、入力が全部消えていた */-->
   <form method="post" enctype="multipart/form-data" th:object="${itemForm}"
+        th:attr="data-draft=${itemForm.id == null} ? 'admin-item-new' : null"
         th:action="${itemForm.id == null} ? @{/admin/items} : @{/admin/items/{id}(id=${itemForm.id})}">
 
     <!--/* ====== 見出しと保存のボタン ====== 設計 08-2 商品を追加（315:1983）
@@ -375,6 +381,9 @@
       <a class="btn" th:href="@{/admin/items/{id}/options(id=${itemForm.id})}">オプションを編集</a>
     </div>
   </div>
+
+  <!--/* 下書き保存（新規だけ。form の data-draft が目印） */-->
+  <script th:src="@{/js/form-draft.js}" defer></script>
 
 </main>
 </body>
