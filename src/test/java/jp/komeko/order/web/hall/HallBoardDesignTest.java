@@ -176,7 +176,8 @@ class HallBoardDesignTest {
         assertThat(css).contains(".hallboard h1.section-title__text { font-size: 28px; }");
         // .theme-snow が字間を 0 に落とすので、節見出しだけ開け直している
         assertThat(css).contains(".hallboard h2.section-title__text { font-size: 20px; letter-spacing: 2px; }");
-        assertThat(css).contains(".theme-desk .hallboard .stat__value { font-size: 28px; }");
+        // ★ 数字カード（.stat 28px）はここで見ていたが、2026-09-14 に
+        //   カードの段ごと畳んだ（HallStatMergeTest）。規則も消してある
 
         // カードの内側は 24 全周（2026-09-12 に 24/16 から変更。設計 540:3509）。
         // ★ 素の "padding: 24px;" で探さないこと。他の部品にも同じ値があるので、
@@ -188,10 +189,9 @@ class HallBoardDesignTest {
         assertThat(cardBlock).contains("border-radius: 6px;");
         // 卓名は設計どおり 24px（18px から上げた）
         assertThat(css).contains(".hallboard .billcard__table { font-size: 24px;");
-        // 列の間 16・行の間 24（設計の伝票の列どうしの空き）
-        assertThat(css).contains(".hallboard .grid--3 { gap: 24px 16px; }");
+        // ★ .grid--3 の gap もカードの段と一緒に消えた（2026-09-14）
         // 本文の縦余白 64→32。共通の変数は触らず、この画面だけ絞る
-        assertThat(css).contains(".theme-desk .staff-main:has(.hallboard) { --main-pad-y: 32px; }");
+        assertThat(css).contains("--main-pad-y: 32px; --main-pad-x: 24px;");
         assertThat(Files.readString(BOARD)).contains("class=\"hallboard\"");
     }
 

@@ -180,8 +180,11 @@ class HallSeatNewTest {
         assertThat(html).as("新しい入口が無い").contains("data-open-modal=\"seat-modal\"");
         assertThat(html).as("ご案内のモーダルが無い").contains("id=\"seat-modal\"");
         assertThat(html).contains("新規お客様");
-        // 空席の数だけは残す（まだ入れられるかを一目で見るため）
-        assertThat(html).as("空席の数まで消えている").contains("stat__label\">空席");
+        // 空席の数だけは残す（まだ入れられるかを一目で見るため）。
+        // ★ 置き場所は 2 回動いた。数字カード（stat__label）→ 2026-09-14 に
+        //   カードの段ごと畳んで、新規お客様ボタンの脇（見出しの帯）へ。
+        //   経緯は HallStatMergeTest
+        assertThat(html).as("空席の数まで消えている").contains("section-title__count\">空席");
     }
 
     @Test

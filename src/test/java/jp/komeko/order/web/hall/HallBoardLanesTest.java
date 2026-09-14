@@ -179,7 +179,10 @@ class HallBoardLanesTest {
         assertThat(cleanupLane).contains("片付けテーブル");
         assertThat(cleanupLane).as("存在しない請求額を出している")
                 .doesNotContain("現在のご請求額");
-        assertThat(cleanupLane).contains("片付けがすんだら");
+        // 金額の代わりに出すのは席数（2026-09-14。もとは説明文
+        // 「片付けがすんだら…」だったが、当たり前すぎるので席数に替えた。
+        // 経緯は HallStatMergeTest）
+        assertThat(cleanupLane).contains("名席");
     }
 
     @Test

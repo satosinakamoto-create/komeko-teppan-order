@@ -195,19 +195,23 @@ public class HallController {
             }
         }
 
-        // 在席のお客さまの合計人数と、まだ厨房に残っている注文の件数。
-        // 件数の数え方は TableSession#hasPendingOrders() と同じ条件（受付・調理中）に
-        // そろえてあります。片方だけ READY を含めると、カードのバッジと
-        // 上の集計が食い違って「どっちが本当？」となるためです。
-        int guestTotal = 0;
-        int pendingCount = 0;
-        for (TableSession bill : bills) {
-            guestTotal += bill.getGuestCount();
-            for (Order order : bill.getOrders()) {
-                if (order.getStatus().isActive()) {
-                    pendingCount++;
-                }
-            }
+        // レーンごとの人数（2026-09-14）。
+        //
+        // もとは「在席 ◯卓／◯名」「未提供 ◯件」の数字カードのために
+        // 全伝票の合計（guestTotal・pendingCount）を数えていた。
+        // 店主の指摘でカードの段をレーン見出しへ畳んだので、
+        // 人数も合計ではなくレーン単位で数える。
+        //   在卓 4卓 ／ 9名   ← seatedGuests
+        //   お会計待ち 2卓 ／ 5名 ← closingGuests（何名ぶんの会計が残っているか）
+        // 未提供の件数は上の帯のチップ（未提供 ◯件）がすでに持っているので、
+        // この画面ではもう数えない。
+        int seatedGuests = 0;
+        for (TableSession bill : seatedBills) {
+            seatedGuests += bill.getGuestCount();
+        }
+        int closingGuests = 0;
+        for (TableSession bill : closingBills) {
+            closingGuests += bill.getGuestCount();
         }
 
         model.addAttribute("bills", bills);
@@ -223,13 +227,12 @@ public class HallController {
         model.addAttribute("seatedCount", seatedBills.size());
         model.addAttribute("closingCount", closingBills.size());
         model.addAttribute("cleanupCount", cleanupTables.size());
-        model.addAttribute("occupiedCount", bills.size());
+        model.addAttribute("seatedGuests", seatedGuests);
+        model.addAttribute("closingGuests", closingGuests);
+        // 空席は見出しの帯（新規お客様ボタンの脇）に数だけ出す。
         // 卓の一覧そのものは出さなくなった（2026-09-11。「＋新規お客様」へ移した）。
-        // 数字だけ残すのは、まだ入れられるかを一目で見るため。
         // ここは「いますぐ通せる卓」なので、片付け待ちは数えない
         model.addAttribute("vacantCount", vacantTables.size());
-        model.addAttribute("guestTotal", guestTotal);
-        model.addAttribute("pendingCount", pendingCount);
         model.addAttribute("closedBills", closedBillsOfToday());
 
         // ── お会計モーダル用（2026-09-12）──
