@@ -202,10 +202,6 @@
          th:classappend="${#strings.startsWith(p, '/inventory/ingredients')} ? 'is-active'">
         <th:block th:replace="~{fragments/icons :: ic_package}"/><span>食材・在庫</span>
       </a>
-      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/recipes}"
-         th:classappend="${#strings.startsWith(p, '/inventory/recipes')} ? 'is-active'">
-        <th:block th:replace="~{fragments/icons :: ic_notebook}"/><span>レシピ・原価表</span>
-      </a>
 
       <!--/* ── ここから下は店長（ADMIN）のみ ── */-->
       <th:block sec:authorize="hasRole('ADMIN')">
@@ -219,6 +215,23 @@
            th:classappend="${#strings.startsWith(p, '/admin/categories')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_squares_four}"/><span>カテゴリ</span>
         </a>
+      </th:block>
+
+      <!--/* レシピ・原価表はメニュー管理の並びへ（2026-09-14、店主
+             「レシピ・原価表は商品の中にあった方が良いんじゃない？」）。
+             レシピは商品ごとの持ち物なので、住所も商品の隣にする。
+
+             ★ ADMIN の塊の外に置いてあるのはわざと。権限は変えない。
+               この項目はスタッフにも見えていた（原価の数字は画面側で隠す作り）。
+               塊の中に入れるとスタッフのサイドバーから消えてしまう。
+               スタッフには メニュー管理 の見出しが出ないので、
+               食材・在庫のすぐ下に並んで、いままでと同じ見え方になる */-->
+      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/recipes}"
+         th:classappend="${#strings.startsWith(p, '/inventory/recipes')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_notebook}"/><span>レシピ・原価表</span>
+      </a>
+
+      <th:block sec:authorize="hasRole('ADMIN')">
 
         <p class="sb__label">店舗</p>
         <a class="sb__item" th:href="@{/admin/tables}"

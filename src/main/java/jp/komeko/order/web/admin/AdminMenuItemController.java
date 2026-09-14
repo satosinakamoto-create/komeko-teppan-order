@@ -5,9 +5,12 @@ import jp.komeko.order.domain.Category;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.repository.CategoryRepository;
 import jp.komeko.order.repository.MenuItemRepository;
+import jp.komeko.order.inventory.service.RecipeCost;
+import jp.komeko.order.inventory.service.RecipeService;
 import jp.komeko.order.service.ImageStorageService;
 import jp.komeko.order.service.MenuService;
 import jp.komeko.order.web.admin.form.MenuItemForm;
+import org.springframework.beans.factory.ObjectProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -63,6 +66,16 @@ public class AdminMenuItemController {
     private final CategoryRepository categoryRepository;
     private final MenuService menuService;
     private final ImageStorageService imageStorageService;
+
+    /**
+     * レシピの原価（在庫モジュール）。<b>ObjectProvider なのはわざと</b>（2026-09-14）。
+     *
+     * <p>在庫まわりは {@code app.inventory.enabled=false} で丸ごと切れる作りで、
+     * 切った店では {@link RecipeService} の Bean が存在しない。
+     * 直接 {@code @Autowired} すると、そのとき<b>この画面ごと起動に失敗する</b>。
+     * 商品管理は本体で、在庫はおまけ。おまけの都合で本体を落とさない。
+     */
+    private final ObjectProvider<RecipeService> recipeServiceProvider;
     /** 「掲載する」のときだけ足す決まり（MenuItemForm.Publish）を走らせるのに使う。 */
     private final SmartValidator validator;
 
@@ -70,12 +83,14 @@ public class AdminMenuItemController {
                                    CategoryRepository categoryRepository,
                                    MenuService menuService,
                                    ImageStorageService imageStorageService,
-                                   SmartValidator validator) {
+                                   SmartValidator validator,
+                                   ObjectProvider<RecipeService> recipeServiceProvider) {
         this.menuItemRepository = menuItemRepository;
         this.categoryRepository = categoryRepository;
         this.menuService = menuService;
         this.imageStorageService = imageStorageService;
         this.validator = validator;
+        this.recipeServiceProvider = recipeServiceProvider;
     }
 
     // ========================================================================
@@ -192,6 +207,19 @@ public class AdminMenuItemController {
         Map<Long, String> categoryNames = new LinkedHashMap<>();
         for (Category category : categories) {
             categoryNames.put(category.getId(), category.getName());
+        }
+
+        // 原価の列（2026-09-14、店主の指摘「レシピ・原価表は商品の中に
+        // あった方が良いんじゃない？」）。レシピ未登録がこの一覧で見える。
+        // 在庫モジュールを切った店では Bean が無い → itemCosts を渡さない →
+        // 画面は列ごと出さない（th:if="${itemCosts != null}"）
+        RecipeService recipeService = recipeServiceProvider.getIfAvailable();
+        if (recipeService != null) {
+            Map<Long, RecipeCost> itemCosts = new LinkedHashMap<>();
+            for (RecipeCost cost : recipeService.costTable()) {
+                itemCosts.put(cost.menuItem().getId(), cost);
+            }
+            model.addAttribute("itemCosts", itemCosts);
         }
 
         model.addAttribute("categories", categories);
@@ -321,8 +349,17 @@ public class AdminMenuItemController {
 
         log.info("商品を登録しました: {}（{}）", item.getName(), publish ? "掲載" : "下書き");
         if (publish) {
-            redirectAttributes.addFlashAttribute("flashSuccess",
-                    "商品「%s」を掲載しました。お客さまのメニューに並びます".formatted(item.getName()));
+            // 掲載した直後が、レシピ登録の一番の好機（材料を覚えているうち）。
+            // 在庫モジュールが生きているときは、通常のフラッシュの代わりに
+            // 「レシピを登録する →」付きの案内を出す（items.html の帯・設計 ト10）。
+            // 両方出すと「掲載しました」が二重になるので、どちらか片方だけ
+            if (recipeServiceProvider.getIfAvailable() != null) {
+                redirectAttributes.addFlashAttribute("flashNewItemId", item.getId());
+                redirectAttributes.addFlashAttribute("flashNewItemName", item.getName());
+            } else {
+                redirectAttributes.addFlashAttribute("flashSuccess",
+                        "商品「%s」を掲載しました。お客さまのメニューに並びます".formatted(item.getName()));
+            }
             return "redirect:/admin/items";
         }
         // 下書きは「編集中」タブへ戻す。素の一覧に戻すと、

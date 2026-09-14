@@ -340,28 +340,65 @@ public class InventoryIngredientController {
     //  食材マスタの編集
     // ========================================================================
 
-    /** 新規登録のフォーム。 */
+    /**
+     * 新規登録のフォーム。
+     *
+     * <p>{@code returnTo} は「来た道」（2026-09-14、店主の指摘から）。
+     * レシピ編集の途中で足りない食材に気づいてここへ来た人は、
+     * 保存したらレシピ編集に戻りたい。もとは食材の詳細へ飛ばしていたので、
+     * レシピ → 食材・在庫 → 登録 → 一覧 → レシピ・原価表 → 該当商品、
+     * と往復 5 画面になっていた。
+     */
     @GetMapping("/new")
-    public String newIngredient(Model model) {
+    public String newIngredient(@RequestParam(required = false) String returnTo, Model model) {
         if (!model.containsAttribute("ingredientForm")) {
             model.addAttribute("ingredientForm", new IngredientForm());
         }
+        model.addAttribute("returnTo", safeReturnTo(returnTo));
         return "inventory/ingredient-form";
+    }
+
+    /**
+     * 戻り先として信じてよい形だけを通す。
+     *
+     * <p>リダイレクト先をリクエストから受け取る作りは、放っておくと
+     * {@code returnTo=https://偽サイト} のようなオープンリダイレクトの
+     * 入り口になる。いま戻り道が要るのはレシピ編集だけなので、
+     * {@code /inventory/recipes/数字} の形しか許さない。増やすときも
+     * 「先頭一致」ではなく形そのものを足すこと。
+     */
+    private String safeReturnTo(String returnTo) {
+        if (returnTo != null && returnTo.matches("/inventory/recipes/\\d+")) {
+            return returnTo;
+        }
+        return null;
     }
 
     @PostMapping
     public String create(@Valid @ModelAttribute("ingredientForm") IngredientForm form,
                          BindingResult bindingResult,
+                         @RequestParam(required = false) String returnTo,
                          Model model,
                          RedirectAttributes redirect) {
         if (form.getName() != null && ingredientService.nameTaken(form.getName().trim(), null)) {
             bindingResult.rejectValue("name", "duplicate", "同じ名前の食材がすでにあります");
         }
         if (bindingResult.hasErrors()) {
+            // 入力エラーでも来た道は失くさない（直して保存すればちゃんと戻れる）
+            model.addAttribute("returnTo", safeReturnTo(returnTo));
             return "inventory/ingredient-form";
         }
         Ingredient saved = ingredientService.create(form.getName().trim(), form.getUnit(),
                 form.getCategory(), form.getLowThresholdQty(), form.getCostOverride(), form.getMemo());
+        String back = safeReturnTo(returnTo);
+        if (back != null) {
+            // レシピ編集から来た人は、そのレシピへ返す。
+            // 新しい食材はまだ単価 0 円なので、原価が正しくなるのはレシートを
+            // 登録するか単価を手で入れてから（レシピ画面の注意書きがその案内をする）
+            redirect.addFlashAttribute("flashSuccess",
+                    "食材「" + saved.getName() + "」を登録しました。材料の列から選べます");
+            return "redirect:" + back;
+        }
         redirect.addFlashAttribute("flashSuccess",
                 "食材「" + saved.getName() + "」を登録しました。棚卸しをすると在庫の計算が始まります");
         return "redirect:/inventory/ingredients/" + saved.getId();

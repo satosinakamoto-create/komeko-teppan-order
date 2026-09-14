@@ -19,6 +19,9 @@
   </div>
 
   <form th:action="@{/inventory/ingredients}" method="post" th:object="${ingredientForm}" class="card">
+    <!--/* 来た道（レシピ編集など）。保存後にそこへ戻すための持ち回り。
+           サーバ側は /inventory/recipes/数字 の形しか信じない（オープンリダイレクト防止） */-->
+    <input type="hidden" name="returnTo" th:value="${returnTo}">
     <div class="card__body">
 
       <div th:if="${#fields.hasErrors('*')}" class="alert alert--error">
