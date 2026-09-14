@@ -38,8 +38,23 @@
   <div class="page-head">
     <h1 class="page-head__title">商品</h1>
     <span class="page-head__sub" th:text="'掲載中 ' + ${visibleCount} + ' 品'">掲載中 94 品</span>
-    <span class="page-head__spacer"></span>
+    <!--/* ボタンは補足のすぐ右（設計 見出し/ページ 24:1392 は左詰め）。
+           のばす（.page-head__spacer）で右端へ飛ばさないこと */-->
     <a class="btn btn--primary" th:href="@{/admin/items/new}">＋商品を追加</a>
+  </div>
+
+  <!--/* ====== 追加直後の案内（設計 ト10 のお知らせ帯） ======
+         商品を掲載した直後が、レシピ登録の一番の好機（作った本人が材料を
+         覚えているうちに）。ここに入口を置く。2026-09-14、店主の指摘
+         「商品追加する時レシピ登録するの？」から。
+         ★ 在庫モジュールを切った店では出さない（リンク先が 404 になる） */-->
+  <div class="alert alert--success" role="status"
+       th:if="${inventoryEnabled and flashNewItemId != null}">
+    <p class="mb-0">
+      商品「<span th:text="${flashNewItemName}">肉玉米粉そば</span>」を掲載しました。
+      レシピを登録すると、原価と在庫の減りを追えます。
+      <a th:href="@{/inventory/recipes/{id}(id=${flashNewItemId})}"><strong>レシピを登録する →</strong></a>
+    </p>
   </div>
 
   <!--/* カテゴリが 1 つも無いと商品を登録できない（商品は所属カテゴリが必須） */-->
@@ -91,6 +106,10 @@
           <th>商品名</th>
           <th>カテゴリ</th>
           <th>価格（税込）</th>
+          <!--/* 原価列（設計 ト10・2026-09-14）。レシピ未登録がここで見える。
+                 itemCosts は在庫モジュールが有効なときだけコントローラが渡す。
+                 切った店では列ごと消える（データの出しようがない） */-->
+          <th th:if="${itemCosts != null}">原価</th>
           <th>掲載</th>
           <th>販売</th>
           <th>並び</th>
@@ -113,6 +132,21 @@
                   th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥1,180</span>
             <span class="faint" th:if="${item.price <= 0 and item.draft}">未入力</span>
             <span th:if="${item.price <= 0 and !item.draft}">時価</span>
+          </td>
+          <!--/* 原価。¥312（26%）の形（設計 ト10）。
+                 未登録は赤いリンクで、その品のレシピ編集へ直行できる。
+                 赤の直値クラスを増やさず var(--danger) をインラインで使うのは
+                 品切れ・残数の状態チップと同じ理由（CLAUDE.md）。 */-->
+          <td class="num" th:if="${itemCosts != null}"
+              th:with="c=${itemCosts.get(item.id)}">
+            <span th:if="${c != null and c.costIncludingTax() != null}">
+              <span th:text="'¥' + ${#numbers.formatInteger(c.costIncludingTax(), 1, 'COMMA')}">¥312</span><span
+                    class="faint" th:if="${c.costRateIncludingTax() != null}"
+                    th:text="'（' + ${c.costRateIncludingTax()} + '%）'">（26%）</span>
+            </span>
+            <a th:if="${c == null or c.costIncludingTax() == null}"
+               style="color: var(--danger)"
+               th:href="@{/inventory/recipes/{id}(id=${item.id})}">未登録</a>
           </td>
           <!--/* ====== 掲載 ／ 販売 ======
                  ★ 見た目はバッジのまま、押せるようにしてあります（2026-09-07）。

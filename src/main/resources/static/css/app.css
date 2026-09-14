@@ -3219,7 +3219,7 @@ body.is-sending .staff-main {
        3807px の画面では本文が 3155px まで伸びて、厨房のレーンが
        1 本 1040px になっていました。左右の余白が足りないのではなく、
        止まるところが無かった、というのが実際のところです。 */
-.theme-desk .staff-main   { --main-pad-y: 64px; --main-pad-x: 24px;
+.theme-desk .staff-main   { --main-pad-y: 32px; --main-pad-x: 24px;
                             padding: var(--main-pad-y) var(--main-pad-x);
                             max-width: 1920px;
                             margin-inline: auto; }
@@ -3576,12 +3576,18 @@ body.is-sending .staff-main {
 /* 金額も左揃え。設計は数字を含めて全部左でそろえてある
    （右寄せは列の中で数字が離れて、名前と金額を目で結びにくい） */
 .table--purchases td.num, .table--purchases th.num { text-align: left; }
-.table--items th:nth-child(1), .table--items td:nth-child(1) { width: 340px; }
-.table--items th:nth-child(2), .table--items td:nth-child(2) { width: 240px; }
-.table--items th:nth-child(3), .table--items td:nth-child(3) { width: 160px; }
-.table--items th:nth-child(4), .table--items td:nth-child(4) { width: 130px; }
+/* 商品の表（設計 ト10・2026-09-14 に原価列を追加して 7 列）。
+   340/240/160 → 280/200/140 に詰め、空いた 120px を原価に充てる。合計 1120 のまま。
+   ★ 在庫モジュールを切った店では 4 列目（原価）が出ず 6 列になるが、
+     table-layout: fixed は「出ている列」に幅を当てるので、この指定のままで
+     商品名 280…掲載 120 と前へ詰まり、余りは最後の列に寄る。列が消えても崩れない */
+.table--items th:nth-child(1), .table--items td:nth-child(1) { width: 280px; }
+.table--items th:nth-child(2), .table--items td:nth-child(2) { width: 200px; }
+.table--items th:nth-child(3), .table--items td:nth-child(3) { width: 140px; }
+.table--items th:nth-child(4), .table--items td:nth-child(4) { width: 120px; }
 .table--items th:nth-child(5), .table--items td:nth-child(5) { width: 130px; }
-.table--items th:nth-child(6), .table--items td:nth-child(6) { width: 120px; }
+.table--items th:nth-child(6), .table--items td:nth-child(6) { width: 130px; }
+.table--items th:nth-child(7), .table--items td:nth-child(7) { width: 120px; }
 
 /* カテゴリの表（設計 09 カテゴリ 41:1725）。
    見出し 16／行 20 の流儀は商品・仕入れと同じ。列幅だけ違う（合計 1120） */
@@ -3604,7 +3610,15 @@ body.is-sending .staff-main {
    ★ 共通の --main-pad-y は触らない。全管理画面が一斉に動くため。
      :has の中のクラスは食材・在庫の見出しにしか付いていない。
      詳細度は (0,3,0) で、共通定義（.theme-desk .staff-main = 0,2,0）に勝つ */
-.theme-desk .staff-main:has(.inv-ingredients) { --main-pad-y: 32px; }
+/* ★ Figma で上下 64px なのはこの 3 画面だけ（01 ページ採寸 2026-09-13）。
+     ほかは基準の 32px が当たります。
+     ★ 厨房ボードはここに入れないこと。01 ページは 64px ですが、
+       05 ページ「現01 厨房ボード」は 32px で、そちらは iPad で伝票が
+       1.7 枚しか見えない問題を詰めたときの版です。店主の判断待ちのあいだは
+       32px（基準）のままにしてあります。 */
+.theme-desk .staff-main:has(.inv-ingredients),
+.theme-desk .staff-main:has(.recipepage),
+.theme-desk .staff-main:has(.backuppage) { --main-pad-y: 64px; }
 
 /* 見出しの帯（設計 441:2852）。左右 40・上下 16 の内側に題・日付・ボタンを並べる。
    ★ ボタンは右端。margin-left:auto で押し出す。
@@ -4155,13 +4169,20 @@ body.is-sending .staff-main {
      誤りなので、ここの指定は .theme-desk の値を上書きする形で書く。
    -------------------------------------------------------------------------- */
 /* 本文の縦余白 64→32（設計どおり）。共通の変数は触らず、この画面だけ絞る */
-.theme-desk .staff-main:has(.hallboard) { --main-pad-y: 32px; }
+/* ★ ここにあった :has(.hallboard) { --main-pad-y: 32px } は 2026-09-13 に外しました。
+     基準が 32px になったので二重定義です（30 節）。 */
 
 .hallboard .section-title { margin: 40px 0 24px; }
 .hallboard .section-title:has(h1) { margin-top: 0; }
-/* ページ見出しの帯は左右 40px の内側余白を持つ（設計「画面の見出し」542:3710 の 20/40）。
+/* ページ見出しの帯は左右 40px の内側余白を持つ。
    ★ 数字カードと盤面は左右 0 のまま。見出しだけ一段内側に入るのが設計の形で、
-     食材・在庫（.stockpage .inv-ingredients）と品切れ・残数（.soldout-head）も同じです。 */
+     食材・在庫（.stockpage .inv-ingredients）と品切れ・残数（.soldout-head）も同じです。
+
+   ★ 上下 20px はこの画面だけの値です。いちど 16px に下げて戻しました（2026-09-13）。
+     01 ページの「03 ホール・会計」は共通部品「見出し/ページ」24:1392（16/40・帯 77px）
+     ですが、この画面は<b>現02 ホール・会計 542:3710</b> で作り直してあり、
+     そちらは 20/40・帯 88px です。01 ページのほうが古い版なので、20px が正。
+     立って見る画面だけ帯を厚くする、という判断が入っています。 */
 .hallboard .section-title:has(h1) { padding: 20px 40px; }
 .hallboard h1.section-title__text { font-size: 28px; }
 /* 節見出しだけ字間を開ける。.theme-snow が letter-spacing を 0 に
@@ -4170,25 +4191,12 @@ body.is-sending .staff-main {
 .hallboard .section-title__count { font-size: 12px; }
 .hallboard h1.section-title__text + .section-title__count { font-size: 13px; }
 
-/* 数字カード（設計 437:2446）。列の間は 16、行の間は 24 */
-.hallboard .grid--3 { gap: 24px 16px; }
-.theme-desk .hallboard .stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px;
-  /* ★ 枠は設計の直値 #e8e8e8 を使う（2026-09-12）。
-       var(--border) は .theme-snow で rgba(28,28,28,.1) ＝ 黒 10% です。
-       白い面の上では薄すぎて、実機で 3 枚が 1 枚の帯に見えていました
-       （「未提供とお会計待ちの間に空白がない」と指摘された箇所）。
-       間隔は 16px 空いていて、見えていなかったのは枠のほうでした。 */
-  border: 1px solid #e8e8e8;
-}
-.hallboard .stat > * { margin: 0; }   /* 縦の間隔は gap に一本化する */
-.theme-desk .hallboard .stat__label { font-size: 12px; letter-spacing: 1.2px; }
-.theme-desk .hallboard .stat__value { font-size: 28px; }
-.theme-desk .hallboard .stat__unit  { font-size: 14px; }
-.hallboard .stat .tiny { font-size: 11px; }
+/* ★ 数字カード（在席・未提供・空席の 3 枚）の規則はここにありましたが、
+     2026-09-14 にカードの段ごと畳みました。店主の指摘
+     「3 つの情報って分けずに在卓、お会計待ち、バッシングでまとめられるよね」。
+     在席はレーン見出しの「4卓 ／ 9名」へ、未提供は上の帯のチップへ、
+     空席は新規お客様ボタンの脇へ。Figma は現02・ト02・トi02・トp02 を直し済み。
+     戻すときは git 履歴の .hallboard .stat を参照。 */
 
 /* 伝票カード（設計「ホール/伝票カード」453:5744）。
    見出し帯・本体・足に分かれた .card ではなく、平らな 1 枚。
@@ -4324,18 +4332,17 @@ body.is-sending .staff-main {
      35 節で列を repeat(3, minmax(0, 1fr)) に変えても、ここで幅が
      1120px に止められていると 1 ミリも伸びません（理由は 35-5）。
      列の指定そのものも 35-2 が後ろで持つので、ここでは書きません。 */
+/* ★ margin-top はもう無い（2026-09-14）。
+     56px（数字カードと盤面のあいだの、8px の白い矩形ぶんの広いあき）
+     → 41 節の gap 24 ＋ 32px → 数字カードの段そのものを畳んだので 0。
+     いまは見出しの帯から gap 24 だけで盤面が始まります（Figma 現02 も同じ）。 */
 .theme-desk .hallboard .board,
 .hallboard .board {
-  margin-top: 56px;
   justify-content: start;
   gap: 16px;
 }
-/* 数字カードも同じ幅にそろえる。列とヘッダーの縦線が合わないと
-   3 列の盤面に見えず、ただ横に伸びた表に見える */
-.theme-desk .hallboard .grid--3,
-.hallboard .grid--3 {
-  justify-content: start;
-}
+/* ★ 数字カードの .grid--3 をそろえる 1 本はここにありましたが、
+     2026-09-14 にカードの段ごと畳んだので消しました（4189 行の注記と同じ話）。 */
 /* ★ ここにあった @media (max-width: 1240px) の auto-fit は
      2026-09-12 に外しました（35 節へ移動）。閾値が間違っていたためです。
 
@@ -4371,15 +4378,43 @@ body.is-sending .staff-main {
 .hallboard .lane--cleanup .lane__head { border-top: 2px solid #e8e8e8; }
 
 /* 件数は丸い錠剤。設計は上下 1・左右 9・角丸 999・面 #eef1f4 */
+/* 件数のピル。数字カードの段を畳んだ（2026-09-14・HallStatMergeTest）ので、
+   ここが「在卓 4卓 ／ 9名」の唯一の置き場になった。
+   旧カードの数字は 28px——畳んだとき「遠くから読める大きさ」まで捨てていて、
+   店主から「読みにくい。重要な情報だし」。
+
+   ★ 大きさは 2 回上げた。最初は数字 18px／単位 14px（太さと濃さだけ）で、
+     「余白だけ大きくなって文字そのまま」。ピルの器だけ数字につられて育ち、
+     文字が大きくなった感じがしなかった。単位ごと 16px へ、数字は 20px へ。
+
+   ★ 灰色のピル（#eef1f4・角丸 999px）もやめた（店主「背景の灰色は色なしに」）。
+     灰色の面があると数字が「部品の中の飾り」に見えて沈む。数字は裸で置く。
+     共通の .lane__head .count（8 節）のピルは他画面が使うので剥がさない */
+/* ★ background: none は「行を消す」ではだめで、明示が要る。
+     共通の .lane__head .count（8 節）がピル（--surface-2・角丸・padding）を
+     持っているので、ここで宣言しないと基礎のピルが透けて戻ってくる */
 .hallboard .lane__head .count {
   margin-left: auto;
-  padding: 1px 9px;
-  border-radius: 999px;
-  background: #eef1f4;
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 700;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: #828282;
+  font-size: 16px;
+  font-weight: 400;
 }
+.hallboard .lane__head .count b { font-size: 20px; font-weight: 700; color: #1c1c1c; }
+
+/* 空席（見出しの帯・新規お客様ボタンの左）も同じ扱い。
+   .section-title__count の 12px のままでは読み流されるので一段上げる */
+.hallboard .spacer + .section-title__count { font-size: 16px; color: #828282; }
+.hallboard .spacer + .section-title__count b { font-size: 20px; font-weight: 700; color: #1c1c1c; }
+
+/* バッシングカードの席数（説明文の代わり・2026-09-14）。
+   「2名待ってるからこの 4名席 を先に片付けるか」を選ぶための数字なので、
+   レーン見出し・空席と同じ 20px。カードの土台（.billcard__meta 14px）より
+   単位も一段上げるので、席数の行だけ 16px を別に指定する */
+.hallboard .billcard--cleanup .billcard__meta { font-size: 16px; }
+.hallboard .billcard--cleanup .billcard__meta b { font-size: 20px; font-weight: 700; color: #1c1c1c; }
 
 /* 中身は余白 24・カード間 24 */
 .hallboard .lane__body { padding: 24px; gap: 24px; }
@@ -6349,7 +6384,8 @@ body.is-sending .staff-main {
 
 /* 本文の外周。設計は上下 32（共通は 64）。
    食材・在庫と同じやり方で、この画面の本文にだけ渡す。共通の値は触らない */
-.theme-desk .staff-main:has(.kitchenboard) { --main-pad-y: 32px; }
+/* ★ ここにあった :has(.kitchenboard) { --main-pad-y: 32px } は 2026-09-13 に外しました。
+     基準が 32px になったので二重定義です（30 節）。 */
 
 /* --------------------------------------------------------------------------
    33-1. 見出しと稼働状況
@@ -6439,13 +6475,17 @@ body.is-sending .staff-main {
 .kitchenboard .lane--cooking  .lane__head { border-top: 3px solid #0b7a78; border-bottom-color: #0b7a78; }
 .kitchenboard .lane--ready    .lane__head { border-top: 3px solid #3f8e6d; border-bottom-color: #3f8e6d; }
 
+/* 件数はホールと同じ型（2026-09-14。数字 20px Bold 濃色・灰色の器なし）。
+   ホールで作った読みやすさを、同じレーン形式のこちらにもそろえた。
+   レーン名 16px より数字が大きいのは意図どおり——見るのは数字のほう */
 .kitchenboard .lane__head .count {
   font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 400;
-  padding: 1px 9px;
-  background: #eef1f4;
-  color: #828282;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 0;
+  border-radius: 0;
+  background: none;   /* 8 節の基礎ピルを打ち消す（ホールと同じ理由） */
+  color: #1c1c1c;
 }
 
 .kitchenboard .lane__body { padding: 12px; gap: 12px; }
@@ -6617,7 +6657,8 @@ body.is-sending .staff-main {
    ========================================================================== */
 
 /* 本文の外周。設計は上下 32（共通は 64）。食材・在庫と同じやり方 */
-.theme-desk .staff-main:has(.soldoutpage) { --main-pad-y: 32px; }
+/* ★ ここにあった :has(.soldoutpage) { --main-pad-y: 32px } は 2026-09-13 に外しました。
+     基準が 32px になったので二重定義です（30 節）。 */
 
 /* --------------------------------------------------------------------------
    34-1. 見出し（設計「見出し／ページ」）
@@ -6830,12 +6871,9 @@ body.is-sending .staff-main {
        厨房のレーンが 471px、ホールが 360px になり、隣り合う 2 画面の
        見え方がそろわない。設計で 360px 固定だったのは 1432px しか
        描いていないからで、そこでは FILL と同じ結果になります（35-5）。
-   数字カードも同じ列にすること。ここがずれると、カードの縦線と
-   レーンの縦線が合わず、3 列の盤面に見えません。 */
+   数字カードの .grid--3 も並べていたが、2026-09-14 にカードの段ごと畳んだ。 */
 .theme-desk .hallboard .board,
 .hallboard .board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.theme-desk .hallboard .grid--3,
-.hallboard .grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 /* --------------------------------------------------------------------------
    35-5. 広い画面は上限で止めず、左右の余白で読ませる（2026-09-13）
@@ -7033,9 +7071,7 @@ body.is-sending .staff-main {
 @media (max-width: 729px) {
   .kitchenboard .board,
   .theme-desk .hallboard .board,
-  .hallboard .board,
-  .theme-desk .hallboard .grid--3,
-  .hallboard .grid--3 {
+  .hallboard .board {
     grid-template-columns: minmax(0, 1fr);
     max-width: none;
   }
@@ -7560,13 +7596,131 @@ body.is-sending .staff-main {
   .dashpage .statcard__value { font-size: 28px; line-height: 34px; }
   .dashpage .page-head__sub { font-size: 14px; }
 
-  /* 余白：一段だけ。上下 15px はカードの枠 1px を返して 16 にするいつもの理由 */
-  .theme-desk .staff-main { --main-pad-y: 48px; }
-  .dashpage { gap: 32px; }
+  /* 余白：一段だけ。上下 15px はカードの枠 1px を返して 16 にするいつもの理由。
+     ★ --main-pad-y はここで触りません（2026-09-13）。
+       基準が 64 → 32px になったので、48px に「詰める」と逆に広がります。
+       Figma も上下余白を画面幅で変えていません。
+     ★ ブロックの間（48→32）は 41 節に移しました（2026-09-13）。
+       41 節がこの帯より後ろにあり、あちらの .theme-desk .staff-main > main は
+       詳細度 0,2,1。ここに .dashpage { gap: 32px }（0,1,0）を残すと、
+       読めるのに効かない 1 行になります。 */
   .page-head { padding: 12px 24px; }
+  /* 売上の帯は月ナビ（基準 68px）が背を決める。帯の余白だけ落としても
+     12+68+12=92px で iPad では間延びして見えた（店主「80px とかにした方が
+     使いやすい」2026-09-14）。月ナビを 56px へ → 12+56+12=80px。
+     Figma トi18 も 80 に直し済み。1432・PC は 100px のまま */
+  .salespage .monthnav { height: 56px; }
   .statcard:not(.statcard--tall),
   .dashpage .statcard:not(.statcard--tall) { padding: 15px 16px; }
   .panel { padding: 16px; }
+}
+
+/* ==========================================================================
+   42. レシートの読み取り確認（設計 ト05d・2026-09-14）
+   --------------------------------------------------------------------------
+   ★ 色は 2 種類だけ。直すべき行だけを光らせる。
+     薄い赤 … 費目が食材なのに、どの食材にも紐付いていない（この画面で作れる）
+     薄い黄 … 紐付いているのに量が空（保存はできる。金額の記録としては完全）
+     洗剤のような「紐付けないのが正しい行」は光らせない。
+     全部光らせると、警告そのものが無視されるようになる（30 節の品切れと同じ判断）。
+
+   ★ 行の色は td に敷くこと。tr に background を置いても、
+     .table の td 側が地を持っているので隠れる（実測）。 */
+.receiptpage tr.is-unlinked > td { background: #fdf2f2; }
+.receiptpage tr.is-missing-qty > td { background: rgba(245, 158, 11, .12); }
+
+/* 操作の列。ボタンは行の高さを押し上げない小さいもの（.btn--sm）。
+   ✕ は Render の「…」と同じ位置＝いちばん右。並ぶときも ✕ が右端に来る */
+.receiptpage .receiptline__ops {
+  white-space: nowrap;
+}
+.receiptpage .receiptline__ops .btn + .btn { margin-left: 8px; }
+.receiptpage .receiptline__remove {
+  border-color: transparent;
+  color: var(--text-muted);
+  padding-inline: 10px;
+}
+.receiptpage .receiptline__remove:hover { border-color: var(--border); }
+
+/* ==========================================================================
+   41. 本文の縦の並び — Figma の本文は縦のオートレイアウト（2026-09-13）
+   --------------------------------------------------------------------------
+   ★ 置き場所は 38〜40 節の後ろ、32 節（広い画面）の手前。
+     40 節（iPad の一段下げ）より後ろでないと、ブロック間の詰めが効かない。
+
+   ★ 何をそろえたか
+     Figma 01 ページの本文フレームは、全画面が縦のオートレイアウトで、
+     ブロックの間は 48px でした（厨房 24 / 売上 20 だけ例外）。
+     いまのコードは要素ごとの margin で作っていたので、
+     1432px で採寸すると 1 画面の中に 0・4・11・15・16・24・31・32・40・57px が
+     混ざっていました。48px で揃っていたのは 4 画面だけです。
+
+     margin を 1 つずつ直すと、ブロックを足す人が毎回同じ作業をやり直します。
+     Figma がオートレイアウトで持っているものは、こちらもオートレイアウトで持つ。
+
+   ★ 踏んだ罠 1 ── flex では margin が相殺されない
+     gap を入れただけだと、子に残った margin がそのまま足し算されます
+     （48 + 24 = 72 のような値になる）。子の margin-block は 0 にすること。
+
+   ★ 踏んだ罠 2 ── gap は高さ 0 の子にも入る
+     お知らせの枠（fragments/common :: flash）は、出すものが無くても
+     <div class="stack-sm"> だけは必ず出ます。放っておくと
+     全画面の先頭に 48px の空白ができます。
+     :empty は「空白だけの中身」の扱いがブラウザで割れるので、
+     :not(:has(*))（要素の子がひとつも無い）で見ます。
+
+   ★ 税理士の 5 枚はここでは触らない
+     layout/accountant.html は <main class="staff-main"> で、
+     本文がこの入れ子になっていません。同じ 48px なので後で入れますが、
+     一度に広げると壊れたときの切り分けができなくなります。
+   ========================================================================== */
+
+.theme-desk .staff-main > main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--block-gap, 48px);
+}
+.theme-desk .staff-main > main > * { margin-block: 0; }
+.theme-desk .staff-main > main > .stack-sm:not(:has(*)) { display: none; }
+
+/* 例外（Figma がその値で描いている）。
+   ★ 変数で渡すこと。gap を直接書くと、下の iPad の帯と勝ち負けの話になる
+
+   ★ 立って使う 3 画面は 24px。
+     厨房・ホール・品切れは 2026-09-12 に作り直してあり（現01 552:6627 /
+     現02 542:3705 / 現03 439:2496）、どれも本文の gap が 24 です。
+     01 ページの古い版は 48 で描かれていますが、そちらを採ると
+     1 画面に入る伝票が減ります。机で読む 13 画面が 48、立って使う 3 画面が 24。
+
+   ★ 売上は 20px（14 売上 17:1038）。カードとパネルが多く、48 だと 1 画面に入らない */
+.theme-desk .staff-main > main.kitchenboard,
+.theme-desk .staff-main > main.hallboard,
+.theme-desk .staff-main > main.soldoutpage { --block-gap: 24px; }
+.theme-desk .staff-main > main.salespage { --block-gap: 20px; }
+
+/* 節の見出し（h2）も Figma に部品がある（見出し/節 24:1397）。
+   中見出し 24px ＋ 補足 14px を 16/40 の中に置いた 68px の帯。
+   文字の大きさは合っていたが左右の 40px が無く、ページの見出しより
+   40px 外側から始まっていた。同じ画面に見出しの左端が 2 つあることになる。
+
+   ★ 立って使う 3 画面は外す。現02・現03 の節見出しは 20px・左右 0 で、そちらが正。
+     ここを一律にすると、詰めてある盤面の画面が 1 段ぶん広がる。 */
+.theme-desk .staff-main > main:not(.kitchenboard):not(.hallboard):not(.soldoutpage) > .section-title:has(h2) { padding: 16px 40px; }
+
+/* iPad の帯（1380px 以下）。B案の「ブロックの間 48→32」はここ。
+   ★ 例外の 2 画面も書き直すこと。書かないと基準の 32px に広がってしまう
+     （24 や 20 より広くなるので、詰めたつもりが逆になる） */
+@media (max-width: 1380px) {
+  .theme-desk .staff-main > main { --block-gap: 32px; }
+  .theme-desk .staff-main > main.kitchenboard,
+  .theme-desk .staff-main > main.hallboard,
+  .theme-desk .staff-main > main.soldoutpage { --block-gap: 24px; }
+  .theme-desk .staff-main > main.salespage { --block-gap: 20px; }
+
+  /* 節の見出しも帯なので、B案の「帯 16/40 → 12/24」に乗せる。
+     ★ ここを書き忘れると、ページの見出しだけ 24px に寄って
+       節の見出しが 40px に取り残され、iPad で左端が 2 本になる（実測で判明）。 */
+  .theme-desk .staff-main > main:not(.kitchenboard):not(.hallboard):not(.soldoutpage) > .section-title:has(h2) { padding: 12px 24px; }
 }
 
 /* ==========================================================================
@@ -7631,8 +7785,9 @@ body.is-sending .staff-main {
      ★ 2000px の段でこの値を再指定しないこと（上書きで一次式が死にます）。
      ★ .sheet はこの値を負のマージンで打ち消します（30-6-3 節）。
        calc(var(--main-pad-x) * -1) は clamp が入っても成立します。 */
+  /* ★ --main-pad-y はここで上げないこと（2026-09-13）。
+       Figma は上下余白を画面幅で変えていません。横（ガター）だけ持ちます。 */
   .theme-desk .staff-main {
-    --main-pad-y: 72px;
     --main-pad-x: clamp(40px, calc(34px + (100vw - 1440px) * 0.1125), 160px);
   }
   /* 盤面まわりの 4 画面は、設計どおり上下 32px にしてあります。
@@ -7640,10 +7795,6 @@ body.is-sending .staff-main {
      上下が 32px のままで、枠として成り立ちません。
      参考にした Render も左右 833px に対して上下 48px なので、そこにそろえます。
      ★ 詳細度を 0,3,0 でそろえること。0,2,0 だと :has 側（32px）に負けます。 */
-  .theme-desk .staff-main:has(.kitchenboard),
-  .theme-desk .staff-main:has(.hallboard),
-  .theme-desk .staff-main:has(.soldoutpage),
-  .theme-desk .staff-main:has(.inv-ingredients) { --main-pad-y: 48px; }
 
   /* ★ 見出しはここで変えません（2026-09-13）。
        32px / 20px は Render の実測値で、あちらは画面幅で変えません。
@@ -7678,7 +7829,6 @@ body.is-sending .staff-main {
 
   /* ★ ここに --main-pad-x を書かないこと。
        1440px の段の一次式（ガター）を上書きして殺します。 */
-  .theme-desk .staff-main { --main-pad-y: 80px; }
   /* 1440px の段と同じ理由で、列見出しはここでも大きくしません */
   .theme-desk .table      { font-size: 18px; }
   .statcard__value  { font-size: 40px; line-height: 46px; }

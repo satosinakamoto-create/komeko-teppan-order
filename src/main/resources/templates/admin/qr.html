@@ -22,9 +22,10 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">QRコード</h1>
-    <span class="section-title__count" th:text="${tables.size()} + ' 卓ぶん'">12 卓ぶん</span>
+  <!--/* 見出しの帯（設計 見出し/ページ 24:1392）。下の h2 は節の見出しなので .section-title のまま */-->
+  <div class="page-head">
+    <h1 class="page-head__title">QRコード</h1>
+    <span class="page-head__sub" th:text="${tables.size()} + ' 卓ぶん'">12 卓ぶん</span>
   </div>
 
   <p class="lead">

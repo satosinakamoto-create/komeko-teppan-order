@@ -46,7 +46,11 @@ class DeviceStepDownTest {
         assertThat(at).as("40 節が無い").isGreaterThan(0);
         int media = css.indexOf("@media (max-width: 1380px)", at);
         assertThat(media).as("40 節の media が無い").isGreaterThan(at);
-        return css.substring(media, css.indexOf("\n}", media));
+        // ★ コメントを落としてから返すこと。この app.css は「ここに書かないこと」と
+        //   注意書きを残す方針なので、doesNotContain が注意書きに一致して落ちる。
+        //   TopbarDesignTest・WideScreenGutterTest が踏んだのと同じ罠
+        return css.substring(media, css.indexOf("\n}", media))
+                .replaceAll("(?s)/\\*.*?\\*/", "");
     }
 
     @Test
@@ -70,11 +74,25 @@ class DeviceStepDownTest {
     @DisplayName("★ 余白も一段詰める（上下 48・ブロック間 32・カード内 16・帯 12/24）")
     void spacingStepsDownOnce() throws Exception {
         String b = band();
-        assertThat(b).contains("--main-pad-y: 48px;");
-        assertThat(b).contains(".dashpage { gap: 32px; }");
+        // ★ 2026-09-13：上下余白はこの帯で触らなくなった。
+        //   基準が 64 → 32px に反転したので、48px に「詰める」と逆に広がる
+        assertThat(b).doesNotContain("--main-pad-y");
+
+        // ★ ブロックの間（48→32）も、同じ日に 41 節へ移しました。
+        //   41 節は本文そのものを縦オートレイアウトにするので、
+        //   セレクタが .theme-desk .staff-main > main（詳細度 0,2,1）になります。
+        //   ここに .dashpage { gap: 32px }（0,1,0）を残すと、
+        //   41 節が後ろにあるぶん常に負けて、読めるのに効かない 1 行になります。
+        //   移した先は BlockGapMatchesFigmaTest が見ています
+        assertThat(b).doesNotContain("gap: 32px");
         assertThat(b).contains("padding: 15px 16px;");   // カード（枠 1px を返して 16）
         assertThat(b).contains(".panel { padding: 16px; }");
         assertThat(b).contains(".page-head { padding: 12px 24px; }");
+        // 売上の帯は月ナビ（基準 68px）が入って背が決まる。帯の余白だけ 12 に
+        // 落としても 12+68+12=92px にしかならず、iPad で間延びして見えた
+        // （2026-09-14、店主「iPad は 80px とかにした方が使いやすい」）。
+        // 月ナビを 56px に落として 12+56+12=80px。Figma トi18 も 80 に直し済み
+        assertThat(b).contains(".salespage .monthnav { height: 56px; }");
         // 仕入れの大きいカード（202px 設計）はこの詰めの対象外
         assertThat(b).contains(":not(.statcard--tall)");
     }

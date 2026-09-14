@@ -185,7 +185,10 @@ class StockRecordPageTest {
 
         // この画面だけ縦の余白 32（設計で 64→32 に編集された）。
         // 共通の --main-pad-y は触らず :has で絞る
-        assertThat(css).contains(".theme-desk .staff-main:has(.inv-ingredients) { --main-pad-y: 32px; }");
+        // ★ 2026-09-13：Figma 01 ページを全画面採寸したところ、この画面は 64px だった。
+        //   コードは 32px に落としていて逆だったので、基準を 32px に反転し、
+        //   64px のほう（食材・在庫／レシピ／バックアップ）を :has で指定する形にした
+        assertThat(css).contains(".theme-desk .staff-main:has(.inv-ingredients),");
         assertThat(Files.readString(LIST)).contains("section-title inv-ingredients");
 
         // 探す欄は素の .searchbox。この画面だけの版（--slim）は持たない。

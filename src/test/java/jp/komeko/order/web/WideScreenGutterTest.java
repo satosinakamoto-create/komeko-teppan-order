@@ -128,17 +128,20 @@ class WideScreenGutterTest {
         // 1432px ではそれでよいのですが、3807px では左右が 930px 空くのに
         // 上下が 32px のままで、枠として成り立ちません。
         // Render も同じ形（左右 833px・上下 48px）なので、そこにそろえます。
-        int at = css.indexOf("@media (min-width: 1440px)");
-        assertThat(at).as("32 節の 1440px の段が無い").isGreaterThan(0);
-        String wide = css.substring(at);
+        int sec = css.indexOf("32. 広い画面");
+        assertThat(sec).as("32 節が無い").isGreaterThan(0);
+        int at = css.indexOf("@media (min-width: 1440px)", sec);
+        assertThat(at).as("32 節の 1440px の段が無い").isGreaterThan(sec);
+        // コメント除去してから doesNotContain（注意書きに一致する罠を避ける）
+        String wide = css.substring(at).replaceAll("(?s)/\\*.*?\\*/", "");
 
-        assertThat(wide).contains(".theme-desk .staff-main:has(.kitchenboard),");
-        assertThat(wide).contains("--main-pad-y: 48px;");
+        // ★ 2026-09-13：上下余白は幅で変えなくなった（Figma がそうしていない）。
+        //   もとは「共通 72px、盤面 4 画面だけ 48px に戻す」と書いていた
+        assertThat(wide).doesNotContain("--main-pad-y");
 
-        // ★ 1440px 未満は触らないこと。タブレットは逆に「詰めて枚数を増やす」
-        //   方向に直したばかりで、ここを一緒に広げると打ち消します
+        // 基準そのものが 32px になったので、厨房に個別指定はもう無い（30 節）
         String narrow = css.substring(0, at);
-        assertThat(narrow).contains(".theme-desk .staff-main:has(.kitchenboard) { --main-pad-y: 32px; }");
+        assertThat(narrow).contains("--main-pad-y: 32px; --main-pad-x: 24px;");
     }
 
     @Test
@@ -173,7 +176,8 @@ class WideScreenGutterTest {
         assertThat(at).as("35-2 のホール側の説明が無い").isGreaterThan(0);
         String hall = css.substring(at, Math.min(css.length(), at + 1200));
         assertThat(hall).contains(".hallboard .board { grid-template-columns: repeat(3, minmax(0, 1fr)); }");
-        assertThat(hall).contains(".hallboard .grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }");
+        // ★ .grid--3（数字カードの段）はここでも並べていたが、
+        //   2026-09-14 にカードの段ごと畳んだ（HallStatMergeTest）
     }
 
     @Test
@@ -186,7 +190,7 @@ class WideScreenGutterTest {
         String base = block(css, ".theme-desk .hallboard .board,\n.hallboard .board {");
         assertThat(base).doesNotContain("max-width");
 
-        String cards = block(css, ".theme-desk .hallboard .grid--3,\n.hallboard .grid--3 {");
-        assertThat(cards).doesNotContain("max-width");
+        // ★ 数字カード（.grid--3）の土台もここで見ていたが、
+        //   2026-09-14 にカードの段ごと畳んだ（HallStatMergeTest）
     }
 }

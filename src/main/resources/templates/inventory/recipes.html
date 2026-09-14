@@ -18,13 +18,16 @@
       xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
       th:replace="~{layout/staff :: layout('レシピ・原価表', ~{::main})}">
 <body>
-<main>
+<!--/* 本文の上下余白を Figma（01 ページ「レシピ・原価表」の 64px）に合わせるための目印。
+       app.css 30 節の :has がこのクラスを見ています */-->
+<main class="recipepage">
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">レシピ・原価表</h1>
-    <span class="section-title__count"
+  <!--/* 見出しの帯（設計 見出し/ページ 24:1392） */-->
+  <div class="page-head">
+    <h1 class="page-head__title">レシピ・原価表</h1>
+    <span class="page-head__sub"
           th:text="${registeredCount} + ' / ' + ${costs.size()} + ' 品 登録済み'">5 / 20 品</span>
   </div>
 

@@ -25,7 +25,9 @@
     <h1 class="page-head__title">仕入れ・経費</h1>
     <span class="page-head__sub"
           th:text="${#temporals.format(month, 'yyyy年MM月')}">2026年08月</span>
-    <span class="page-head__spacer"></span>
+    <!--/* ボタンは補足のすぐ右（設計は左詰め。のばすで右端へ飛ばさない）。
+           設計 05 仕入れ・経費 にあるのは「レシートを登録」の 1 つだけで、
+           税率マスタはこの画面から入る道を残すために足したもの */-->
     <a class="btn btn--ghost" sec:authorize="hasRole('ADMIN')"
        th:href="@{/inventory/tax-rates}">税率マスタ</a>
     <a class="btn btn--primary" th:href="@{/inventory/purchases/new}">レシートを登録</a>

@@ -27,9 +27,13 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">卓</h1>
-    <span class="section-title__count" th:text="${tables.size()} + ' 卓 / ' + ${totalSeats} + ' 席'">12 卓 / 30 席</span>
+  <!--/* 見出しの帯（設計 見出し/ページ 24:1392）。
+         題 32px ＋ 補足 14px を、左右 40・上下 16 の中に横並びで置きます。
+         もとは .section-title でしたが、あれは帯ではなく行（padding 0・高さ 45px）なので、
+         設計の 80px の帯になりません。節の見出し（下の h2）は .section-title のままです。 */-->
+  <div class="page-head">
+    <h1 class="page-head__title">卓</h1>
+    <span class="page-head__sub" th:text="${tables.size()} + ' 卓 / ' + ${totalSeats} + ' 席'">12 卓 / 30 席</span>
   </div>
 
   <p class="lead">

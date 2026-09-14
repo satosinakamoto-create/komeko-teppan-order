@@ -15,9 +15,10 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">注文履歴</h1>
-    <span class="section-title__count" th:text="${dateLabel} + ' ／ ' + ${#lists.size(rows)} + ' 件'">
+  <!--/* 見出しの帯（設計 見出し/ページ 24:1392）。設計 15 注文履歴 の補足は日付 */-->
+  <div class="page-head">
+    <h1 class="page-head__title">注文履歴</h1>
+    <span class="page-head__sub" th:text="${dateLabel} + ' ／ ' + ${#lists.size(rows)} + ' 件'">
       2026年8月16日(日) ／ 12 件
     </span>
   </div>

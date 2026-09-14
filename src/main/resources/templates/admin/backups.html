@@ -2,7 +2,9 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('バックアップ', ~{::main})}">
 <body>
-<main>
+<!--/* 本文の上下余白を Figma（01 ページ「バックアップ」の 64px）に合わせるための目印。
+       app.css 30 節の :has がこのクラスを見ています */-->
+<main class="backuppage">
   <div th:replace="~{fragments/common :: flash}"></div>
 
   <!--/* 見出しの隣に主ボタンを置く（設計 16 バックアップ 42:2527）。
@@ -21,7 +23,7 @@
   <div class="page-head">
     <h1 class="page-head__title">バックアップ</h1>
     <span class="page-head__sub" th:text="${backups.size()} + ' 世代'">14 世代</span>
-    <span class="page-head__spacer"></span>
+    <!--/* ボタンは補足のすぐ右（設計は左詰め。のばすで右端へ飛ばさない） */-->
     <form th:action="@{/admin/backups/run}" method="post">
       <button type="submit" class="btn btn--primary" th:disabled="${!supported}">
         今すぐバックアップを取る
