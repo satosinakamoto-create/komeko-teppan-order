@@ -115,6 +115,23 @@
            th:href="@{__${p}__(month=${prevMonth})}">← 前月</a>
         <a class="btn btn--sm btn--ghost"
            th:href="@{__${p}__(month=${nextMonth})}">翌月 →</a>
+
+        <!--/* ★ 月を直接選ぶ（2026-09-17・店主の指摘）。
+               前月・翌月だけだと、いまが 2026-09 で 2025-12 を見たいときに
+               9 回押すことになります。税理士の画面は過去の月を見に来る画面なので、
+               ここが一番効きます。
+
+               ★ JavaScript は使いません（スタッフ側は素の HTML で動かす決まり）。
+                 <input type="month"> はブラウザが月のカレンダーを出してくれます。
+                 month モデル属性は 2026-09 の形で、この入力欄の値の形そのものです。
+
+               ★ GET にするのは、月を見るのが読むだけの操作だからです。
+                 URL に残るので戻る・進むが効き、ブックマークもできます。 */-->
+        <form class="monthpick" method="get" th:action="@{__${p}__}">
+          <input class="input" type="month" name="month"
+                 th:value="${month}" aria-label="月を選ぶ">
+          <button class="btn btn--sm" type="submit">表示</button>
+        </form>
       </div>
 
       <div th:replace="~{fragments/common :: flash}"></div>
