@@ -102,6 +102,65 @@ class ActionGreenTokenTest {
         return haystack.split(java.util.regex.Pattern.quote(needle), -1).length - 1;
     }
 
+    // ---------------------------------------------------------------- 押せるものの範囲
+
+    /**
+     * ★ 机で見る画面のタブ（すべて／掲載中…）は押せるものなので草緑（2026-09-16、店主の指摘）。
+     *
+     * <p>「商品の すべて・掲載中 とかのボタンが旧色」という指摘から。
+     * 実測すると、同じ画面の「＋商品を追加」が {@code #0b7a1a} 草緑なのに、
+     * すぐ下のタブは {@code #0b7a78} ティールで、<b>並ぶと色が食い違って</b>いました。
+     *
+     * <p>タブは当初「選択中＝ティール」の側に分類していましたが、
+     * <b>見た目は押せるボタンそのもの</b>なので、押せる側に寄せます。
+     *
+     * <p>※ 囲いの {@code .theme-desk} を外さないこと。{@code .tab} という名前は
+     * お客さまのスマホのメニュー（粉もの／たこ焼き…）でも使われていて、
+     * 2026-09-05 に一度それで事故を起こしています。
+     */
+    @Test
+    @DisplayName("★ 机で見る画面のタブは草緑（--action）を参照する")
+    void theDeskTabsUseThePressableGreen() throws Exception {
+        String css = css();
+
+        int at = css.indexOf(".theme-desk .tab {");
+        assertThat(at).as(".theme-desk .tab が無い").isGreaterThan(0);
+
+        // 未選択の文字
+        String base = css.substring(at, css.indexOf("}", at));
+        assertThat(base).as("未選択のタブの文字がティールのまま").contains("color: var(--action)");
+
+        // 選択中の面
+        int active = css.indexOf(".theme-desk .tab.is-active {");
+        assertThat(active).as(".theme-desk .tab.is-active が無い").isGreaterThan(0);
+        String on = css.substring(active, css.indexOf("}", active));
+        assertThat(on).as("選択中のタブの地がティールのまま").contains("background: var(--action)");
+        assertThat(on).as("選択中のタブの枠がティールのまま").contains("border-color: var(--action)");
+    }
+
+    /**
+     * ★ 囲いを外さないこと。
+     *
+     * <p>{@code .tab} はお客さまのスマホのメニューでも使われています。
+     * {@code .theme-desk} を外すと、暗い帯の中に明るい箱が並ぶ形に戻ります
+     * （2026-09-05 に実際に起きた事故）。
+     */
+    @Test
+    @DisplayName("★ タブの上書きは .theme-desk で囲ったまま")
+    void theTabOverrideStaysScopedToTheDeskTheme() throws Exception {
+        String css = withoutComments(css());
+
+        // 素の .tab に --action を書いていないこと（書くとお客さん側へ漏れる）
+        int plain = css.indexOf(System.lineSeparator() + ".tab {");
+        if (plain < 0) {
+            plain = css.indexOf("\n.tab {");
+        }
+        assertThat(plain).as("素の .tab が無い").isGreaterThan(0);
+        String plainBlock = css.substring(plain, css.indexOf("}", plain));
+        assertThat(plainBlock).as("素の .tab に --action を書いている（お客さん側へ漏れる）")
+                .doesNotContain("--action");
+    }
+
     // ---------------------------------------------------------------- 逆転しない
 
     /**

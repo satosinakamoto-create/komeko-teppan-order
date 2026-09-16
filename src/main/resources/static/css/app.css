@@ -3622,7 +3622,12 @@ body.is-sending .staff-main {
   background: var(--surface-sunken, #eef1f4);
   border: 1px solid var(--border);
   border-bottom: 0;
-  color: var(--accent);
+  /* ★ 2026-09-16: ティール → 草緑（--action）。店主の指摘
+     「商品の すべて・掲載中 とかのボタンが旧色」。
+     同じ画面の「＋商品を追加」が草緑なのに、すぐ下のタブがティールで
+     色が食い違っていた。タブは見た目が押せるボタンそのものなので、
+     押せる側に寄せる。 */
+  color: var(--action);
   font-size: 15px;
   /* リンクの既定（600）が効くと、未選択のタブまで太くなって
      どれが選ばれているのか形で分からなくなる。太いのは選択中だけ */
@@ -3630,18 +3635,20 @@ body.is-sending .staff-main {
   text-decoration: none;
   white-space: nowrap;
 }
-.theme-desk .tab:hover { background: var(--green-100, #ddf0ec); }
+.theme-desk .tab:hover { background: var(--action-soft); }
 .theme-desk .tab.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-action);
   font-weight: 700;
 }
 .tab__num   { display: inline-flex; align-items: baseline; gap: 1px; }
 .tab__count { font-size: 13px; font-weight: 700; color: var(--text-muted); font-family: var(--font-num); }
 .tab__unit  { font-size: 12px; color: var(--text-muted); }
+/* 選択中の中の件数は、地の草緑に載る薄い色。
+   ティールの薄面（--green-100）のままだと、緑の上に青みが乗って濁る */
 .theme-desk .tab.is-active .tab__count,
-.theme-desk .tab.is-active .tab__unit { color: var(--green-100, #ddf0ec); }
+.theme-desk .tab.is-active .tab__unit { color: var(--action-soft); }
 
 /* 商品の表。
    見出しの余白 16、行の余白 20 は設計どおり。
