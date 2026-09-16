@@ -75,10 +75,52 @@ public class InventoryRecipeController {
         model.addAttribute("categoryName", recipeService.categoryNameOf(menuItemId));
         model.addAttribute("cost", recipeService.costOf(menuItemId));
         model.addAttribute("ingredients", recipeService.selectableIngredients());
+        // その他材料費はフォームの初期値に使うだけ。合計への反映は cost 側が持っている
+        model.addAttribute("otherCost", recipeService.otherCostOf(menuItemId));
         if (!model.containsAttribute("recipeLineForm")) {
             model.addAttribute("recipeLineForm", new RecipeLineForm());
         }
         return "inventory/recipe-edit";
+    }
+
+    /**
+     * その他材料費を入れる・直す・外す（2026-09-16）。
+     *
+     * <p>ソース・青のり・かつお節のように 1 品あたり何グラムかを測らない材料を、
+     * まとめて金額で置くための口です。<b>食材を 1 つも登録せず、ここだけ入れても
+     * 原価が出ます</b>（店主の「食材入れずに原価だけ入れて保存できないの？」）。
+     *
+     * <p>空欄と 0 は「外す」と同じ扱いにします。0 円の行を残すと
+     * 「検討した結果 0 円」と「まだ入れていない」が画面から区別できません。
+     *
+     * <p>マイナスはサービス層が {@link IllegalArgumentException} で弾きます。
+     * ここで捕まえて画面のメッセージに変えます——投げっぱなしにすると
+     * エラー画面になり、入力していた他の値も消えるためです。
+     */
+    @PostMapping("/{menuItemId}/other-cost")
+    public String setOtherCost(@PathVariable Long menuItemId,
+                               @RequestParam(required = false) Integer amountIncludingTax,
+                               @RequestParam(required = false) String memo,
+                               RedirectAttributes redirect) {
+        int amount = amountIncludingTax == null ? 0 : amountIncludingTax;
+        try {
+            recipeService.setOtherCost(menuItemId, amount, trimToNull(memo));
+        } catch (IllegalArgumentException e) {
+            redirect.addFlashAttribute("flashErrors", java.util.List.of(e.getMessage()));
+            return "redirect:/inventory/recipes/" + menuItemId;
+        }
+        redirect.addFlashAttribute("flashSuccess",
+                amount == 0 ? "その他材料費を外しました" : "その他材料費を設定しました");
+        return "redirect:/inventory/recipes/" + menuItemId;
+    }
+
+    /** 空白だけのメモは null にする。「 」を保存しても読む人の役に立たない。 */
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /** 材料を 1 行足す。 */

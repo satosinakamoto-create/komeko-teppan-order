@@ -104,8 +104,12 @@
         </td>
         </th:block>
 
+        <!--/* ★ 「未登録」と言ってよいのは、金額の手がかりが本当に何も無いときだけ。
+               その他材料費だけ入れた商品は原価が出ているので、
+               隣に「未登録」と書くとどちらが本当か読む人に分からない（2026-09-16） */-->
         <td class="tiny">
-          <span th:if="${c.isEmpty()}" class="faint">未登録</span>
+          <span th:if="${c.isNothingRegistered()}" class="faint">未登録</span>
+          <span th:if="${c.isOtherCostOnly()}" class="faint">金額のみ</span>
           <span th:unless="${c.isEmpty()}" th:text="${c.lines().size()} + ' 種類'">4 種類</span>
           <span th:if="${c.isIncomplete()}" class="badge badge--soldout"
                 th:text="'単価不明 ' + ${c.unknownCostCount()}">単価不明 1</span>
@@ -114,8 +118,8 @@
         <td class="right">
           <a class="btn btn--sm btn--ghost"
              th:href="@{/inventory/recipes/{id}(id=${c.menuItem().id})}">
-            <span th:if="${c.isEmpty()}">登録する</span>
-            <span th:unless="${c.isEmpty()}">編集</span>
+            <span th:if="${c.isNothingRegistered()}">登録する</span>
+            <span th:unless="${c.isNothingRegistered()}">編集</span>
           </a>
         </td>
       </tr>

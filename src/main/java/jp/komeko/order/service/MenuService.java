@@ -43,12 +43,15 @@ public class MenuService {
      * 存在しなかった環境には、消すべきレシピ行も存在しないからです。
      */
     private final org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeLineRepository> recipeLineRepositoryProvider;
+    private final org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeOtherCostRepository> recipeOtherCostRepositoryProvider;
 
     public MenuService(CategoryRepository categoryRepository, MenuItemRepository menuItemRepository,
-                       org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeLineRepository> recipeLineRepositoryProvider) {
+                       org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeLineRepository> recipeLineRepositoryProvider,
+                       org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeOtherCostRepository> recipeOtherCostRepositoryProvider) {
         this.categoryRepository = categoryRepository;
         this.menuItemRepository = menuItemRepository;
         this.recipeLineRepositoryProvider = recipeLineRepositoryProvider;
+        this.recipeOtherCostRepositoryProvider = recipeOtherCostRepositoryProvider;
     }
 
     // ========================================================================
@@ -93,6 +96,14 @@ public class MenuService {
             if (recipeLines > 0) {
                 recipes.deleteByMenuItemId(id);
             }
+        }
+
+        // ★ その他材料費も先に消す。外部キーに ON DELETE CASCADE を付けていないので、
+        //   残したまま商品を消すと外部キー違反で削除そのものが失敗する
+        //   （「その他材料費を入れた商品だけ消せない」という形で跳ね返る）。
+        var otherCosts = recipeOtherCostRepositoryProvider.getIfAvailable();
+        if (otherCosts != null) {
+            otherCosts.deleteByMenuItemId(id);
         }
 
         String name = item.getName();

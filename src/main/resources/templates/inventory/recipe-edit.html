@@ -133,9 +133,61 @@
           </form>
         </td>
       </tr>
+      <!--/* 合計だけ変わって内訳に出ないと、その金額がどこから来たのか分からなくなる。
+             食材の行と区別が付くよう、単価の列は「―」にしてある */-->
+      <tr th:if="${cost.otherCostIncludingTax() != null}">
+        <td>その他材料費</td>
+        <td class="right tiny faint">g 数では持たない</td>
+        <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
+        <td class="right num tiny faint">―</td>
+        <td class="right num"
+            th:text="'¥' + ${#numbers.formatInteger(cost.otherCostIncludingTax(), 1, 'COMMA')}">¥40</td>
+        </th:block>
+        <td class="tiny faint" th:text="${otherCost != null} ? ${otherCost.memo} : null"></td>
+        <td></td>
+      </tr>
       </tbody>
     </table>
   </div>
+
+  <!--/* ── その他材料費（2026-09-16・店主の判断） ──
+         ソース・青のり・かつお節のように 1 品あたり何グラムか測らない材料を、
+         まとめて金額で置く。★ 食材を 1 つも足さずここだけ入れても原価は出る。
+
+         在庫には効かない。金額はレシピ行ではないので、消費計算からは
+         そもそも見えない（だから除外の処理を書いていない）。
+         その代わり、この商品が売れても食材は減らない。
+
+         JavaScript は使わない。他のフォームと同じくただの POST + redirect。 */-->
+  <form th:action="@{/inventory/recipes/{id}/other-cost(id=${menuItem.id})}" method="post"
+        class="card">
+    <div class="card__head">その他材料費</div>
+    <div class="card__body">
+      <div class="grid grid--2">
+        <div class="field">
+          <label class="label" for="amountIncludingTax">金額（税込・任意）</label>
+          <div class="row">
+            <input class="input input--narrow" type="number" min="0" step="1"
+                   id="amountIncludingTax" name="amountIncludingTax"
+                   th:value="${otherCost != null} ? ${otherCost.amountIncludingTax} : null"
+                   placeholder="40">
+            <span class="tiny">円</span>
+          </div>
+          <p class="help">
+            空欄か 0 で外します。g 数で測らない材料をまとめてここに置いてください
+          </p>
+        </div>
+        <div class="field">
+          <label class="label" for="otherCostMemo">何をまとめた金額か（任意）</label>
+          <input class="input" type="text" id="otherCostMemo" name="memo"
+                 th:value="${otherCost != null} ? ${otherCost.memo} : null"
+                 placeholder="ソース・青のり・かつお節">
+          <p class="help">あとで見たときに思い出せるように</p>
+        </div>
+      </div>
+      <button type="submit" class="btn btn--primary">その他材料費を保存する</button>
+    </div>
+  </form>
 
   <!--/* ── 材料を足す ── */-->
   <form th:action="@{/inventory/recipes/{id}/lines(id=${menuItem.id})}" method="post"

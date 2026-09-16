@@ -5,7 +5,9 @@ import jp.komeko.order.domain.TaxCalculator;
 import jp.komeko.order.inventory.domain.Ingredient;
 import jp.komeko.order.inventory.domain.RecipeLine;
 import jp.komeko.order.inventory.repository.IngredientRepository;
+import jp.komeko.order.inventory.domain.RecipeOtherCost;
 import jp.komeko.order.inventory.repository.RecipeLineRepository;
+import jp.komeko.order.inventory.repository.RecipeOtherCostRepository;
 import jp.komeko.order.repository.MenuItemRepository;
 import jp.komeko.order.service.ShopSettingService;
 import org.slf4j.Logger;
@@ -37,17 +39,20 @@ public class RecipeService {
     private static final Logger log = LoggerFactory.getLogger(RecipeService.class);
 
     private final RecipeLineRepository recipes;
+    private final RecipeOtherCostRepository otherCosts;
     private final IngredientRepository ingredients;
     private final MenuItemRepository menuItems;
     private final StockService stockService;
     private final ShopSettingService shopSettings;
 
     public RecipeService(RecipeLineRepository recipes,
+                         RecipeOtherCostRepository otherCosts,
                          IngredientRepository ingredients,
                          MenuItemRepository menuItems,
                          StockService stockService,
                          ShopSettingService shopSettings) {
         this.recipes = recipes;
+        this.otherCosts = otherCosts;
         this.ingredients = ingredients;
         this.menuItems = menuItems;
         this.stockService = stockService;
@@ -72,9 +77,16 @@ public class RecipeService {
         Map<Long, StockLevel> levels = levelsByIngredient();
         int taxRate = shopSettings.currentReadOnly().getTaxRatePercent();
 
+        // 商品ごとに引くと 80 商品で 80 往復になる。1 回読んで Java で配る。
+        Map<Long, Integer> otherByMenuItem = new HashMap<>();
+        for (RecipeOtherCost other : otherCosts.findAll()) {
+            otherByMenuItem.put(other.getMenuItemId(), other.getAmountIncludingTax());
+        }
+
         List<RecipeCost> result = new ArrayList<>(allItems.size());
         for (MenuItem item : allItems) {
-            result.add(costOf(item, byMenuItem.getOrDefault(item.getId(), List.of()), levels, taxRate));
+            result.add(costOf(item, byMenuItem.getOrDefault(item.getId(), List.of()),
+                    levels, taxRate, otherByMenuItem.get(item.getId())));
         }
         return result;
     }
@@ -87,7 +99,9 @@ public class RecipeService {
             return null;
         }
         return costOf(item, recipes.findByMenuItem(menuItemId), levelsByIngredient(),
-                shopSettings.currentReadOnly().getTaxRatePercent());
+                shopSettings.currentReadOnly().getTaxRatePercent(),
+                otherCosts.findByMenuItemId(menuItemId)
+                        .map(RecipeOtherCost::getAmountIncludingTax).orElse(null));
     }
 
     /**
@@ -99,7 +113,8 @@ public class RecipeService {
      * 足りないことが見えているほうが、静かに間違うよりずっとよい。
      */
     private RecipeCost costOf(MenuItem item, List<RecipeLine> lines,
-                              Map<Long, StockLevel> levels, int taxRatePercent) {
+                              Map<Long, StockLevel> levels, int taxRatePercent,
+                              Integer otherCostIncludingTax) {
         BigDecimal costIncludingTax = BigDecimal.ZERO;
         BigDecimal costNet = BigDecimal.ZERO;
         int unknown = 0;
@@ -121,15 +136,30 @@ public class RecipeService {
             lineCosts.add(new RecipeCost.LineCost(line, unitIncludingTax, lineCost));
         }
 
+        // その他材料費はレシピ行と足し合わせる。
+        // ★ unknownCostCount には数えない。あちらは「単価が分からない食材」の数で、
+        //   人が入れた確定値とは種類が違う。混ぜると警告の意味が濁る。
+        if (otherCostIncludingTax != null) {
+            costIncludingTax = costIncludingTax.add(BigDecimal.valueOf(otherCostIncludingTax));
+            // 税抜は自前で計算せず既存の TaxCalculator に割り戻させる（規約）
+            costNet = costNet.add(BigDecimal.valueOf(
+                    TaxCalculator.netAmount(otherCostIncludingTax, taxRatePercent)));
+        }
+
         int priceIncludingTax = item.getPrice();
         // 売価は税込で持っているのが既存の規約。税抜は既存の TaxCalculator で割り戻す
         // （自前で計算しない、が規約）。税率もハードコードせず店舗設定から取る。
         int priceNet = TaxCalculator.netAmount(priceIncludingTax, taxRatePercent);
 
+        // ★ 原価が null になるのは「レシピ行が 0 件 かつ その他材料費も無い」ときだけ。
+        //   0 円と出すと「原価がかからない」という意味になってしまうので、
+        //   分からないときは分からないと出す（原価率の判断と同じ）。
+        boolean nothingRegistered = lines.isEmpty() && otherCostIncludingTax == null;
+
         return new RecipeCost(item, lineCosts,
-                lines.isEmpty() ? null : costIncludingTax,
-                lines.isEmpty() ? null : costNet,
-                priceIncludingTax, priceNet, unknown);
+                nothingRegistered ? null : costIncludingTax,
+                nothingRegistered ? null : costNet,
+                priceIncludingTax, priceNet, unknown, otherCostIncludingTax);
     }
 
     /** 食材 id → 在庫と単価。原価計算のたびに在庫を数え直さないよう 1 回だけ引く。 */
@@ -286,6 +316,54 @@ public class RecipeService {
             }
         }
         return missing;
+    }
+
+    /**
+     * その商品の「その他材料費」を入れる。商品 1 つにつき 1 件で、入れ直すと上書き。
+     *
+     * <p><b>0 円は行ごと消します。</b>残してしまうと「検討した結果 0 円だった」と
+     * 「まだ入れていない」が画面から区別できなくなります。
+     * 削除した食材の分類で「その他」を既定にしなかったのと同じ理由です。
+     *
+     * <p><b>マイナスは受け付けません。</b>原価から材料費が引かれて原価率が
+     * 実際より低く出ます。「思ったより儲かる」という誤解は静かに効くぶん質が悪い。
+     *
+     * @param amountIncludingTax 円・税込。0 なら削除、負数なら {@link IllegalArgumentException}
+     * @param memo               「ソース・青のり・かつお節」など。任意
+     */
+    @Transactional
+    public void setOtherCost(Long menuItemId, int amountIncludingTax, String memo) {
+        if (amountIncludingTax < 0) {
+            throw new IllegalArgumentException(
+                    "その他材料費にマイナスは入れられません（原価率が実際より低く出ます）");
+        }
+        if (amountIncludingTax == 0) {
+            clearOtherCost(menuItemId);
+            return;
+        }
+        RecipeOtherCost existing = otherCosts.findByMenuItemId(menuItemId).orElse(null);
+        if (existing == null) {
+            otherCosts.save(new RecipeOtherCost(menuItemId, amountIncludingTax, memo));
+        } else {
+            existing.setAmountIncludingTax(amountIncludingTax);
+            existing.setMemo(memo);
+        }
+        log.info("その他材料費を設定しました: menuItemId={} {} 円", menuItemId, amountIncludingTax);
+    }
+
+    /** その他材料費を外す。入っていなければ何もしない。 */
+    @Transactional
+    public void clearOtherCost(Long menuItemId) {
+        otherCosts.findByMenuItemId(menuItemId).ifPresent(found -> {
+            otherCosts.delete(found);
+            log.info("その他材料費を外しました: menuItemId={}", menuItemId);
+        });
+    }
+
+    /** その商品のその他材料費。入っていなければ null。画面のフォーム初期値用。 */
+    @Transactional(readOnly = true)
+    public RecipeOtherCost otherCostOf(Long menuItemId) {
+        return otherCosts.findByMenuItemId(menuItemId).orElse(null);
     }
 
     /** 選択肢に出す食材（使っているものだけ）。 */
