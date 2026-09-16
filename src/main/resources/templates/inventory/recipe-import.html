@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<!--/*
+   レシピの取り込み。設計 ト09b 806:8314。
+
+   ── この画面の形（2026-09-16）──
+   「読む → 人が照合して直す → まとめて登録」。
+   レシート確認画面（purchase-form.html の stage='confirm'）とまったく同じ形で、
+   1 つの <form> がカードも材料行もフッターも全部包む。
+
+   ★ JavaScript を使わない。
+     「＋ 材料を足す」「✕」「＋ その場で作成」はどれも submit ボタンで、
+     フォーム全部を POST して描き直す。だから入力済みの他の行が一切消えない。
+     この画面は「記録の責任は人が持つ」場所なので、
+     画面の状態とサーバの form が必ず一致していてほしい。
+
+   ★ 入れ子の表なので、行のボタンの value は「カード番号:行番号」。
+     items[i].lines[j] に対応する。
+
+   ★ AI 読取が無くても成立する。写真なしで開けば空の確認画面が出て、
+     手で入力して登録できる。AI は後からこの入れ物に値を詰めるだけ。
+
+   使えるモデルの値：
+     ${stage}      … 'start'（入口）か 'confirm'（確認画面）
+     ${menuItems}  … 登録済みの商品（掲載を止めたものも含む）
+     ${ingredients}… 選択肢に出す食材
+     ${units}      … その場で食材を作るときの単位
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout/staff :: layout('レシピの取り込み', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <!--/* ===== 入口 ===== */-->
+  <th:block th:if="${stage == 'start'}">
+
+    <!--/* 戻るは帯の左端（2026-09-15 の 左＝戻る／右＝実行）。
+           ここには実行のボタンが無いので のばす も要らない */-->
+    <div class="page-head">
+      <a class="btn" th:href="@{/inventory/recipes}">← レシピ・原価表へ戻る</a>
+      <h1 class="page-head__title">レシピの取り込み</h1>
+      <span class="page-head__sub">エクセルやノートに書いたレシピを、この画面で登録します</span>
+    </div>
+
+    <div class="card">
+      <div class="card__body">
+        <!--/* ★ AI 読取はまだ作っていない（取り込み元のサンプル待ち）。
+               「準備中」のボタンを置いて押させるより、いま動く道だけを出す。
+               押せないボタンが画面に居座るのは、2026-09-16 に消した
+               「未分類 N 件」の催促と同じ形になる。 */-->
+        <p class="lead mb-0">まず手で入力して登録します。</p>
+        <p class="help">
+          写真やエクセルからの自動読み取りは、<strong>実物のサンプルが集まってから</strong>足します。
+          読み取れた値は、いまと同じこの確認画面に入る形になるので、
+          <strong>入力の手順は変わりません</strong>。
+        </p>
+
+        <form th:action="@{/inventory/recipes/import/manual}" method="post">
+          <button type="submit" class="btn btn--primary btn--lg">
+            手で入力して取り込む
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </th:block>
+
+  <!--/* ===== 確認画面 ===== */-->
+  <form th:if="${stage == 'confirm'}" th:action="@{/inventory/recipes/import}" method="post"
+        th:object="${recipeImportForm}">
+
+    <!--/* 見出し（Figma 806:8450）。題 32px ＋ 補足 14px ＋ のばす ＋ 実行のボタン。
+           件数を出すのは「押す前に何品入るか分かる」ようにするため。
+           押してから「1 品しか入りませんでした」と言われるより親切。 */-->
+    <div class="page-head">
+      <h1 class="page-head__title">レシピの取り込み</h1>
+      <span class="page-head__sub"
+            th:text="${recipeImportForm.readyCount()} + ' 品・'
+                     + ${recipeImportForm.lineCount()} + ' 材料が登録できます'">2 品・5 材料</span>
+      <span class="page-head__spacer"></span>
+      <button type="submit" class="btn btn--primary" name="register" value="1"
+              th:text="${recipeImportForm.readyCount()} + ' 品をまとめて登録'">2 品をまとめて登録</button>
+    </div>
+
+    <div th:if="${#fields.hasErrors('*') or #fields.hasGlobalErrors()}" class="alert alert--error">
+      <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
+    </div>
+
+    <!--/* 読み取り元（Figma 806:8456）。手入力のときは出さない——
+           「読み取り元：なし」と書いても読む人の役に立たない */-->
+    <div th:if="*{imagePath} != null" class="card">
+      <div class="card__body importsource">
+        <img class="importsource__thumb" th:src="*{imagePath}" alt="読み取り元">
+        <span th:text="'読み取り元：' + *{sourceName}">読み取り元：ノートの写真</span>
+        <span class="page-head__spacer"></span>
+        <a th:href="*{imagePath}" target="_blank" rel="noopener">写真を確認する →</a>
+      </div>
+    </div>
+
+    <input type="hidden" th:field="*{imagePath}">
+    <input type="hidden" th:field="*{sourceName}">
+    <input type="hidden" th:field="*{readingJson}">
+
+    <!--/* ===== 商品カード ===== （Figma 807:1688 / 808:1688） */-->
+    <div class="card" th:each="item, it : *{items}">
+      <div class="card__body">
+
+        <!--/* 商品の照合。一致していれば緑のバッジ、外れていれば赤いバッジ＋選び直し。
+               ★ 空のカードは光らせない。全部光らせると警告そのものが無視される
+                 （レシート確認画面から受け継いだ判断） */-->
+        <div class="importcard__head">
+          <strong class="importcard__name"
+                  th:text="${#strings.isEmpty(item.readName)} ? '（商品名なし）' : ${item.readName}">肉玉米粉そば</strong>
+
+          <span class="badge badge--ok" th:if="${item.menuItemId != null}">商品と一致</span>
+          <span class="badge badge--ng" th:if="${item.unmatched}">商品が見つかりません</span>
+
+          <select class="select select--inline"
+                  th:field="*{items[__${it.index}__].menuItemId}">
+            <option value="">登録済みの商品から選ぶ</option>
+            <option th:each="m : ${menuItems}" th:value="${m.id}" th:text="${m.name}">肉玉米粉そば</option>
+          </select>
+
+          <input type="hidden" th:field="*{items[__${it.index}__].readName}">
+
+          <span class="page-head__spacer"></span>
+
+          <button type="submit" class="btn btn--sm btn--ghost"
+                  name="removeItem" th:value="${it.index}">✕ この品を外す</button>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table importcard__table">
+            <thead>
+            <tr>
+              <th style="min-width:14rem">読み取った材料</th>
+              <th style="min-width:18rem">食材との照合</th>
+              <th style="min-width:10rem">1品あたりの量</th>
+              <th style="min-width:8rem">状態</th>
+              <th style="width:3rem"></th>
+            </tr>
+            </thead>
+            <tbody>
+            <!--/* 照合できていない行だけ薄い赤。空行は光らせない */-->
+            <tr th:each="line, li : ${item.lines}"
+                th:classappend="${line.unmatched} ? 'is-unlinked'">
+
+              <td>
+                <input class="input" type="text"
+                       th:field="*{items[__${it.index}__].lines[__${li.index}__].readName}"
+                       placeholder="（空欄の行は登録されません）">
+              </td>
+
+              <td>
+                <select class="select"
+                        th:field="*{items[__${it.index}__].lines[__${li.index}__].ingredientId}">
+                  <option value="">食材にありません</option>
+                  <option th:each="i : ${ingredients}" th:value="${i.id}"
+                          th:text="${i.name} + '（' + ${i.unit.symbol} + '）'">キャベツ（g）</option>
+                </select>
+              </td>
+
+              <td class="right">
+                <input class="input input--narrow" type="text" inputmode="decimal"
+                       th:field="*{items[__${it.index}__].lines[__${li.index}__].qtyPerItem}"
+                       placeholder="150">
+              </td>
+
+              <td>
+                <!--/* 一致しているなら緑。していないなら、その場で作る道を出す。
+                       単位は作るときだけ要るので、未一致の行にしか出さない */-->
+                <span class="importcard__ok" th:if="${line.ingredientId != null}">✓ 一致</span>
+                <div class="importcard__make" th:if="${line.unmatched}">
+                  <select class="select select--inline"
+                          th:field="*{items[__${it.index}__].lines[__${li.index}__].newUnit}">
+                    <option th:each="u : ${units}" th:value="${u}"
+                            th:text="${u.symbol}">g</option>
+                  </select>
+                  <button type="submit" class="btn btn--sm btn--primary"
+                          name="createIngredientRow"
+                          th:value="${it.index} + ':' + ${li.index}">＋ その場で作成</button>
+                </div>
+              </td>
+
+              <td class="right">
+                <button type="submit" class="btn btn--sm btn--ghost"
+                        name="removeRow" th:value="${it.index} + ':' + ${li.index}"
+                        th:attr="aria-label='この行を消す'">✕</button>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="mb-0">
+          <button type="submit" class="btn btn--sm btn--ghost"
+                  name="addLine" th:value="${it.index}">＋ 材料を足す</button>
+        </p>
+
+      </div>
+    </div>
+
+    <p class="mb-0">
+      <button type="submit" class="btn btn--ghost" name="addItem" value="1">＋ 商品を足す</button>
+    </p>
+
+    <!--/* ===== フッター ===== （Figma 808:1737）
+           左＝やめる（移動）／右＝登録（実行）。09-15 に決めた並び。 */-->
+    <div class="card">
+      <div class="card__body importfoot">
+        <button type="submit" class="btn" name="cancel" value="1">やめる（何も登録しない）</button>
+        <span class="tiny faint">
+          登録すると原価と在庫の減りが動き出します。分量はあとからレシピ編集で直せます
+        </span>
+        <span class="page-head__spacer"></span>
+        <button type="submit" class="btn btn--primary" name="register" value="1"
+                th:text="${recipeImportForm.readyCount()} + ' 品をまとめて登録'">2 品をまとめて登録</button>
+      </div>
+    </div>
+
+    <p class="tiny faint" th:if="${recipeImportForm.hasUnmatched()}">
+      <strong>薄い赤の行</strong>は、まだどの食材にも紐付いていない行です。
+      「＋ その場で作成」を押すと、材料名はそのまま入るので
+      <strong>単位だけ選べばこの画面のまま食材ができます</strong>（別画面へ行く必要はありません）。
+    </p>
+    <p class="tiny faint">
+      分量が空の行は登録できません。空のまま通すと、その材料は原価にも在庫にも入らず、
+      「登録したのに在庫が減らない」という形であとから跳ね返ります。
+    </p>
+
+  </form>
+
+</main>
+</body>
+</html>

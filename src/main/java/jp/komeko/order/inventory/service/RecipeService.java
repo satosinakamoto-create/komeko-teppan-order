@@ -366,6 +366,48 @@ public class RecipeService {
         return otherCosts.findByMenuItemId(menuItemId).orElse(null);
     }
 
+    /**
+     * 取り込み画面の「登録済みの商品から選ぶ」に出す商品。
+     *
+     * <p>掲載を止めている商品も出します。<b>取り込むのは過去のレシピ</b>なので、
+     * いま売っていない品のレシピを入れ直すことがあるためです
+     * （原価表も同じ理由で全商品を出しています）。
+     */
+    @Transactional(readOnly = true)
+    public List<MenuItem> importableMenuItems() {
+        return menuItems.findAllForAdmin();
+    }
+
+    /**
+     * 商品名から商品を探す（取り込みの自動照合用）。
+     *
+     * <p>照合は {@code AliasText.normalize} を通します。生の文字列で引くと
+     * 「肉玉米粉そば」と「肉玉米粉そば　」が別物になり、
+     * ノートの書き方ひとつで照合が外れます。
+     *
+     * <p><b>複数一致したときは null を返します。</b>どれか 1 つを勝手に選ぶと、
+     * 人は「一致した」と思ったまま別の商品にレシピを入れてしまいます。
+     * 決められないときは決めずに、画面で選ばせるのが正しい。
+     */
+    @Transactional(readOnly = true)
+    public MenuItem findByNameForImport(String rawName) {
+        String needle = jp.komeko.order.inventory.domain.AliasText.normalize(rawName);
+        if (needle == null) {
+            return null;
+        }
+        MenuItem found = null;
+        for (MenuItem item : menuItems.findAllForAdmin()) {
+            String candidate = jp.komeko.order.inventory.domain.AliasText.normalize(item.getName());
+            if (needle.equals(candidate)) {
+                if (found != null) {
+                    return null;   // 複数一致。勝手に選ばない
+                }
+                found = item;
+            }
+        }
+        return found;
+    }
+
     /** 選択肢に出す食材（使っているものだけ）。 */
     @Transactional(readOnly = true)
     public List<Ingredient> selectableIngredients() {

@@ -8008,3 +8008,75 @@ dialog[open] { margin: auto; }
   .statcard__value  { font-size: 40px; line-height: 46px; }
   .linechart        { height: 340px; }
 }
+
+/* ==========================================================================
+   42. レシピの取り込み（設計 ト09b 806:8314・2026-09-16）
+   --------------------------------------------------------------------------
+   「読む → 人が照合して直す → まとめて登録」の確認画面。
+   レシート確認画面と同じ形なので、土台は .card / .table / .btn の使い回し。
+   ここに足すのは、Figma にあって既存の組み合わせでは出せない見た目だけ。
+
+   ★ .theme-desk に書かない。
+     あの層は厨房・ホールにも付く（2026-09-07 に実測で判明）。
+     この画面だけの話なので .importcard / .importsource / .importfoot に絞る。
+
+   ★ 色は Figma の生の値ではなくトークンを使う。
+     Figma のボタンは #0b7a78（ティール）だが、実装の --action は #0b7a1a。
+     2026-09-12 に「表の見出しの面と押せるボタンが同じティールで
+     見分けが付かない」という理由で意図して色相をずらしたもの。
+     ト09b は古い値のまま作られたモックなので、実装側が正。
+   ========================================================================== */
+
+/* 照合の結果を表すバッジ。既存の --gf（アレルゲン）／--stop（使用停止）は
+   見た目は近いが意味が違う。名前で意味が読めるほうを足す。 */
+.badge--ok { background: var(--ok-soft);     color: var(--ok);     border-color: currentColor; }
+.badge--ng { background: var(--danger-soft); color: var(--danger); border-color: currentColor; }
+
+/* 行の中に置くセレクト。表のセルや見出しの並びに混ぜるので、
+   ブロックいっぱいに広げない（既定の .select は幅 100%）。 */
+.select--inline { width: auto; min-width: 12rem; }
+
+/* 読み取り元の帯（Figma 806:8456）。サムネイル＋ファイル名＋右端にリンク。 */
+.importsource {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+.importsource__thumb {
+  width: 72px;
+  height: 48px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+}
+
+/* 商品カードの見出し（Figma 807:1689）。
+   商品名・バッジ・選び直し・のばす・外す、を 1 行に並べる。
+   狭い画面では折り返す（サイドバーがあるぶん本文は広くない）。 */
+.importcard__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.importcard__name { font-size: 20px; }
+
+/* 状態の列。一致は緑、未一致はその場で作る道を出す。 */
+.importcard__ok { color: var(--ok); font-weight: 700; font-size: 14px; }
+.importcard__make {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.importcard__make .select--inline { min-width: 5rem; }
+
+/* フッター（Figma 808:1737）。左＝やめる（移動）／右＝登録（実行）。
+   09-15 に決めた「左＝戻る／右＝実行」と同じ並びにしてある。 */
+.importfoot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+}
