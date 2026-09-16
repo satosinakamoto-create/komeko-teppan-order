@@ -256,6 +256,32 @@ class ActionGreenTokenTest {
                 .isGreaterThanOrEqualTo(4.5);
     }
 
+    /**
+     * ★ 売上の期間切り替え（1か月／3か月／6か月／1年）も押せるものなので草緑。
+     *
+     * <p>ここは {@code var(--accent)} を使っていました。{@code --accent} は
+     * {@code .theme-desk} でティール（{@code --green-700}）に上書きされているので、
+     * <b>スタッフ側だけ旧色のまま</b>残っていた場所です。
+     *
+     * <p>設計（ト16 売上 765:8446）では、この帯のアクティブはすでに
+     * {@code #0b7a1a} で変数に結ばれています。遅れていたのはコードのほうでした。
+     */
+    @Test
+    @DisplayName("★ 売上の期間切り替えのアクティブは --action（草緑）")
+    void theSalesRangeSwitcherUsesTheActionGreen() throws Exception {
+        String css = css();
+
+        int at = css.indexOf(".segmented__item.is-active");
+        assertThat(at).as(".segmented__item.is-active が app.css に無い").isGreaterThan(0);
+        String rule = css.substring(at, css.indexOf("}", at));
+
+        assertThat(rule).as("面がまだ旧色（--accent はティール）")
+                .contains("background: var(--action)")
+                .doesNotContain("var(--accent)");
+        assertThat(rule).as("文字が --on-action になっていない")
+                .contains("color: var(--on-action)");
+    }
+
     private String valueOf(String css, String token) {
         int at = css.indexOf(token);
         assertThat(at).as(token + " が無い").isGreaterThan(0);

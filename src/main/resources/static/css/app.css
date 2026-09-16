@@ -4176,7 +4176,15 @@ body.is-sending .staff-main {
   white-space: nowrap;
 }
 .segmented__item:hover { background: var(--bg-elevated); }
-.segmented__item.is-active { background: var(--accent); color: #ffffff; font-weight: 700; }
+/* ★ アクティブは草緑（2026-09-17）。
+
+   ここは長く var(--accent) でした。--accent は :root では黒ですが
+   .theme-desk がティール（--green-700）に上書きするため、
+   スタッフ側のこの帯だけ旧色のまま残っていました。
+
+   設計（ト16 売上 765:8446）では、この帯のアクティブはすでに #0b7a1a で
+   変数に結ばれています。遅れていたのはコードのほうでした。 */
+.segmented__item.is-active { background: var(--action); color: var(--on-action); font-weight: 700; }
 
 /* 折れ線。座標は Java 側で計算済みなので、ここは見た目だけ。
    preserveAspectRatio="none" で横に伸ばすため、
