@@ -8330,7 +8330,8 @@ dialog[open] { margin: auto; }
   grid-template-columns: auto minmax(160px, 240px) 136px minmax(160px, 240px) auto;
   grid-template-areas:
     "id name role pw  act"
-    "id en   en   en  act";
+    "id en   en   en  .";
+  /* 下端で揃える。入力欄もボタンも 48px なので、これで底辺が 1 本の線に乗る */
   align-items: end;
   gap: var(--sp-3) var(--sp-4);
   padding: var(--sp-4) var(--sp-5);
@@ -8341,7 +8342,9 @@ dialog[open] { margin: auto; }
 .staffcard__role    { grid-area: role; }
 .staffcard__pw      { grid-area: pw; }
 .staffcard__enabled { grid-area: en; justify-self: start; }
-.staffcard__act     { grid-area: act; align-self: center; justify-self: end; }
+/* ★ 操作は 1 段目だけ。2 段にまたがらせて縦中央に置くと、
+   入力欄の行から下へずれて「行が揃っていない」状態になる（店主の指摘・2026-09-17）。 */
+.staffcard__act     { grid-area: act; align-self: end; justify-self: end; }
 
 /* .field の既定は下に余白を持つが、ここは flex の gap で間隔を作るので消す。
    残っていると欄ごとに下だけ空いて、ボタンとの下端が揃わない。 */
