@@ -238,6 +238,13 @@ hr {
    .input が width:100% を主張するので、放っておくとボタンだけが潰される */
 .row > .btn { flex: 0 0 auto; }
 .row--wrap { flex-wrap: wrap; }
+/* .row の中で残り幅を分け合う入力欄（2026-09-17）。
+
+   「入力がいくつか並んで、右端にボタン」という形が設計にいくつもある
+   （ト11b カテゴリの追加、ト05f 税率の改定、ト15b スタッフの追加）。
+   .row > .btn は縮まない決まりなので、残りをこれで分け合う。
+   min-width:0 が無いと、中の .input（width:100%）が押し返して折り返さない。 */
+.row__grow { flex: 1 1 220px; min-width: 0; }
 .spacer { flex: 1; }
 
 .grid {

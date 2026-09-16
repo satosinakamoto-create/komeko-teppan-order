@@ -25,10 +25,11 @@
   <!--/* ★ ここは「直す画面」です（2026-09-07 に一覧と分けました）。
          開いた直後の一覧は /admin/categories（読むだけ）。
          戻り口を必ず置くこと。直しに来ただけの人が、
-         終わったあとに一覧へ戻る道を探すことになります。 */-->
-  <p class="mb-0">
-    <a class="btn btn--sm" th:href="@{/admin/categories}">← カテゴリ一覧へ</a>
-  </p>
+         終わったあとに一覧へ戻る道を探すことになります。
+
+         ★ 2026-09-17 に戻り口を 1 つへ減らしました。
+           帯の外にも「← カテゴリ一覧へ」を置いていて、行き先が同じリンクが
+           2 つ縦に並んでいました。設計（ト11b）は帯の中の 1 つだけです。 */-->
 
   <!--/* 見出しの帯（設計 ト11b） */-->
   <div class="page-head">
@@ -55,41 +56,30 @@
   <form class="card" method="post" th:action="@{/admin/categories}" th:object="${categoryForm}">
     <div class="card__head">カテゴリを追加</div>
     <div class="card__body">
-      <div class="grid grid--3">
+      <!--/* ★ 入力とボタンを 1 本の行に（設計 ト11b・2026-09-17）。
+             もとは 3 列のグリッドの下にボタンがぶら下がっていました。
+             .row / .row__grow / .mb-0 はどれも既にある部品です。
 
-        <!--/* ★ 大カテゴリを先に置く。
+             ★ 大カテゴリを先に置く。
                お客さんは「タブを選ぶ → その中のカテゴリを見る」の順で辿ります。
-               登録する側も同じ順で考えるので、広いほうから並べたほうが迷いません。
-               もとはカテゴリ名が先で、階層と入力順が逆になっていました。 */-->
-        <div class="field">
+               登録する側も同じ順で考えるので、広いほうから並べたほうが迷いません。 */-->
+      <div class="row row--wrap">
+
+        <div class="field mb-0 row__grow">
           <label class="label" for="groupName">大カテゴリ（タブ名）</label>
           <input class="input" type="text" th:field="*{groupName}" maxlength="20"
                  placeholder="例：鉄板料理"
                  th:classappend="${#fields.hasErrors('groupName')} ? 'is-error'">
-          <p class="help">
-            お客さんのメニュー画面で、いちばん上に並ぶタブの名前です。
-            同じ名前を付けたカテゴリは<strong>1 つのタブにまとまります</strong>
-            （「鉄板おつまみ」と「鉄板麺」に どちらも <em>鉄板料理</em> と入れる、など）。<br>
-            <strong>空のままなら、このカテゴリ名がそのままタブになります。</strong>
-          </p>
-          <p class="error" th:if="${#fields.hasErrors('groupName')}" th:errors="*{groupName}">エラー内容</p>
         </div>
 
-        <div class="field">
+        <div class="field mb-0 row__grow">
           <label class="label" for="name">カテゴリ名<span class="req">必須</span></label>
           <input class="input" type="text" th:field="*{name}" maxlength="40"
                  placeholder="例：米粉ガレット"
                  th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
-          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
         </div>
 
-        <!--/* 追加フォームでは並び順を聞きません（2026-09-05）。
-               既定の 0 のままだと、追加したカテゴリがメニューの先頭に割り込みます。
-               ここは末尾に付けておいて、順番を変えたくなったら
-               下の一覧の上下ボタンで動かしてもらう形にしました。
-               数字での指定は各行の編集フォームに残してあります。 */-->
-
-        <div class="field">
+        <div class="field mb-0">
           <span class="label">お客さんへの表示</span>
           <label class="choice">
             <input type="checkbox" th:field="*{visible}">
@@ -97,14 +87,35 @@
           </label>
         </div>
 
+        <button class="btn btn--primary" type="submit">追加する</button>
       </div>
-      <button class="btn btn--primary" type="submit">追加する</button>
+
+      <!--/* ★ 並び順を聞かない理由を画面に出します（2026-09-17）。
+             この文はもともと Thymeleaf のコメントの中に書いてあり、
+             画面には出ていませんでした。追加フォームに並び順の欄が無い理由が
+             誰にも伝わっていなかったことになります。 */-->
+      <p class="help mt-4">
+        並び順はここでは聞きません。追加した瞬間はいちばん下に入り、下の一覧で直せます。
+        （既定の 0 のままだと、追加したカテゴリがメニューの先頭に割り込むためです）
+      </p>
+
+      <p class="help">
+        <strong>大カテゴリ</strong>は、お客さんのメニュー画面でいちばん上に並ぶタブの名前です。
+        同じ名前を付けたカテゴリは<strong>1 つのタブにまとまります</strong>
+        （「鉄板おつまみ」と「鉄板麺」に どちらも <em>鉄板料理</em> と入れる、など）。
+        <strong>空のままなら、このカテゴリ名がそのままタブになります。</strong>
+      </p>
+
+      <p class="error" th:if="${#fields.hasErrors('groupName')}" th:errors="*{groupName}">エラー内容</p>
+      <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
     </div>
   </form>
 
   <!--/* ====== 一覧 ====== */-->
   <div class="section-title">
     <h2 class="section-title__text">登録済みのカテゴリ</h2>
+    <span class="section-title__count"
+          th:text="${categories.size()} + ' 件'">4 件</span>
   </div>
 
   <div th:if="${categories.isEmpty()}">
