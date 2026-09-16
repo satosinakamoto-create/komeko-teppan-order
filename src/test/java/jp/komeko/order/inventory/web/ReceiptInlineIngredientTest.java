@@ -149,7 +149,7 @@ class ReceiptInlineIngredientTest {
     @DisplayName("★ 同じ名前が既にあれば、作らずにそれへ紐付ける（分裂させない）")
     void duplicateNameLinksTheExistingOne() throws Exception {
         var existing = ingredientService.create("大葉テスト", IngredientUnit.PIECE,
-                null, null, null, null);
+                null, null, null);
 
         MvcResult result = mockMvc.perform(post("/inventory/purchases").with(csrf())
                         .param("createIngredientRow", "0")

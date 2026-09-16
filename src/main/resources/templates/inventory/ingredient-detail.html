@@ -14,21 +14,22 @@
   <div th:replace="~{fragments/common :: flash}"></div>
 
   <!--/* 見出しの帯（設計 ト04c 840:10119）。
-         補足は「単位 ／ 分類 ／ 単価」＝この食材の素性。
-         ★ 単価がここにあるのは設計どおり（840:10121「g ／ 野菜 ／ 単価 0.12 円/g」）。
-           もとは下の数字帯に税込・税抜の 2 枚を置いていたが、
-           帯は「いま何がどれだけあるか」を読む場所で、単価は素性の話。
-           数字帯に 5 つ並べると、いちばん見たい残量が埋もれる。 */-->
+         補足は「単位 ／ 単価」＝この食材の素性。
+         ★ 設計 840:10121 は「g ／ 野菜 ／ 単価 0.12 円/g」で分類が入っていたが、
+           2026-09-16 に分類そのものをやめたので 2 つになった
+           （経緯は IngredientCategoryRemovedTest）。Figma 側が古い。
+         ★ 単価がここにあるのは設計どおり。もとは下の数字帯に税込・税抜の
+           2 枚を置いていたが、帯は「いま何がどれだけあるか」を読む場所で、
+           単価は素性の話。数字帯に 5 つ並べると、いちばん見たい残量が埋もれる。 */-->
   <div class="page-head">
     <a class="btn" th:href="@{/inventory/ingredients}">← 食材・在庫へ戻る</a>
     <h1 class="page-head__title" th:text="${ingredient.name}">キャベツ</h1>
     <span class="page-head__sub"
           th:text="${ingredient.unit.symbol}
-                   + (${ingredient.category != null} ? ' ／ ' + ${ingredient.category.label} : '')
                    + (${level != null and level.unitCostIncludingTax() != null}
                       ? ' ／ 単価 ' + ${#numbers.formatDecimal(level.unitCostIncludingTax(), 1, 'COMMA', 2, 'POINT')}
                         + ' 円/' + ${ingredient.unit.symbol}
-                      : '')">g ／ 野菜 ／ 単価 0.12 円/g</span>
+                      : '')">g ／ 単価 0.12 円/g</span>
     <span class="badge badge--stop" th:if="${!ingredient.active}">使用停止中</span>
     <span class="page-head__spacer"></span>
   </div>

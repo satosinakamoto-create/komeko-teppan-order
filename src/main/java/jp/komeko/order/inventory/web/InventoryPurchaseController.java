@@ -112,7 +112,7 @@ public class InventoryPurchaseController {
                 .filter(i -> i.getName().equals(name))
                 .findFirst()
                 .orElseGet(() -> ingredientService.create(
-                        name, line.getNewUnit(), null, null, null, null));
+                        name, line.getNewUnit(), null, null, null));
         line.setIngredientId(ingredient.getId());
         // 作った直後の食材は単価が分かりません。原価に乗るのは
         // このレシートが保存されて仕入れ実績になってからです

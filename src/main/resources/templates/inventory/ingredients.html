@@ -37,21 +37,19 @@
          同じ情報は行の「少ない」「マイナス」のバッジが持っていて、
          知らせは件数を言い直していただけ。 */-->
 
-  <!--/* ===== しぼり込み ===== 設計 現04 の「探す」と「カテゴリーから検索」。
-         2 つを横に並べる。品切れ・残数（現03）と同じ形。
+  <!--/* ===== しぼり込み ===== 名前で探す 1 つだけ。
+         分類での絞り込みは 2026-09-16 にやめました（店主の判断）。
+         分類は計算に何も使っておらず、そのうえ「カテゴリーから検索」という
+         同じ文言を品切れ・残数が商品カテゴリの意味で使っていて紛らわしかった。
+         経緯は IngredientCategoryRemovedTest に書いてあります。
 
          ★ 検索欄の高さは設計 40 だが 48 にしている。
            CLAUDE.md の「タップ領域は 48px 以上」を割るため
-           （商品フォームのチップと同じ判断。設計 40 に合わせたければ規約側の相談）。 */-->
-  <!--/* 並べ方は品切れ・残数（現03）で作った .stockfind を使う。
-         間だけこの画面は 42（設計 466:5915・ト07 の 725:4468 も同じ 42）。
+           （商品フォームのチップと同じ判断。設計 40 に合わせたければ規約側の相談）。
 
-         ★ 高さについて、ここには長く「素の .searchbox がもともと 64 で
-           設計どおり」と書いてありましたが、誤りでした（2026-09-14）。
-           設計 ト07 の 2 つの箱（725:4469 / 725:4474）はどちらも 527 × 48 です。
-           探す欄は 2026-09-13 に 48 へ統一済みで、
-           カテゴリー側だけ 62 のまま残っていました。 */-->
-  <div class="stockfind" th:if="${!levels.isEmpty() or !#strings.isEmpty(q) or selectedCategory != null}">
+         ★ .stockfind は品切れ・残数（現03）と共用。箱が 1 つになっても
+           そのまま使える（横に並べる指定なので、1 つなら 1 つ並ぶ）。 */-->
+  <div class="stockfind" th:if="${!levels.isEmpty() or !#strings.isEmpty(q)}">
     <form class="searchbox" method="get" th:action="@{/inventory/ingredients}"
           role="search">
       <span class="searchbox__icon" aria-hidden="true">
@@ -59,41 +57,7 @@
       </span>
       <input class="searchbox__input" type="search" name="q" placeholder="食材を探す"
              th:value="${q}" aria-label="食材を探す">
-      <!--/* いま選んでいる分類を持ち回る。落とすと、名前で探した瞬間に
-             分類の絞り込みが黙って外れる */-->
-      <input type="hidden" name="category" th:if="${selectedCategory != null}"
-             th:value="${selectedCategory}">
     </form>
-
-    <!--/* details なので JavaScript が要らない。店内 LAN で確実に開く。
-           分類がまだ 1 つも付いていないうちは出さない（押しても未分類しか無い） */-->
-    <details class="catpick" th:if="${!#lists.isEmpty(categoryGroups)}">
-      <summary class="catpick__head">
-        <span class="catpick__mark" aria-hidden="true"></span>
-        <span th:text="${selectedCategoryName} ?: 'カテゴリーから検索'">カテゴリーから検索</span>
-      </summary>
-      <div class="catpick__list">
-        <a class="catpick__item" th:classappend="${selectedCategory == null} ? 'is-active'"
-           th:href="@{/inventory/ingredients(q=${#strings.isEmpty(q)} ? null : ${q})}">
-          <span>すべて</span>
-        </a>
-        <a th:each="g : ${categoryGroups}" class="catpick__item"
-           th:classappend="${selectedCategory != null and selectedCategory == g.key()} ? 'is-active'"
-           th:href="@{/inventory/ingredients(category=${g.key()}, q=${#strings.isEmpty(q)} ? null : ${q})}">
-          <span th:text="${g.name()}">野菜</span>
-          <span class="catpick__count" th:text="${g.count()}">4</span>
-        </a>
-      </div>
-    </details>
-  </div>
-
-  <!--/* 一括分類への入口（2026-09-07）。未分類が 0 件なら出さない
-         ——片付いた店の画面に案内が居座らないように */-->
-  <div th:if="${unclassifiedCount > 0}" class="alert alert--info">
-    <p class="mb-0">
-      分類が決まっていない食材が <b th:text="${unclassifiedCount}">12</b> 件あります。
-      <a th:href="@{/inventory/ingredients/categorize}">まとめて分類する →</a>
-    </p>
   </div>
 
   <!--/* 探して 0 件のとき。空の表は「登録が無い」と見分けが付かない */-->

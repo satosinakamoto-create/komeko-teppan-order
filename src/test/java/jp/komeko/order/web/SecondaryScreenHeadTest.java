@@ -46,7 +46,6 @@ class SecondaryScreenHeadTest {
     private static final Map<String, String> SCREENS = new LinkedHashMap<>() {{
         put("inventory/ingredient-form.html", "食材を追加");          // ト04b
         put("inventory/ingredient-detail.html", null);                // ト04c（題は食材名）
-        put("inventory/ingredient-categorize.html", "食材の分類をまとめて付ける"); // ト04d
         put("inventory/purchase-detail.html", null);                  // ト05e（題は店名）
         put("inventory/tax-rates.html", "税率・控除率マスタ");         // ト05f
         put("inventory/recipe-edit.html", null);                      // ト09c（題は商品名）
@@ -77,7 +76,7 @@ class SecondaryScreenHeadTest {
     }
 
     @Test
-    @DisplayName("★ 10 画面とも h1 が見出し帯の中にある")
+    @DisplayName("★ 9 画面とも h1 が見出し帯の中にある")
     void everySecondaryScreenHasTheBand() throws Exception {
         for (Map.Entry<String, String> e : SCREENS.entrySet()) {
             String band = firstHead(read(e.getKey()));
@@ -112,6 +111,11 @@ class SecondaryScreenHeadTest {
      * 40 件ぶん選び終えた直後——いちばん押し間違えやすいところに、
      * 選択が全部消えるボタンが並んでいたことになります。
      *
+     * <p>※ きっかけになったその画面自体は 2026-09-16 に無くなりました
+     * （{@code IngredientCategoryRemovedTest}）。<b>判断は変えません。</b>
+     * 同じ形——戻ると破壊的な実行が隣り合う——は他の画面でも起こりうるので、
+     * 位置で分けておく意味は画面が 1 枚消えても変わらないためです。
+     *
      * <p>左＝戻る／右＝実行に分けると、この事故は構造的に起きません。
      * Figma も 14 枚すべて同じ形に描き直してあります
      * （見出しの左右 padding は 0、戻るボタンと題の間は 40px。設計 898:9098）。
@@ -144,7 +148,6 @@ class SecondaryScreenHeadTest {
     @DisplayName("★ 補足（件数・日付・親の名前）は帯の中に残す")
     void theSubtitleSurvives() throws Exception {
         String[] withSub = {
-                "inventory/ingredient-categorize.html",
                 "admin/categories.html",
                 "admin/staff.html",
                 "admin/options.html",

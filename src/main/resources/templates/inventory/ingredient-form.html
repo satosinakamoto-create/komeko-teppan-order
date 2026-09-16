@@ -49,12 +49,12 @@
         <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
       </div>
 
-      <!--/* 入力は 3 列 × 2 行（設計 838:9218）。
-             もとは 2 列 × 4 行で、分類の隣に空のセルを置いて桁を合わせていた。
-             ★ 分類を必須にしていないのは、仕込み中に食材を足すことがあり、
-               そこで分類を考えさせて手が止まるより、名前と単位だけで
-               登録できるほうが現場に合うため。決めていないものは
-               一覧の「未分類」に集まるので、あとからまとめて直せる */-->
+      <!--/* 入力は 3 列 → 2 列（もとは設計 838:9218 の 3 列 × 2 行）。
+             2026-09-16 に分類をやめて 6 項目が 5 項目になった。
+             3 列 × 2 行のままだと空のセルが 1 つできる——
+             それは分類を足す前の 2 列 × 4 行で嫌って直した形そのものなので、
+             戻さない。警告残量を 1 行目へ繰り上げ、2 行目は 2 列にする。
+             メモは横幅があったほうが書きやすいので、こちらの並びのほうが素直。 */-->
       <div class="grid grid--3">
         <div class="field">
           <label class="label" for="name">食材名</label>
@@ -72,25 +72,14 @@
           </p>
         </div>
         <div class="field">
-          <label class="label" for="category">分類（任意）</label>
-          <select class="select" id="category" th:field="*{category}">
-            <option value="">未分類</option>
-            <option th:each="c : ${categories}" th:value="${c}"
-                    th:text="${c.label}">野菜</option>
-          </select>
-          <p class="help">
-            食材が増えたときに「カテゴリーから検索」で絞り込むために使います
-          </p>
-        </div>
-      </div>
-
-      <div class="grid grid--3">
-        <div class="field">
           <label class="label" for="lowThresholdQty">警告残量（任意）</label>
           <input class="input" type="number" step="0.001" min="0"
                  id="lowThresholdQty" th:field="*{lowThresholdQty}" placeholder="500">
           <p class="help">これを下回ったら一覧で赤くします。空欄なら警告しません</p>
         </div>
+      </div>
+
+      <div class="grid grid--2">
         <div class="field">
           <label class="label" for="costOverride">単価を固定する（任意）</label>
           <input class="input" type="number" step="0.0001" min="0"

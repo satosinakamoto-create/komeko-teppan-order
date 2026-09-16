@@ -127,18 +127,33 @@ class IngredientFormMatchesFigmaTest {
 
     // ---------------------------------------------------------------- 形
 
+    /**
+     * ★ 2026-09-16 に 3 列 × 2 行から 3 列 → 2 列へ変えました。
+     *
+     * <p>分類をやめて 6 項目が 5 項目になったためです
+     * （{@code IngredientCategoryRemovedTest}）。3 列 × 2 行のままだと
+     * 空のセルが 1 つできますが、それは分類を足す前の 2 列 × 4 行で嫌って
+     * 直した形そのものなので、戻しません。
+     *
+     * <p>いまの形は 名前/単位/警告残量 → 単価/メモ。
+     * メモは横幅があったほうが書きやすいので、こちらの並びのほうが素直です。
+     *
+     * <p><b>見ているのは「空のセルで桁を埋めていないこと」です。</b>
+     * 列数そのものは項目が増減すれば変わりますが、
+     * 空セルで格好をつける作りに戻らないことは守りたい。
+     */
     @Test
-    @DisplayName("★ 入力は 3 列 × 2 行（Figma は 名前/単位/分類 → 警告残量/単価/メモ）")
-    void theFieldsSitInTwoRowsOfThree() throws Exception {
+    @DisplayName("★ 空のセルで桁を埋めない（いまは 3 列 → 2 列）")
+    void theFieldsNeverPadWithEmptyCells() throws Exception {
         String m = withoutComments(read());
 
-        // 2 列 × 4 行だと、分類の隣に空のセルを置く羽目になっていた
         assertThat(m).as("空のセルで桁を埋めている").doesNotContain("<div class=\"field\"></div>");
-        assertThat(m).as("3 列になっていない").contains("grid grid--3");
+        assertThat(m).as("1 行目が 3 列になっていない").contains("grid grid--3");
+        assertThat(m).as("2 行目が 2 列になっていない").contains("grid grid--2");
 
-        // メモは 3 列目に入る。全幅の 1 行を占めない
-        int grid = m.lastIndexOf("grid grid--3");
-        assertThat(m.substring(grid)).as("メモが 3 列目に無い").contains("for=\"memo\"");
+        // メモは最後の行に入る。全幅の 1 行を占めない
+        int lastGrid = m.lastIndexOf("grid grid--");
+        assertThat(m.substring(lastGrid)).as("メモが最後の行に無い").contains("for=\"memo\"");
     }
 
     @Test
