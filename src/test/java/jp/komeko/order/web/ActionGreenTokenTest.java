@@ -161,6 +161,30 @@ class ActionGreenTokenTest {
                 .doesNotContain("--action");
     }
 
+    /**
+     * ★ サイドバーの現在地も草緑（2026-09-16、店主の判断）。
+     *
+     * <p>2 つの緑は明度がほぼ同じ（0.1535 と 0.1406）で、色相だけが違います。
+     * 明度が違えば「強い／弱い」の階層になりますが、<b>同じ明度で色相だけ違う 2 色は、
+     * 階層ではなく「揃っていない」に見えます</b>。
+     *
+     * <p><b>意味の区別は形が持っています。</b>主ボタン＝ベタ塗り＋白文字、
+     * 枠線ボタン＝白地＋緑枠、現在地＝薄い地＋太字。形がまったく違うので、
+     * 色まで分ける必要がありません。
+     */
+    @Test
+    @DisplayName("★ サイドバーの現在地は草緑（--action）を参照する")
+    void theSidebarCurrentItemUsesThePressableGreen() throws Exception {
+        String css = css();
+
+        int at = css.indexOf(".sb__item.is-active {");
+        assertThat(at).as(".sb__item.is-active が無い").isGreaterThan(0);
+
+        String rule = css.substring(at, css.indexOf("}", at));
+        assertThat(rule).as("現在地の地がティールのまま").contains("background: var(--action-soft)");
+        assertThat(rule).as("現在地の文字がティールのまま").contains("color: var(--action)");
+    }
+
     // ---------------------------------------------------------------- 逆転しない
 
     /**

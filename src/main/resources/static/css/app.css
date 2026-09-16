@@ -2362,7 +2362,7 @@ body.theme-night { background-image: none; }
 }
 
 .sb__item span { display: var(--sb-text); }
-.sb__item:hover { background: var(--accent-soft); color: var(--text); }
+.sb__item:hover { background: var(--action-soft); color: var(--text); }
 
 /* 現在地。設計（Figma）は 面 #ddf0ec ／ 文字とアイコン #0b7a78 ／ 太字。
    もとは面がグレー（黒の 5%）＋左に黒い縦棒で、SnowUI の流儀のままだった。
@@ -2370,10 +2370,20 @@ body.theme-night { background-image: none; }
 
    ★ 左の縦棒は消した。
      設計に無いだけでなく、緑の面が付いた時点で二重の目印になる。
-     「いまここ」を 2 つの記号で言うと、どちらが本体か分からなくなる。 */
+     「いまここ」を 2 つの記号で言うと、どちらが本体か分からなくなる。
+
+   ★ 2026-09-16: ティール → 草緑（--action）。店主の判断。
+     2 つの緑は明度がほぼ同じ（0.1535 と 0.1406）で、色相だけが違う。
+     明度が違えば「強い／弱い」の階層になるが、同じ明度で色相だけ違う 2 色は
+     階層ではなく「揃っていない」に見える。同じ画面にボタンと現在地が並ぶと、
+     緑が 2 つあることのほうが先に目に入っていた。
+
+     ★ 意味の区別は形が持っている。主ボタン＝ベタ塗り＋白文字、
+       枠線ボタン＝白地＋緑枠、現在地＝薄い地＋太字。形がまったく違うので、
+       色まで分ける必要がない。色は「このアプリの緑はこれ」を言うだけでよい。 */
 .sb__item.is-active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--action-soft);
+  color: var(--action);
   font-weight: 700;
 }
 
