@@ -76,6 +76,34 @@ public class IngredientService {
         return ingredients.findById(id).orElse(null);
     }
 
+    /**
+     * 名前から食材を探す（取り込みの自動照合用）。
+     *
+     * <p>照合は {@link AliasText#normalize} を通します。生の文字列で引くと
+     * 「ｷｬﾍﾞﾂ」と「キャベツ」が別物になり、ノートの書き方ひとつで照合が外れます。
+     *
+     * <p><b>複数一致したら null を返します。</b>どれか 1 つを勝手に選ぶと、
+     * 人は「一致した」と思ったまま別の食材でレシピを組んでしまいます。
+     * 決められないときは決めずに、画面で選ばせるのが正しい。
+     */
+    @Transactional(readOnly = true)
+    public Ingredient findByNameForImport(String rawName) {
+        String needle = AliasText.normalize(rawName);
+        if (needle == null) {
+            return null;
+        }
+        Ingredient found = null;
+        for (Ingredient candidate : activeIngredients()) {
+            if (needle.equals(AliasText.normalize(candidate.getName()))) {
+                if (found != null) {
+                    return null;   // 複数一致。勝手に選ばない
+                }
+                found = candidate;
+            }
+        }
+        return found;
+    }
+
     /** 同じ名前の食材がすでにあるか。登録前の重複チェック。 */
     @Transactional(readOnly = true)
     public boolean nameTaken(String name, Long excludeId) {

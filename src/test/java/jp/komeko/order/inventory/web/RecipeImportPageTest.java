@@ -91,13 +91,104 @@ class RecipeImportPageTest {
                 .andExpect(content().string(containsString(START)));
     }
 
+    /** 入口は写真・CSV・貼り付けの 3 択（設計 ト09d 842:10404）。 */
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("★ 取り込みの入口が開く")
-    void theStartScreenOpens() throws Exception {
+    @DisplayName("★ 入口に 3 つの道が出る（写真・CSV・貼り付け）")
+    void theStartScreenOffersThreeWaysIn() throws Exception {
         mockMvc.perform(get(START))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("レシピの取り込み")));
+                .andExpect(content().string(containsString("写真を撮る")))
+                .andExpect(content().string(containsString("CSV を選ぶ")))
+                .andExpect(content().string(containsString("テキストを貼り付け")))
+                // この 1 文がこの機能の性格を決めている。消さないこと
+                .andExpect(content().string(containsString("読んだまま保存はしません")));
+    }
+
+    /**
+     * ★ AI が使えないときに、使えない理由が読めること。
+     *
+     * <p>押せないボタンだけ置いて理由を書かないと、
+     * 「壊れている」のか「まだ無い」のか分かりません。
+     */
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("★ 写真は使えないが、CSV と貼り付けは使えると分かる")
+    void theStartScreenSaysWhyThePhotoPathIsOff() throws Exception {
+        String html = mockMvc.perform(get(START))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(html).as("使えない理由が書かれていない").contains("ANTHROPIC_API_KEY");
+        assertThat(html).as("鍵が無くても使える道があることが書かれていない")
+                .contains("鍵が無くても使えます");
+    }
+
+    // ---------------------------------------------------------------- 貼り付け
+
+    /**
+     * ★ AI 抜きで本当に読めること。ここがこの入口の存在理由です。
+     */
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("★ テキストを貼ると確認画面に材料が並ぶ（AI 不要）")
+    void pastedTextBecomesTheConfirmScreen() throws Exception {
+        String pasted = String.join(System.lineSeparator(),
+                takoyaki.getName(),
+                cabbage.getName() + " 150g");
+
+        String html = mockMvc.perform(post(START + "/text").with(csrf())
+                        .param("pasted", pasted))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(html).as("読み取った材料名が出ていない").contains(cabbage.getName());
+        assertThat(html).as("読み取った分量が出ていない").contains("150");
+        // 名前が一致するので、商品も食材も選ばれた状態で出るはず
+        assertThat(html).as("商品が自動照合されていない").contains("商品と一致");
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("★ 読めないテキストなら、理由を出して入口に留まる")
+    void unreadableTextStaysOnTheStartScreen() throws Exception {
+        mockMvc.perform(post(START + "/text").with(csrf()).param("pasted", "   "))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("読み取れる材料がありませんでした")));
+    }
+
+    // ---------------------------------------------------------------- CSV
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("★ CSV を貼ると確認画面に並ぶ（AI 不要）")
+    void csvBecomesTheConfirmScreen() throws Exception {
+        String csv = String.join(System.lineSeparator(),
+                "商品名,材料,分量",
+                takoyaki.getName() + "," + cabbage.getName() + ",150");
+
+        String html = mockMvc.perform(post(START + "/csv").with(csrf())
+                        .param("csvText", csv))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(html).contains(cabbage.getName());
+        assertThat(html).as("商品が自動照合されていない").contains("商品と一致");
+    }
+
+    /**
+     * ★ 列が分からないときに黙って 0 件にしないこと。
+     * 「取り込んだのに何も出てこない」がいちばん困ります。
+     */
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("★ CSV の列が分からなければ、理由を言って止まる")
+    void csvWithoutTheRequiredColumnsSaysWhy() throws Exception {
+        mockMvc.perform(post(START + "/csv").with(csrf())
+                        .param("csvText", String.join(System.lineSeparator(),
+                                "売価,原価", "1180,312")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("商品名")));
     }
 
     /**

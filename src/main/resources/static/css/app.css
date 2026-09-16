@@ -8080,3 +8080,65 @@ dialog[open] { margin: auto; }
   flex-wrap: wrap;
   gap: var(--sp-4);
 }
+
+/* ==========================================================================
+   43. レシピ取り込みの入口（設計 ト09d 842:10404・2026-09-16）
+   --------------------------------------------------------------------------
+   写真・CSV・貼り付けの 3 枚を横に並べる。Figma は 3 等分（gap 24）。
+
+   ★ 3 つのうち 2 つ（CSV・貼り付け）は AI が要らない。
+     Figma では写真のカードだけ枠が濃い＝おすすめだが、いまは AI 読取が
+     未実装で押せない。押せないものを一番目立たせても仕方ないので、
+     濃い枠（.is-recommended）は動く CSV に付けてある。
+     AI 読取を作ったら写真へ戻す。
+
+   ★ カードの高さをそろえる。ボタンが行ごとにばらけると
+     「どれを押せばいいか」を探す手間が増える。
+     .importentry__foot を下端に寄せる（Figma の「のばす」に相当）。
+   ========================================================================== */
+
+.importentry {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-5);
+}
+@media (max-width: 1100px) {
+  .importentry { grid-template-columns: 1fr; }
+}
+
+/* ★ 地・枠・角丸は .card に任せる。
+     .theme-desk .card が白・#e8e8e8・角丸を持っていて（3258 行）、
+     それが Figma の rounded-6 / border #e8e8e8 と一致している。
+     ここで上書きすると、テーマを直したときに 1 枚だけ取り残される。 */
+.importentry__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+}
+/* いま動く道を濃い枠で示す。Figma の「おすすめ」の扱い */
+.importentry__card.is-recommended { border: 2px solid var(--action); }
+
+.importentry__mark  { font-size: 32px; line-height: 1; margin: 0; }
+.importentry__title { font-size: 20px; font-weight: 700; margin: 0; }
+.importentry__lead  { font-size: 14px; margin: 0; }
+
+.importentry__for {
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 「のばす」（Figma 842:10555）。ボタンをカードの下端にそろえる */
+.importentry__foot { margin-top: auto; display: grid; gap: var(--sp-2); }
+
+/* 共通の注意（Figma 842:10580）。この 1 文がこの機能の性格を決めている */
+.importentry__note {
+  background: var(--surface);
+  padding: var(--sp-3) var(--sp-4);
+  font-size: 13px;
+  margin-bottom: var(--sp-4);
+}

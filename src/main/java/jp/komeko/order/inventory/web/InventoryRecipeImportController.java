@@ -4,7 +4,9 @@ import jakarta.validation.Valid;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.inventory.domain.Ingredient;
 import jp.komeko.order.inventory.service.IngredientService;
+import jp.komeko.order.inventory.service.RecipeCsvParser;
 import jp.komeko.order.inventory.service.RecipeService;
+import jp.komeko.order.inventory.service.RecipeTextParser;
 import jp.komeko.order.inventory.web.form.RecipeImportForm;
 import jp.komeko.order.inventory.web.form.RecipeImportItemForm;
 import jp.komeko.order.inventory.web.form.RecipeImportLineForm;
@@ -57,11 +59,17 @@ public class InventoryRecipeImportController {
 
     private final RecipeService recipeService;
     private final IngredientService ingredientService;
+    private final RecipeTextParser textParser;
+    private final RecipeCsvParser csvParser;
 
     public InventoryRecipeImportController(RecipeService recipeService,
-                                           IngredientService ingredientService) {
+                                           IngredientService ingredientService,
+                                           RecipeTextParser textParser,
+                                           RecipeCsvParser csvParser) {
         this.recipeService = recipeService;
         this.ingredientService = ingredientService;
+        this.textParser = textParser;
+        this.csvParser = csvParser;
     }
 
     /**
@@ -82,10 +90,111 @@ public class InventoryRecipeImportController {
     //  入口
     // ========================================================================
 
-    /** 取り込みの入口。写真を選ぶか、手入力で始めるか。 */
+    /**
+     * 取り込みの入口（設計 ト09d 842:10404）。写真・CSV・貼り付けの 3 択。
+     *
+     * <p><b>3 つのうち 2 つは AI が要りません。</b>CSV と貼り付けは自前の解析なので、
+     * {@code ANTHROPIC_API_KEY} が無くても課金ゼロで動きます。写真だけが鍵を要ります。
+     * 鍵が無いときは写真のボタンだけ無効にし、理由を画面に出します
+     * （カードごと消すと「その道がある」ことすら伝わらない）。
+     */
     @GetMapping
     public String start(Model model) {
+        // AI 読取はまだ実装していないので常に false。
+        // 鍵の有無ではなく「この機能がまだ無い」ことを表している。
+        // 実装したら InventoryProperties の判定に差し替える。
+        model.addAttribute("ocrAvailable", false);
         model.addAttribute("stage", "start");
+        return "inventory/recipe-import";
+    }
+
+    /**
+     * 貼り付けたテキストから取り込む（設計 ト09d 842:10569）。
+     *
+     * <p>スマホのメモや LINE に書いたレシピをそのまま貼るだけ。
+     * <b>AI を使わないので鍵も課金も要りません。</b>
+     */
+    @PostMapping("/text")
+    public String fromText(@RequestParam(required = false) String pasted, Model model) {
+        List<RecipeTextParser.ParsedItem> parsed = textParser.parse(pasted);
+        if (parsed.isEmpty()) {
+            model.addAttribute("ocrAvailable", false);
+            model.addAttribute("stage", "start");
+            model.addAttribute("flashErrors",
+                    List.of("読み取れる材料がありませんでした。1 行に「材料 分量」の形で書いてください"));
+            return "inventory/recipe-import";
+        }
+        return confirmOf(parsed, null, "貼り付けたテキスト", model);
+    }
+
+    /**
+     * CSV から取り込む（設計 ト09d 842:10558）。
+     *
+     * <p>前職のエクセルをそのまま。<b>AI を通さないので、いちばん正確です。</b>
+     * 列が見つからないときは黙って 0 件にせず、理由を画面に出します——
+     * 「取り込んだのに何も出てこない」がいちばん困るためです。
+     */
+    @PostMapping("/csv")
+    public String fromCsv(@RequestParam(required = false) String csvText, Model model) {
+        List<RecipeTextParser.ParsedItem> parsed;
+        try {
+            parsed = csvParser.parse(csvText);
+        } catch (IllegalArgumentException e) {
+            model.addAttribute("ocrAvailable", false);
+            model.addAttribute("stage", "start");
+            model.addAttribute("flashErrors", List.of(e.getMessage()));
+            return "inventory/recipe-import";
+        }
+        if (parsed.isEmpty()) {
+            model.addAttribute("ocrAvailable", false);
+            model.addAttribute("stage", "start");
+            model.addAttribute("flashErrors", List.of("読み取れる行がありませんでした"));
+            return "inventory/recipe-import";
+        }
+        return confirmOf(parsed, null, "CSV", model);
+    }
+
+    /**
+     * 読み取った結果を確認画面の形にする。
+     *
+     * <p><b>ここで自動照合まで済ませます。</b>商品名・材料名から
+     * 登録済みのものを探して、見つかれば選んだ状態で出します。
+     * 見つからなければ空のまま——画面が赤く出して人に選ばせます。
+     * <b>勝手に近いものを選びません</b>（間違った商品にレシピが入るほうが害が大きい）。
+     */
+    private String confirmOf(List<RecipeTextParser.ParsedItem> parsed,
+                             String imagePath, String sourceName, Model model) {
+        RecipeImportForm form = new RecipeImportForm();
+        form.setImagePath(imagePath);
+        form.setSourceName(sourceName);
+        form.setItems(new ArrayList<>());
+
+        for (RecipeTextParser.ParsedItem item : parsed) {
+            RecipeImportItemForm card = new RecipeImportItemForm();
+            card.setReadName(item.name());
+            MenuItem matched = recipeService.findByNameForImport(item.name());
+            if (matched != null) {
+                card.setMenuItemId(matched.getId());
+            }
+            List<RecipeImportLineForm> lines = new ArrayList<>();
+            for (RecipeTextParser.ParsedLine read : item.lines()) {
+                RecipeImportLineForm line = new RecipeImportLineForm();
+                line.setReadName(read.name());
+                line.setQtyPerItem(read.quantity());
+                Ingredient found = ingredientService.findByNameForImport(read.name());
+                if (found != null) {
+                    line.setIngredientId(found.getId());
+                }
+                lines.add(line);
+            }
+            // 足したくなったとき用に空行を 1 本
+            lines.add(new RecipeImportLineForm());
+            card.setLines(lines);
+            form.getItems().add(card);
+        }
+
+        model.addAttribute("recipeImportForm", form);
+        model.addAttribute("stage", "confirm");
         return "inventory/recipe-import";
     }
 
