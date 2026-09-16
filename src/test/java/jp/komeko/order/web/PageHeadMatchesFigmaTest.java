@@ -82,7 +82,9 @@ class PageHeadMatchesFigmaTest {
     @DisplayName("★ 4 画面の h1 を見出し帯に入れる（卓・QR・注文履歴・レシピ）")
     void theFourFlatScreensGetTheBand() throws Exception {
         String[][] screens = {
-                {"admin/tables.html", "卓"},
+                // ★ 卓は 2026-09-14 に一覧と編集へ分割した（TableQrScreenSplitTest）。
+                // 読む画面（table-list）が「卓」、編集画面が「卓を 編集・追加」
+                {"admin/table-list.html", "卓"},
                 {"admin/qr.html", "QRコード"},
                 {"admin/orders.html", "注文履歴"},
                 {"inventory/recipes.html", "レシピ・原価表"},
@@ -103,7 +105,7 @@ class PageHeadMatchesFigmaTest {
     @Test
     @DisplayName("★ 補足は残す（件数・日付は帯の中の情報）")
     void theSubtitleSurvivesTheMove() throws Exception {
-        assertThat(main(tpl("admin/tables.html"))).contains("page-head__sub");
+        assertThat(main(tpl("admin/table-list.html"))).contains("page-head__sub");
         assertThat(main(tpl("admin/qr.html"))).contains("page-head__sub");
         assertThat(main(tpl("admin/orders.html"))).contains("page-head__sub");
         assertThat(main(tpl("inventory/recipes.html"))).contains("page-head__sub");

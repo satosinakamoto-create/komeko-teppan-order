@@ -74,10 +74,20 @@ class BlockGapMatchesFigmaTest {
         assertThat(s).contains("gap: var(--block-gap, 48px);");
     }
 
+    /**
+     * ★ dialog を除く形に変わった（2026-09-14）。
+     *
+     * <p>素の {@code > *} で書いたら、{@code <main>} 直下にいるホールの
+     * {@code <dialog>} まで巻き添えにして、<b>モーダルが天井に張り付いた</b>。
+     * モーダルはブラウザが {@code margin: auto} で中央へ置く決まりなので、
+     * 上下の margin を 0 にすると中央ぞろえが壊れる。
+     * 経緯は {@code ModalCenteringTest}。
+     */
     @Test
-    @DisplayName("★ 子の margin は打ち消す（flex では相殺されず gap に足される）")
+    @DisplayName("★ 子の margin は打ち消す（ただし dialog は除く）")
     void childMarginsAreCleared() throws Exception {
-        assertThat(section()).contains(".theme-desk .staff-main > main > * { margin-block: 0; }");
+        assertThat(section())
+                .contains(".theme-desk .staff-main > main > *:not(dialog) { margin-block: 0; }");
     }
 
     @Test

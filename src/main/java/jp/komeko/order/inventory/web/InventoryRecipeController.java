@@ -70,6 +70,9 @@ public class InventoryRecipeController {
             return "redirect:/inventory/recipes";
         }
         model.addAttribute("menuItem", item);
+        // カテゴリ名は見出しの補足に出す。画面側で item.category を辿ると
+        // 描画時に DB 接続が無く落ちるので、ここで文字列にして渡す
+        model.addAttribute("categoryName", recipeService.categoryNameOf(menuItemId));
         model.addAttribute("cost", recipeService.costOf(menuItemId));
         model.addAttribute("ingredients", recipeService.selectableIngredients());
         if (!model.containsAttribute("recipeLineForm")) {

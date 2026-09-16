@@ -253,6 +253,12 @@ public class InventoryIngredientController {
      */
     @GetMapping("/categorize")
     public String categorizeForm(Model model) {
+        // ★ 2026-09-14: 未分類だけでなく全件を並べる（設計 ト04d 841:9999）。
+        //    未分類だけだと、付け間違いを直しに来たときに対象が消えている。
+        //    「大葉を野菜にしたつもりが調味料だった」と気づいても、
+        //    大葉はもう未分類ではないのでこの画面に出てこない。
+        model.addAttribute("ingredients", ingredientService.activeIngredients());
+        // 未分類の件数は見出しの補足に出すので、こちらも残す
         model.addAttribute("unclassified", ingredientService.unclassifiedIngredients());
         return "inventory/ingredient-categorize";
     }
@@ -354,8 +360,26 @@ public class InventoryIngredientController {
         if (!model.containsAttribute("ingredientForm")) {
             model.addAttribute("ingredientForm", new IngredientForm());
         }
-        model.addAttribute("returnTo", safeReturnTo(returnTo));
+        String safe = safeReturnTo(returnTo);
+        model.addAttribute("returnTo", safe);
+        // どのレシピから来たのかを画面で名指しする（設計 ト04b・2026-09-14）。
+        // 名前の取り出しは Service 側（LAZY 対策）。null なら案内そのものを出さない
+        model.addAttribute("returnToName", recipeService.menuItemNameOf(recipeIdIn(safe)));
         return "inventory/ingredient-form";
+    }
+
+    /**
+     * 検査済みの戻り先から、レシピ（商品）の id を取り出す。
+     *
+     * <p>引数は必ず {@link #safeReturnTo(String)} を通した値を渡すこと。
+     * 生のリクエスト値をここへ入れると、形の検査を飛ばして
+     * 任意の id を引かせる道ができてしまいます。
+     */
+    private Long recipeIdIn(String safeReturnTo) {
+        if (safeReturnTo == null) {
+            return null;
+        }
+        return Long.valueOf(safeReturnTo.substring("/inventory/recipes/".length()));
     }
 
     /**

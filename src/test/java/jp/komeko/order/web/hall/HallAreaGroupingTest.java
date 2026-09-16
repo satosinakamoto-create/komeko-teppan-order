@@ -150,7 +150,9 @@ class HallAreaGroupingTest {
         long n = System.nanoTime() % 100000;
         table("エリア編集" + n, 350, "カウンター");
 
-        String html = mockMvc.perform(get("/admin/tables"))
+        // ★ 入力欄は編集画面へ移った（2026-09-14 に一覧と編集を分割。
+        //   TableQrScreenSplitTest）。/admin/tables は読むだけの画面になった
+        String html = mockMvc.perform(get("/admin/tables/edit"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 

@@ -163,6 +163,54 @@ public class RecipeService {
         return menuItems.findById(menuItemId).orElse(null);
     }
 
+    /**
+     * 商品が属するカテゴリの名前。無ければ空文字。
+     *
+     * <p><b>なぜ画面で {@code menuItem.category.name} と書かないか。</b>
+     * {@code open-in-view: false} なので<b>描画時には DB 接続がありません</b>。
+     * カテゴリは LAZY なので、画面側で辿ると
+     * {@code LazyInitializationException} でテンプレートごと落ちます
+     * （2026-09-14 に見出しへカテゴリを足したとき、実際に落とした）。
+     *
+     * <p>必要な関連は、この {@code @Transactional} の中で読み終えてから返す——
+     * CLAUDE.md の決まりどおりの形。
+     */
+    @Transactional(readOnly = true)
+    public String categoryNameOf(Long menuItemId) {
+        MenuItem item = menuItems.findById(menuItemId).orElse(null);
+        if (item == null || item.getCategory() == null) {
+            return "";
+        }
+        return item.getCategory().getName();
+    }
+
+    /**
+     * 商品名だけを文字列で返す。無ければ {@code null}。
+     *
+     * <p>食材を追加する画面で「『肉玉米粉そば』のレシピ編集から来ました」と
+     * 案内するために使います（設計 ト04b 838:9207・2026-09-14）。
+     *
+     * <p>もとは戻り先のパス（{@code /inventory/recipes/12}）しか持っていなかったので、
+     * 画面は「レシピ編集から来ています」としか言えませんでした。
+     * レシピを 2 つ並行で直していると、どちらへ戻るのか分かりません。
+     *
+     * <p>{@link #categoryNameOf(Long)} と同じ理由で、<b>ここで文字列にしてから渡します</b>。
+     * 画面で {@code menuItem.name} と辿ると {@code open-in-view: false} のため
+     * 描画時に DB 接続が無く落ちます。
+     *
+     * <p>見つからないときに空文字ではなく {@code null} を返すのは、
+     * 画面側で「案内そのものを出さない」と「名前が空の案内を出す」を
+     * 区別できるようにするため。消された商品の戻り道で
+     * 「『』のレシピ編集から来ました」と出したら、ただの壊れた表示になります。
+     */
+    @Transactional(readOnly = true)
+    public String menuItemNameOf(Long menuItemId) {
+        if (menuItemId == null) {
+            return null;
+        }
+        return menuItems.findById(menuItemId).map(MenuItem::getName).orElse(null);
+    }
+
     /** 材料を 1 行足す。 */
     @Transactional
     public void addLine(Long menuItemId, Long ingredientId, BigDecimal qtyPerItem, String memo) {

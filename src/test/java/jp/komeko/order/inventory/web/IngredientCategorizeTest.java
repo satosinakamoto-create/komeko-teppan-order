@@ -87,10 +87,24 @@ class IngredientCategorizeTest {
                 .as("選ばなかった行が書き換えられた").isNull();
     }
 
+    /**
+     * ★ 2026-09-14 に期待を反転させました（設計 ト04d 841:9999 に合わせる）。
+     *
+     * <p>もとは「未分類だけが並ぶ（分類済みは出ない）」を守っていました。
+     * 片付いた行を残さない、という 2026-09-07 の判断です。
+     *
+     * <p><b>それだと付け間違いを直せません。</b>
+     * 「大葉を野菜にしたつもりが調味料になっていた」と気づいても、
+     * 大葉はもう未分類ではないので、この画面から消えています。
+     * 直すには 1 件ずつ詳細を開くしかなく、まとめて付ける画面の意味が半分無くなる。
+     *
+     * <p>Figma も全件を並べ、いまの分類を選んだ状態で出し、
+     * まだ決まっていない行にだけ「未分類」と添えています。そちらに合わせました。
+     */
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("★ 画面には未分類だけが並ぶ（分類済みは出ない）")
-    void listsOnlyUnclassified() throws Exception {
+    @DisplayName("★ 分類済みの食材も並ぶ（付け間違いを直せるように）")
+    void listsEveryIngredientNotJustTheUnclassified() throws Exception {
         Ingredient none = ingredient("N", null);
         Ingredient done = ingredient("D", IngredientCategory.SEAFOOD);
 
@@ -99,17 +113,19 @@ class IngredientCategorizeTest {
                 .andReturn().getResponse().getContentAsString();
 
         assertThat(html).contains(none.getName());
-        assertThat(html).as("分類済みまで並んでいる").doesNotContain(done.getName());
+        assertThat(html).as("分類済みが並んでいない（付け間違いを直せない）").contains(done.getName());
     }
 
+    /**
+     * 入口（一覧の「まとめて分類する →」）は、いまも未分類 0 件で消えます。
+     * 消えるのは<b>案内</b>であって画面ではありません——全件が並ぶようになったので、
+     * 片付いた後に開いても表は出ます（そこが付け間違いを直す場所）。
+     */
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("★ 未分類 0 件なら「全部片付きました」、一覧の入口も消える")
-    void zeroStateAndEntryLink() throws Exception {
-        // このテストの中では全部に分類を付けておく。
-        // ただし他のテストデータに未分類が残っている可能性があるので、
-        // 入口の消滅は「自分の食材を分類し終えた後の件数が本文に出る」形で見る
-        Ingredient a = ingredient("Z", IngredientCategory.DRINK);
+    @DisplayName("★ 一覧の入口は未分類 0 件で消える（案内が居座らない）")
+    void theEntryLinkDisappearsWhenNothingIsLeft() throws Exception {
+        ingredient("Z", IngredientCategory.DRINK);
 
         String board = mockMvc.perform(get("/inventory/ingredients"))
                 .andExpect(status().isOk())
@@ -117,14 +133,8 @@ class IngredientCategorizeTest {
 
         long unclassifiedNow = ingredients.findByActiveTrueAndCategoryIsNullOrderBySortOrderAscNameAsc().size();
         if (unclassifiedNow == 0) {
-            // 入口が出ていないこと（片付いた店の画面に案内を居座らせない）
             assertThat(board).doesNotContain("まとめて分類する");
-            String page = mockMvc.perform(get("/inventory/ingredients/categorize"))
-                    .andExpect(status().isOk())
-                    .andReturn().getResponse().getContentAsString();
-            assertThat(page).contains("全部片付きました");
         } else {
-            // 未分類が残っている環境では、入口に件数が出ていること
             assertThat(board).contains("まとめて分類する");
         }
     }
