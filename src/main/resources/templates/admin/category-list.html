@@ -28,7 +28,8 @@
   <div class="page-head">
     <h1 class="page-head__title">カテゴリ</h1>
     <span class="page-head__sub" th:text="${categories.size()} + ' 件'">5 件</span>
-    <!--/* ボタンは補足のすぐ右（設計は左詰め。のばすで右端へ飛ばさない） */-->
+    <!--/* ボタンは のばす で右端へ送る（2026-09-16・店主の判断。左端は戻るの居場所） */-->
+    <span class="page-head__spacer"></span>
     <a class="btn btn--primary" th:href="@{/admin/categories/edit}">カテゴリを 編集・追加</a>
   </div>
 

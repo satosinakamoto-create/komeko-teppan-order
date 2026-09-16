@@ -25,9 +25,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       {@code .section-title}（padding 0、帯の高さ 45px）のままだった。
  *       設計は 77〜80px なので、帯としてほとんど見えていない</li>
  *   <li>ホール・会計だけ padding が 20px（帯 88px）。設計は 16px（帯 80px）</li>
- *   <li>ボタンを {@code .page-head__spacer} で右端へ飛ばしていた。
- *       Figma は補足のすぐ右に置く（左詰め）。商品・カテゴリ・スタッフ・
- *       バックアップ・仕入れの 5 画面</li>
+ *   <li>ボタンの置き場所。<b>2026-09-16 に「右端」で確定しました（店主の判断）。</b>
+ *       いったん「補足のすぐ右（左詰め）」に倒して 5 画面を固定しましたが、
+ *       その根拠は<b>旧 01 ページ</b>で、現行 07 ページはほぼ全画面が右端でした。
+ *       経緯は {@link #theButtonsSitAtTheRightEdge()} に書いてあります</li>
  * </ol>
  *
  * <p><b>ここで直さないもの（店主に確認するまで動かさない）</b>
@@ -134,9 +135,26 @@ class PageHeadMatchesFigmaTest {
 
     // ---------------------------------------------------------------- 3
 
+    /**
+     * ★ ここは 2026-09-16 に裏返しました（店主の判断）。
+     *
+     * <p>もとは「ボタンは補足のすぐ右（左詰め）。のばすで右端へ飛ばさないこと」でした。
+     * <b>その根拠は旧 01 ページの設計です。</b>
+     * 現行 07 ページを全画面あたったところ、商品・カテゴリ・スタッフ・バックアップ・
+     * 食材・卓・QR・レシピ…と、ほぼ全画面がボタンを右端に置いていました
+     * （2026-09-14 の差分チェック「横断の発見 A」）。
+     * 古い版だけを見て 5 画面を左詰めに固定していたことになります。
+     *
+     * <p><b>左端は戻るの居場所です。</b>09-15 に「左＝戻る／右＝実行」と決めたので
+     * （{@code BackButtonOnTheLeftTest}）、実行のボタンが右端に行くのは
+     * そのルールとも噛み合います。帯の中は 戻る → 題 → 補足 → のばす → 実行 の順。
+     *
+     * <p>売上（14）の のばす だけは別物なので、{@link #theSalesSpacerStays()} で
+     * 別に見ています。あちらは月ナビを左に寄せるためのものです。
+     */
     @Test
-    @DisplayName("★ ボタンは補足のすぐ右（のばすで右端へ飛ばさない）")
-    void theButtonSitsNextToTheSubtitle() throws Exception {
+    @DisplayName("★ ボタンは帯の右端（のばすで送る）")
+    void theButtonsSitAtTheRightEdge() throws Exception {
         String[] screens = {
                 "admin/items.html",
                 "admin/category-list.html",
@@ -150,9 +168,21 @@ class PageHeadMatchesFigmaTest {
             assertThat(head).as(s + " に見出し帯が無い").isGreaterThanOrEqualTo(0);
             int end = m.indexOf("</div>", head);
             String band = m.substring(head, end);
-            assertThat(band)
-                    .as(s + " が のばす でボタンを右端へ飛ばしている")
-                    .doesNotContain("page-head__spacer");
+
+            int sub = band.indexOf("page-head__sub");
+            assertThat(sub).as(s + " に補足が無い").isGreaterThan(0);
+
+            int spacer = band.indexOf("page-head__spacer");
+            assertThat(spacer).as(s + " に のばす（page-head__spacer）が無い").isGreaterThan(0);
+            assertThat(spacer).as(s + " の のばす が補足より前にある").isGreaterThan(sub);
+
+            // ボタンが 2 つある画面（仕入れ・経費）もあるので、いちばん前のものを見る。
+            // のばす がその前にあれば、まとめて右端へ送られる。
+            int btn = band.indexOf("class=\"btn");
+            assertThat(btn).as(s + " にボタンが無い").isGreaterThan(0);
+            assertThat(spacer)
+                    .as(s + " の のばす がボタンより後ろにある（右端へ送れていない）")
+                    .isLessThan(btn);
         }
     }
 

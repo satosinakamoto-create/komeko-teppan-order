@@ -38,8 +38,11 @@
   <div class="page-head">
     <h1 class="page-head__title">商品</h1>
     <span class="page-head__sub" th:text="'掲載中 ' + ${visibleCount} + ' 品'">掲載中 94 品</span>
-    <!--/* ボタンは補足のすぐ右（設計 見出し/ページ 24:1392 は左詰め）。
-           のばす（.page-head__spacer）で右端へ飛ばさないこと */-->
+    <!--/* ボタンは のばす（.page-head__spacer）で右端へ送る（2026-09-16・店主の判断）。
+           もとは「補足のすぐ右（左詰め）」だったが、根拠が旧 01 ページの設計で、
+           現行 07 ページはほぼ全画面が右端だった。左端は戻るの居場所
+           （09-15 に決めた 左＝戻る／右＝実行）。PageHeadMatchesFigmaTest が見ている */-->
+    <span class="page-head__spacer"></span>
     <a class="btn btn--primary" th:href="@{/admin/items/new}">＋商品を追加</a>
   </div>
 
