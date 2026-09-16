@@ -17,7 +17,7 @@
   <!--/* 見出しの帯（設計 ト09c）。補足は「カテゴリ ／ 売価」。
          原価はこのすぐ下の数字カードに出るので、ここでは繰り返さない */-->
   <div class="page-head">
-    <a class="btn" th:href="@{/inventory/recipes}">← レシピ・原価表へ戻る</a>
+    <a class="btn" th:href="@{/inventory/recipes}">← 一覧へ戻る</a>
     <h1 class="page-head__title" th:text="${menuItem.name} + ' のレシピ'">肉玉米粉そば のレシピ</h1>
     <!--/* カテゴリ名は controller が文字列で渡す（menuItem.category は LAZY で、
            描画時には DB 接続が無いため辿れない。CLAUDE.md の open-in-view の項） */-->
@@ -27,46 +27,62 @@
     <span class="page-head__spacer"></span>
   </div>
 
-  <!--/* ── 原価がその場で見える（店長と公開デモの見学者にだけ。設計6章の初期案） ── */-->
-  <div th:if="${cost != null}" class="grid grid--4" sec:authorize="hasAnyRole('ADMIN','GUEST')">
-    <div class="stat">
-      <div class="stat__label">売価（税込）</div>
-      <div class="stat__value"
-           th:text="'¥' + ${#numbers.formatInteger(cost.priceIncludingTax(), 1, 'COMMA')}">¥980</div>
-    </div>
-    <div class="stat">
-      <div class="stat__label">理論原価（税込）</div>
-      <div class="stat__value">
+  <!--/* ── 数字の帯（設計 ト09c 819:8821）──
+         2026-09-16 に stat カード 4 枚から 1 本の帯へ。
+         食材の詳細（ト04c）で作った .statline をそのまま使う。
+         同じ「数字を並べて読ませる」用途なので、部品を増やさない。
+
+         ★ 売価はここから外した。見出しの補足に既にあるので、
+           同じ数字を 2 か所に出すと、どちらを見ればいいか迷う。
+
+         ★ 右端の「仕入れの単価が動くと、自動で追いかけます」は、
+           この画面がエクセルと違うところそのもの。消さないこと。
+
+         ★ Figma の数値は 20px だが .statline__value は 24px（ト04c で実装済み）。
+           同じ部品なので値は揃える。Figma 側の食い違い。 */-->
+  <div th:if="${cost != null}" class="statline" sec:authorize="hasAnyRole('ADMIN','GUEST')">
+    <div class="statline__item">
+      <span class="statline__label">理論原価（税込）</span>
+      <span class="statline__value">
         <span th:if="${cost.costIncludingTax() != null}"
-              th:text="'¥' + ${#numbers.formatDecimal(cost.costIncludingTax(), 1, 'COMMA', 0, 'POINT')}">¥294</span>
+              th:text="'¥' + ${#numbers.formatDecimal(cost.costIncludingTax(), 1, 'COMMA', 0, 'POINT')}">¥312</span>
         <span th:if="${cost.costIncludingTax() == null}">―</span>
-      </div>
+      </span>
     </div>
-    <div class="stat">
-      <div class="stat__label">原価率（税込）</div>
-      <div class="stat__value">
+    <div class="statline__item">
+      <span class="statline__label">原価率（税込）</span>
+      <span class="statline__value">
         <span th:if="${cost.costRateIncludingTax() != null}"
-              th:text="${cost.costRateIncludingTax()} + '%'">30.0%</span>
+              th:text="${cost.costRateIncludingTax()} + '%'">26.4%</span>
         <span th:if="${cost.costRateIncludingTax() == null}">―</span>
-      </div>
+      </span>
     </div>
-    <div class="stat">
-      <div class="stat__label">原価率（税抜）</div>
-      <div class="stat__value">
-        <span th:if="${cost.costRateNet() != null}"
-              th:text="${cost.costRateNet()} + '%'">30.5%</span>
-        <span th:if="${cost.costRateNet() == null}">―</span>
-      </div>
+    <div class="statline__item">
+      <span class="statline__label">税抜</span>
+      <span class="statline__value">
+        <span th:if="${cost.costNet() != null and cost.costRateNet() != null}"
+              th:text="'¥' + ${#numbers.formatDecimal(cost.costNet(), 1, 'COMMA', 0, 'POINT')}
+                       + '（' + ${cost.costRateNet()} + '%）'">¥289（27.0%）</span>
+        <span th:if="${cost.costNet() == null or cost.costRateNet() == null}">―</span>
+      </span>
     </div>
+    <span class="statline__note">仕入れの単価が動くと、自動で追いかけます</span>
   </div>
 
+  <!--/* ★ 単価が分からない食材を名指しする（設計 ト09c 819:8916）。
+         「1 種類あります」だけだと、どれを直せばいいか画面から分からない。
+         表の中でも「単価が分かりません」と出しているが、
+         何をすれば直るかはここにしか書けない。 */-->
   <div th:if="${cost != null and cost.isIncomplete()}" class="alert alert--warn"
        sec:authorize="hasAnyRole('ADMIN','GUEST')">
     <p class="mb-0">
-      <strong th:text="${cost.unknownCostCount()} + ' 種類'">1 種類</strong>
-      の食材が、まだ一度も仕入れていないため単価が分かりません。
-      その分の原価が抜けているので、<strong>上の原価率は実際より低く出ています</strong>。
-      レシートを 1 枚登録するか、食材の設定で単価を手で入れれば正しくなります。
+      <strong th:text="'「' + ${#strings.listJoin(unknownCostNames, '」「')} + '」'">「大葉」</strong>
+      は仕入れがまだ無く、単価が分かりません。
+      レシートを 1 枚登録するか、食材の設定で単価を手で入れると、この行も原価に入ります。
+      <br>
+      <span class="tiny">
+        その分の原価が抜けているので、<strong>上の原価率は実際より低く出ています</strong>。
+      </span>
     </p>
   </div>
 
@@ -83,17 +99,34 @@
     <strong>「あと◯営業日で切れる」</strong>が食材・在庫の画面に出るようになります。
   </p>
 
-  <div th:if="${cost != null and !cost.isEmpty()}" class="table-wrap">
+  <!--/* ★ 表ぜんぶを 1 つの form で包む（2026-09-16・設計 ト09c）。
+         Figma の行には「直す」ボタンが無く、入力と ✕ だけ。自動保存に見えるが、
+         このプロジェクトは JavaScript を使わない方針なので自動保存にはできない。
+         そこで「行ごとに 1 ボタン」ではなく「表に 1 ボタン」にした。
+         見た目は Figma どおり、保存の責任は人が持つ、の両立。
+         2026-09-14 の差分チェックで「相談」に上げていた件の決着。
+
+         ★ 先頭の隠しボタンは Enter キーのため。
+           form の中で Enter を押すと最初の submit が押される。
+           これが無いと、分量を打って Enter した瞬間に
+           いちばん上の ✕（削除）が走る。 */-->
+  <form th:if="${cost != null and !cost.isEmpty()}" method="post"
+        th:action="@{/inventory/recipes/{id}/quantities(id=${menuItem.id})}">
+    <button type="submit" class="visually-hidden" tabindex="-1"
+            aria-hidden="true">分量を保存する</button>
+  <div class="table-wrap">
     <table class="table">
       <thead>
       <tr>
+        <!--/* Figma 819:8835 の 5 列。メモ列は外した（Figma の表に無い）。
+               メモは「材料を足す」ときに入れるもので、
+               一覧で読む情報ではない、という整理 */-->
         <th>食材</th>
-        <th class="right">1品あたり</th>
+        <th class="right">1品あたりの量</th>
         <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
         <th class="right">単価</th>
-        <th class="right">この材料の原価</th>
+        <th class="right">この行の原価</th>
         </th:block>
-        <th>メモ</th>
         <th></th>
       </tr>
       </thead>
@@ -104,20 +137,24 @@
              th:text="${line.ingredient.name}">キャベツ</a>
         </td>
         <td class="right">
-          <form th:action="@{/inventory/recipes/{m}/lines/{l}(m=${menuItem.id},l=${line.id})}"
-                method="post" class="row">
+          <!--/* 行の中は入力と単位だけ（Figma 819:8849）。
+                 「直す」ボタンは表の下の 1 つにまとめた（下のコメント参照） */-->
+          <!--/* 入力と単位を横に並べる。既存の .row を使う
+                 （新しいクラスを勝手に増やさない、が規約） */-->
+          <span class="row">
             <input class="input input--narrow" type="number" step="0.001" min="0.001"
-                   name="qtyPerItem" th:value="${line.qtyPerItem}" required>
+                   th:name="'qty_' + ${line.id}" th:value="${line.qtyPerItem}" required>
             <span class="tiny" th:text="${line.ingredient.unit.symbol}">g</span>
-            <button type="submit" class="btn btn--sm">直す</button>
-          </form>
+          </span>
         </td>
         <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
         <td class="right num tiny">
           <span th:if="${lc.unitCost() != null}"
                 th:text="${#numbers.formatDecimal(lc.unitCost(), 1, 'COMMA', 2, 'POINT')}
                          + ' 円/' + ${line.ingredient.unit.symbol}">0.12 円/g</span>
-          <span th:if="${lc.unitCost() == null}" class="faint">仕入れ未登録</span>
+          <!--/* Figma 819:8910 は「単価が分かりません」。
+                 「仕入れ未登録」より、何が起きているかが読み取れる */-->
+          <span th:if="${lc.unitCost() == null}" class="faint">単価が分かりません</span>
         </td>
         <td class="right num">
           <span th:if="${!lc.isUnknown()}"
@@ -125,30 +162,41 @@
           <span th:if="${lc.isUnknown()}" class="faint">―</span>
         </td>
         </th:block>
-        <td class="tiny faint" th:text="${line.memo}"></td>
         <td class="right">
-          <form th:action="@{/inventory/recipes/{m}/lines/{l}/delete(m=${menuItem.id},l=${line.id})}"
-                method="post">
-            <button type="submit" class="btn btn--sm btn--ghost">外す</button>
-          </form>
+          <!--/* ✕ は同じフォームの中から、削除の口へ送る（formaction）。
+                 HTML の form は入れ子にできないので、行ごとに form を置けない。
+                 formaction なら 1 つのフォームからでも行き先を変えられる。 */-->
+          <button type="submit" class="btn btn--sm btn--ghost"
+                  th:formaction="@{/inventory/recipes/{m}/lines/{l}/delete(m=${menuItem.id},l=${line.id})}"
+                  th:attr="aria-label='この材料を外す'">✕</button>
         </td>
       </tr>
       <!--/* 合計だけ変わって内訳に出ないと、その金額がどこから来たのか分からなくなる。
              食材の行と区別が付くよう、単価の列は「―」にしてある */-->
       <tr th:if="${cost.otherCostIncludingTax() != null}">
-        <td>その他材料費</td>
+        <td>
+          その他材料費
+          <span class="tiny faint" th:if="${otherCost != null and otherCost.memo != null}"
+                th:text="'（' + ${otherCost.memo} + '）'">（ソース・青のり）</span>
+        </td>
         <td class="right tiny faint">g 数では持たない</td>
         <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
         <td class="right num tiny faint">―</td>
         <td class="right num"
             th:text="'¥' + ${#numbers.formatInteger(cost.otherCostIncludingTax(), 1, 'COMMA')}">¥40</td>
         </th:block>
-        <td class="tiny faint" th:text="${otherCost != null} ? ${otherCost.memo} : null"></td>
         <td></td>
       </tr>
       </tbody>
     </table>
   </div>
+    <p class="mb-0">
+      <button type="submit" class="btn btn--primary">分量を保存する</button>
+      <span class="tiny faint">
+        いくつ直しても、押すのは 1 回です。✕ はその場で外れます
+      </span>
+    </p>
+  </form>
 
   <!--/* ── その他材料費（2026-09-16・店主の判断） ──
          ソース・青のり・かつお節のように 1 品あたり何グラムか測らない材料を、
