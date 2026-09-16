@@ -493,6 +493,16 @@ hr {
    こちらは 68px の行がずらりと並ぶ中で、赤が強すぎると表が読めなくなるため。
    同じ「品切れ」でも、置かれる場所で必要な強さが違う。 */
 .badge--stop    { background: var(--danger-soft); color: var(--danger); border-color: currentColor; }
+/* 押せない案内（2026-09-17）。「残数ゼロ」のように、こちらからは動かせない事実を出す。
+
+   ★ 水色にしてグレーにしないのは、意味が違うため。
+     グレーは「本当は押せるはずなのに死んでいる」に見えるが、
+     水色は「これは案内です」に見える。残数ゼロは壊れているのではなく
+     ただの事実の報告なので、水色のほうが正確。
+   ★ この水色はお知らせ帯（.alert--info）・注記ですでに使っている色。色を増やさない。
+   ★ 枠を持たせないこと。「枠＝押せる」が形の側の規則なので、ここで破ると
+     見分ける手がかりが消える。 */
+.badge--info    { background: var(--info-soft);   color: var(--info);   border-color: transparent; }
 
 /* 掲載・販売の 3 択／2 択（設計 08-2 のセグメント）。
 
@@ -683,12 +693,30 @@ hr {
 }
 .badge--draft:hover { filter: brightness(.95); }
 
-/* バッジの形のまま押せるようにする（商品一覧の「掲載」「販売」）。
+/* 表の中で押せるもの（商品一覧の「掲載」「販売」）。
 
    ★ button は font を継承しない。これが無いと、この 2 つだけ
      OS のフォーム既定書体で描かれ、同じ 11px でも隣の列と字幅が揃わない。
-   ★ 形は .badge のまま。設計（08 商品）でもこの列はバッジで、
-     ボタンの形はしていない。押せることは色と手の形で伝える。 */
+
+   ★ 2026-09-17：札の形をやめて、ボタンの形にした。
+
+     ここには長く「形は .badge のまま。押せることは色と手の形で伝える」と
+     書いてありましたが、これは<b>成立していませんでした</b>。
+     色は押せない札（.badge--stop など）と共通で、手の形はカーソルを
+     載せるまで出ない（タッチの端末では最後まで出ない）。つまり
+     静止した状態で押せると分かる手がかりが 1 つも無かった。
+
+     実際に「販売」列には、字も色も形も同じ「品切れ」が 2 つ並んでいました。
+     片方は押せる button、もう片方は押せない span です。
+
+     いまの規則はこう:
+
+         枠と ▸ がある  → 押せる
+         平らで枠が無い → 読むだけ（.badge--info）
+
+     色は意味のほうを運ぶ（緑＝売っている／赤＝止めた／水色＝動かせない）。
+     押せるかどうかは形が決める。「編集中」は水色なのに押せるので、
+     色だけの規則では説明が付かない。 */
 .badge--act {
   font: inherit;
   font-size: .6875rem;
@@ -696,10 +724,34 @@ hr {
   letter-spacing: .06em;
   line-height: 1.7;
   cursor: pointer;
-  /* 面と枠は .badge / .badge--gf / .badge--stop が決めるので、ここでは触らない */
+  /* 触れる面であることを形で示す。--r-sm は .theme-desk で 4px なので、
+     表の中で浮かない程度に角が立つ */
+  border-radius: var(--r-sm);
+  border: 1px solid currentColor;
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .10);
+  padding: 4px 10px;
+  /* 既定は落ち着いた色（「掲載停止」）。色付きのものは下で上書きする */
+  color: var(--text-muted);
+}
+/* ★ 押せる緑は草緑（--action）。読むだけの .badge--gf は --ok のまま。
+
+   .badge--gf は「確認済」「稼働中」「いま有効」「小麦不使用」など
+   押せない札で 10 か所以上使われている。あちらまで草緑にすると
+   全部「押せそう」に見えるので、草緑にするのは .badge--act と重なったときだけ。 */
+.badge--act.badge--gf    { color: var(--action); }
+.badge--act.badge--stop  { color: var(--danger); }
+.badge--act.badge--draft { color: var(--info); }
+/* カーソルに頼らない目印。タッチの端末では hover が起きないので、
+   静止した状態で見えるものが要る */
+.badge--act::after {
+  content: "\25B8";           /* ▸ */
+  font-size: .625em;
+  opacity: .55;
+  margin-left: 1px;
 }
 .badge--act:hover  { filter: brightness(.95); }
-.badge--act:active { transform: translateY(1px); }
+.badge--act:active { transform: translateY(1px); box-shadow: none; }
 .badge--act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .status-chip {

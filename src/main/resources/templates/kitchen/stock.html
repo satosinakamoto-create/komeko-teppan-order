@@ -188,7 +188,11 @@
             <td>
               <span class="status-chip" style="color: var(--danger)"
                     th:if="${item.soldOut}">品切れ中</span>
-              <span class="status-chip" style="color: var(--danger)"
+              <!--/* 残数ゼロだけ水色にしています（2026-09-17）。
+                     これは手で立てた印ではなく数の結果で、この列からは動かせません
+                     （直すなら右の「残数」に数を入れ直す）。商品一覧でも同じ水色なので、
+                     2 つの画面で同じ状態が同じ色になります。 */-->
+              <span class="status-chip" style="color: var(--info)"
                     th:if="${!item.soldOut and item.outOfStock}">残数ゼロ</span>
               <span class="status-chip" style="color: var(--ok)"
                     th:if="${item.orderable}">販売中</span>
