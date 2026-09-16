@@ -27,16 +27,20 @@
          戻り口を必ず置くこと。直しに来ただけの人が、
          終わったあとに一覧へ戻る道を探すことになります。 */-->
   <p class="mb-0">
-    <a class="btn btn--ghost btn--sm" th:href="@{/admin/categories}">← カテゴリ一覧へ</a>
+    <a class="btn btn--sm" th:href="@{/admin/categories}">← カテゴリ一覧へ</a>
   </p>
 
-  <div class="section-title">
-    <h1 class="section-title__text">カテゴリを 編集・追加</h1>
-    <span class="section-title__count" th:text="${categories.size()} + ' 件'">4 件</span>
+  <!--/* 見出しの帯（設計 ト11b） */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/admin/categories}">← カテゴリ一覧へ戻る</a>
+    <h1 class="page-head__title">カテゴリを 編集・追加</h1>
+    <span class="page-head__sub"
+          th:text="${categories.size()} + ' 件 ／ 並び順の数字が小さいほど上に出ます'">4 件</span>
+    <span class="page-head__spacer"></span>
   </div>
 
   <p class="lead">
-    お客さんのメニュー画面で商品をまとめる見出しです。並び順の数字が小さいものほど上に出ます。
+    お客さんのメニュー画面で商品をまとめる見出しです。
   </p>
 
   <!--/* ====== 新規追加 ======

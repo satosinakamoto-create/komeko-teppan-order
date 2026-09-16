@@ -1,13 +1,21 @@
 <!DOCTYPE html>
 <!--/*
-   未分類の食材にまとめて分類を付ける（2026-09-07）。
+   食材にまとめて分類を付ける（2026-09-07、2026-09-14 に設計 ト04d 841:9999 へ追従）。
 
    分類（V14）を後から足したので、既存の食材は全部「未分類」で始まる。
    1 件ずつ編集画面を開いて付けると 12 往復になるところを、
    一覧で select を並べて保存 1 回で片付けるための画面。
 
+   ★ 並べるのは「未分類だけ」ではなく全件（2026-09-14 に変更）。
+     未分類だけだと、付け間違いを直しに来たときに対象が消えている。
+     「大葉を野菜にしたつもりが調味料だった」と気づいても、
+     大葉はもう未分類ではないので、この画面には出てこない。
+     1 件ずつ詳細を開いて直すしかなく、まとめて付ける画面の意味が半分無くなる。
+
    ★ 空のまま（あとで決める）の行は保存しても変更されない。
      勝手に「その他」で埋めると、分類し忘れと本当にその他が混ざる。
+     全件を並べるようになったいまも同じで、
+     いまの分類が選ばれている行はそのまま送られ、同じ値で上書きされるだけ。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('食材の分類をまとめて付ける', ~{::main})}">
@@ -16,26 +24,31 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <p class="small"><a th:href="@{/inventory/ingredients}">← 食材・在庫にもどる</a></p>
+  <form method="post" th:action="@{/inventory/ingredients/categorize}">
 
-  <div class="section-title">
-    <h1 class="section-title__text">食材の分類をまとめて付ける</h1>
-    <span class="section-title__count"
-          th:text="${unclassified.size()} + ' 件が未分類'">12 件が未分類</span>
-  </div>
+    <!--/* 見出しの帯（設計 841:10004）。
+           ★ 保存ボタンは帯の中に置く。表の下だと、食材が 40 件あるときに
+             決め終わった時点でボタンが画面の外にある。
+           ★ 戻り口もここ 1 つだけ。もとは帯の上にも小さいリンクがあり、
+             同じ場所へ行く入口が 2 つ並んでいた。 */-->
+    <div class="page-head">
+      <a class="btn" th:href="@{/inventory/ingredients}">← 食材・在庫へ戻る</a>
+      <h1 class="page-head__title">食材の分類をまとめて付ける</h1>
+      <span class="page-head__sub"
+            th:text="${unclassified.size()} + ' 件が未分類 ／ 分類は探すときの手がかり。空のままでも困りません'">12 件が未分類</span>
+      <span class="page-head__spacer"></span>
+      <button type="submit" class="btn btn--primary">選んだ分類を保存する</button>
+    </div>
 
-  <!--/* 全部片付いたとき。空の表を出して「壊れた？」と思わせない */-->
-  <div th:if="${unclassified.isEmpty()}" class="empty-state">
-    <div class="empty-state__mark" aria-hidden="true">済</div>
-    <p class="lead">全部片付きました</p>
-    <p class="help">未分類の食材はありません。新しく登録した食材が未分類のままだと、またここに並びます。</p>
-    <a class="btn btn--primary" th:href="@{/inventory/ingredients}">食材・在庫へもどる</a>
-  </div>
+    <!--/* 食材そのものが 1 つも無いとき。空の表を出して「壊れた？」と思わせない */-->
+    <div th:if="${ingredients.isEmpty()}" class="empty-state">
+      <div class="empty-state__mark" aria-hidden="true">食</div>
+      <p class="lead">まだ食材が登録されていません</p>
+      <p class="help">食材を登録すると、ここで分類をまとめて付けられます。</p>
+      <a class="btn btn--primary" th:href="@{/inventory/ingredients/new}">最初の食材を追加する</a>
+    </div>
 
-  <form th:unless="${unclassified.isEmpty()}" method="post"
-        th:action="@{/inventory/ingredients/categorize}">
-
-    <div class="table-wrap">
+    <div class="table-wrap" th:unless="${ingredients.isEmpty()}">
       <table class="table">
         <thead>
         <tr>
@@ -45,28 +58,30 @@
         </tr>
         </thead>
         <tbody>
-        <tr th:each="i : ${unclassified}">
+        <tr th:each="i : ${ingredients}">
           <td th:text="${i.name}">キャベツ</td>
           <td th:text="${i.unit.label} + '（' + ${i.unit.symbol} + '）'">グラム（g）</td>
           <td>
-            <!--/* 名前は cat-<id>。POST 側がこの形で拾う */-->
-            <select class="select" th:name="'cat-' + ${i.id}"
-                    th:aria-label="${i.name} + ' の分類'">
-              <option value="" selected>あとで決める</option>
-              <option th:each="c : ${categories}" th:value="${c}"
-                      th:text="${c.label}">野菜</option>
-            </select>
+            <div class="row">
+              <!--/* 名前は cat-<id>。POST 側がこの形で拾う。
+                     いまの分類を選んだ状態で出す——選び直しに来た人の手が止まるので */-->
+              <select class="select" th:name="'cat-' + ${i.id}"
+                      th:aria-label="${i.name} + ' の分類'">
+                <option value="">あとで決める</option>
+                <option th:each="c : ${categories}" th:value="${c}"
+                        th:selected="${i.category == c}"
+                        th:text="${c.label}">野菜</option>
+              </select>
+              <!--/* まだ決まっていない行だけに印を付ける（設計の「大葉」の行）。
+                     全件が並ぶので、どれが宿題なのかが分かる目印が要る */-->
+              <span class="help mb-0" th:if="${i.category == null}">未分類</span>
+            </div>
           </td>
         </tr>
         </tbody>
       </table>
     </div>
 
-    <p class="help">
-      選んだ行だけが保存されます。「あとで決める」のままの行は変わりません。
-    </p>
-
-    <button type="submit" class="btn btn--primary">選んだ分類を保存する</button>
   </form>
 
 </main>

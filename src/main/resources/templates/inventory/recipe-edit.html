@@ -14,9 +14,17 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text" th:text="${menuItem.name}">米粉のお好み焼き</h1>
-    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/recipes}">← 原価表へ</a>
+  <!--/* 見出しの帯（設計 ト09c）。補足は「カテゴリ ／ 売価」。
+         原価はこのすぐ下の数字カードに出るので、ここでは繰り返さない */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/inventory/recipes}">← レシピ・原価表へ戻る</a>
+    <h1 class="page-head__title" th:text="${menuItem.name} + ' のレシピ'">肉玉米粉そば のレシピ</h1>
+    <!--/* カテゴリ名は controller が文字列で渡す（menuItem.category は LAZY で、
+           描画時には DB 接続が無いため辿れない。CLAUDE.md の open-in-view の項） */-->
+    <span class="page-head__sub"
+          th:text="(${#strings.isEmpty(categoryName)} ? '' : ${categoryName} + ' ／ ')
+                   + '売価 ¥' + ${#numbers.formatInteger(menuItem.price, 1, 'COMMA')} + '（税込）'">広島風お好み焼き ／ 売価 ¥1,180（税込）</span>
+    <span class="page-head__spacer"></span>
   </div>
 
   <!--/* ── 原価がその場で見える（店長と公開デモの見学者にだけ。設計6章の初期案） ── */-->

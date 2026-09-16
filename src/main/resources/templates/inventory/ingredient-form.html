@@ -13,9 +13,30 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">食材を追加</h1>
-    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/ingredients}">← 食材・在庫へ</a>
+  <!--/* 見出しの帯（設計 ト04b 838:9207・部品は 見出し/ページ 24:1392）。
+         補足は Figma どおり常時出す。「レシピ編集から来たときは」という条件付きの
+         言い方なので、来ていないときに読んでも嘘にならない */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/inventory/ingredients}">← 食材・在庫へ戻る</a>
+    <h1 class="page-head__title">食材を追加</h1>
+    <span class="page-head__sub">レシピ編集から来たときは、保存後にそこへ戻ります</span>
+    <span class="page-head__spacer"></span>
+  </div>
+
+  <!--/* どのレシピから来たかを名指しする（設計 838:9213）。
+         ★ 商品名は Service で文字列にしてもらったものを受け取る（returnToName）。
+           ここで menuItem.name と辿ると、open-in-view:false のせいで描画時に落ちる。
+         ★ 商品が消えていれば returnToName は null。そのときは案内ごと出さない
+           （「『』のレシピ編集から来ました」は、ただの壊れた表示） */-->
+  <!--/* ★ 商品名を <span> で挟まないこと。
+         「『<span>肉玉米粉そば</span>』のレシピ編集から…」と書くと、
+         出来上がった HTML の途中にタグが入って 1 つの文になりません。
+         読み上げも「肉玉米粉そば」で切れます。文ごと th:text で組み立てる */-->
+  <div class="alert alert--info" th:if="${returnToName != null}">
+    <p class="mb-0"
+       th:text="'「' + ${returnToName} + '」のレシピ編集から来ました。登録するとレシピへ戻ります'">
+      「肉玉米粉そば」のレシピ編集から来ました。登録するとレシピへ戻ります
+    </p>
   </div>
 
   <form th:action="@{/inventory/ingredients}" method="post" th:object="${ingredientForm}" class="card">
@@ -28,7 +49,13 @@
         <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
       </div>
 
-      <div class="grid grid--2">
+      <!--/* 入力は 3 列 × 2 行（設計 838:9218）。
+             もとは 2 列 × 4 行で、分類の隣に空のセルを置いて桁を合わせていた。
+             ★ 分類を必須にしていないのは、仕込み中に食材を足すことがあり、
+               そこで分類を考えさせて手が止まるより、名前と単位だけで
+               登録できるほうが現場に合うため。決めていないものは
+               一覧の「未分類」に集まるので、あとからまとめて直せる */-->
+      <div class="grid grid--3">
         <div class="field">
           <label class="label" for="name">食材名</label>
           <input class="input" type="text" id="name" th:field="*{name}" placeholder="キャベツ">
@@ -44,14 +71,6 @@
             グラム数が分かる食材は g、袋のまま数えるものは「パック」や「袋」を選んでください
           </p>
         </div>
-      </div>
-
-      <!--/* 分類（設計 現04 の「カテゴリーから検索」で使う）。
-             必須にしていないのは、仕込み中に食材を足すことがあり、
-             そこで分類を考えさせて手が止まるより、名前と単位だけで
-             登録できるほうが現場に合うため。決めていないものは
-             一覧の「未分類」に集まるので、あとからまとめて直せる */-->
-      <div class="grid grid--2">
         <div class="field">
           <label class="label" for="category">分類（任意）</label>
           <select class="select" id="category" th:field="*{category}">
@@ -63,10 +82,9 @@
             食材が増えたときに「カテゴリーから検索」で絞り込むために使います
           </p>
         </div>
-        <div class="field"></div>
       </div>
 
-      <div class="grid grid--2">
+      <div class="grid grid--3">
         <div class="field">
           <label class="label" for="lowThresholdQty">警告残量（任意）</label>
           <input class="input" type="number" step="0.001" min="0"
@@ -82,22 +100,26 @@
             昨日の値上がりが今日の原価率にそのまま出ます
           </p>
         </div>
+        <div class="field">
+          <label class="label" for="memo">メモ（任意）</label>
+          <input class="input" type="text" id="memo" th:field="*{memo}"
+                 placeholder="冷蔵庫の下段 / ◯◯商店に発注 など">
+        </div>
       </div>
 
-      <div class="field">
-        <label class="label" for="memo">メモ（任意）</label>
-        <input class="input" type="text" id="memo" th:field="*{memo}"
-               placeholder="冷蔵庫の下段 / ◯◯商店に発注 など">
+      <!--/* ボタンとその補足（設計 838:9245）。補足はボタンの右に置く。
+             ★ もとはカードの外に「登録しただけでは在庫は 0 のままです」と書いていた。
+               Figma はここで単価の話をしている。登録した直後に原価が出ないのは
+               「壊れている」と見えやすいので、その断りを先に読ませるという判断。
+               在庫が 0 から始まることは、詳細画面の「棚卸しをしていない」案内で伝わる */-->
+      <div class="row row--wrap">
+        <button type="submit" class="btn btn--primary">この内容で登録する</button>
+        <p class="help mb-0">
+          登録した直後は単価が分かりません。レシートを 1 枚登録すると原価に入ります
+        </p>
       </div>
-
-      <button type="submit" class="btn btn--primary">この内容で登録する</button>
     </div>
   </form>
-
-  <p class="help">
-    登録しただけでは在庫は 0 のままです。<strong>棚卸しで「いまいくつあるか」を 1 度入れる</strong>と、
-    そこを起点に仕入れと消費が積み上がっていきます。
-  </p>
 
 </main>
 </body>

@@ -18,9 +18,12 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">税率・控除率マスタ</h1>
-    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/purchases}">← 仕入れ・経費へ</a>
+  <!--/* 見出しの帯（設計 ト05f） */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/inventory/purchases}">← 仕入れ・経費へ戻る</a>
+    <h1 class="page-head__title">税率・控除率マスタ</h1>
+    <span class="page-head__sub">制度が変わったらここを直します</span>
+    <span class="page-head__spacer"></span>
   </div>
 
   <div th:if="${!warnings.isEmpty()}" class="alert alert--warn">

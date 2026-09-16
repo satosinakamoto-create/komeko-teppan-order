@@ -3227,6 +3227,39 @@ body.is-sending .staff-main {
 /* いちばん上の見出しにまで 48px 付けると、頭が間延びする */
 .theme-desk .staff-main > :first-child { margin-top: 0; }
 
+/* 枠線ボタンの面（2026-09-15、店主の指摘から）。
+   設計（ト04c 840:10123「← 食材・在庫へ戻る」）は「白・枠 #c7c7c7・高さ 48・左右 24」。
+
+   ★ 素の .btn は地が var(--surface)＝#f7f9fb（うすい灰）でした。
+     カードを白に直したので、そのままだとボタンだけ灰色が残って浮きます。
+   ★ 塗りボタン（.btn--primary / .btn--ok / .btn--danger）は
+     自分で --btn-bg を上書きするので、ここは効きません。 */
+.theme-desk .btn {
+  --btn-bg: #ffffff;
+  --btn-bd: #c7c7c7;
+}
+
+/* カードの面（2026-09-15、店主の指摘から）。
+   設計（ト03 / ト04c / ト05 とも）は「白・枠 #e8e8e8・角丸 6」。
+
+   ★ 素の .card は地が var(--surface)＝.theme-snow の #f7f9fb（うすい灰）で、
+     枠も rgba(28,28,28,.10) と、ほぼ透明でした。
+     机で読む画面はカードが主役（数字も表も全部この上に載る）なので、
+     地が灰色だと画面全体がくすんで見えます。
+
+   ★ 品切れ・残数には 34-3 節に同じ内容の上書きが先にあり、そこには
+     「.card は地が #f7f9fb で枠が透明なので、設計の白・#e8e8e8・角丸 6 に直す」
+     と理由まで書いてありました。1 画面だけ直して共通側が取り残されていた、
+     というのが本当の姿です（同じ取り残しを catpick の高さでもやりました）。
+     共通側を直したので、あちらの上書きは外してあります。
+
+   ★ お客さん側には漏れません。.theme-desk はスタッフ側だけです
+     （.theme-snow に書くと 4 レイアウト全部＝注文画面にも効きます）。 */
+.theme-desk .card {
+  background: #ffffff;
+  border-color: #e8e8e8;
+}
+
 .theme-desk .card__body { padding: 24px; }
 .theme-desk .card__head { padding: 20px 24px; }
 .theme-desk .card__foot { padding: 20px 24px; }
@@ -3428,6 +3461,25 @@ body.is-sending .staff-main {
 .page-head__title  { font-size: 32px; font-weight: 700; margin: 0; line-height: 36px; }
 .page-head__sub    { font-size: 14px; color: var(--text-muted); }
 .page-head__spacer { flex: 1; }
+
+/* 戻るボタンを先頭に置いた帯（2026-09-15、店主の判断・設計 898:9098）。
+
+   ★ なぜ左へ動かしたか
+     戻るは「移動」、保存や追加は「実行」で、種類が違います。
+     それまで両方が右端に並んでいて、「分類をまとめて付ける」では
+     ← 食材・在庫へ戻る と 選んだ分類を保存する が隣り合っていました。
+     40 件ぶん選び終えた直後に、選択が全部消えるボタンが隣にある形です。
+     左＝戻る／右＝実行に分ければ、この事故は構造的に起きません。
+
+   ★ 左右を 0 にする理由
+     下のカードや表は本文の左端から始まるのに、帯だけ 40px 内側にあり、
+     画面に左端が 2 つある状態でした。戻るボタンは面があるぶん、
+     題だけのときよりズレが目立ちます。
+
+   ★ 24px を足すのは gap が 16px だから（16 ＋ 24 ＝ 設計の 40）。
+     gap 自体を 40 にすると、題と補足のあいだまで広がります。 */
+.page-head:has(> .btn:first-child) { padding-inline: 0; }
+.page-head > .btn:first-child { margin-right: 24px; }
 
 /* 探す。入力欄そのものが 64px の面になる */
 /* ★ 見出し・探す・表のあいだは 48px（設計 08 商品 17:965 の gap-48）。
@@ -3715,9 +3767,23 @@ body.is-sending .staff-main {
   display: flex;
   align-items: center;
   gap: 10px;
-  /* 探す欄（64px）と高さをそろえる。並べたときに段差があると
-     「片方は入力欄、片方はボタン」に見えて種類が違うものだと誤解される */
-  min-height: 62px;
+  /* 探す欄（.searchbox の height）と外形をそろえる。並べたときに段差があると
+     「片方は入力欄、片方はボタン」に見えて種類が違うものだと誤解される。
+
+     ★ そろえる相手は「外形」であって、この数字ではありません。
+       .searchbox    … height:48px。自分に枠があり border-box なので外形 48
+       .catpick      … 枠 1px。高さ指定が無く、中のこの値で決まる
+       .catpick__head… ここ。外形は 1 + この値 + 1
+     なので 48 − 2 = 46 が正しい値です。
+
+     ★ 2026-09-14 に 62px → 48px → 46px と 2 度直しました。
+       62 は取り残し（探す欄は 2026-09-13 に 64→48 へ統一済みだったのに、
+       追いかける側が数字を直書きしていた）。
+       48 は<b>わたしの誤り</b>で、枠のぶん 2px 高いままでした。
+       品切れ・残数には最初から 46px の上書きがあり、そこには
+       「枠 1px ＋ 46px ＝ 48px」と正しい理由が書いてありました。
+       FilterRowHeightTest が枠を足した外形で突き合わせています。 */
+  min-height: 46px;
   padding: 0 14px;
   cursor: pointer;
   font-size: 15px;
@@ -4459,7 +4525,11 @@ body.is-sending .staff-main {
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--surface);
+  /* 地は白（設計 ト02b〜02e の「ホール/モーダル」は #ffffff）。
+     var(--surface) は .theme-snow で #f7f9fb の薄い青グレーで、
+     暗幕越しに見ると沈んで見えた（2026-09-14 に店主の指摘で直した）。
+     白の変数は --bg-elevated。名前のとおり「浮いている面」に使うもの */
+  background: var(--bg-elevated);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
   color: var(--text);
 }
@@ -6688,10 +6758,19 @@ body.is-sending .staff-main {
   grid-template-columns: 1fr 1fr;
   gap: 42px;
   margin-top: 24px;
-  max-width: 1096px;
+  /* ★ ここにあった max-width: 1096px は 2026-09-15 に外しました（店主の指摘）。
+       設計の Render 版もしぼり込みだけ 1096 で、節見出しと表（どちらも 1120）より
+       右に 24px 余っていました。同じ画面で右端が 2 つあることになるので、
+       描き間違いと判断して表に合わせています。
+       固定値を入れ直さないこと——広い画面（32 節）では本文が広がり、
+       表は width:100% で追従するので、上限があるとずれが開きます。 */
 }
-/* 探す欄と段差が出ないようにそろえる（枠 1px ＋ 46px ＝ 48px） */
-.soldoutpage .catpick__head { min-height: 46px; font-size: 14px; }
+/* ★ ここにあった .soldoutpage .catpick__head { min-height: 46px } は
+     2026-09-14 に外しました。共通側（8 節）を 46px に直したので、
+     同じ値の二重定義になっていたためです（片方だけ動く事故のもと）。
+     2026-09-13 に .soldoutpage .searchbox を外したときと同じ判断。
+     文字だけはこの画面の寸法（14px）なので残します。 */
+.soldoutpage .catpick__head { font-size: 14px; }
 .soldoutpage .searchbox { border-color: #e8e8e8; }
 .soldoutpage .catpick { border-color: #e8e8e8; }
 
@@ -6703,13 +6782,10 @@ body.is-sending .staff-main {
 .soldoutpage .soldout-sec .section-title__text { font-size: 20px; }
 .soldoutpage .soldout-sec .section-title__count { font-size: 12px; color: #828282; }
 
-/* 表を包む面。.card は地が #f7f9fb で枠が透明（.theme-snow）なので、
-   設計の「白・#e8e8e8 の枠・角丸 6」に直す */
-.soldoutpage .card {
-  background: #ffffff;
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
-}
+/* ★ ここにあった .soldoutpage .card（白・#e8e8e8・角丸 6）は
+     2026-09-15 に外しました。共通側（30-2 節の .theme-desk .card）を
+     同じ値に直したので、二重定義になっていたためです。
+     この画面で先に見つけていた正解を、全画面へ広げた形です。 */
 
 /* --------------------------------------------------------------------------
    34-4. 表
@@ -7626,6 +7702,43 @@ body.is-sending .staff-main {
 
    ★ 行の色は td に敷くこと。tr に background を置いても、
      .table の td 側が地を持っているので隠れる（実測）。 */
+/* 入口の 2 枚（設計 ト05c）。撮るほうが主役で幅を伸ばし、手入力は 360px の脇役。
+   本文は 41 節で縦オートレイアウトなので、ここだけ横に並べ直す */
+.receiptstart {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.receiptstart > .card { flex: 1 1 0; min-width: 0; }
+.receiptstart > .receiptstart__manual { flex: 0 0 360px; }
+.receiptstart__title { margin: 0 0 4px; font-size: 20px; font-weight: 700; line-height: 1.4; }
+/* 狭い画面では縦に積む。横に並べたままだと、手入力のカードが潰れて読めない */
+@media (max-width: 960px) {
+  .receiptstart { flex-direction: column; }
+  .receiptstart > .card,
+  .receiptstart > .receiptstart__manual { flex: 1 1 auto; width: 100%; }
+}
+
+/* 写真の受け口。点線の枠ごとラベルにして、枠のどこを押しても開くようにする */
+.receiptdrop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 16px;
+  background: #fafafa;
+  border: 1px dashed #c7c7c7;
+  cursor: pointer;
+}
+.receiptdrop:hover { background: #f3f3f3; }
+/* キーボードで辿り着けること。input は visually-hidden なので、
+   focus の輪は枠のほうに出す（:focus-within） */
+.receiptdrop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.receiptdrop__icon { font-size: 32px; line-height: 1; }
+.receiptdrop__lead { font-size: 15px; color: var(--text); text-align: center; }
+.receiptdrop__note { font-size: 12px; color: var(--text-muted); }
+
 .receiptpage tr.is-unlinked > td { background: #fdf2f2; }
 .receiptpage tr.is-missing-qty > td { background: rgba(245, 158, 11, .12); }
 
@@ -7641,6 +7754,57 @@ body.is-sending .staff-main {
   padding-inline: 10px;
 }
 .receiptpage .receiptline__remove:hover { border-color: var(--border); }
+
+/* ==========================================================================
+   43. 数字の帯（設計 ト04c 食材の詳細 840:10125・2026-09-14）
+   --------------------------------------------------------------------------
+   Figma の「いまの在庫／あと◯営業日／警告残量」は、カードを 3 枚並べたものでは
+   なく 1 本の帯です。既存の .stat は grid--3 の中に 3 枚置く作りなので、
+   枠が 3 つに割れてしまい同じ形になりません。ここだけ新しく足しました。
+
+   ★ 数字の型がホール（20px / 16px）と違うのは意図どおり。
+     ホールは立って 2m 先から読む板、ここは座って 1 品を調べる画面で、
+     Figma もそれぞれ別の値を指定しています（24px / 14px）。
+     「前にそろえた型があるから」と 20/16 に寄せないこと。
+
+   ★ 危険色は「もちが短い」ときだけ。在庫量そのものは赤にしない。
+     赤が 2 つ並ぶと、どちらを先に見ればいいか分からなくなる。
+   -------------------------------------------------------------------------- */
+.statline {
+  display: flex;
+  gap: 48px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 16px 24px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.statline__item { display: flex; gap: 8px; align-items: baseline; }
+.statline__label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.statline__value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text);
+}
+.statline__value--danger { color: var(--danger); }
+
+/* 「理論値です」の断り書き。のばして右端へ送る（Figma の「のばす」） */
+.statline__note {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* iPad では 48px の間隔が広すぎて 3 つ目が折り返す。
+   40 節（端末の段差）と同じ 1380px で詰める */
+@media (max-width: 1380px) {
+  .statline { gap: 28px; padding: 14px 20px; }
+  .statline__note { margin-left: 0; flex-basis: 100%; }
+}
 
 /* ==========================================================================
    41. 本文の縦の並び — Figma の本文は縦のオートレイアウト（2026-09-13）
@@ -7680,7 +7844,17 @@ body.is-sending .staff-main {
   flex-direction: column;
   gap: var(--block-gap, 48px);
 }
-.theme-desk .staff-main > main > * { margin-block: 0; }
+/* ★ dialog を除くこと（2026-09-14）。
+     モーダルはブラウザが margin: auto で画面の中央へ置く決まりで、
+     上下の margin を 0 にすると<b>天井に張り付く</b>。
+     ホールの <dialog> は <main> の直下にいるので、この 1 行の巻き添えになった
+     （実測：上下 margin 0px・左右 447px ＝ 左右だけ中央）。
+     gap のほうは害がない。閉じているモーダルは display:none、
+     開いているモーダルは position:fixed で流れから外れるため。 */
+.theme-desk .staff-main > main > *:not(dialog) { margin-block: 0; }
+
+/* 共通の指定に巻き込まれても中央が守られるよう、こちらでも明示しておく */
+dialog[open] { margin: auto; }
 .theme-desk .staff-main > main > .stack-sm:not(:has(*)) { display: none; }
 
 /* 例外（Figma がその値で描いている）。

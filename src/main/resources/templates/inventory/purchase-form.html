@@ -22,6 +22,7 @@
          「撮る前」と「読んだ結果を確かめる」は別の仕事なので、
          同じ題のままだと自分がどちらにいるのか分からなくなる */-->
   <div class="page-head">
+    <a class="btn" th:href="@{/inventory/purchases}">← 仕入れ・経費へ戻る</a>
     <h1 class="page-head__title"
         th:text="${stage == 'confirm'} ? 'レシートの読み取り確認' : 'レシートを登録'">レシートを登録</h1>
     <span class="page-head__sub"
@@ -29,48 +30,56 @@
                    ? 'AI が読んだ結果です。無い食材はこの画面で作れます'
                    : '撮るだけで、品目・金額・税率まで読み取ります'">説明</span>
     <span class="page-head__spacer"></span>
-    <a class="btn btn--ghost" th:href="@{/inventory/purchases}">← 仕入れ・経費へ戻る</a>
   </div>
 
   <!--/* ==========================================================
          段階 1 : 写真を選ぶか、手入力にするか
      ========================================================== */-->
-  <div th:if="${stage == 'start'}">
+  <!--/* 設計 ト05c。入口は 2 枚を横に並べる。
+         撮るほうが主役なので幅を伸ばし（flex: 1）、手入力は 360px の脇役。
+         縦に積むと「手で入力する」が画面の外に出て、
+         読み取りが使えない日に行き止まりに見える。 */-->
+  <div class="receiptstart" th:if="${stage == 'start'}">
 
     <div class="card">
-      <div class="card__head">レシートを撮る</div>
       <div class="card__body">
+        <h2 class="receiptstart__title">レシートを撮る</h2>
         <form th:action="@{/inventory/purchases/read}" method="post" enctype="multipart/form-data">
-          <div class="field">
-            <label class="label" for="image">レシートの写真</label>
-            <!--/* capture="environment" を付けると、スマホでは外側カメラが直接開きます。
-                   PC では普通のファイル選択になるので、両方で同じ画面が使えます。 */-->
-            <input class="input" type="file" id="image" name="image"
+          <!--/* 写真の受け口。点線の枠ごとラベルにして、枠のどこを押しても
+                 カメラ（PC ではファイル選択）が開くようにする。
+                 capture="environment" はスマホで外側カメラを直接開く指定 */-->
+          <label class="receiptdrop" for="image">
+            <span class="receiptdrop__icon" aria-hidden="true">📷</span>
+            <span class="receiptdrop__lead">タップしてレシートを撮る（先に撮ってから、食材をしまう）</span>
+            <span class="receiptdrop__note">JPEG / PNG / WebP</span>
+            <input class="visually-hidden" type="file" id="image" name="image"
                    accept="image/jpeg,image/png,image/webp" capture="environment" required>
-            <p class="help">
-              しまう前に、明るいところで真上から撮ってください。
-              紙のレシートを破棄する場合は、文字がはっきり読める大きさで撮る必要があります。
-            </p>
-          </div>
-          <button type="submit" class="btn btn--primary btn--lg btn--block"
+          </label>
+          <p class="help">
+            しまう前に、明るいところで真上から撮ってください。
+            紙のレシートを破棄する場合は、文字がはっきり読める大きさで撮る必要があります。
+          </p>
+          <button type="submit" class="btn btn--primary btn--block"
                   th:disabled="${!ocrAvailable}">
             写真を読み取る
           </button>
         </form>
 
+        <p class="help">読み取った結果は、次の画面で必ず確かめてから保存します。読んだまま保存はしません。</p>
+
         <p class="help" th:unless="${ocrAvailable}">
           AI 読み取りは設定されていません（API キーが未設定です）。
-          下の「手で入力する」からは今すぐ記録できます。
+          右の「手で入力する」からは今すぐ記録できます。
         </p>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card__head">手で入力する</div>
+    <div class="card receiptstart__manual">
       <div class="card__body">
+        <h2 class="receiptstart__title">手で入力する</h2>
         <p class="help">
-          写真を撮らない場合や、読み取りがうまくいかない場合はこちら。
-          レシート画像なしでも記録は残せます（ただし紙の原本は保管してください）。
+          写真がうまく撮れないとき・レシートが無いとき（自販機・割り勘など）はこちら。
+          同じ確認画面を空のまま開きます（紙の原本は保管してください）。
         </p>
         <form th:action="@{/inventory/purchases/manual}" method="post">
           <button type="submit" class="btn btn--block">手で入力する</button>

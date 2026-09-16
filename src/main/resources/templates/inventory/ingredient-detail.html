@@ -13,36 +13,58 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text" th:text="${ingredient.name}">キャベツ</h1>
-    <span class="section-title__count" th:if="${!ingredient.active}">使用停止中</span>
-    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/ingredients}">← 食材・在庫へ</a>
+  <!--/* 見出しの帯（設計 ト04c 840:10119）。
+         補足は「単位 ／ 分類 ／ 単価」＝この食材の素性。
+         ★ 単価がここにあるのは設計どおり（840:10121「g ／ 野菜 ／ 単価 0.12 円/g」）。
+           もとは下の数字帯に税込・税抜の 2 枚を置いていたが、
+           帯は「いま何がどれだけあるか」を読む場所で、単価は素性の話。
+           数字帯に 5 つ並べると、いちばん見たい残量が埋もれる。 */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/inventory/ingredients}">← 食材・在庫へ戻る</a>
+    <h1 class="page-head__title" th:text="${ingredient.name}">キャベツ</h1>
+    <span class="page-head__sub"
+          th:text="${ingredient.unit.symbol}
+                   + (${ingredient.category != null} ? ' ／ ' + ${ingredient.category.label} : '')
+                   + (${level != null and level.unitCostIncludingTax() != null}
+                      ? ' ／ 単価 ' + ${#numbers.formatDecimal(level.unitCostIncludingTax(), 1, 'COMMA', 2, 'POINT')}
+                        + ' 円/' + ${ingredient.unit.symbol}
+                      : '')">g ／ 野菜 ／ 単価 0.12 円/g</span>
+    <span class="badge badge--stop" th:if="${!ingredient.active}">使用停止中</span>
+    <span class="page-head__spacer"></span>
   </div>
 
-  <!--/* ── いまの残量と、その内訳 ── */-->
-  <div th:if="${level != null}" class="grid grid--3">
-    <div class="stat">
-      <div class="stat__label">いまの残量</div>
-      <div class="stat__value" th:text="${ingredient.format(level.quantity())}">1,200 g</div>
+  <!--/* ── 数字の帯（設計 ト04c 840:10125）──
+         「いまの在庫／あと◯営業日／警告残量」の 3 つ。
+
+         ★ 「あと◯営業日」は一覧（ト07 の「あと」列）には出していたのに、
+           1 品を開いた詳細では読めなかった。同じ数字（level.daysLeft()）を読む。
+         ★ 警告残量は下の「食材の設定」フォームの入力欄にしか無く、
+           読むための表示が無かった。直しに行かないと自分の設定が分からない状態。 */-->
+  <div th:if="${level != null}" class="statline">
+
+    <div class="statline__item">
+      <span class="statline__label">いまの在庫</span>
+      <span class="statline__value" th:text="${ingredient.format(level.quantity())}">2,450 g</span>
     </div>
-    <div class="stat">
-      <div class="stat__label">単価（税込）</div>
-      <div class="stat__value">
-        <span th:if="${level.unitCostIncludingTax() != null}"
-              th:text="${#numbers.formatDecimal(level.unitCostIncludingTax(), 1, 'COMMA', 2, 'POINT')}">0.12</span>
-        <span th:if="${level.unitCostIncludingTax() == null}">―</span>
-        <span class="stat__unit" th:text="'円/' + ${ingredient.unit.symbol}">円/g</span>
-      </div>
+
+    <!--/* もち日数。実績が無ければ出さない（「—」を置くとレシピ未登録と紛らわしい）。
+           30 営業日を超えるものは数字に意味が無いので丸める（一覧と同じ扱い） */-->
+    <div class="statline__item" th:if="${level.daysLeft() != null}">
+      <span class="statline__label">あと</span>
+      <span class="statline__value"
+            th:classappend="${level.daysLeft() <= 3} ? 'statline__value--danger' : ''"
+            th:text="${level.isPlentiful()} ? '30 営業日以上' : ${level.daysLeft()} + ' 営業日'">3 営業日</span>
     </div>
-    <div class="stat">
-      <div class="stat__label">単価（税抜）</div>
-      <div class="stat__value">
-        <span th:if="${level.unitCostNet() != null}"
-              th:text="${#numbers.formatDecimal(level.unitCostNet(), 1, 'COMMA', 2, 'POINT')}">0.11</span>
-        <span th:if="${level.unitCostNet() == null}">―</span>
-        <span class="stat__unit" th:text="'円/' + ${ingredient.unit.symbol}">円/g</span>
-      </div>
+
+    <div class="statline__item" th:if="${ingredient.lowThresholdQty != null}">
+      <span class="statline__label">警告残量</span>
+      <span class="statline__value"
+            th:text="${ingredient.format(ingredient.lowThresholdQty)}">500 g</span>
     </div>
+
+    <!--/* この数字は計算で出しているもので、数えた結果ではない。
+           ずれていて当たり前だと先に断っておく（設計 840:10136） */-->
+    <span class="statline__note">理論値です。棚卸しで実測に合わせます</span>
   </div>
 
   <div th:if="${level != null and level.isNegative()}" class="alert alert--warn">
