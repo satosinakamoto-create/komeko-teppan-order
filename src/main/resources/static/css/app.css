@@ -1579,6 +1579,32 @@ hr {
   --accent-soft:   rgba(28, 28, 28, .05);
   --on-accent:     #ffffff;
 
+  /* --------------------------------------------------------------------
+     押せるものの緑（2026-09-16 に派生を整え、この層へ移した）
+
+     ★ ここに置く理由。ログイン画面は layout/plain で .theme-desk が
+       付かない。.theme-desk に置くと参照できず、ベタ書きに戻るしかない。
+       4 レイアウト共通のこの層なら、どの画面からでも同じ栓を握れる。
+
+     ★ 定義するだけでは何も変わらない。参照した場所だけが緑になる。
+       いま参照しているのは .theme-desk のボタンとログインのボタンだけで、
+       お客さん側のボタンは --accent（黒）のまま。
+
+     ★ ティール（--green-700 #0b7a78）との違いは「青の量」だけ。
+       R=11 G=122 は両方同じで、青を 120 → 26 に落としてある。
+       明度はむしろわずかに暗い（対白 5.16:1 → 5.51:1）。
+       つまり明るくしたのではなく、くすみを取った。
+       色相 179 度（ほぼシアン）→ 128 度（緑）。
+
+     ★ なぜこの明度で止めるか。もっと明るくすると対白が 4.5:1 を割り、
+       白地に緑文字（.recbtn の枠と文字）で読めなくなる。
+     -------------------------------------------------------------------- */
+  --action:        #0b7a1a;   /* 押せる（対白 5.51:1） */
+  --action-hover:  #0a6b17;   /* 押している間・hover。--action より一段暗く */
+  --action-soft:   #e6f4e8;   /* 押せるものの薄い面（hover の地・選択の残り香） */
+  --on-action:     #ffffff;   /* 草緑の上に載せる文字（対 --action 5.51:1） */
+  --action-danger: #c94444;   /* 押したら戻しにくい（対白 4.78:1） */
+
   --ok:            #3f8e6d;
   --ok-soft:       #def8ee;
   --danger:        #d33f3f;
@@ -3145,8 +3171,28 @@ body.is-sending .staff-main {
        1 つのモーダルの中で「選ぶ＝ティール／実行する＝草緑」と分かれるので、
        かえって読み分けやすくなります。広げたくなったらここを参照する側を増やすだけ。
      -------------------------------------------------------------------- */
-  --action:        #0b7a1a;   /* 押せる（対白 5.51:1） */
-  --action-danger: #c94444;   /* 押したら戻しにくい（対白 4.78:1） */
+  /* --------------------------------------------------------------------
+     押せるものの緑（2026-09-16 に派生を整えた）
+
+     ★ ティール（--accent #0b7a78）との違いは「青の量」だけ。
+       R=11 G=122 は両方同じで、青を 120 → 26 に落としてある。
+       明度はむしろわずかに暗い（対白 5.16:1 → 5.51:1）。
+       つまり<b>明るくした</b>のではなく<b>くすみを取った</b>。
+       色相 179 度（ほぼシアン）→ 128 度（緑）。
+
+     ★ なぜこの明度で止めるか。
+       もっと明るくすると対白コントラストが 4.5:1 を割り、
+       白地に緑文字（.recbtn の枠と文字）で読めなくなる。
+       5.51:1 は「白地に緑文字でも安全」な上限に近い。
+
+     ★ hover をベタ書きしない（2026-09-16）。
+       #0a6b17 が 2 か所に重複していて、--action だけ動かすと
+       hover のほうが明るくなる逆転が起こりえた。
+     -------------------------------------------------------------------- */
+  /* ★ --action 系は .theme-snow（29 節）へ移した（2026-09-16）。
+        ログイン画面は layout/plain で .theme-desk が付かないため、
+        ここに置くと参照できず、ベタ書きに戻すしかなくなる。
+        4 レイアウト共通の層に置けば、どの画面からでも同じ栓を握れる。 */
 
   --accent:       var(--green-700);
   --accent-hover: #095f5e;
@@ -3409,13 +3455,13 @@ body.is-sending .staff-main {
 .theme-desk .btn--primary,
 .theme-desk .btn--ok {
   --btn-bg: var(--action);
-  --btn-fg: #ffffff;
+  --btn-fg: var(--on-action);
   --btn-bd: var(--action);
 }
 .theme-desk .btn--primary:hover,
 .theme-desk .btn--ok:hover {
-  --btn-bg: #0a6b17;
-  --btn-bd: #0a6b17;
+  --btn-bg: var(--action-hover);
+  --btn-bd: var(--action-hover);
 }
 
 .theme-desk .label { font-size: 16px; letter-spacing: .02em; }
@@ -7340,12 +7386,19 @@ body.is-sending .staff-main {
   font-weight: 700;
   letter-spacing: normal;
 }
+/* ★ ログイン画面はベタ書きだった（2026-09-16 に変数へ寄せた）。
+      トークンを通らない色は、色を変えたときに必ず取り残される。
+      ここは layout/plain なので .theme-desk が付かず、
+      上の .theme-desk .btn--primary が効かない——だから個別に要る。 */
 .loginpage .btn--primary {
-  --btn-bg: #0b7a1a;
-  --btn-fg: #ffffff;
-  --btn-bd: #0b7a1a;
+  --btn-bg: var(--action);
+  --btn-fg: var(--on-action);
+  --btn-bd: var(--action);
 }
-.loginpage .btn--primary:hover { --btn-bg: #0a6b17; --btn-bd: #0a6b17; }
+.loginpage .btn--primary:hover {
+  --btn-bg: var(--action-hover);
+  --btn-bd: var(--action-hover);
+}
 /* 「ゲストで参加する」は枠線のまま。白地に薄い枠 */
 .loginpage .btn:not(.btn--primary) {
   --btn-bg: #ffffff;
