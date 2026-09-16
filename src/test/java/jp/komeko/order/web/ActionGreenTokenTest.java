@@ -185,6 +185,37 @@ class ActionGreenTokenTest {
         assertThat(rule).as("現在地の文字がティールのまま").contains("color: var(--action)");
     }
 
+    /**
+     * ★ 成功通知の面を緑で塗らないこと（2026-09-16、店主の指摘）。
+     *
+     * <p>「追加しました とかのポップアップの色が、押せるボタン色と似てる」。
+     * 押せるものを 1 つの緑にそろえた結果、<b>面を緑で塗った通知がボタンと
+     * 同じ家族に見える</b>ようになっていました。
+     *
+     * <p>押せないものをボタンと同じ見た目にすると、
+     * <b>押して反応がない</b>という体験になります。面はグレーに落とし、
+     * 「良い知らせ」は色ではなく ✓ に言わせます。
+     */
+    @Test
+    @DisplayName("★ 成功通知の面は緑で塗らない（ボタンと見分ける）")
+    void theSuccessNoticeDoesNotFillItsFaceWithGreen() throws Exception {
+        String css = css();
+
+        int at = css.indexOf(".alert--success {");
+        assertThat(at).as(".alert--success が無い").isGreaterThan(0);
+        String rule = css.substring(at, css.indexOf("}", at));
+
+        assertThat(rule)
+                .as("通知の面が緑のまま（ボタンと同じ家族に見える）")
+                .doesNotContain("background: var(--ok-soft)");
+        assertThat(rule).as("面がグレーになっていない").contains("background: var(--surface)");
+        assertThat(rule).as("本文が緑のまま").contains("color: var(--text)");
+        // 「良い知らせ」の合図は残す
+        assertThat(rule).as("良い知らせの合図（左の線）が消えている")
+                .contains("border-left-color: var(--action)");
+        assertThat(css).as("チェック記号が無い").contains(".alert--success::before");
+    }
+
     // ---------------------------------------------------------------- 逆転しない
 
     /**

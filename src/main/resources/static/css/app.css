@@ -1022,9 +1022,36 @@ hr {
 .alert ul { margin: 0; padding-left: 1.2em; }
 
 .alert--info    { color: var(--info);   background: var(--info-soft); }
-.alert--success { color: var(--ok);     background: var(--ok-soft); }
 .alert--error   { color: var(--danger); background: var(--danger-soft); }
 .alert--warn    { color: var(--accent); background: var(--accent-soft); }
+
+/* 「追加しました」などの成功通知（2026-09-16・店主の判断）。
+   もとは薄い緑の地に緑文字だった。
+
+   ★ 押せるものを全部 1 つの緑にそろえた結果、面を緑で塗った通知が
+     ボタンと同じ家族に見えるようになった。緑が「押せる」を意味しなくなる。
+     押せないものをボタンと同じ見た目にすると、押して反応がない体験になる。
+
+   ★ そこで面はグレーに落とし、「良い知らせ」は色ではなく ✓ に言わせる。
+     色を 1 つの意味に絞ると、記号のほうが仕事をしてくれる。
+     白地ではなくグレー地にしたのは、通知が出たこと自体に気づけるようにするため。
+
+   ★ ✓ は CSS で足している。テンプレートを触らずに済むので、
+     この見た目をやめたくなったらここだけ消せば戻る。 */
+.alert--success {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  color: var(--text);
+  background: var(--surface);
+  border-left-color: var(--action);
+}
+.alert--success::before {
+  content: "✓";
+  color: var(--action);
+  font-weight: 700;
+  flex: none;
+}
 
 /* --------------------------------------------------------------------------
    13. カート（下部固定バー）
