@@ -75,9 +75,13 @@
       </thead>
       <tbody>
       <tr th:each="c : ${costs}">
+        <!--/* ★ 商品名はリンクにしない（2026-09-16・店主の指摘）。
+               「商品名が緑で、編集ボタンと両方押しても同じ画面になる」。
+               同じ場所へ行く道を 2 つ持たない、は何度か採ってきた判断
+               （QR の印刷の入口を卓へ一本化したのと同じ）。
+               押す前にどちらを押すか考えさせるだけで、得るものが無い。 */-->
         <td>
-          <a th:href="@{/inventory/recipes/{id}(id=${c.menuItem().id})}"
-             th:text="${c.menuItem().name}">米粉のお好み焼き</a>
+          <span th:text="${c.menuItem().name}">米粉のお好み焼き</span>
           <span th:unless="${c.menuItem().visible}" class="badge">非表示</span>
         </td>
 
@@ -121,9 +125,13 @@
                 th:text="'単価不明 ' + ${c.unknownCostCount()}">単価不明 1</span>
         </td>
 
+        <!--/* 白地・緑枠・緑文字（店主の指定）。棚卸しの「記録する」と同じ .recbtn。
+               同じ「表の行からその先へ入る」用途なので、部品を増やさない。
+               この列が、この行から編集画面へ入る唯一の道。 */-->
         <td class="right">
-          <a class="btn btn--sm btn--ghost"
-             th:href="@{/inventory/recipes/{id}(id=${c.menuItem().id})}">
+          <a class="recbtn"
+             th:href="@{/inventory/recipes/{id}(id=${c.menuItem().id})}"
+             th:aria-label="${c.menuItem().name} + ' のレシピを編集する'">
             <span th:if="${c.isNothingRegistered()}">登録する</span>
             <span th:unless="${c.isNothingRegistered()}">編集</span>
           </a>
