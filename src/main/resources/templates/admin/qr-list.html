@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<!--/*
+   QR コードの一覧（読むだけ）。設計 ト13 QRコード。
+
+   ── なぜ「読む画面」と「直す画面」を分けたか（2026-09-14）──
+   もとは /admin/qr に、印刷の手順・base-url の設定方法・再発行のボタンまで
+   すべて載っていました。ところがこの画面を開く理由のほとんどは
+   「どの卓の QR がどれか」を見て印刷することで、
+   base-url をいじったり再発行したりするのは導入のときだけです。
+
+   再発行は取り返しがつきません（貼ってある QR が読めなくなる）。
+   その的を、毎日開く画面に置いたままにしない。
+
+   直すほうは「QR を 編集・再発行」から /admin/qr/edit へ。
+
+   使えるモデルの値：
+     ${tables}     … List<DiningTable>
+     ${tableUrls}  … Map<Long, String>（卓 id → お客さま画面の URL）
+     ${baseUrl}    … QR に入る URL の先頭
+     ${size}       … QR 画像の大きさ（px）
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('QRコード', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="page-head">
+    <h1 class="page-head__title">QRコード</h1>
+    <span class="page-head__sub" th:text="${tables.size()} + ' 卓ぶん'">12 卓ぶん</span>
+    <a class="btn btn--primary" th:href="@{/admin/qr/print}">まとめて印刷</a>
+    <a class="btn btn--ghost" th:href="@{/admin/qr/edit}">QR を 編集・再発行</a>
+  </div>
+
+  <!--/* ★ 条件付きの注意書き（2026-09-14 に店主と決めた方針）。
+         base-url が localhost のままだと、印刷しても<b>お客さまのスマホからは開けません</b>。
+         しかもスタッフの PC からは常に動くので、この画面でしか気づけない。
+         ふだんは出さず、危ないときだけ出す。 */-->
+  <div class="alert alert--warn" role="alert"
+       th:if="${#strings.contains(baseUrl, 'localhost') or #strings.contains(baseUrl, '127.0.0.1')}">
+    <p class="mb-0">
+      <strong>このまま印刷しても、お客さまのスマホからは開けません。</strong>
+      QR の飛び先が <code th:text="${baseUrl} + '/t/…'">http://localhost:8080/t/…</code> になっています。
+      <a th:href="@{/admin/qr/edit}">QR を 編集・再発行</a> で直し方を確認してください。
+    </p>
+  </div>
+
+  <!--/* 卓が無ければ QR も無い。次にやることだけを出す */-->
+  <div class="alert alert--warn" th:if="${tables.isEmpty()}" role="alert">
+    <p class="mb-0">
+      卓がまだありません。QR は卓ごとに 1 枚できるので、
+      先に <a th:href="@{/admin/tables/edit}">卓を追加</a> してください。
+    </p>
+  </div>
+
+  <div class="grid grid--3" th:unless="${tables.isEmpty()}">
+    <div class="card" th:each="t : ${tables}">
+      <div class="card__head">
+        <span th:text="${t.name}">3番テーブル</span>
+        <span class="badge badge--soldout" th:unless="${t.active}">利用停止中</span>
+      </div>
+      <div class="card__body center">
+
+        <img th:src="@{/admin/qr/image(tableId=${t.id},size=${size})}"
+             th:alt="${t.name} + ' の注文用QRコード'"
+             style="width:100%;max-width:220px;height:auto;background:#fff;border-radius:8px">
+
+        <p class="small mb-0" th:text="${t.capacity} + ' 席'">4 席</p>
+
+        <p class="print-sheet__url mt-4" th:text="${tableUrls.get(t.id)}">http://localhost:8080/t/xxxx</p>
+
+        <!--/* この卓のお客さま画面をそのまま開くリンク。
+               目の前の QR を自分の画面で読むことはできないので、押せる入口を置く。
+               別タブにするのはスタッフ画面を閉じさせないため。 */-->
+        <a class="btn btn--block mt-4"
+           th:href="${tableUrls.get(t.id)}"
+           target="_blank" rel="noopener">この卓のお客さま画面を開く</a>
+
+      </div>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

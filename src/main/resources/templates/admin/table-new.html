@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<!--/*
+   卓の新規追加（設計 912:13548「卓の新規追加」・2026-09-15）。
+
+   ── なぜ「足す」だけの画面にしたか ──
+   もとは追加フォームと登録済みの一覧が 1 画面に同居していました。
+   卓を 1 つ足しに来ただけでも、下に 12 卓ぶんの入力欄が並びます。
+   逆に席数を直しに来た人は、上の追加フォームを読み飛ばしてから
+   目的の行を探すことになっていました。やることが 2 つ混ざっていた画面です。
+
+   「直す」は /admin/tables/edit へ分けました。
+
+   ★ 送信先（POST /admin/tables）は変えていません。
+     画面を割っても送信先まで変えると、ブックマークや戻るボタンからの
+     再送信が壊れます（卓・QR を分けたときと同じ判断）。
+
+   使えるモデルの値：
+     ${tableForm}  … 入力の入れ物（TableForm）
+     ${tables}     … 既存の卓（件数を見出しに出すためだけに使う）
+     ${totalSeats} … 席数の合計
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('卓の新規追加', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <!--/* 戻るボタンは帯の左端（2026-09-15 の方針。BackButtonOnTheLeftTest） */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/admin/tables}">← 卓の一覧へ戻る</a>
+    <h1 class="page-head__title">卓の新規追加</h1>
+    <span class="page-head__sub"
+          th:text="${tables.size()} + ' 卓 / ' + ${totalSeats} + ' 席'">12 卓 / 30 席</span>
+    <span class="page-head__spacer"></span>
+  </div>
+
+  <form class="card" method="post" th:action="@{/admin/tables}" th:object="${tableForm}">
+    <div class="card__head">卓を追加</div>
+    <div class="card__body">
+
+      <!--/* 設計は 5 項目を 1 行に並べる（卓名／席数／並び順／エリア／使うか）。
+             入力が 5 つでも、1 卓ぶんしか無いので縦に積む必要がない */-->
+      <div class="row row--wrap" style="align-items:flex-end">
+
+        <div class="field" style="flex:2 1 240px;margin-bottom:0">
+          <label class="label" for="name">卓名<span class="req">必須</span></label>
+          <input class="input" type="text" th:field="*{name}" maxlength="20"
+                 placeholder="例：3番テーブル"
+                 th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
+          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
+        </div>
+
+        <div class="field" style="flex:0 1 100px;margin-bottom:0">
+          <label class="label" for="capacity">席数</label>
+          <input class="input" type="number" th:field="*{capacity}" min="1" max="99"
+                 inputmode="numeric"
+                 th:classappend="${#fields.hasErrors('capacity')} ? 'is-error'">
+          <p class="error" th:if="${#fields.hasErrors('capacity')}" th:errors="*{capacity}">エラー内容</p>
+        </div>
+
+        <div class="field" style="flex:0 1 100px;margin-bottom:0">
+          <label class="label" for="sortOrder">並び順</label>
+          <input class="input" type="number" th:field="*{sortOrder}" min="0" max="9999"
+                 inputmode="numeric"
+                 th:classappend="${#fields.hasErrors('sortOrder')} ? 'is-error'">
+          <p class="error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">エラー内容</p>
+        </div>
+
+        <div class="field" style="flex:1 1 180px;margin-bottom:0">
+          <label class="label" for="area">エリア（任意）</label>
+          <input class="input" type="text" th:field="*{area}" maxlength="20"
+                 placeholder="例：カウンター"
+                 th:classappend="${#fields.hasErrors('area')} ? 'is-error'">
+          <p class="error" th:if="${#fields.hasErrors('area')}" th:errors="*{area}">エラー内容</p>
+        </div>
+
+        <div class="field" style="flex:0 1 auto;margin-bottom:0">
+          <span class="label">この席を使うか</span>
+          <label class="choice">
+            <input type="checkbox" th:field="*{active}">
+            <span class="choice__name">お客さまをご案内する</span>
+          </label>
+        </div>
+
+        <button class="btn btn--primary" type="submit">追加する</button>
+      </div>
+
+      <!--/* 名前の付け方。設計ではフォームの下に 1 行。
+             卓名は厨房のボードとホールの一覧にそのまま出るので、
+             ここでの付け方が現場の呼び方とずれると運ぶときに迷う */-->
+      <p class="help mb-0">
+        卓の名前は厨房のボードとホールの一覧にそのまま出ます。
+        席の番号札と同じ呼び方（例：<code>3番テーブル</code>、<code>カウンター2</code>）に
+        しておくと、料理を運ぶときに迷いません。
+      </p>
+
+    </div>
+  </form>
+
+</main>
+</body>
+</html>

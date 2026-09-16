@@ -238,10 +238,13 @@
            th:classappend="${#strings.startsWith(p, '/admin/tables')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_armchair}"/><span>卓</span>
         </a>
-        <a class="sb__item" th:href="@{/admin/qr}"
-           th:classappend="${#strings.startsWith(p, '/admin/qr')} ? 'is-active'">
-          <th:block th:replace="~{fragments/icons :: ic_qr_code}"/><span>QRコード</span>
-        </a>
+        <!--/* ★ ここにあった「QRコード」は 2026-09-16 に畳みました（店主の判断）。
+               QR の中身（accessToken）はもともと卓が持っていて、再発行の送信先も
+               /admin/tables/{id}/regenerate でした。データの持ち主は最初から卓で、
+               画面だけが分かれていた形です。1 卓ぶんの印刷も 2026-09-15 に
+               卓の編集画面へ足したので、QR 画面に残る用事がなくなりました。
+               画面自体は残してあります（/admin/qr・/admin/qr/print）。
+               ブックマークしている人を 404 で突き放さないためです。 */-->
         <a class="sb__item" th:href="@{/admin/settings}"
            th:classappend="${#strings.startsWith(p, '/admin/settings')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_gear_six}"/><span>店舗設定</span>
@@ -312,10 +315,13 @@
            th:classappend="${#strings.startsWith(p, '/admin/tables')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_armchair}"/><span>卓</span>
         </a>
-        <a class="sb__item" th:href="@{/admin/qr}"
-           th:classappend="${#strings.startsWith(p, '/admin/qr')} ? 'is-active'">
-          <th:block th:replace="~{fragments/icons :: ic_qr_code}"/><span>QRコード</span>
-        </a>
+        <!--/* ★ ここにあった「QRコード」は 2026-09-16 に畳みました（店主の判断）。
+               QR の中身（accessToken）はもともと卓が持っていて、再発行の送信先も
+               /admin/tables/{id}/regenerate でした。データの持ち主は最初から卓で、
+               画面だけが分かれていた形です。1 卓ぶんの印刷も 2026-09-15 に
+               卓の編集画面へ足したので、QR 画面に残る用事がなくなりました。
+               画面自体は残してあります（/admin/qr・/admin/qr/print）。
+               ブックマークしている人を 404 で突き放さないためです。 */-->
         <a class="sb__item" th:href="@{/admin/settings}"
            th:classappend="${#strings.startsWith(p, '/admin/settings')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_gear_six}"/><span>店舗設定</span>

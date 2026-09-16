@@ -76,8 +76,31 @@ public class AdminQrController {
      * <p>印刷する前に、必ずここで<b>飛び先の URL</b>を目で確認してください。
      * {@code localhost} のままだとお客さんのスマホからは開けません。
      */
+    /**
+     * QR の一覧（読むだけ）。設計 ト13 QRコード。
+     *
+     * <p><b>なぜ「読む」と「直す」を分けたか（2026-09-14）。</b>
+     * もとはこの 1 画面に、印刷の手順・base-url の設定方法・再発行のボタンまで
+     * すべて載っていました。開く理由のほとんどは「どの卓の QR がどれか」を見て
+     * 印刷することで、設定をいじるのは導入のときだけです。
+     *
+     * <p>とくに<b>再発行は取り返しがつきません</b>（貼ってある QR が読めなくなる）。
+     * その的を、毎日開く画面に置いたままにしない。直すほうは {@link #edit} へ。
+     */
     @GetMapping
     public String page(@RequestParam(required = false) Integer size, Model model) {
+        prepareQr(size, model);
+        return "admin/qr-list";
+    }
+
+    /** QR を編集・再発行する画面（もとの 1 枚もの）。一覧の「QR を 編集・再発行」から来ます。 */
+    @GetMapping("/edit")
+    public String edit(@RequestParam(required = false) Integer size, Model model) {
+        prepareQr(size, model);
+        return "admin/qr";
+    }
+
+    private void prepareQr(Integer size, Model model) {
         // 利用停止中の卓も含めて出す。「なぜこの席の QR が無いのか」を
         // 画面上で確認できたほうが、卓の登録漏れに気付きやすいため。
         List<DiningTable> tables = tableService.allTables();
@@ -88,7 +111,6 @@ public class AdminQrController {
         // 設定ファイルの値をそのまま画面に出して、書き換え忘れに気付けるようにする
         model.addAttribute("baseUrl", appProperties.normalizedBaseUrl());
         model.addAttribute("printableCount", tables.stream().filter(DiningTable::isActive).count());
-        return "admin/qr";
     }
 
     // ========================================================================
@@ -154,8 +176,19 @@ public class AdminQrController {
      * 貼っても意味が無い（むしろお客さまを混乱させる）ためです。
      */
     @GetMapping("/print")
-    public String print(@RequestParam(required = false) Integer size, Model model) {
+    public String print(@RequestParam(required = false) Integer size,
+                        @RequestParam(required = false) Long tableId,
+                        Model model) {
         List<DiningTable> tables = tableService.activeTables();
+
+        // ★ 1 卓だけ刷れるようにする（2026-09-15・設計 907:1820 の行ごとの「印刷」）。
+        //   1 卓を貼り替えたいだけなのに全卓ぶん出てくると、紙も時間も無駄になり、
+        //   刷った束から目的の 1 枚を探すことになります。
+        //   利用停止中の卓は activeTables に入らないので、指定しても何も出ません
+        //   （貼っても「ご利用いただけません」と出るだけの QR を刷らせない）。
+        if (tableId != null) {
+            tables = tables.stream().filter(t -> tableId.equals(t.getId())).toList();
+        }
 
         model.addAttribute("tables", tables);
         model.addAttribute("tableUrls", buildTableUrls(tables));
