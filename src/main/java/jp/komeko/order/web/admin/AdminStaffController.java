@@ -133,11 +133,28 @@ public class AdminStaffController {
      * {@code defaultValue = "false"} を付けておかないと 400 エラーになります。
      * よくある落とし穴なので覚えておいてください。
      */
+    /**
+     * 1 枚のカードをまとめて保存する。
+     *
+     * <p><b>パスワードもここで受けます（2026-09-17）。</b>
+     * 設計（ト15b 838:9390）では、表示名・権限・新しいパスワードが 1 枚のカードに並び、
+     * 「この内容で更新する」1 つで保存します。それまではパスワードだけ別の
+     * アコーディオン・別のフォーム・別のエンドポイントでした。
+     *
+     * <p><b>空なら変えません。</b>「変えないなら空のまま」と画面に書いてあるとおりで、
+     * 空文字を「空のパスワードにしたい」と解釈しません。
+     *
+     * <p><b>表示名の更新とパスワードの変更は別々に結果を見ます。</b>
+     * ひとまとめの try に入れると、パスワードが短かっただけで表示名の更新まで
+     * 巻き添えで失敗したのか成功したのか、画面から分からなくなるためです。
+     * 先に表示名・権限を保存し、そのあとでパスワードを扱います。
+     */
     @PostMapping("/{id}")
     public String update(@PathVariable Long id,
                          @RequestParam(required = false) String displayName,
                          @RequestParam StaffRole role,
                          @RequestParam(defaultValue = "false") boolean enabled,
+                         @RequestParam(required = false) String password,
                          RedirectAttributes redirectAttributes) {
 
         List<String> errors = new ArrayList<>();
@@ -152,8 +169,16 @@ public class AdminStaffController {
             try {
                 ensureAdminRemains(id, role, enabled);
                 staffUserService.update(id, name, role, enabled);
-                redirectAttributes.addFlashAttribute("flashSuccess",
-                        "スタッフ「%s」を更新しました".formatted(name));
+
+                // 空欄は「変えない」。ここを通らなければパスワードはそのまま。
+                if (password != null && !password.isBlank()) {
+                    staffUserService.changePassword(id, password);
+                    redirectAttributes.addFlashAttribute("flashSuccess",
+                            "スタッフ「%s」を更新し、パスワードを変更しました".formatted(name));
+                } else {
+                    redirectAttributes.addFlashAttribute("flashSuccess",
+                            "スタッフ「%s」を更新しました".formatted(name));
+                }
             } catch (IllegalArgumentException | IllegalStateException e) {
                 errors.add(e.getMessage());
             }

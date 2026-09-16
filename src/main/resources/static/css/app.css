@@ -8291,3 +8291,95 @@ dialog[open] { margin: auto; }
   font-size: 13px;
   margin-bottom: var(--sp-4);
 }
+
+/* --------------------------------------------------------------------------
+   44. スタッフの行カード（設計 ト15b 838:9390・2026-09-17）
+
+   1 人 1 枚。表示名・権限・新しいパスワードをその場で直して、
+   右端の「この内容で更新する」で保存する。
+
+   ★ 更新と削除は左右に並べる（店主の指示）。
+     設計では削除が更新の下に積まれていて、そのカードだけ高さが 136px、
+     ほかは 110px だった。横に並べると全部のカードが同じ高さで揃い、
+     目が「操作はこの位置」と覚えられる。
+
+   ★ 横に入らなくなったら縦に折り返す。店舗の端末は 1280px だが、
+     ノートを持ち込まれることがあるので、潰れて読めなくなるより折り返す。
+   -------------------------------------------------------------------------- */
+.staffcards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+}
+
+.staffcard {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+/* 設計の列幅: ユーザー名 65 ／ 表示名 240 ／ 権限 136 ／ 新しいパスワード 240。
+
+   ★ 設計に無い「ログインを許可する」を足したぶん、欄が 1 行に収まりません
+     （実測: 欄だけで約 1230px、カードの内側は約 1072px）。
+     そこで欄を 2 段にし、操作は<b>2 段にまたがって右端で縦中央</b>に置きます。
+     操作を 2 段目にぶら下げると、そのぶんカードが縦に伸びてしまうためです。 */
+.staffcard__form {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 240px) 136px minmax(160px, 240px) auto;
+  grid-template-areas:
+    "id name role pw  act"
+    "id en   en   en  act";
+  align-items: end;
+  gap: var(--sp-3) var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+}
+
+.staffcard__id      { grid-area: id; }
+.staffcard__name    { grid-area: name; }
+.staffcard__role    { grid-area: role; }
+.staffcard__pw      { grid-area: pw; }
+.staffcard__enabled { grid-area: en; justify-self: start; }
+.staffcard__act     { grid-area: act; align-self: center; justify-self: end; }
+
+/* .field の既定は下に余白を持つが、ここは flex の gap で間隔を作るので消す。
+   残っていると欄ごとに下だけ空いて、ボタンとの下端が揃わない。 */
+.staffcard__form .field { margin-bottom: 0; }
+
+.staffcard__id {
+  display: flex;
+  flex-direction: column;
+  /* 縦積みの flex は既定で子を横いっぱいに伸ばす。
+     これが無いと「ログイン中」の札が列幅いっぱいの帯になる */
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 96px;
+  align-self: start;
+  padding-top: 26px;   /* 隣の欄のラベル（16px）＋ラベル下の 8px ぶん下げて、入力欄と行を揃える */
+}
+.staffcard__id strong { font-size: 15px; }
+
+/* ★ ここが今回の肝。更新と削除を横に並べる。 */
+.staffcard__act {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* 狭い画面では 1 列ずつに崩す。
+   無理に押し込むとボタンが潰れて押しにくくなる。
+   操作は左端から始める（右端に寄せると指が届きにくい）。 */
+@media (max-width: 1100px) {
+  .staffcard__form {
+    grid-template-columns: minmax(0, 1fr) 136px;
+    grid-template-areas:
+      "id   id"
+      "name role"
+      "pw   pw"
+      "en   en"
+      "act  act";
+  }
+  .staffcard__id  { padding-top: 0; }
+  .staffcard__act { justify-self: start; }
+}
