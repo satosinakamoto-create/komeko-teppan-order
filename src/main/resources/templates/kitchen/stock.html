@@ -107,7 +107,11 @@
     <details class="catpick" th:attr="open=${#strings.isEmpty(q)} ? null : null">
       <summary class="catpick__head">
         <span class="catpick__mark" aria-hidden="true"></span>
-        <span th:text="${selectedName} ?: 'カテゴリを選ぶ'">広島風お好み焼き</span>
+        <!--/* 選んでいないときの文言は設計どおり「カテゴリーから検索」
+               （ト03 725:4186・食材・在庫のト07 とも同じ）。
+               選んだあとはそのカテゴリ名に変わる——いま何で絞っているかが
+               閉じた状態でも読めるようにするため。 */-->
+        <span th:text="${selectedName} ?: 'カテゴリーから検索'">広島風お好み焼き</span>
       </summary>
       <div class="catpick__list">
         <a th:each="g : ${categoryGroups}" class="catpick__item"
@@ -281,27 +285,52 @@
           「なぜか途中から始まる」画面になります。 */-->
   <script>
     (function () {
-      var KEY = 'kitchen-stock-scroll';
+      var KEY = 'kitchen-stock-anchor';
 
-      document.addEventListener('submit', function () {
-        sessionStorage.setItem(KEY, String(window.scrollY));
+      // ★ ピクセルではなく「押した行」を覚える（2026-09-14）。
+      //
+      //   もとは window.scrollY だけを覚えていたが、それでも画面が動いていた。
+      //   戻り先ではフラッシュ通知（「◯◯を品切れにしました」）が本文の先頭に
+      //   増えるので、上に要素が増えたぶん中身が下へずれる。
+      //   同じピクセル位置へ戻しても、押した行は通知の高さぶん下に来る。
+      //
+      //   行そのものを基準にすれば、上に何が増えても
+      //   押した行は指の下から動かない。
+      document.addEventListener('submit', function (e) {
+        var row = e.target && e.target.closest ? e.target.closest('tr') : null;
+        if (!row || !row.id) { return; }
+        sessionStorage.setItem(KEY, JSON.stringify({
+          id: row.id,
+          // その行が画面の上端から何 px のところにあったか
+          top: Math.round(row.getBoundingClientRect().top)
+        }));
       });
 
       function restore() {
-        var y = sessionStorage.getItem(KEY);
-        if (y === null) { return; }
+        var raw = sessionStorage.getItem(KEY);
+        if (raw === null) { return; }
+        // 復元したら必ず消す。残すと、サイドバーから入り直したときにも
+        // 前の位置へ飛び、「なぜか途中から始まる」画面になる
         sessionStorage.removeItem(KEY);
-        // アンカー（#item-◯）による移動より後に効かせる必要があるので、
-        // 読み込み完了のあと 1 回だけ上書きする。
-        //
+
+        var saved;
+        try { saved = JSON.parse(raw); } catch (err) { return; }
+        var row = document.getElementById(saved.id);
+        if (!row) { return; }   // その行が消えた（検索の条件が変わった等）
+
+        // いまの位置から、覚えていた高さに来るまでの差だけ動かす
+        var diff = row.getBoundingClientRect().top - saved.top;
+        if (Math.abs(diff) < 1) { return; }
+
         // ★ behavior:'instant' を外さないこと。
         //   app.css は html に scroll-behavior:smooth を掛けているので、
-        //   既定のままだとアンカーの位置から保存位置まで画面が滑って動く。
-        //   「その場にとどまる」ためにやっているのに、
-        //   かえって長い移動を見せることになる。
-        window.scrollTo({ top: parseInt(y, 10), left: 0, behavior: 'instant' });
+        //   既定のままだと「その場にとどまる」ための処理が、
+        //   かえって画面を滑らせて見せることになる。
+        window.scrollTo({ top: window.scrollY + diff, left: 0, behavior: 'instant' });
       }
 
+      // 通信が速いとブラウザのアンカー移動は load より前に終わっていて、
+      // 遅いと後になる。どちらでも効くよう、読み込み完了のあとに 1 回上書きする
       if (document.readyState === 'complete') { restore(); }
       else { window.addEventListener('load', restore); }
     })();
