@@ -170,7 +170,10 @@
       </a>
       <a class="sb__item" th:href="@{/kitchen/stock}"
          th:classappend="${#strings.startsWith(p, '/kitchen/stock')} ? 'is-active'">
-        <th:block th:replace="~{fragments/icons :: ic_package}"/><span>品切れ・残数</span>
+        <!--/* ★ 食材・在庫と同じ箱にしないこと（2026-09-17・店主の指摘）。
+               iPad ではラベルが消えてアイコンだけになるので、
+               同じ絵だと 2 つを見分けられません。箱は食材・在庫に残しています。 */-->
+        <th:block th:replace="~{fragments/icons :: ic_prohibit}"/><span>品切れ・残数</span>
       </a>
 
       <!--/* ── 原価と仕入れ ── 2026-09-05 に見出しを足した
