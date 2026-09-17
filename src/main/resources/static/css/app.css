@@ -661,10 +661,20 @@ hr {
   font-weight: 400;
   color: var(--text-muted);
 }
+/* ★ 選択中は白地・緑枠・緑文字（2026-09-17・店主の指摘）。
+
+   ここは長く var(--accent) の塗りつぶしでした。--accent は :root では黒ですが
+   .theme-desk がティール（--green-700）に上書きするため、
+   スタッフ側のこの選択だけ旧色のまま残っていました。
+   売上の期間切り替えと同じ取り残しです。
+
+   設計（ト10b 745:7822）は白地に緑の枠と文字で、
+   今日そろえた「押せるものの形」と同じです
+   （.recbtn の記録する、.badge--act の掲載中）。 */
 .statepick__item input:checked + span {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--bg-elevated);
+  border-color: var(--action);
+  color: var(--action);
   font-weight: 700;
 }
 /* 押せない選択肢。消さずに残すのは、何をすれば選べるのかを見せるため */

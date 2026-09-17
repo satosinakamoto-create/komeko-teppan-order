@@ -22,7 +22,11 @@
   <!--/* 見出しの帯までの間は 28px（設計 315:2105 の本文 gap-28）。
          p の既定の下余白（12px）のままだと、戻るリンクだけ帯に張り付いて見える。
          .small の共通定義は触らず、この画面用の目印で持つ。 */-->
-  <p class="small formback"><a th:href="@{/admin/items}">← 商品の一覧にもどる</a></p>
+  <!--/* ★ 2026-09-17 にボタンの形へ。素のテキストリンクだったので、
+         カテゴリ・スタッフ・仕入れ（どれも帯の中のボタン）と見た目が違いました。
+         同じ役の見た目が画面ごとに違うと、探し方が毎回変わります。
+         下の「やめる」を外したので、ここが唯一の戻り口でもあります。 */-->
+  <p class="formback"><a class="btn btn--sm" th:href="@{/admin/items}">← 商品の一覧にもどる</a></p>
 
   <!--/*
     ・enctype="multipart/form-data" … ファイルを送るために必須。付け忘れると画像が届きません
@@ -358,16 +362,15 @@
     </details>
 
     <!--/* ====== 送信 ======
-           上の見出しにも同じ 2 つを置いてあります。
-           長いフォームを下まで送ったところで、もう一度押せるようにするため。 */-->
-    <div class="row row--wrap mt-6">
-      <button class="btn btn--primary btn--lg" type="submit" name="action" value="publish"
-              th:disabled="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}">
-        掲載する
-      </button>
-      <button class="btn btn--lg" type="submit" name="action" value="draft">下書きのまま保存</button>
-      <a class="btn btn--lg" th:href="@{/admin/items}">やめる</a>
-    </div>
+           ★ 2026-09-17 に下の 1 組を外しました（設計 ト10b にありません）。
+
+             それまでは「掲載する／下書きのまま保存」が帯の右上と画面の下の
+             2 か所にありました。長いフォームを下まで送ったときのために置いた
+             ものですが、「詳しい設定」を畳んだいまは 1 画面に収まるので、
+             下まで送る必要がありません。同じボタンが 2 組あると、
+             押す前にどちらを押すか考えることになります。
+
+             「やめる」は上の「← 商品の一覧にもどる」が同じ役です。 */-->
 
   </form>
 
