@@ -61,6 +61,16 @@
     </div>
   </div>
 
+  <!--/* ===== 2 カラム（設計 ト05e 840:9735・2026-09-17）=====
+
+         左＝証憑としての状態＋明細、右＝レシート画像。
+
+         それまでは 4 枚のカードを縦に積んでいて、レシート画像がいちばん下でした。
+         この画面の仕事は「紙と見比べる」ことなので、数字と画像が同時に見えないと
+         スクロールで往復することになります。横に並べるほうが目的に合います。 */-->
+  <div class="detail2">
+  <div class="detail2__main">
+
   <div class="card">
     <div class="card__head">証憑としての状態</div>
     <div class="table-wrap">
@@ -86,6 +96,20 @@
         <tr>
           <th>システムに保存した日時</th>
           <td class="tiny" th:text="${purchase.storedAt}">日時</td>
+        </tr>
+        <!--/* ★ 入力期限は常に出します（設計 ト05e・2026-09-17）。
+               それまでは期限を過ぎたときだけ上に赤い警告が出る作りで、
+               期限内のときは何も言いませんでした。「まだ大丈夫」なのか
+               「判定していない」のか見分けが付きません。
+               行そのものは条件で消さず、中の文言だけ出し分けます。 */-->
+        <tr>
+          <th>入力期限</th>
+          <td>
+            <span th:unless="${purchase.paperRetentionRequired}" style="color: var(--action)"
+                  th:text="'受領から ' + ${purchase.daysFromReceipt()} + ' 日（期限内）'">受領から 0 日（期限内）</span>
+            <span th:if="${purchase.paperRetentionRequired}" style="color: var(--danger)"
+                  th:text="'受領から ' + ${purchase.daysFromReceipt()} + ' 日（期限切れ・紙の原本を保管）'">期限切れ</span>
+          </td>
         </tr>
         <tr>
           <th>紙との同等確認</th>
@@ -141,13 +165,28 @@
     </div>
   </div>
 
-  <div th:if="${purchase.imagePath != null}" class="card">
-    <div class="card__head">レシート画像</div>
-    <div class="card__body">
-      <img th:src="${purchase.imagePath}" alt="レシート"
-           style="max-width:100%; border-radius:8px;">
+  </div><!--/* /detail2__main */-->
+
+  <div class="detail2__side">
+    <div th:if="${purchase.imagePath != null}" class="card">
+      <div class="card__head">レシート画像</div>
+      <div class="card__body">
+        <img class="receiptshot" th:src="${purchase.imagePath}" alt="レシート">
+
+        <!--/* ★ なぜ消せないのかの根拠。ここを黙ると、画像がたまり続ける理由が
+               誰にも分かりません（電子帳簿保存法の保存期間）。 */-->
+        <p class="help">電子帳簿保存法のため 7 年間保存されます</p>
+
+        <!--/* ★ 原寸で開く（設計 ト05e）。カードの中の画像は縮んでいるので、
+               レシートの小さい字を読むには原寸が要ります。
+               別タブで開くのは、見比べている途中でこの画面を失わないため。 */-->
+        <a class="btn btn--sm" th:href="${purchase.imagePath}"
+           target="_blank" rel="noopener">原寸で開く</a>
+      </div>
     </div>
   </div>
+
+  </div><!--/* /detail2 */-->
 
   <!--/* 変更はすべて POST。GET で状態が変わる口は作らない（既存の規律）。 */-->
   <div class="card" th:unless="${purchase.deleted}">

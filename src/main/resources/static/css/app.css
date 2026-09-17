@@ -4100,6 +4100,36 @@ body.is-sending .staff-main {
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+/* 仕入れの詳細の 2 カラム（設計 ト05e 840:9735・2026-09-17）。
+
+   左＝証憑としての状態＋明細、右＝レシート画像。
+   この画面の仕事は「紙と見比べる」ことなので、数字と画像が同時に見えないと
+   スクロールで往復することになる。
+
+   狭い画面では 1 列に落とす。そのとき画像が下に来るのは、
+   先に読むのが数字のほうだから（左の列を先に書いてある）。 */
+.detail2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 356px;
+  gap: var(--sp-4);
+  align-items: start;
+}
+.detail2__main { min-width: 0; }
+@media (max-width: 1100px) {
+  .detail2 { grid-template-columns: minmax(0, 1fr); }
+}
+/* レシートは縦長なので、高さで頭打ちにする。
+   横幅だけ 100% にすると、縦長の写真が列を押し下げて明細と高さが合わない */
+.receiptshot {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  object-position: top;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+}
+
 /* 日付・月の切り替えの行（注文履歴・税理士の帯・2026-09-17）。
 
    並びは 前 → 入力 → 表示 → 次 で統一（店主の指示）。
