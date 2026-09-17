@@ -122,7 +122,9 @@
     <div th:replace="~{fragments/common :: empty('無', 'カテゴリがまだありません。上のフォームから追加してください')}"></div>
   </div>
 
-  <ul class="stack" style="list-style:none;padding:0;margin:0">
+  <!--/* .catlist は行の中のボタンを 48px にそろえる目印（2026-09-17）。
+         ↑↓ と削除だけ 40px で、頭が 8px 下がって沈んで見えていました。 */-->
+  <ul class="stack catlist" style="list-style:none;padding:0;margin:0">
     <li class="card" th:each="c : ${categories}"
         th:with="editing=${editingId != null and editingId == c.id},
                  errs=${(editingId != null and editingId == c.id) ? editErrors : null}">

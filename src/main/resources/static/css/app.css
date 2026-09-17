@@ -245,6 +245,24 @@ hr {
    .row > .btn は縮まない決まりなので、残りをこれで分け合う。
    min-width:0 が無いと、中の .input（width:100%）が押し返して折り返さない。 */
 .row__grow { flex: 1 1 220px; min-width: 0; }
+
+/* カテゴリの一覧の行（2026-09-17・店主の指摘）。
+
+   行は下揃え（align-items: flex-end）なので底はそろいますが、
+   ↑↓ と削除だけ .btn--sm（.theme-desk で 40px）で、頭が 8px 下がって
+   その 2 つだけ沈んで見えていました。実測:
+
+     入力欄 81〜129（高さ 48）   更新 81〜129（高さ 48）
+     ↑      89〜129（高さ 40）   削除 89〜129（高さ 40）
+
+   そのうえ 40px は CLAUDE.md の「タップ領域は 48px 以上」を割っています。
+   品切れ・残数の表でも同じことが起きていて、そこには
+   「押せるものなので 48px は割らない」と書いて個別に直してありました。
+   並びの問題とタップ領域の問題が、この 1 行で同時に片付きます。
+
+   ★ .theme-desk から書くこと。.catlist .btn--sm だけ（0,2,0）だと、
+     3557 行の .theme-desk .btn--sm（同じ 0,2,0 で、こちらより後ろ）に負けます。 */
+.theme-desk .catlist .btn--sm { min-height: 48px; }
 .spacer { flex: 1; }
 
 .grid {
@@ -4503,7 +4521,13 @@ body.is-sending .staff-main {
      そちらは 20/40・帯 88px です。01 ページのほうが古い版なので、20px が正。
      立って見る画面だけ帯を厚くする、という判断が入っています。 */
 .hallboard .section-title:has(h1) { padding: 20px 40px; }
-.hallboard h1.section-title__text { font-size: 28px; }
+/* ★ 題は 32px（2026-09-17・店主の指摘）。
+
+   設計（ト02 725:2103）は 28px でしたが、設計側の取りこぼしと判断しました。
+   すぐ上に「立って見る画面だけ帯を厚くする、という判断が入っています」と
+   書いてあるのに、題だけ小さいのは筋が通りません。
+   Figma の他の画面（ダッシュボード・品切れ・残数・商品・売上）は全部 32px です。 */
+.hallboard h1.section-title__text { font-size: 32px; }
 /* 節見出しだけ字間を開ける。.theme-snow が letter-spacing を 0 に
    落としているので、ここで開け直す（設計 438:2438 の 2px） */
 .hallboard h2.section-title__text { font-size: 20px; letter-spacing: 2px; }

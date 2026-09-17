@@ -169,11 +169,17 @@ class HallBoardDesignTest {
     }
 
     @Test
-    @DisplayName("★ 設計の寸法（見出し28／節20+字間2／数字28／カード余白24全周）")
+    @DisplayName("★ 設計の寸法（見出し32／節20+字間2／カード余白24全周）")
     void designMetrics() throws Exception {
         String css = Files.readString(CSS).replace("\r\n", "\n");
 
-        assertThat(css).contains(".hallboard h1.section-title__text { font-size: 28px; }");
+        // ★ 2026-09-17 に 28px → 32px（店主の指摘）。
+        //   設計（ト02 725:2103）は 28px だが、設計側の取りこぼしと判断した。
+        //   この画面は帯の上下を 20px に厚くしてあり、その理由は
+        //   「立って見る画面だけ帯を厚くする」。立って見る画面で題だけ小さいのは
+        //   筋が通らない。Figma の他の画面（ダッシュボード・品切れ・残数・
+        //   商品・売上）はすべて 32px で、ここだけ 28px だった。
+        assertThat(css).contains(".hallboard h1.section-title__text { font-size: 32px; }");
         // .theme-snow が字間を 0 に落とすので、節見出しだけ開け直している
         assertThat(css).contains(".hallboard h2.section-title__text { font-size: 20px; letter-spacing: 2px; }");
         // ★ 数字カード（.stat 28px）はここで見ていたが、2026-09-14 に
