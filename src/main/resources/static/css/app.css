@@ -3563,6 +3563,23 @@ body.is-sending .staff-main {
    30-6. ボタン・入力・補足文
    -------------------------------------------------------------------------- */
 /* 角丸は --r-sm（4px）が効くので、ここでは太さだけ足す */
+/* 本文のリンクは草緑（2026-09-17・店主の指摘）。
+
+   共通の a は var(--accent) で、:root では黒、.theme-desk ではティールに
+   化けます。仕入れ・経費の取引先の名前が旧緑のまま残っていました。
+   リンクは押せるものなので --action にそろえます。
+
+   ★ :not([class]) で本文のリンクだけに絞ること。
+     .theme-desk a と書くと (0,1,1) になり、.sb__item（0,1,0）に勝って
+     サイドバーの項目まで全部緑になります。
+     クラスの付いたリンク（.btn / .sb__item / .badge--draft）は
+     それぞれ自分の色を持っているので、触ってはいけません。
+
+   ★ お客さま側は巻き込みません。あちらの --accent はきつね色で、
+     和モダンの骨格そのものです（CLAUDE.md）。.theme-desk に閉じ込めます。 */
+.theme-desk a:not([class]) { color: var(--action); }
+.theme-desk a:not([class]):hover { color: var(--action-hover); }
+
 .theme-desk .btn { font-weight: 700; }
 /* 小ボタンの 36px は CLAUDE.md の「タップ領域 48px 以上」に元から反していた。
    表の行に並ぶので 48px までは上げられないが、40px までは戻す。 */
@@ -4161,7 +4178,11 @@ body.is-sending .staff-main {
 
    高さ（--tap 48px）と文字（16px）は落とさない。触る端末で押しにくくなるのと、
    iOS が 16px 未満の入力欄でフォーカス時に画面を拡大するため（CLAUDE.md）。 */
-.datenav .input { width: auto; max-width: 12rem; }
+/* ★ min-width を必ず持たせること（2026-09-17・店主の指摘）。
+     日本語の年月は「2026年09月」で、右にカレンダーのアイコンも付きます。
+     仕入れ・経費は .input--narrow（max-width: 8rem＝128px）を使っていて、
+     月が切れて表示されていました。 */
+.datenav .input { width: auto; min-width: 11rem; max-width: 14rem; }
 
 .monthnav__label { font-size: 14px; color: var(--text-muted); }
 .monthnav__go    { font-size: 16px; color: var(--accent); text-decoration: none; white-space: nowrap; }

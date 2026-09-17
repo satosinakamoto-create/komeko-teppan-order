@@ -50,9 +50,12 @@
   </div>
 
   <!--/* ===== ① 月次のまとめ ===== */-->
-  <form th:action="@{/inventory/purchases}" method="get" class="row row--wrap">
+  <!--/* 月の行は注文履歴・税理士と同じ .datenav（2026-09-17）。
+         幅もそこで決めます。もとは .input--narrow（8rem＝128px）で、
+         「2026年09月」とカレンダーのアイコンが入りきらず切れていました。 */-->
+  <form th:action="@{/inventory/purchases}" method="get" class="row row--wrap datenav">
     <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${prevMonth})}">← 前月</a>
-    <input class="input input--narrow" type="month" name="month" th:value="${month}">
+    <input class="input" type="month" name="month" th:value="${month}">
     <button type="submit" class="btn btn--sm">この月を表示</button>
     <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${nextMonth})}">翌月 →</a>
   </form>
