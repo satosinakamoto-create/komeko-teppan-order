@@ -180,7 +180,17 @@
       var form2 = el.closest('[data-panes]');
       var input = form2.querySelector('[data-guest-other]');
       var v = parseInt(input.value, 10);
-      if (!v || v < 9) { input.focus(); return; }
+      /* ★ 押しても何も起きない、を無くす（2026-09-17・店主の指摘）。
+         それまでは focus するだけで、画面には何の変化もありませんでした。
+         店主は「決定が効かない」と受け取って別のボタンで進んでいます。
+         入れていないのか、9 未満で弾かれたのかを言い分けます。 */
+      if (!v || v < 9) {
+        alert(input.value
+          ? '9 名以上のときだけこちらを使います。8 名までは上のボタンから選んでください。'
+          : '人数を入れてから「決定」を押してください。');
+        input.focus();
+        return;
+      }
       var radios = form2.querySelectorAll('input[name="guestCount"]');
       for (var j = 0; j < radios.length; j++) { radios[j].checked = false; }
       echoGuests(form2);

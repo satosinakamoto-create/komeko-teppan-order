@@ -3396,8 +3396,20 @@ body.is-sending .staff-main {
 
    ★ 素の .btn は地が var(--surface)＝#f7f9fb（うすい灰）でした。
      カードを白に直したので、そのままだとボタンだけ灰色が残って浮きます。
-   ★ 塗りボタン（.btn--primary / .btn--ok / .btn--danger）は
-     自分で --btn-bg を上書きするので、ここは効きません。 */
+   ★★ 詳細度に注意（2026-09-17 に事故りました）。
+
+     このセレクタは (0,2,0) なので、クラス 1 つだけの規則
+     （.btn--primary や .hallmodal__main）には<b>勝ちます</b>。
+     つまり「塗りボタンは自分で --btn-bg を持つから大丈夫」ではありません。
+     実際には 3573 行の .theme-desk .btn--primary が (0,2,0) で
+     救済しているだけです。
+
+     救済から漏れると、地だけ白に戻って --btn-fg: #fff がそのまま残り、
+     <b>白地に白文字＝文字の消えたボタン</b>になります。
+     ホールのモーダルの「次へ」「ご案内する」が実際にそうなっていました。
+
+     白い文字を載せるボタンを足すときは、必ずクラス 2 つ以上で書くこと。
+     HallModalColourTest がこれを見ています。 */
 .theme-desk .btn {
   --btn-bg: #ffffff;
   --btn-bd: #c7c7c7;
@@ -4801,7 +4813,19 @@ body.is-sending .staff-main {
 /* 足元。副ボタン 1 ： 主ボタン 3。押す回数が多いほうを広く取る */
 .hallmodal__foot { display: flex; gap: 12px; }
 .hallmodal__sub  { flex: 1 1 0; min-height: 48px; font-size: 15px; border-radius: 4px; }
-.hallmodal__main {
+/* ★ セレクタを .hallmodal から書くこと（2026-09-17・店主の指摘で判明）。
+
+   .hallmodal__main だけ（0,1,0）だと、3401 行の .theme-desk .btn（0,2,0）に
+   負けて --btn-bg だけ #ffffff に戻されます。--btn-fg: #fff は誰も上書きしないので、
+   結果は「白地に白文字」＝文字が消えたボタンになります。
+
+   実際にそうなっていました。「次へ」「ご案内する」が空のボタンに見えて、
+   店主は押せると思わず別の操作で進んでいました。営業中に使う画面なので、
+   これはいちばん痛い種類の不具合です。
+
+   .btn--primary / .btn--ok は 3573 行の .theme-desk .btn--primary が
+   (0,2,0) で救済しています。ここはその救済から漏れていました。 */
+.hallmodal .hallmodal__main {
   flex: 3 1 0;
   min-height: 48px;
   font-size: 15px;
@@ -4812,7 +4836,7 @@ body.is-sending .staff-main {
 }
 /* ★ 会計を締めるボタンだけ赤。押したら売上が確定して戻しにくい。
      確認ダイアログでも止めているが、色でも一段違えておく */
-.hallmodal__main--danger {
+.hallmodal .hallmodal__main--danger {
   --btn-bg: var(--action-danger);
   --btn-bd: var(--action-danger);
 }
@@ -4858,13 +4882,13 @@ body.is-sending .staff-main {
 /* 済み・現在は緑の丸。現在だけ文字を濃い太字にして「いまここ」を示す */
 .steps2__item.is-done .steps2__dot,
 .steps2__item.is-current .steps2__dot {
-  background: var(--green-700);
-  border-color: var(--green-700);
+  background: var(--action);
+  border-color: var(--action);
   color: #fff;
 }
 .steps2__item.is-current .steps2__label { color: var(--text); font-weight: 700; }
 .steps2__link { flex: 1 1 auto; height: 1px; background: var(--border); }
-.steps2__link.is-done { background: var(--green-700); }
+.steps2__link.is-done { background: var(--action); }
 
 /* --- 高さを決めて中だけ動かす枠 ---------------------------------------- */
 /* 卓や注文が増えてもモーダルの高さが変わらないようにする。
@@ -4906,11 +4930,11 @@ body.is-sending .staff-main {
 /* ラジオ本体は隠す。枠ごと押せるほうが指で確実 */
 .chip input { position: absolute; opacity: 0; width: 0; height: 0; }
 .chip:has(input:checked) {
-  background: var(--green-700);
-  border-color: var(--green-700);
+  background: var(--action);
+  border-color: var(--action);
   color: #fff;
 }
-.chip:has(input:focus-visible) { outline: 2px solid var(--green-700); outline-offset: 2px; }
+.chip:has(input:focus-visible) { outline: 2px solid var(--action); outline-offset: 2px; }
 
 /* --- 卓の行 ------------------------------------------------------------- */
 .seatrow {
@@ -4925,11 +4949,11 @@ body.is-sending .staff-main {
   background: var(--surface);
   cursor: pointer;
 }
-.seatrow input { width: 18px; height: 18px; accent-color: var(--green-700); flex: 0 0 auto; }
+.seatrow input { width: 18px; height: 18px; accent-color: var(--action); flex: 0 0 auto; }
 .seatrow__name  { font-size: 16px; font-weight: 700; }
 .seatrow__gap   { flex: 1 1 auto; }
 .seatrow__seats { font-size: 14px; color: var(--text-muted); white-space: nowrap; }
-.seatrow:has(input:checked) { background: var(--green-50); border-color: var(--green-700); }
+.seatrow:has(input:checked) { background: var(--action-soft); border-color: var(--action); }
 
 /* --- 注文の明細 --------------------------------------------------------- */
 .lineitem { padding: 12px 0; }
@@ -4959,7 +4983,7 @@ body.is-sending .staff-main {
 
 /* --- 深夜料金のチェックと支払方法 --------------------------------------- */
 .checkline { display: flex; align-items: center; gap: 10px; font-size: 15px; cursor: pointer; }
-.checkline input { width: 20px; height: 20px; accent-color: var(--green-700); }
+.checkline input { width: 20px; height: 20px; accent-color: var(--action); }
 .payrow { display: flex; gap: 8px; }
 .payopt {
   flex: 1 1 0;
@@ -4975,8 +4999,8 @@ body.is-sending .staff-main {
   font-weight: 700;
   cursor: pointer;
 }
-.payopt input { width: 18px; height: 18px; accent-color: var(--green-700); }
-.payopt:has(input:checked) { background: var(--green-50); border-color: var(--green-700); }
+.payopt input { width: 18px; height: 18px; accent-color: var(--action); }
+.payopt:has(input:checked) { background: var(--action-soft); border-color: var(--action); }
 
 /* 盤面のエリア見出し（卓 2/3。2026-09-07）。
    節見出し（在席の伝票／空席）の 1 段下のまとまりなので、小さく・薄く。
