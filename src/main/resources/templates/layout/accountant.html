@@ -103,36 +103,43 @@
   <main class="staff-main">
     <div class="container container--wide">
 
-      <!--/* 対象の月。どの画面でも同じ位置にあることが大事で、
-             「いま何月を見ているか」を見失わせない。 */-->
-      <div class="section-title" th:if="${month != null}">
-        <span class="section-title__count">対象の月</span>
-        <h2 class="section-title__text" th:text="${month}">2026-09</h2>
-        <!--/* 行き先はいまの画面のまま、月だけ変える。
+      <!--/* 月の切り替え。どの画面でも同じ位置にあることが大事で、
+             「いま何月を見ているか」を見失わせない。
+
+             ★ 並びと文言は注文履歴（admin/orders.html）にそろえています
+               （店主の指示・2026-09-17）。あちらは前からこの形でした。
+
+                   ← 前日 ／ 日付の入力 ／ この日を表示 ／ 翌日 →
+
+               ここは「← 前月 ／ 翌月 → ／ 月の入力 ／ 表示」と、移動ボタンが
+               2 つ先に来たうえに文言も違っていました。同じ役の並びが画面ごとに
+               違うと、押す前に毎回読むことになります。
+
+             ★「対象の月 2026-08」の文字は外しました。入力欄に同じ月が出ていて、
+               同じことを 2 か所で言っていたためです（注文履歴も入力欄だけ）。
+
+             ★ 月を直接選べるようにしたのは、前月・翌月だけだと
+               いまが 2026-09 で 2025-12 を見たいときに 9 回押すことになるためです。
+               税理士の画面は過去の月を見に来る画面なので、ここが一番効きます。
+
+             ★ JavaScript は使いません（スタッフ側は素の HTML で動かす決まり）。
+               <input type="month"> はブラウザが月のカレンダーを出してくれます。
+               month モデル属性は 2026-09 の形で、この入力欄の値の形そのものです。
+
+             ★ GET にするのは、月を見るのが読むだけの操作だからです。
+               URL に残るので戻る・進むが効き、ブックマークもできます。
+
+             ★ 行き先はいまの画面のまま、月だけ変える。
                currentPath は GlobalModelAttributes が全画面に渡している
                （#httpServletRequest は Thymeleaf 3.1 で使えない）。 */-->
-        <a class="btn btn--sm btn--ghost"
-           th:href="@{__${p}__(month=${prevMonth})}">← 前月</a>
-        <a class="btn btn--sm btn--ghost"
-           th:href="@{__${p}__(month=${nextMonth})}">翌月 →</a>
-
-        <!--/* ★ 月を直接選ぶ（2026-09-17・店主の指摘）。
-               前月・翌月だけだと、いまが 2026-09 で 2025-12 を見たいときに
-               9 回押すことになります。税理士の画面は過去の月を見に来る画面なので、
-               ここが一番効きます。
-
-               ★ JavaScript は使いません（スタッフ側は素の HTML で動かす決まり）。
-                 <input type="month"> はブラウザが月のカレンダーを出してくれます。
-                 month モデル属性は 2026-09 の形で、この入力欄の値の形そのものです。
-
-               ★ GET にするのは、月を見るのが読むだけの操作だからです。
-                 URL に残るので戻る・進むが効き、ブックマークもできます。 */-->
-        <form class="monthpick" method="get" th:action="@{__${p}__}">
-          <input class="input" type="month" name="month"
-                 th:value="${month}" aria-label="月を選ぶ">
-          <button class="btn btn--sm" type="submit">表示</button>
-        </form>
-      </div>
+      <form th:if="${month != null}" method="get" th:action="@{__${p}__}"
+            class="row row--wrap datenav">
+        <a class="btn btn--sm" th:href="@{__${p}__(month=${prevMonth})}">← 前月</a>
+        <input class="input" type="month" name="month"
+               th:value="${month}" aria-label="月を選ぶ">
+        <button type="submit" class="btn btn--sm">この月を表示</button>
+        <a class="btn btn--sm" th:href="@{__${p}__(month=${nextMonth})}">翌月 →</a>
+      </form>
 
       <div th:replace="~{fragments/common :: flash}"></div>
       <div th:replace="${content}">ページ本文</div>

@@ -63,6 +63,47 @@ class AccountantMonthPickTest {
     }
 
     /**
+     * ★ 並びと文言を注文履歴にそろえる（店主の指示・2026-09-17）。
+     *
+     * <p>注文履歴（{@code admin/orders.html}）は、前からこの形でした。
+     *
+     * <pre>
+     *   ← 前日 ／ 日付の入力 ／ この日を表示 ／ 翌日 →
+     * </pre>
+     *
+     * <p>税理士の帯は「← 前月 ／ 翌月 → ／ 月の入力 ／ 表示」と、
+     * 移動ボタンが 2 つ先に来たうえに文言も違いました。同じ役の並びが画面ごとに
+     * 違うと、押す前に毎回読むことになります。
+     *
+     * <p>「対象の月 2026-08」の文字も外しました。入力欄に同じ月が出ているので、
+     * 同じことを 2 か所で言っていたためです（注文履歴も入力欄だけです）。
+     */
+    @Test
+    @DisplayName("★ 並びと文言が注文履歴とそろっている（前 → 入力 → 表示 → 次）")
+    void theOrderMatchesTheOrderHistoryScreen() throws Exception {
+        String html = layout();
+
+        int prev = html.indexOf("← 前月");
+        int input = html.indexOf("type=\"month\"");
+        int show = html.indexOf("この月を表示");
+        int next = html.indexOf("翌月 →");
+
+        assertThat(prev).as("← 前月 が無い").isGreaterThan(0);
+        assertThat(input).as("月の入力欄が無い").isGreaterThan(0);
+        assertThat(show).as("「この月を表示」が無い（注文履歴は「この日を表示」）").isGreaterThan(0);
+        assertThat(next).as("翌月 → が無い").isGreaterThan(0);
+
+        assertThat(prev).as("入力欄が 前月 より前にある").isLessThan(input);
+        assertThat(input).as("表示ボタンが入力欄より前にある").isLessThan(show);
+        assertThat(show).as("翌月が表示ボタンより前にある").isLessThan(next);
+
+        assertThat(html).as("注文履歴と同じ行の部品（.row）を使っていない")
+                .contains("row row--wrap");
+        assertThat(html).as("「対象の月」の文字が残っている（入力欄と二重）")
+                .doesNotContain("対象の月");
+    }
+
+    /**
      * ★ 送信は GET。
      *
      * <p>月を見るのは読むだけの操作なので、URL に残って戻る・進むが効き、

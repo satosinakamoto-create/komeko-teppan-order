@@ -24,9 +24,12 @@
   </div>
 
   <!--/* ===== 日付の切り替え ===== */-->
-  <form th:action="@{/admin/orders}" method="get" class="row row--wrap">
+  <!--/* 並びは 前 → 入力 → 表示 → 次。税理士の帯（layout/accountant.html）も
+         2026-09-17 にこの形へそろえました。幅は .datenav に寄せています
+         （もとはここに style="max-width:12rem" を直接書いていました）。 */-->
+  <form th:action="@{/admin/orders}" method="get" class="row row--wrap datenav">
     <a class="btn btn--sm" th:href="@{/admin/orders(date=${prevDateIso})}">← 前日</a>
-    <input class="input" type="date" name="date" th:value="${dateIso}" style="max-width:12rem">
+    <input class="input" type="date" name="date" th:value="${dateIso}">
     <button type="submit" class="btn btn--sm">この日を表示</button>
     <a class="btn btn--sm" th:href="@{/admin/orders(date=${nextDateIso})}">翌日 →</a>
     <span class="spacer"></span>

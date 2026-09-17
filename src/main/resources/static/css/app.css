@@ -4100,14 +4100,16 @@ body.is-sending .staff-main {
   border: 1px solid var(--border);
   border-radius: 10px;
 }
-/* 月を直接選ぶ（税理士の帯・2026-09-17）。
+/* 日付・月の切り替えの行（注文履歴・税理士の帯・2026-09-17）。
 
-   .input は width:100% を主張するので、帯の中に置くと 1 行を占領する。
-   ここだけ実寸に落として、隣の「表示」ボタンと横に並べる。
+   並びは 前 → 入力 → 表示 → 次 で統一（店主の指示）。
+   .input は width:100% を主張するので、行の中では実寸に落とす。
+   注文履歴は style="max-width:12rem" を直接書いていたが、
+   2 画面で同じ形になったのでここへ寄せた。
+
    高さ（--tap 48px）と文字（16px）は落とさない。触る端末で押しにくくなるのと、
    iOS が 16px 未満の入力欄でフォーカス時に画面を拡大するため（CLAUDE.md）。 */
-.monthpick { display: flex; align-items: center; gap: var(--sp-2); }
-.monthpick .input { width: auto; }
+.datenav .input { width: auto; max-width: 12rem; }
 
 .monthnav__label { font-size: 14px; color: var(--text-muted); }
 .monthnav__go    { font-size: 16px; color: var(--accent); text-decoration: none; white-space: nowrap; }
