@@ -183,13 +183,17 @@ class StockRecordPageTest {
     void designMetrics() throws Exception {
         String css = Files.readString(CSS);
 
-        // この画面だけ縦の余白 32（設計で 64→32 に編集された）。
-        // 共通の --main-pad-y は触らず :has で絞る
-        // ★ 2026-09-13：Figma 01 ページを全画面採寸したところ、この画面は 64px だった。
-        //   コードは 32px に落としていて逆だったので、基準を 32px に反転し、
-        //   64px のほう（食材・在庫／レシピ／バックアップ）を :has で指定する形にした
-        assertThat(css).contains(".theme-desk .staff-main:has(.inv-ingredients),");
+        // ★ 2026-09-17：縦の余白を画面ごとに変えるのをやめました（店主の指摘）。
+        //   ここは 2026-09-13 に「Figma 01 ページでこの画面は 64px だった」を根拠に
+        //   :has で 64px にしていましたが、01 ページは古い版です。
+        //   いま正としている 07 ページで測り直すと、食材 32／レシピ 64／
+        //   バックアップ 64／商品 64／品切れ 32／売上 64 と設計自体がばらついていて
+        //   根拠になりませんでした。基準の 32px に統一しています
+        //   （TopGapIsConsistentTest が全画面ぶんを見ています）。
+        //
+        //   見出しの目印（.inv-ingredients）は、帯の寸法に今も使うので残します。
         assertThat(Files.readString(LIST)).contains("section-title inv-ingredients");
+        assertThat(css).contains(".stockpage .inv-ingredients {");
 
         // 探す欄は素の .searchbox。この画面だけの版（--slim）は持たない。
         // 規則そのものを見る。裸の ".searchbox--slim" だと、外した経緯を書いた

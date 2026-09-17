@@ -50,16 +50,27 @@ class MainPaddingMatchesFigmaTest {
         assertThat(css()).contains("--main-pad-y: 32px; --main-pad-x: 24px;");
     }
 
+    /**
+     * ★ 2026-09-17 に方針を変えました（店主の指摘）。
+     *
+     * <p>ここは「64px は Figma がそう描いている画面だけ」を守るテストでしたが、
+     * 根拠にしていた 01 ページは古い版でした。いま正としている 07 ページで
+     * 測り直すと、食材 32／レシピ 64／バックアップ 64／商品 64／品切れ 32／売上 64 と
+     * <b>設計自体がばらついていて</b>、どれが正か決められません。
+     *
+     * <p>店主が「上の余白が大きい」と挙げた画面が、実測でそのまま
+     * 「120px の組」＝ここで 64px にしていた 3 画面＋.sheet の 2 画面でした。
+     * そろえるほうを採り、全画面 32px に統一しています。
+     */
     @Test
-    @DisplayName("★ 64px は Figma がそう描いている画面だけ（食材在庫・レシピ・バックアップ）")
-    void onlyTheDesignedScreensGetSixtyFour() throws Exception {
-        String css = css();
-        assertThat(css).contains(".theme-desk .staff-main:has(.inv-ingredients),");
-        assertThat(css).contains(".theme-desk .staff-main:has(.recipepage),");
-        assertThat(css).contains(".theme-desk .staff-main:has(.backuppage) { --main-pad-y: 64px; }");
+    @DisplayName("★ 上下余白は全画面 32px（画面ごとに変えない）")
+    void everyScreenUsesTheSameVerticalPadding() throws Exception {
+        String bare = css().replaceAll("(?s)/\\*.*?\\*/", "");
 
-        // 32px に落とすための :has はもう要らない（基準がそれ）
-        String bare = css.replaceAll("(?s)/\\*.*?\\*/", "");
+        assertThat(bare)
+                .as("画面ごとに --main-pad-y を変えている指定が残っている")
+                .doesNotContain("--main-pad-y: 64px");
+        // 32px に落とすための :has も要らない（基準がそれ）
         assertThat(bare).doesNotContain(":has(.hallboard) { --main-pad-y: 32px; }");
         assertThat(bare).doesNotContain(":has(.soldoutpage) { --main-pad-y: 32px; }");
     }
@@ -80,7 +91,11 @@ class MainPaddingMatchesFigmaTest {
         int at = css.indexOf("40. 端末の段差");
         assertThat(at).as("40 節が無い").isGreaterThan(0);
         String band = css.substring(at).replaceAll("(?s)/\\*.*?\\*/", "");
-        assertThat(band).doesNotContain("--main-pad-y");
+        // ★「代入」だけを見ること（2026-09-17）。
+        //   裸の "--main-pad-y" だと、41 節の .sheet の打ち消し
+        //   （margin-top: calc(var(--main-pad-y) * -1)）にも一致して落ちます。
+        //   あちらは値を読んでいるだけで、段差を付けてはいません。
+        assertThat(band).doesNotContain("--main-pad-y:");
 
         // 文字と他の余白の一段下げは残す
         assertThat(band).contains("font-size: 28px; line-height: 32px;");
