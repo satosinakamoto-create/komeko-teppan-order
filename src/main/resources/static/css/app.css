@@ -4996,11 +4996,19 @@ body.is-sending .staff-main {
 .hallmodal__box {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  /* ★ 設計（ト02c/d/e）は 32px（2026-09-18・店主の指摘）。
+       20px だと、この箱は縦積みなので<b>中の段という段が 12px ずつ狭く</b>なります。
+       店主が気づいたのは「どちらか選ばないと締められません」と
+       ボタンの間でしたが、原因は 1 か所ではなくここでした。 */
+  gap: 32px;
   padding: 40px 24px;
   border: 1px solid #e3e3e3;
 }
-.hallmodal__pane { display: flex; flex-direction: column; gap: 20px; }
+/* ★ 段を積んでいるのは箱ではなくこちら（2026-09-18）。
+     箱（.hallmodal__box）の gap を 32px にしても中身は動きませんでした。
+     箱が積んでいるのは「面」で、面の中の段を積むのがここです。
+     実測して気づきました。設計（ト02c/d/e）は 32px。 */
+.hallmodal__pane { display: flex; flex-direction: column; gap: 32px; }
 .hallmodal__pane[hidden] { display: none; }
 
 .hallmodal__head {
@@ -5040,7 +5048,12 @@ body.is-sending .staff-main {
 .hallmodal__foot { display: flex; gap: 12px; }
 /* 設計（ト02c/d/e）の副ボタンは枠 #d1d1d1。共通の .btn は --border-strong が
    効いて #c7c7c7 になっていました（2026-09-18 の実測）。 */
-.hallmodal__sub  { flex: 1 1 0; min-height: 48px; font-size: 15px; border-radius: 4px;
+/* ★ 戻る・やめるは 115px で固定（設計 ト02c/d/e・2026-09-18）。
+     両方を伸ばすと、内容の長さでボタンの幅が決まってしまいます
+     （「← 戻る」と「お会計（伝票を締める）」で 139 / 317 になっていました）。
+     115 ＋ 12（gap）＋ 345 ＝ 472 で、箱の中身の幅とぴったり合います。
+     枠の #d1d1d1 も設計の値（共通の .btn は --border-strong で #c7c7c7）。 */
+.hallmodal__sub  { flex: 0 0 115px; min-height: 48px; font-size: 15px; border-radius: 4px;
                    border-color: #d1d1d1; }
 /* ★ セレクタを .hallmodal から書くこと（2026-09-17・店主の指摘で判明）。
 
@@ -5055,7 +5068,10 @@ body.is-sending .staff-main {
    .btn--primary / .btn--ok は 3573 行の .theme-desk .btn--primary が
    (0,2,0) で救済しています。ここはその救済から漏れていました。 */
 .hallmodal .hallmodal__main {
-  flex: 3 1 0;
+  /* ★ 残りを埋める（2026-09-18）。副ボタンが 115px 固定になったので、
+       割合（3 1 0）ではなく「残り全部」でよくなりました。
+       115 ＋ 12（gap）＋ 345 ＝ 472。設計の幅と一致します。 */
+  flex: 1;
   min-height: 48px;
   font-size: 15px;
   border-radius: 4px;
