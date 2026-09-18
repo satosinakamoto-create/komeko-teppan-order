@@ -8403,8 +8403,48 @@ dialog[open] { margin: auto; }
 }
 .importcard__name { font-size: 20px; }
 
+/* 文字リンクの見た目をした submit（設計 ト09b 806:8314・2026-09-18）。
+
+   Figma の実測:
+     ＋ 材料を足す    #0b7a1a 14px Bold  面は白・枠なし
+     ＋ その場で作成  #d33f3f 14px Bold  面は白・枠なし
+
+   実装は前者が白い枠ボタン、後者が緑の塗りボタンでした。とくに後者は逆で、
+   いちばん強い見た目が「まだ食材が無い」という<b>不足の合図</b>に付いていました。
+
+   ★ 枠を持たせない理由。表の中に枠付きのボタンが行ごとに並ぶと、
+     読みたい数字より枠のほうが目立ちます。.recbtn のコメントにも
+     「面まで塗ると緑の帯が縦に連なって表の数字より目立つ」と同じ趣旨があります。
+
+   ★ 高さは 48px を割りません。設計の「＋ 材料を足す」は 21px の行ですが、
+     押せるものなので CLAUDE.md の「タップ領域は 48px 以上」を優先します。 */
+.linkbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--action);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.linkbtn:hover { text-decoration: underline; }
+.linkbtn:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+/* 不足の合図。押せるが「足りていない」ことを先に伝えたいので赤。 */
+.linkbtn--danger { color: var(--danger); }
+.linkbtn--danger:focus-visible { outline-color: var(--danger); }
+
 /* 状態の列。一致は緑、未一致はその場で作る道を出す。 */
-.importcard__ok { color: var(--ok); font-weight: 700; font-size: 14px; }
+/* ★ 設計の「✓ 一致」は #0b7a1a＝--action（2026-09-18 に実測）。
+     --ok（#3f8e6d）のままだと、隣の「＋ その場で作成」と並んだときに
+     2 つの緑が混ざります。この画面の緑は 1 つに絞ります。 */
+.importcard__ok { color: var(--action); font-weight: 700; font-size: 14px; }
 .importcard__make {
   display: flex;
   align-items: center;

@@ -252,7 +252,10 @@
                     <option th:each="u : ${units}" th:value="${u}"
                             th:text="${u.symbol}">g</option>
                   </select>
-                  <button type="submit" class="btn btn--sm btn--primary"
+                  <!--/* ★ 赤い文字リンク（設計 ト09b・#d33f3f 14px Bold・枠なし）。
+                         2026-09-18 まで緑の塗りボタンでした。いちばん強い見た目が
+                         「まだ食材が無い」という不足の合図に付いていたことになります。 */-->
+                  <button type="submit" class="linkbtn linkbtn--danger"
                           name="createIngredientRow"
                           th:value="${it.index} + ':' + ${li.index}">＋ その場で作成</button>
                 </div>
@@ -269,7 +272,9 @@
         </div>
 
         <p class="mb-0">
-          <button type="submit" class="btn btn--sm btn--ghost"
+          <!--/* 緑の文字リンク（設計 ト09b・#0b7a1a 14px Bold・枠なし）。
+                 表の下に枠付きのボタンが並ぶと、読みたい数字より枠が目立ちます。 */-->
+          <button type="submit" class="linkbtn"
                   name="addLine" th:value="${it.index}">＋ 材料を足す</button>
         </p>
 
@@ -277,7 +282,7 @@
     </div>
 
     <p class="mb-0">
-      <button type="submit" class="btn btn--ghost" name="addItem" value="1">＋ 商品を足す</button>
+      <button type="submit" class="linkbtn" name="addItem" value="1">＋ 商品を足す</button>
     </p>
 
     <!--/* ===== フッター ===== （Figma 808:1737）
