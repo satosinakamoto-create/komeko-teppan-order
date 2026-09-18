@@ -3691,6 +3691,22 @@ body.is-sending .staff-main {
   gap: 16px;
   padding: 16px 40px;
 
+  /* ★ 行の高さを固定する（2026-09-18・店主の指摘
+       「見出しの位置が全部微妙にズレて見える」）。
+
+       原因は余計な余白ではなく、<b>行の中でいちばん背の高いもの</b>でした。
+       この行は align-items: center なので、隣に何を置いたかで題が上下します。
+
+           題だけ          行 36px → 題の下がり 0px  → 上から 48px
+           ＋ボタン 48px    行 48px → 題の下がり 6px  → 上から 54px
+           ＋日付の帯 50px  行 50px → 題の下がり 7px  → 上から 55px
+
+       ★ 床は「行」ではなく「題」に敷くこと。
+         .page-head は box-sizing: border-box なので、行に min-height: 50px と
+         書いても padding 32px を含んでしまい、中身の床は 18px にしかなりません。
+         行はすでに 68px あるので、1 ミリも効きませんでした（2026-09-18 に実測）。
+         題に敷けば padding にも iPad の一段下げにも左右されません。 */
+
   /* ★ 入りきらないときは行を増やす（2026-09-18）。
        もとは既定の nowrap で、狭いと中身を片端から縮めていました。
        日付・月の帯を題の行へ入れたあと、iPad 幅（1024px）の
@@ -3710,7 +3726,10 @@ body.is-sending .staff-main {
      欧文の 500 より細く見え、ページの題が本文に埋もれます。 */
 /* ★ 題は縮めない（2026-09-18）。縮むと「仕入れ・経費」が 2 行に折れます。
      画面の名前が折れると、まず目に入るものが崩れて見えます。 */
-.page-head__title  { font-size: 32px; font-weight: 700; margin: 0; line-height: 36px; flex-shrink: 0; }
+.page-head__title  { font-size: 32px; font-weight: 700; margin: 0; line-height: 36px; flex-shrink: 0;
+                     /* 行の中でいちばん背の高い中身（日付の帯 50px）に合わせた床。
+                        隣に何を置いても題の位置が動かなくなります。 */
+                     min-height: 50px; display: flex; align-items: center; }
 .page-head__sub    { font-size: 14px; color: var(--text-muted); }
 .page-head__spacer { flex: 1; }
 
@@ -5286,6 +5305,10 @@ body.is-sending .staff-main {
      左右は触りません。あちらは 40px を持っていますが、
      税理士は .staff-main の --main-pad-x に任せる作りのままにします。 */
 .theme-ledger .section-title:has(h1) { padding-block: 16px; }
+/* 題に床を敷く。行に敷いても border-box で padding に食われて効きません。
+   .theme-ledger だけでなく机で使う画面すべてに。題を .section-title__text で
+   出している画面（食材・在庫・品切れ・ホール・税理士）が対象です。 */
+.theme-desk h1.section-title__text { min-height: 50px; display: flex; align-items: center; }
 
 /* iPad では帯も一段詰める（.page-head の 12px と同じ）。 */
 @media (max-width: 1380px) {
