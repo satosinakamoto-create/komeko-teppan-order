@@ -7038,7 +7038,29 @@ body.is-sending .staff-main {
   border-radius: 6px;
   box-shadow: none;
 }
-.kitchenboard .griddle .card__body { padding: 20px 24px; }
+/* 見出しの帯。他の画面（.page-head / .section-title）と同じ 16px 40px。
+
+   ★ 2026-09-19：20px 24px から変えました（店主の指摘
+     「厨房の見出しだけ余白がズレてみえる」）。実測:
+
+       画面            題の x   帯の上の余白
+       厨房ボード       312      20     ← ここだけ
+       ホール・会計     328      16
+       品切れ・残数     328      16
+       商品            328      16
+       食材・在庫       328      16
+       注文履歴         328      16
+       卓              328      16
+
+     16px 左・4px 下にいました。画面を行き来すると題が動いて見えます。
+
+   ★ 実装は設計（ト01）のとおりでした。ズレていたのは設計のほうです。
+     設計も ト01 / トi01 / トp01 の帯を 16/40 に直してあります。
+
+       設計 ト01 厨房   帯 pad 20/24 → 題 x=312
+       設計 ト03 品切れ 帯 pad 16/40 → 題 x=328
+       設計 ト10 商品   帯 pad  0/40 → 題 x=328 */
+.kitchenboard .griddle .card__body { padding: 16px 40px; }
 .kitchenboard .griddle .row { gap: 16px; }
 /* 題と説明は横並び（設計は 1 行）。縦に積むと帯が 2 行ぶんの高さになる */
 .kitchenboard .griddle__title {
@@ -7051,6 +7073,17 @@ body.is-sending .staff-main {
 /* 他のページの題（.page-head__title）と同じ 32px / 36px にそろえる。
    ここだけ 28px だったので、画面を行き来すると題の大きさが変わっていました */
 .kitchenboard .griddle h1 { font-size: 32px; line-height: 36px; }
+/* ★ 題の箱の高さも他の画面とそろえる（.page-head__title と同じ 50px）。
+     字は 36px なので、50px の中で縦中央に置くと字の中心が他と同じ 129px に来ます。
+     床が無いと 36px のまま上に詰まり、字の中心が 126px になって 3px 上にずれます。
+
+   ★ 床は「帯」ではなく「題」に敷くこと。帯（.card__body）に min-height を
+     書いても box-sizing: border-box で padding に食われます（CLAUDE.md 参照）。 */
+.kitchenboard .griddle h1 {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+}
 .kitchenboard .griddle .small { font-size: 13px; color: #828282; }
 .kitchenboard .griddle .tiny { font-size: 12px; color: #828282; }
 
@@ -7679,7 +7712,9 @@ body.is-sending .staff-main {
   .staff-frame:has(.kitchenboard) .topbar__brand,
   .staff-frame:has(.hallboard) .topbar__brand { height: 40px; }
 
-  .kitchenboard .griddle .card__body { padding: 12px 16px; }
+  /* 左右は .page-head と同じ 24px にそろえる（2026-09-19）。
+     ここだけ 16px だと、狭い画面でも厨房の題だけ 8px 左にずれる */
+  .kitchenboard .griddle .card__body { padding: 12px 24px; }
   .kitchenboard .board { margin-top: 16px; }
 
   .hallboard .lane__body { padding: 12px; gap: 12px; }
@@ -8293,6 +8328,10 @@ body.is-sending .staff-main {
        詳細度 0,2,1。ここに .dashpage { gap: 32px }（0,1,0）を残すと、
        読めるのに効かない 1 行になります。 */
   .page-head { padding: 12px 24px; }
+  /* 厨房の見出しの帯も一緒に畳む（2026-09-19）。
+     ここに書かないと 1141〜1380px のあいだだけ厨房が 16/40 のまま残り、
+     ほかの画面（12/24）と題の位置が 16px ずれます */
+  .kitchenboard .griddle .card__body { padding: 12px 24px; }
   .statcard:not(.statcard--tall),
   .dashpage .statcard:not(.statcard--tall) { padding: 15px 16px; }
   .panel { padding: 16px; }

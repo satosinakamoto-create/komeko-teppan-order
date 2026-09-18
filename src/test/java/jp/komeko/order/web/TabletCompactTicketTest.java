@@ -101,7 +101,7 @@ class TabletCompactTicketTest {
     }
 
     @Test
-    @DisplayName("★ 画面の上も詰める（帯 88 → 64、見出しの内側 20 → 12）")
+    @DisplayName("★ 画面の上も詰める（見出しの内側 上下 16 → 12）")
     void theTopOfTheScreenIsTightenedToo() throws Exception {
         String band = tabletBand();
 
@@ -112,6 +112,25 @@ class TabletCompactTicketTest {
         //   いまは基準の 56px がそのままタブレットにも効きます
         assertThat(band).contains(".staff-frame:has(.kitchenboard) .topbar__brand,");
         assertThat(band).doesNotContain("--topbar-h");
-        assertThat(band).contains(".kitchenboard .griddle .card__body { padding: 12px 16px; }");
+
+        // ★ 左右は 16px → 24px（2026-09-19）。店主の指摘
+        //   「厨房の見出しだけ余白がズレてみえる」。
+        //   狭い画面のほかのページ（.page-head）は 12px 24px なので、
+        //   厨房だけ 16px だと題が 8px 左に残ります。
+        //
+        //   ★ このテストが守っているのは<b>上下</b>を詰めること（16 → 12）です。
+        //     そこは変えていません。
+        //
+        //   ★ ただし題に 50px の床を敷いたので、帯そのものは高くなりました。
+        //     1024x768 で実測:
+        //
+        //       帯の高さ        56 → 74   (+18)
+        //       盤面の始まり    168 → 186 (+18)
+        //       まるごと見える注文  6 件 → 6 件（変わらず）
+        //
+        //     18px では札 1 枚ぶんに届かないので、いまのところ減っていません。
+        //     <b>札の高さを変えるときは、ここをもう一度測ること。</b>
+        //     余裕は 18px しかないので、次に何か足すと 1 件落ちます。
+        assertThat(band).contains(".kitchenboard .griddle .card__body { padding: 12px 24px; }");
     }
 }

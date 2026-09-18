@@ -239,7 +239,7 @@ class StockRecordPageTest {
     }
 
     @Test
-    @DisplayName("厨房ボードの見出し（設計 現01 552:6627）：上下 20・題 32・説明 13")
+    @DisplayName("厨房ボードの見出し：上下 16・左右 40・題 32・説明 13")
     void kitchenHeadingMetrics() throws Exception {
         // 2026-09-12 に .griddle 単体から .kitchenboard 配下（app.css 33 節）へ移した。
         // 厨房ボードの値をひとところに集めるため。同じ値が 2 箇所にあると
@@ -249,8 +249,20 @@ class StockRecordPageTest {
         //   他のページの題（.page-head__title）は 32px で、この画面だけ一段
         //   小さいままでした。店主の指示で Render にそろえる際に統一しています
         //   （RenderAlignedTypeTest）。
+        //
+        // ★ 余白は 20/24 → 16/40（2026-09-19）。店主の指摘
+        //   「厨房の見出しだけ余白がズレてみえる」。測ったら本当にズレていました。
+        //
+        //     画面          題の x   題の y
+        //     厨房ボード     312      108     ← ここだけ
+        //     ほかの 7 画面  328      104
+        //
+        //   16px 左・4px 下。実装は設計（ト01）のとおりでしたが、
+        //   設計のほうが同じ幅の他の画面（ト02 ホール 20/40・ト03 品切れ 16/40）と
+        //   ちがっていました。Figma の ト01 / トp01 も 16/40 に直してあります。
+        //   詳しくは KitchenHeadLinesUpTest。
         String css = Files.readString(CSS);
-        assertThat(css).contains(".kitchenboard .griddle .card__body { padding: 20px 24px; }");
+        assertThat(css).contains(".kitchenboard .griddle .card__body { padding: 16px 40px; }");
         assertThat(css).contains(".kitchenboard .griddle h1 { font-size: 32px; line-height: 36px; }");
         assertThat(css).contains(".kitchenboard .griddle .small { font-size: 13px; color: #828282; }");
 
