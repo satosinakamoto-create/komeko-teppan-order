@@ -91,7 +91,16 @@ class RenderAlignedTypeTest {
     void headingsMatchRender() throws Exception {
         String css = css();
 
-        assertThat(css).contains(".page-head__title  { font-size: 32px; font-weight: 700; margin: 0; line-height: 36px; }");
+        // ★ 2026-09-18: 行そのものではなく中身を見る形に変えました。
+        //   .page-head__title に flex-shrink: 0 を足したためです（帯を題の行へ
+        //   入れたあと、iPad 幅で「仕入れ・経費」が 2 行に折れていた）。
+        //   ここが守りたいのは寸法（32px / 36px）で、行の書き方ではありません。
+        int title = css.indexOf(".page-head__title");
+        assertThat(title).as(".page-head__title の指定が無い").isGreaterThan(0);
+        String titleRule = css.substring(title, css.indexOf("}", title));
+        assertThat(titleRule).contains("font-size: 32px");
+        assertThat(titleRule).contains("line-height: 36px");
+        assertThat(titleRule).contains("font-weight: 700");
         // 厨房ボードだけ 28px で一段小さかった。同じ「ページの題」なのでそろえる
         assertThat(css).contains(".kitchenboard .griddle h1 { font-size: 32px; line-height: 36px; }");
         assertThat(css).contains(".panel__title { font-size: 20px; font-weight: 700; margin: 0; line-height: 28px; }");

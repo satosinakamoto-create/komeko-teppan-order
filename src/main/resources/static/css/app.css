@@ -3670,12 +3670,27 @@ body.is-sending .staff-main {
   align-items: center;
   gap: 16px;
   padding: 16px 40px;
+
+  /* ★ 入りきらないときは行を増やす（2026-09-18）。
+       もとは既定の nowrap で、狭いと中身を片端から縮めていました。
+       日付・月の帯を題の行へ入れたあと、iPad 幅（1024px）の
+       仕入れ・経費で次のことが起きていました。
+
+         題「仕入れ・経費」 196×36 →  167×64  ＝ 2 行に折れた
+         帯               355×50 →  346×102 ＝ 2 段に割れた
+
+       あそこは題・帯・税率マスタ・レシートを登録が並ぶ唯一の画面で、
+       1024px では素直に入りません。入らないものを縮めるより、
+       行を増やすほうが読めます。 */
+  flex-wrap: wrap;
 }
 /* 見出しは Render の実測値 32px / 行間 36px。
    行間を倍率（1.4＝44.8px）ではなく px で持つのは、あちらが 36px 固定だからです。
    ★ 太さは 700 のまま。Render は 500 ですが、日本語（Noto Sans JP）の 500 は
      欧文の 500 より細く見え、ページの題が本文に埋もれます。 */
-.page-head__title  { font-size: 32px; font-weight: 700; margin: 0; line-height: 36px; }
+/* ★ 題は縮めない（2026-09-18）。縮むと「仕入れ・経費」が 2 行に折れます。
+     画面の名前が折れると、まず目に入るものが崩れて見えます。 */
+.page-head__title  { font-size: 32px; font-weight: 700; margin: 0; line-height: 36px; flex-shrink: 0; }
 .page-head__sub    { font-size: 14px; color: var(--text-muted); }
 .page-head__spacer { flex: 1; }
 
@@ -4246,11 +4261,36 @@ body.is-sending .staff-main {
      離して置くと題を読んでから視線を下げてもう一度読むことになります。 */
 .datenav {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-3);
+
+  /* ★ 帯は縮めない・折らない（2026-09-18）。
+       前月・入力欄・翌月の 3 つで<b>ひとつの操作</b>なので、
+       割れると「前月 / 入力欄」「翌月」のように意味が切れます。
+
+       題の行の中に入ったことで、狭い画面では周りから押されるように
+       なりました。iPad 幅の仕入れ・経費で実際に 2 段（346×102）に
+       割れていたのを、これで止めます。
+       入りきらないときは .page-head 側が行を増やします。 */
+  flex-shrink: 0;
+  flex-wrap: nowrap;
 }
 .datenav .input { width: auto; min-width: 11rem; max-width: 14rem; }
+
+/* ★ iPad 幅では入力欄を少し詰める（2026-09-18）。
+     帯を題の行へ入れた結果、いちばん混む画面（仕入れ・経費）が
+     1024px で 13px だけ足りず、レシートを登録が 2 行目へ落ちていました。
+
+       題 171 ＋ 帯 355 ＋ 税率マスタ 128 ＋ レシートを登録 159
+       ＋ 間隔 16×4 ＝ 877 ／ 使える幅 864
+
+     11rem（176px）は「2026年09月」とカレンダーの絵が切れないための下限で、
+     2026-09-17 に店主の指摘で入れた値です。実測では 9.5rem（152px）でも
+     切れないので、狭いときだけそこまで詰めます。
+     字は 16px のまま（iOS が 16px 未満の入力欄で画面を拡大するため）。 */
+@media (max-width: 1100px) {
+  .datenav .input { min-width: 9.5rem; }
+}
 
 /* ★ 題の行が帯を持つときは縦中央でそろえる。
      .section-title の既定は align-items: baseline です。文字どうしを

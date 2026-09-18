@@ -247,6 +247,87 @@ class DateBandIsOneDesignTest {
     }
 
     /**
+     * ★ 帯は縮めない・折らない。
+     *
+     * <p><b>2026-09-18 に実測で見つけた崩れです。</b>帯を題の行へ入れたあと、
+     * iPad 幅（1024px）の仕入れ・経費で次のようになっていました。
+     *
+     * <pre>
+     *            1432px      1024px
+     *   題      196×36  →   167×64   ＝ 2 行に折れた
+     *   帯      355×50  →   346×102  ＝ 2 段に割れた
+     *   帯全体   82px   →   126px
+     * </pre>
+     *
+     * <p>原因は、flex の既定で<b>すべての部品が縮む</b>（{@code flex-shrink: 1}）ことでした。
+     * あの画面だけ題・帯・税率マスタ・レシートを登録の 4 つが並び、1024px では
+     * 素直に入りません。入らないものを片端から縮めた結果、
+     * 前月・入力欄・翌月という<b>ひとつの操作</b>が 2 段に割れていました。
+     *
+     * <p>割れると「前月 ／ 入力欄」「翌月」のように意味が切れます。
+     */
+    @Test
+    @DisplayName("★ 帯は縮めない・折らない（2 段に割れない）")
+    void theBandNeverFolds() throws Exception {
+        String css = Files.readString(CSS).replace("\r\n", "\n");
+
+        int at = css.indexOf(".datenav {");
+        String rule = css.substring(at, css.indexOf("}", at));
+
+        assertThat(rule)
+                .as("帯が縮む。前月・入力欄・翌月はひとつの操作なので、"
+                        + "狭い画面で押されて 2 段に割れると意味が切れる")
+                .contains("flex-shrink: 0");
+        assertThat(rule).as("帯が折り返す設定のまま").contains("flex-wrap: nowrap");
+
+        int t = css.indexOf(".page-head__title");
+        assertThat(css.substring(t, css.indexOf("}", t)))
+                .as("題が縮む。「仕入れ・経費」が 2 行に折れる")
+                .contains("flex-shrink: 0");
+
+        int h = css.indexOf(".page-head {");
+        assertThat(css.substring(h, css.indexOf("}", h)))
+                .as("題の行が折り返さない。入らないときに中身を縮めることになる")
+                .contains("flex-wrap: wrap");
+    }
+
+    /**
+     * ★ 狭い画面では入力欄を詰める。
+     *
+     * <p>縮めない・折らないだけにすると、今度はボタンが 2 行目へ落ちます。
+     * 実測で 1024px の仕入れ・経費は <b>13px だけ</b>足りませんでした。
+     *
+     * <pre>
+     *   題 171 ＋ 帯 355 ＋ 税率マスタ 128 ＋ レシートを登録 159
+     *   ＋ 間隔 16×4 ＝ 877   ／   使える幅 864
+     * </pre>
+     *
+     * <p>11rem（176px）は「2026年09月」とカレンダーの絵が切れないための下限で、
+     * 2026-09-17 に店主の指摘で入れた値です。9.5rem（152px）でも切れないことを
+     * 実機で確かめたので、狭いときだけそこまで詰めます。
+     *
+     * <p><b>字は 16px のまま。</b>iOS が 16px 未満の入力欄でフォーカス時に
+     * 画面を拡大するためです（CLAUDE.md）。
+     */
+    @Test
+    @DisplayName("★ 狭い画面は入力欄だけ詰める（字は 16px のまま）")
+    void theInputTightensOnNarrowScreens() throws Exception {
+        String css = Files.readString(CSS).replace("\r\n", "\n");
+
+        assertThat(css)
+                .as("狭い画面で入力欄を詰める指定が無い。"
+                        + "仕入れ・経費の iPad でボタンが 2 行目に落ちる")
+                .containsPattern("(?s)@media \\(max-width: 1100px\\) \\{\\s*"
+                        + "\\.datenav \\.input \\{ min-width: 9\\.5rem; \\}");
+
+        // 字を小さくして幅を稼いでいないこと
+        int at = css.indexOf(".datenav .input {");
+        assertThat(css.substring(at, css.indexOf("}", at)))
+                .as("入力欄の字に手を入れている。16px 未満にすると iOS が画面を拡大する")
+                .doesNotContain("font-size");
+    }
+
+    /**
      * ★ 題の行は縦中央で揃えること。
      *
      * <p>{@code .section-title} は既定が {@code align-items: baseline} です。
