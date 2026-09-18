@@ -94,11 +94,21 @@ class AccentIsNotTealTest {
         Matcher m = Pattern.compile("(?m)^.*#(0b7a78|ddf0ec).*$").matcher(css);
         while (m.find()) lines.add(m.group().trim());
 
-        // 2026-09-18 時点の残り。厨房ボード・ログイン・折れ線グラフなど。
-        // 減らすのは歓迎。増やすときは、なぜ --action で足りないのかをここに書くこと。
-        assertThat(lines.size())
-                .as("ティールのベタ書きが増えている。\n" + String.join("\n", lines))
-                .isLessThanOrEqualTo(20);
+        // ★ 2026-09-18 に 0 にしました。実測（全 25 画面）でもティールは 0 件です。
+        //
+        //     前: 厨房ボード・ログイン・折れ線グラフ・札・帯グラフに 16 か所
+        //     後: 0 か所。すべて --action / --action-soft に寄せました
+        //
+        //   --green-700 / --green-100 の「定義」2 行だけは残しています
+        //   （捨てた色として、注記つきで）。数えるのは使っている側だけです。
+        //   1 つでも増えたら落ちます。増やすときは、なぜ --action で
+        //   足りないのかをこのテストに書いてから通すこと。
+        List<String> used = new ArrayList<>();
+        for (String l : lines) {
+            if (l.startsWith("--green-700:") || l.startsWith("--green-100:")) continue;
+            used.add(l);
+        }
+        assertThat(used).as("ティールのベタ書きが復活している").isEmpty();
     }
 
     /**

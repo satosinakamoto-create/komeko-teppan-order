@@ -143,7 +143,10 @@ class SalesRenderToneTest {
         String css = css();
         assertThat(css).contains(".salespage .linechart__grid line { stroke: #e3e3e3; }");
         assertThat(css).contains(".salespage .linechart__area { display: none; }");
-        assertThat(css).contains(".salespage .linechart__dot { border: 2.5px solid #0b7a78; background: #ffffff; }");
+        // ★ 2026-09-18: ベタ書きのティール（#0b7a78）をやめて --action に寄せました。
+        //   点の色は「押せる緑」と同じで構いません。1 か所ずつ書いていたせいで、
+        //   色を替えるたびにグラフだけ取り残されていました。
+        assertThat(css).contains(".salespage .linechart__dot { border: 2.5px solid var(--action); background: #ffffff; }");
     }
 
     @Test

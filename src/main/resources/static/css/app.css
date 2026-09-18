@@ -4482,7 +4482,7 @@ body.is-sending .staff-main {
 .linechart__wrap { position: relative; }
 .linechart { width: 100%; height: 264px; display: block; }
 .linechart__grid line { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.linechart__area { fill: var(--green-100, #ddf0ec); opacity: .55; }
+.linechart__area { fill: var(--action-soft); opacity: .55; }
 .linechart__line {
   fill: none;
   stroke: var(--accent);
@@ -4583,9 +4583,9 @@ body.is-sending .staff-main {
 }
 .allocbar__seg + .allocbar__seg { border-left: none; }
 .allocbar__seg span { font-size: 11px; font-weight: 700; }
-.allocbar__seg--f      { background: var(--green-700); color: #fff; }
+.allocbar__seg--f      { background: var(--action); color: #fff; }
 .allocbar__seg--l      { background: var(--green-600); color: #fff; }
-.allocbar__seg--util   { background: var(--green-100); color: var(--text); }
+.allocbar__seg--util   { background: var(--action-soft); color: var(--text); }
 .allocbar__seg--misc   { background: var(--surface-2); color: var(--text-muted); }
 .allocbar__seg--rent   { background: var(--surface);   color: var(--text-muted); }
 .allocbar__seg--rent-over { background: var(--danger); color: #fff; }
@@ -4757,7 +4757,7 @@ body.is-sending .staff-main {
 }
 /* 調理中あり。.badge--rec は .theme-snow で --accent がほぼ黒になるので、
    この画面だけ設計どおりの緑（面 #ddf0ec ／ 文字 #0b7a78）に差し替える */
-.hallboard .billcard .badge--rec { background: var(--green-100); color: var(--green-700); }
+.hallboard .billcard .badge--rec { background: var(--action-soft); color: var(--action); }
 /* バッシングは色相を持たせない（ルーチン作業。設計 545:3601）。
    面 #eef1f4 ／ 文字は本文色。薄い文字にしないのは、静かにしたいのは
    色相であって読みやすさではないため */
@@ -7008,8 +7008,8 @@ body.is-sending .staff-main {
 .kitchenboard .griddle .badge {
   padding: 4px 12px;
   font-size: 13px;
-  background: #ddf0ec;
-  color: #0b7a78;
+  background: var(--action-soft);
+  color: var(--action);
   border-color: transparent;
 }
 
@@ -7057,7 +7057,7 @@ body.is-sending .staff-main {
 /* 上の 3px がそのレーンの色。設計では下の 1px も同じ色の線（太さ違いの 1 本）。
    受付＝藍、調理中＝ティール、提供待ち＝緑。左から右へ進むほど「出来上がりに近い」 */
 .kitchenboard .lane--received .lane__head { border-top: 3px solid #4e5ba6; border-bottom-color: #4e5ba6; }
-.kitchenboard .lane--cooking  .lane__head { border-top: 3px solid #0b7a78; border-bottom-color: #0b7a78; }
+.kitchenboard .lane--cooking  .lane__head { border-top: 3px solid var(--action); border-bottom-color: var(--action); }
 .kitchenboard .lane--ready    .lane__head { border-top: 3px solid #3f8e6d; border-bottom-color: #3f8e6d; }
 
 /* 件数はホールと同じ型（2026-09-14。数字 20px Bold 濃色・灰色の器なし）。
@@ -7119,8 +7119,8 @@ body.is-sending .staff-main {
 .kitchenboard .ticket__head .badge {
   padding: 2px 8px;
   font-size: 11px;
-  background: #ddf0ec;
-  color: #0b7a78;
+  background: var(--action-soft);
+  color: var(--action);
   border-color: transparent;
 }
 
@@ -7143,7 +7143,7 @@ body.is-sending .staff-main {
   font-weight: 700;
   min-width: 34px;
   white-space: nowrap;
-  color: #0b7a78;
+  color: var(--action);
 }
 /* 品名の入れ物は縮んでよい。
    flex の子は既定で min-width: auto（＝中身より狭くならない）ので、
@@ -7164,8 +7164,8 @@ body.is-sending .staff-main {
 .kitchenboard .ticket__note {
   padding: 8px;
   border-radius: 4px;
-  background: #ddf0ec;
-  color: #0b7a78;
+  background: var(--action-soft);
+  color: var(--action);
   font-size: 13px;
   font-weight: 500;
 }
@@ -7859,7 +7859,7 @@ body.is-sending .staff-main {
   border-radius: 4px;
   color: #1c1c1c;
 }
-.loginpage .input:focus { border-color: #0b7a78; }
+.loginpage .input:focus { border-color: var(--action); }
 /* 欄と欄、欄とボタンの間も 20px にそろえる（共通の .field は 16px） */
 .loginpage .field { margin-bottom: 20px; }
 
@@ -7901,7 +7901,7 @@ body.is-sending .staff-main {
   text-align: center;
 }
 .loginpage__link { margin: 0; font-size: 13px; }
-.loginpage__link a { color: #0b7a78; }
+.loginpage__link a { color: var(--action); }
 
 /* ==========================================================================
    37. 通知とページ見出しのあいだ（2026-09-12）
@@ -8016,21 +8016,21 @@ body.is-sending .staff-main {
    -------------------------------------------------------------------------- */
 .dashpage .linechart__grid line { stroke: #e3e3e3; }
 /* 線は 2 → 2.5px（設計） */
-.dashpage .linechart__line { stroke: #0b7a78; stroke-width: 2.5; }
+.dashpage .linechart__line { stroke: var(--action); stroke-width: 2.5; }
 /* ★ 線の下の塗りは設計にありません。
      設計の「折れ線」フレームには罫線・線・点しか無く、面が塗られていません。
      マークアップと Java（SalesView.Chart.area()）はそのまま残し、
      この画面でだけ隠します。戻すのはこの 1 行を消すだけ。 */
 .dashpage .linechart__area { display: none; }
 /* 点は 9px の白抜きに枠 2.5px。設計では最後の点も白抜きのまま */
-.dashpage .linechart__dot { border: 2.5px solid #0b7a78; background: #ffffff; }
+.dashpage .linechart__dot { border: 2.5px solid var(--action); background: #ffffff; }
 .dashpage .linechart__dot.is-last { background: #ffffff; }
 /* 目盛りと横軸。設計では最後の「2時」も他と同じ色・太さ */
 .dashpage .linechart__ylabel { color: #828282; }
 .dashpage .linechart__xaxis i { color: #828282; }
 .dashpage .linechart__xaxis > span.is-last i { color: #828282; font-weight: 400; }
 /* ピークに添える金額だけ緑の太字（設計の「¥7,100」） */
-.dashpage .linechart__plabel { color: #0b7a78; font-weight: 700; }
+.dashpage .linechart__plabel { color: var(--action); font-weight: 700; }
 
 /* --------------------------------------------------------------------------
    38-6. ランキング表
@@ -8142,9 +8142,9 @@ body.is-sending .staff-main {
 .salespage .segmented__item { border-radius: 0; }
 
 .salespage .linechart__grid line { stroke: #e3e3e3; }
-.salespage .linechart__line { stroke: #0b7a78; stroke-width: 2.5; }
+.salespage .linechart__line { stroke: var(--action); stroke-width: 2.5; }
 .salespage .linechart__area { display: none; }
-.salespage .linechart__dot { border: 2.5px solid #0b7a78; background: #ffffff; }
+.salespage .linechart__dot { border: 2.5px solid var(--action); background: #ffffff; }
 .salespage .linechart__dot.is-last { background: #ffffff; }
 
 /* ランキング表はパネルの中の読み物（38-6 と同じ理由・同じ寸法） */

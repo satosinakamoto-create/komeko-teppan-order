@@ -360,8 +360,8 @@ public class AdminSalesController {
 
         // しるしの色は設計 14 売上（17:1038）の帯と同じにする。
         // 帯と表で同じ費目が違う色だと、対応が目で追えない
-        BreakdownRow foodRow = row("F 食材・飲料", food + drink, sales, TARGET_FOOD, "var(--green-700)");
-        BreakdownRow utilRow = row("光熱費", utilities, sales, TARGET_UTILITIES, "var(--green-100)");
+        BreakdownRow foodRow = row("F 食材・飲料", food + drink, sales, TARGET_FOOD, "var(--action)");
+        BreakdownRow utilRow = row("光熱費", utilities, sales, TARGET_UTILITIES, "var(--action-soft)");
         BreakdownRow miscRow = row("雑費（消耗品・その他）", supplies + other, sales, TARGET_SUNDRY, "var(--surface-2)");
         BreakdownRow rentR = rentRow(monthlyRent, sales);
 
