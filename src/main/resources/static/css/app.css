@@ -8087,6 +8087,38 @@ body.is-sending .staff-main {
   h1.page-head__title,
   .page-head__title { font-size: 28px; line-height: 32px; }
   .kitchenboard .griddle h1 { font-size: 28px; line-height: 32px; }
+
+  /* ★ 題を .section-title__text で出している画面も落とす（2026-09-18・店主の指摘）。
+
+       「iPad の食材・在庫、品切れ・残数管理、税理士の見出しのフォントが
+         大きいけど、これレスポンス対応できてないよね」
+
+     そのとおりでした。この帯は .page-head__title しか見ておらず、
+     .section-title__text の題は素通りしていました。落ちる場所は
+     別にあるのですが、そちらは 960px 以下です。
+
+         1380px 以下 … .page-head__title       32 → 28   15 枚
+          960px 以下 … h1.section-title__text  32 → 24    8 枚
+
+     iPad は 1024px。ちょうど 2 つの帯のあいだに落ちていました。
+     実測（1432 と 1024 で全 22 画面）で取り残されていたのは
+     ホール・会計／品切れ・残数／食材・在庫／税理士 5 枚の 8 枚です。
+
+     ★ ホール・会計も含めています。立って使う画面を小さく組まない決まりは
+       ありますが（CLAUDE.md）、厨房ボードは前から一段下がっています（1 つ上の行）。
+       立って使う 2 画面で動きが違うほうが説明できません。
+
+     ★ .theme-desk h1 付きで書くこと。30 節の
+       .theme-desk h1.section-title__text（0,2,1）に、
+       クラス単独でも h1 だけでも負けます。 */
+  .theme-desk h1.section-title__text { font-size: 28px; line-height: 32px; }
+
+  /* ★ 品切れ・残数だけは、これを足さないと落ちません。
+       あちらは .soldoutpage .soldout-head .section-title__text（0,3,0）で
+       32px を持っていて、上の行（0,2,1）では負けます。
+       クラスの数が 3 対 2 なので、後ろにあっても勝てません。
+       実測で 8 枚中 7 枚だけ直っているのを見つけました。 */
+  .soldoutpage .soldout-head .section-title__text { font-size: 28px; line-height: 32px; }
   .theme-desk h2.panel__title,
   .panel__title { font-size: 18px; line-height: 24px; }
   .statcard__value { font-size: 28px; line-height: 34px; }
