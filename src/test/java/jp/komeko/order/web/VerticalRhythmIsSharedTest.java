@@ -121,15 +121,28 @@ class VerticalRhythmIsSharedTest {
     @Test
     @DisplayName("★ 税理士の題の行も上下 16px（店舗管理の見出し帯と同じ）")
     void theLedgerTitleRowHasTheSamePadding() throws Exception {
+        // ★ 2026-09-19：左右 40px も一緒に見るようにしました。
+        //   店主の「３パターンズレないようにね」で 3 幅を測ったところ、
+        //   税理士だけ題が 40px 左に飛び出していました。
+        //
+        //     画面      題の左    見出しの左右余白
+        //     税理士     288       0 / 0      ← 飛び出していた
+        //     商品       328       40 / 40
+        //     売上       328       40 / 40
+        //
+        //   ほかの画面は「本文は 288 から、題はそこから 40 内側」という組み方で、
+        //   設計も同じです（本文 pad 24 で 288、帯 pad 40 で 328）。
+        //   それまでは「左右は .staff-main の --main-pad-x に任せる」と
+        //   決めていましたが、その結果ここだけ本文の左端に貼り付いていました。
         assertThat(css())
                 .as("税理士の題の行に上下の余白が無い。"
                         + "器の上～題が 16px、題～次が 16px 足りなくなる")
-                .contains(".theme-ledger .section-title:has(h1) { padding-block: 16px; }");
+                .contains(".theme-ledger .section-title:has(h1) { padding-block: 16px; padding-inline: 40px; }");
 
         assertThat(css())
-                .as("iPad で一段詰める指定が無い（.page-head は 12px に落ちる）")
+                .as("iPad で一段詰める指定が無い（.page-head は 12px 24px に落ちる）")
                 .containsPattern("(?s)@media \\(max-width: 1380px\\) \\{\\s*"
-                        + "\\.theme-ledger \\.section-title:has\\(h1\\) \\{ padding-block: 12px; \\}");
+                        + "\\.theme-ledger \\.section-title:has\\(h1\\) \\{ padding-block: 12px; padding-inline: 24px; \\}");
     }
 
     /**

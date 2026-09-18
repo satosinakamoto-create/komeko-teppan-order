@@ -5378,17 +5378,28 @@ body.is-sending .staff-main {
          店舗管理 .page-head      padding 16・16 → 帯の高さ 82
          税理士   .section-title  padding  0・0  → 帯の高さ 50
 
-     左右は触りません。あちらは 40px を持っていますが、
-     税理士は .staff-main の --main-pad-x に任せる作りのままにします。 */
-.theme-ledger .section-title:has(h1) { padding-block: 16px; }
+     ★ 2026-09-19：左右も 40px にしました。
+       それまでは「.staff-main の --main-pad-x に任せる」としていましたが、
+       店主の「３パターンズレないようにね」で 3 幅を測ったところ、
+       税理士だけ題が 40px 左に飛び出していました。
+
+         画面      題の左    見出しの左右余白
+         税理士     288       0 / 0      ← 飛び出している
+         商品       328       40 / 40
+         売上       328       40 / 40
+
+       ほかの画面は「本文は 288 から、題はそこから 40 内側」という組み方です
+       （設計も同じ。本文 pad 24 で 288、帯 pad 40 で 328）。
+       税理士だけ題が本文の左端に貼り付いていました。 */
+.theme-ledger .section-title:has(h1) { padding-block: 16px; padding-inline: 40px; }
 /* 題に床を敷く。行に敷いても border-box で padding に食われて効きません。
    .theme-ledger だけでなく机で使う画面すべてに。題を .section-title__text で
    出している画面（食材・在庫・品切れ・ホール・税理士）が対象です。 */
 .theme-desk h1.section-title__text { min-height: 50px; display: flex; align-items: center; }
 
-/* iPad では帯も一段詰める（.page-head の 12px と同じ）。 */
+/* iPad では帯も一段詰める（.page-head の 12px 24px と同じ）。 */
 @media (max-width: 1380px) {
-  .theme-ledger .section-title:has(h1) { padding-block: 12px; }
+  .theme-ledger .section-title:has(h1) { padding-block: 12px; padding-inline: 24px; }
 }
 
 .theme-desk.theme-ledger .help,
@@ -8256,6 +8267,38 @@ body.is-sending .staff-main {
 .salespage .table--ranking th:nth-child(3), .salespage .table--ranking td:nth-child(3) { width: 120px; }
 .salespage .table--ranking th:nth-child(4), .salespage .table--ranking td:nth-child(4) { width: 150px; }
 .salespage .table--ranking th:nth-child(5), .salespage .table--ranking td:nth-child(5) { width: 110px; }
+
+/* ★ 狭い画面で見出しを畳むのは .page-head だけでは足りない（2026-09-19）。
+
+   店主の指示「３パターンズレないようにね」で 1432 / 1024 / 1920 の 3 幅を
+   ぜんぶ測ったところ、1024px（iPad）でこの 3 画面だけ畳まれずに残っていました。
+
+     画面        題の x    帯の高さ
+     ホール       128       82     ← 畳まれていない
+     品切れ       128       82     ← 畳まれていない
+     食材         128       82     ← 畳まれていない
+     ほかの 8 枚   112       74
+
+   題を .page-head ではなく .section-title 系で出している 3 枚で、
+   下の .page-head { padding: 12px 24px } が当たりません。16px 左に残ります。
+
+   ★ min-width: 700px を付けているのは、699px 以下に別の指定
+     （.hallboard は 16px 20px）があり、そちらはこれより前にあるため、
+     付けないと後ろのこれが勝って 699px 以下の指定が死ぬからです。
+
+   ★ この規則は次の節（端末の段差）の<b>外</b>に置くこと。中に入れると、
+     あの節を「節の見出しのあとの最初の @media (max-width: 1380px)」で
+     探しているテスト（DeviceStepDownTest・TitleStepsDownOnIpadTest）が
+     こちらを掴んで、5 件まとめて落ちます（2026-09-19 に実際そうなりました）。
+
+   ★ この説明文に節の名前をそのまま書かないこと。
+     書くとテストの indexOf がこの<b>コメント</b>を先に見つけて、
+     外へ出したのに同じ 5 件が落ち続けます（これも実際に踏みました）。 */
+@media (max-width: 1380px) and (min-width: 700px) {
+  .hallboard .section-title:has(h1) { padding: 12px 24px; }
+  .soldoutpage .soldout-head        { padding: 12px 24px; }
+  .stockpage .inv-ingredients       { padding: 12px 24px; }
+}
 
 /* ==========================================================================
    40. 端末の段差 — iPad の帯（1380px 以下）は一段下げる（2026-09-13）
