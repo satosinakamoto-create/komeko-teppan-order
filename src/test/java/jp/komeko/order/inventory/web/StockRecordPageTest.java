@@ -117,9 +117,16 @@ class StockRecordPageTest {
         // 列の名前。空のままだとボタンだけが並んで、何の列か読み取れない
         assertThat(html).contains(">棚卸・廃棄</th>");
 
+        // ★ 2026-09-17 に色と寸法を直しました（店主の指摘「編集ボタンが昔のまま」）。
+        //   --accent は :root では黒だが .theme-desk がティールに上書きするため、
+        //   スタッフ側のこのボタンだけ旧色で残っていた。設計（ト09 731:4147）は
+        //   枠も文字も #0b7a1a＝--action。
+        //   高さ 54 → 48（設計は 34px だが CLAUDE.md の 48px 床を優先）。
+        //   幅は 100% をやめた。設計は列幅いっぱいの帯ではなく 60px の小さなボタン。
         String css = Files.readString(CSS).replace("\r\n", "\n");
-        assertThat(css).contains("  height: 54px;\n  border: 1px solid var(--accent);");
-        assertThat(css).contains(".recbtn:hover { background: var(--accent-soft); }");
+        assertThat(css).contains("  height: 48px;");
+        assertThat(css).contains("  border: 1px solid var(--action);");
+        assertThat(css).contains(".recbtn:hover { background: var(--action-soft); }");
 
         ingredients.deleteById(i.getId());
     }

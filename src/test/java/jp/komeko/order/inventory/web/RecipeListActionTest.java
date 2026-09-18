@@ -110,9 +110,16 @@ class RecipeListActionTest {
         assertThat(at).as(".recbtn が無い").isGreaterThan(0);
         String rule = css.substring(at, css.indexOf("}", at));
 
-        assertThat(rule).as("枠が緑でない").contains("border: 1px solid var(--accent)");
-        assertThat(rule).as("文字が緑でない").contains("color: var(--accent)");
+        // ★ 2026-09-17 に --accent → --action（店主の指摘「編集ボタンが昔のまま」）。
+        //   --accent は :root では黒だが .theme-desk がティールに上書きするため、
+        //   スタッフ側のこのボタンだけ旧色で残っていた。
+        //   設計（ト09 731:4147）の「ボタン／編集」は 枠も文字も #0b7a1a＝--action で、
+        //   遅れていたのはコードのほうだった。
+        assertThat(rule).as("枠がまだ旧色（--accent はティールに化ける）")
+                .contains("border: 1px solid var(--action)");
+        assertThat(rule).as("文字がまだ旧色").contains("color: var(--action)");
         assertThat(rule).as("地が白でない").contains("background: var(--bg-elevated)");
+        assertThat(rule).as("--accent が残っている").doesNotContain("var(--accent)");
     }
 
     @Test

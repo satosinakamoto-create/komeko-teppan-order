@@ -3947,23 +3947,37 @@ body.is-sending .staff-main {
    文字だけだと、同じ行にある食材名のリンクと見分けが付かなかった。
 
    枠と文字だけを緑にして面は白のまま。面まで塗ると 1 画面に 6〜10 個並んだとき、
-   緑の帯が縦に連なって表の数字より目立つ。押せることが分かれば足りる。 */
+   緑の帯が縦に連なって表の数字より目立つ。押せることが分かれば足りる。
+
+   ★ 色は --action（2026-09-17・店主の指摘「編集ボタンが昔のまま」）。
+     それまで var(--accent) を使っていて、これは :root では黒だが
+     .theme-desk がティールに上書きするため、スタッフ側のここだけ旧色で
+     残っていました。設計（ト09 731:4147 の「ボタン／編集」）は
+     枠も文字も #0b7a1a＝--action で、遅れていたのはコードのほうです。
+
+   ★ 寸法は 設計 60×34 に対して 幅は中身なり・高さ 48px にしています。
+     34px は CLAUDE.md の「タップ領域は 48px 以上」を割るため。
+     品切れ・残数の表でも同じ判断をしていて、そこには
+     「押せるものなので 48px は割らない」と書いてあります。
+     幅は 100% で列いっぱいに伸ばしていたのをやめました。
+     設計は 60px の小さなボタンで、列幅いっぱいの帯ではありません。 */
 .recbtn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 54px;
-  border: 1px solid var(--accent);
+  min-width: 88px;
+  height: 48px;
+  padding-inline: 16px;
+  border: 1px solid var(--action);
   border-radius: 6px;
   background: var(--bg-elevated);
-  color: var(--accent);
+  color: var(--action);
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
 }
-.recbtn:hover { background: var(--accent-soft); }
+.recbtn:hover { background: var(--action-soft); }
 
 /* 品切れ・残数の「探す／カテゴリを選ぶ」（設計 現03 439:2496 / 2026-09-07）。
    2 つを横に並べる。狭い画面では縦に落ちる */
