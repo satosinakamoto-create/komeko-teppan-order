@@ -87,12 +87,39 @@ class IngredientRowHasOneWayInTest {
                 .contains("/inventory/ingredients/record");
     }
 
-    /** ★ 食材名のリンクは残す。押せる場所が減ると、初めての人が探すことになる。 */
+    /**
+     * ★ 食材名はリンクにしない（2026-09-18、店主の判断）。
+     *
+     * <p>「記録する」の行き先をその食材の画面に変えた結果、
+     * <b>食材名と記録するが同じ URL を指す</b>ようになりました。
+     * 1 行に同じ場所へ行くリンクが 2 つある状態です。
+     *
+     * <p>残すのは「記録する」のほうです。<b>言葉が操作を教える</b>ので、
+     * 初めて触る人でも棚卸しの入口だと分かります。食材名はただの名前で、
+     * 押せると分かるのは色が付いているからでしかありません。
+     *
+     * <p>原価表で「商品名を黒くして編集ボタンに集約」したのと同じ判断です
+     * （{@code RecipeListActionTest}）。
+     */
     @Test
-    @DisplayName("★ 食材名のリンクは残っている")
-    void theNameStaysClickable() throws Exception {
-        assertThat(body())
-                .as("食材名が押せなくなっている")
-                .contains("@{/inventory/ingredients/{id}(id=${l.ingredient().id})}");
+    @DisplayName("★ 食材名はリンクにしない（記録するに集約）")
+    void theNameIsNotALink() throws Exception {
+        String html = body();
+
+        int at = html.indexOf("${l.ingredient().name}");
+        assertThat(at).as("食材名の列が無い").isGreaterThan(0);
+
+        String around = html.substring(Math.max(0, at - 220), at);
+        assertThat(around)
+                .as("食材名がまだリンク。記録するボタンと同じ画面へ行くので、"
+                        + "1 行から同じ場所へ道が 2 本あることになる")
+                .doesNotContain("<a ");
+    }
+
+    /** ★ そのぶん「記録する」は必ず残すこと。行から入る唯一の道になる。 */
+    @Test
+    @DisplayName("★ 記録するボタンは残っている（行から入る唯一の道）")
+    void theRecordButtonRemains() throws Exception {
+        assertThat(body()).as("記録するボタンが消えている").contains(">記録する</a>");
     }
 }

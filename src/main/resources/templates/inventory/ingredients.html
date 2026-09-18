@@ -114,8 +114,18 @@
       <tbody>
       <tr th:each="l : ${levels}">
         <td>
-          <a th:href="@{/inventory/ingredients/{id}(id=${l.ingredient().id})}"
-             th:text="${l.ingredient().name}">キャベツ</a>
+          <!--/* ★ 食材名はリンクにしません（2026-09-18・店主の判断）。
+
+                 「記録する」の行き先をその食材の画面に変えた結果、
+                 食材名と記録するが<b>同じ URL</b>を指すようになりました。
+                 1 行から同じ場所へ道が 2 本ある状態です。
+
+                 残すのは「記録する」のほう。言葉が操作を教えるので、
+                 初めて触る人でも棚卸しの入口だと分かります。食材名はただの名前で、
+                 押せると分かるのは色が付いているからでしかありません。
+
+                 原価表で「商品名を黒くして編集ボタンに集約」したのと同じ判断です。 */-->
+          <span th:text="${l.ingredient().name}">キャベツ</span>
           <span th:if="${l.isNegative()}" class="badge badge--soldout">マイナス</span>
           <span th:if="${!l.isNegative() and l.isBelowThreshold()}" class="badge badge--soldout">少ない</span>
         </td>
