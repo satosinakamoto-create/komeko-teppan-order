@@ -87,12 +87,6 @@
   </div>
 
   <!--/* ── 材料 ── */-->
-  <div class="section-title">
-    <h2 class="section-title__text">材料</h2>
-    <span class="section-title__count" th:if="${cost != null}"
-          th:text="${cost.lines().size()} + ' 種類'">4 種類</span>
-  </div>
-
   <p th:if="${cost == null or cost.isEmpty()}" class="help">
     まだ材料が登録されていません。下から 1 つずつ足してください。<br>
     登録すると、この商品が売れるたびに材料が在庫から引かれ、
@@ -110,8 +104,20 @@
            form の中で Enter を押すと最初の submit が押される。
            これが無いと、分量を打って Enter した瞬間に
            いちばん上の ✕（削除）が走る。 */-->
-  <form th:if="${cost != null and !cost.isEmpty()}" method="post"
+  <!--/* ★ カードで囲みます（設計 ト09c 819:8679・2026-09-17・店主の指摘）。
+
+         それまで題は section-title で外に出ていて、表は枠の無いまま置いてありました。
+         同じ画面の「その他材料費」は既に form.card だったので、材料だけ不揃いでした。
+
+         この画面には 材料の表・その他材料費・材料を足す の 3 つの塊があります。
+         枠が無いと、どこまでが材料の表なのかが縦に読むまで分かりません。 */-->
+  <form th:if="${cost != null and !cost.isEmpty()}" method="post" class="card"
         th:action="@{/inventory/recipes/{id}/quantities(id=${menuItem.id})}">
+    <div class="card__head">
+      材料
+      <span class="section-title__count"
+            th:text="${cost.lines().size()} + ' 種類'">4 種類</span>
+    </div>
     <button type="submit" class="visually-hidden" tabindex="-1"
             aria-hidden="true">分量を保存する</button>
   <div class="table-wrap">
@@ -190,12 +196,14 @@
       </tbody>
     </table>
   </div>
-    <p class="mb-0">
-      <button type="submit" class="btn btn--primary">分量を保存する</button>
-      <span class="tiny faint">
-        いくつ直しても、押すのは 1 回です。✕ はその場で外れます
-      </span>
-    </p>
+    <div class="card__body">
+      <p class="mb-0">
+        <button type="submit" class="btn btn--primary">分量を保存する</button>
+        <span class="tiny faint">
+          いくつ直しても、押すのは 1 回です。✕ はその場で外れます
+        </span>
+      </p>
+    </div>
   </form>
 
   <!--/* ── その他材料費（2026-09-16・店主の判断） ──
