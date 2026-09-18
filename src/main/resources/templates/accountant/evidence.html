@@ -13,6 +13,9 @@
 
   <div class="section-title">
     <h1 class="section-title__text">証憑の確認</h1>
+    <!--/* 月の帯は題の行に置く（2026-09-18・店主の指示）。実体は fragments/common.html。
+           「いま何月を見ているか」は題とひと続きで読む情報なので、離して置かない。 */-->
+    <div th:replace="~{fragments/common :: monthband}"></div>
     <span class="section-title__count"
           th:text="'未確認 ' + ${awaitingCount} + ' 件'">未確認 0 件</span>
   </div>

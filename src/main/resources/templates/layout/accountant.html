@@ -112,7 +112,22 @@
   <main class="staff-main">
     <div class="container container--wide">
 
-      <!--/* 月の切り替え。どの画面でも同じ位置にあることが大事で、
+      <!--/* ★ 月の切り替えの帯は、ここにはもうありません（2026-09-18）。
+
+             店主の指示で題の行（各画面の .section-title）へ移しました。
+
+               「← 前月 2026年08月 翌月 → の配置場所は見出しの右側、
+                 売り上げの場所を参考に統一させてほしい」
+
+             題は各画面の中にあってレイアウトからは触れないので、
+             帯のほうを fragments/common.html の monthband へ出し、
+             5 画面それぞれが題の行から呼ぶ形にしています。
+
+             ここに残すと同じ帯が 2 つ出ます（DateBandIsOneDesignTest が見張っています）。
+
+             以下は、その帯についての判断の記録です。移しても変わりません。
+
+             月の切り替え。どの画面でも同じ位置にあることが大事で、
              「いま何月を見ているか」を見失わせない。
 
              ★ 並びと文言は注文履歴（admin/orders.html）にそろえています
@@ -150,15 +165,6 @@
              ★ 行き先はいまの画面のまま、月だけ変える。
                currentPath は GlobalModelAttributes が全画面に渡している
                （#httpServletRequest は Thymeleaf 3.1 で使えない）。 */-->
-      <form th:if="${month != null}" method="get" th:action="@{__${p}__}"
-            class="row row--wrap datenav">
-        <a class="btn btn--sm" th:href="@{__${p}__(month=${prevMonth})}">← 前月</a>
-        <input class="input" type="month" name="month"
-               th:value="${month}" aria-label="月を選ぶ">
-        <button type="submit" class="btn btn--sm datenav__go">この月を表示</button>
-        <a class="btn btn--sm" th:href="@{__${p}__(month=${nextMonth})}">翌月 →</a>
-      </form>
-
       <div th:replace="~{fragments/common :: flash}"></div>
       <div th:replace="${content}">ページ本文</div>
     </div>

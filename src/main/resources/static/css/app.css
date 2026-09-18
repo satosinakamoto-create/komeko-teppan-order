@@ -4185,17 +4185,10 @@ body.is-sending .staff-main {
   padding: 32px var(--main-pad-x);
 }
 
-/* 月を移る帯 */
-.monthnav {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  height: 68px;
-  padding: 16px 40px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
+/* ★ .monthnav（月を移る文字リンク式の帯）は廃止しました（2026-09-18）。
+     店主の指示「売り上げの ← 前月 2026年08月 翌月 → のデザインは
+     昔のものだから新しいものに統一させて」。
+     売上が最後の利用者でした。いまは全画面が .datenav です。 */
 /* 仕入れの詳細の 2 カラム（設計 ト05e 840:9735・2026-09-17）。
 
    左＝証憑としての状態＋明細、右＝レシート画像。
@@ -4226,10 +4219,10 @@ body.is-sending .staff-main {
   border-radius: var(--r-sm);
 }
 
-/* 日付・月の切り替えの行（注文履歴・税理士の帯・2026-09-17）。
+/* 日付・月の切り替えの帯（注文履歴・仕入れ・経費・売上・税理士 5 枚・2026-09-17）。
 
    並びは 前 → 入力 → 表示 → 次 で統一（店主の指示）。
-   .input は width:100% を主張するので、行の中では実寸に落とす。
+   .input は width:100% を主張するので、帯の中では実寸に落とす。
    注文履歴は style="max-width:12rem" を直接書いていたが、
    2 画面で同じ形になったのでここへ寄せた。
 
@@ -4239,7 +4232,32 @@ body.is-sending .staff-main {
      日本語の年月は「2026年09月」で、右にカレンダーのアイコンも付きます。
      仕入れ・経費は .input--narrow（max-width: 8rem＝128px）を使っていて、
      月が切れて表示されていました。 */
+
+/* ★ 帯じたいが並びを決めます（2026-09-18・店主の指示）。
+     もとは .row .row--wrap と組にして使い、題の行とは別のブロックとして
+     下に置いていました。題の行（.page-head / .section-title）の中へ
+     移したので、外から並びをもらう形をやめて自分で持たせています。
+
+     店主の指示はこうです。
+       「← 前月 2026年08月 翌月 → の配置場所は見出しの右側、
+         売り上げの場所を参考に統一させてほしい」
+
+     「いま何月を見ているか」は題とひと続きで読む情報なので、
+     離して置くと題を読んでから視線を下げてもう一度読むことになります。 */
+.datenav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
 .datenav .input { width: auto; min-width: 11rem; max-width: 14rem; }
+
+/* ★ 題の行が帯を持つときは縦中央でそろえる。
+     .section-title の既定は align-items: baseline です。文字どうしを
+     並べるには正しいのですが、高さ 50px の入力欄が入ると
+     文字の下端に合わせようとして帯が沈みます。
+     .page-head はもともと center なので、こちらだけ上書きします。 */
+.section-title:has(.datenav) { align-items: center; }
 
 /* ★ 「この日を表示 / この月を表示」は既定で隠します（2026-09-18・店主の判断）。
      datenav.js が、カレンダーで選んだ瞬間に送信するので押す必要がありません。
@@ -4247,11 +4265,6 @@ body.is-sending .staff-main {
      唯一の送信手段だからです。そのときは各レイアウトの <head> にある
      <noscript> が display を戻して、今までどおり押せる形に復帰します。 */
 .datenav__go { display: none; }
-
-.monthnav__label { font-size: 14px; color: var(--text-muted); }
-.monthnav__go    { font-size: 16px; color: var(--accent); text-decoration: none; white-space: nowrap; }
-.monthnav__go:hover { text-decoration: underline; }
-.monthnav__value { font-size: 24px; font-weight: 700; font-family: var(--font-num); }
 
 .page-head--bare { padding: 0; }
 
@@ -5120,7 +5133,6 @@ body.is-sending .staff-main {
 
 @media (max-width: 960px) {
   .statrow { grid-template-columns: 1fr; }
-  .monthnav { padding: 16px; height: auto; flex-wrap: wrap; }
   .sheet { margin: -20px -20px; padding: 20px; }
 }
 
@@ -7919,18 +7931,8 @@ body.is-sending .staff-main {
    月ナビは題のすぐ隣に置く（配置はトi18、デザインは 17:1038 のまま） */
 .salespage .page-head { gap: 24px; }
 
-/* 帯の中に入った月ナビ。バーだった頃の箱（面・枠・角丸・高さ）を落とす。
-   文字の寸法（ラベル 14／月 24 太字／送り 16）はバー時代のまま＝設計どおり。
-   ★ 上下 13px は帯を設計の 100px にするための詰め物です。
-     設計は「日付」の塊が 68px（中身 36 ＋ 上下 16）で、帯 16/40 と合わせて 100px。
-     こちらの中身は行送りぶん高い 42px なので、68px に合わせると上下 13px になります */
-.salespage .monthnav {
-  height: auto;
-  padding: 13px 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
+/* ★ 売上の月ナビ上書きは廃止（2026-09-18）。帯が .datenav になり、
+     箱を落とす必要そのものが無くなりました。 */
 
 .salespage .statcard {
   border-color: #e3e3e3;
@@ -8023,11 +8025,6 @@ body.is-sending .staff-main {
        詳細度 0,2,1。ここに .dashpage { gap: 32px }（0,1,0）を残すと、
        読めるのに効かない 1 行になります。 */
   .page-head { padding: 12px 24px; }
-  /* 売上の帯は月ナビ（基準 68px）が背を決める。帯の余白だけ落としても
-     12+68+12=92px で iPad では間延びして見えた（店主「80px とかにした方が
-     使いやすい」2026-09-14）。月ナビを 56px へ → 12+56+12=80px。
-     Figma トi18 も 80 に直し済み。1432・PC は 100px のまま */
-  .salespage .monthnav { height: 56px; }
   .statcard:not(.statcard--tall),
   .dashpage .statcard:not(.statcard--tall) { padding: 15px 16px; }
   .panel { padding: 16px; }

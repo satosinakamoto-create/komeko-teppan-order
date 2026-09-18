@@ -104,5 +104,40 @@
   <p class="mb-0" th:text="${message}">データがありません</p>
 </div>
 
+<!--/* ====== 月を移る帯（税理士の 5 画面で共通） ======
+
+       もとは layout/accountant.html が持っていて、本文の上に独立した行として
+       置いていました。2026-09-18 に店主の指示で題の行へ移しています。
+
+         「← 前月 2026年08月 翌月 → の配置場所は見出しの右側、
+           売り上げの場所を参考に統一させてほしい」
+
+       題は各画面の中（.section-title）にあり、レイアウトからは触れません。
+       そこで帯のほうをここへ出して、5 画面それぞれが題の行から呼ぶ形にしました。
+       5 か所に同じものを書くと必ずずれるので、実体はこの 1 つだけにします。
+
+       ★ 引数を取りません。month / prevMonth / nextMonth / currentPath は
+         GlobalModelAttributes が全画面に渡しているので、呼ぶ側は
+         <div th:replace="~{fragments/common :: monthband}"></div> だけで済みます。
+
+       ★ 行き先はいまの画面のまま、月だけ変える。
+         （#httpServletRequest は Thymeleaf 3.1 で使えないので currentPath を使う）
+
+       ★ GET にするのは、月を見るのが読むだけの操作だからです。
+         URL に残るので戻る・進むが効き、ブックマークもできます。
+
+       ★「この月を表示」は既定で隠れています（app.css の .datenav__go）。
+         datenav.js が、カレンダーで選んだ瞬間に送信します。
+         消していないのは、JavaScript が動かない環境では
+         それが唯一の送信手段になるためです。 */-->
+<form th:fragment="monthband" th:if="${month != null}"
+      method="get" th:action="@{__${currentPath}__}" class="datenav">
+  <a class="btn btn--sm" th:href="@{__${currentPath}__(month=${prevMonth})}">← 前月</a>
+  <input class="input" type="month" name="month"
+         th:value="${month}" aria-label="月を選ぶ">
+  <button type="submit" class="btn btn--sm datenav__go">この月を表示</button>
+  <a class="btn btn--sm" th:href="@{__${currentPath}__(month=${nextMonth})}">翌月 →</a>
+</form>
+
 </body>
 </html>

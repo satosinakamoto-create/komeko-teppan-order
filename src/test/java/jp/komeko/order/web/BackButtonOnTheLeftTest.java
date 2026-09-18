@@ -45,6 +45,28 @@ class BackButtonOnTheLeftTest {
     private static final Path TPL = Path.of("src/main/resources/templates");
     private static final Path CSS = Path.of("src/main/resources/static/css/app.css");
 
+    /**
+     * 日付・月の帯（{@code .datenav}）を取り除く。
+     *
+     * <p><b>2026-09-18 に必要になりました。</b>店主の指示で帯を題の行へ入れたため、
+     * 見出しの中に「← 前日」「← 前月」という<b>戻るではない ←</b> が現れました。
+     *
+     * <pre>
+     *   &lt;div class="page-head"&gt;
+     *     &lt;h1&gt;注文履歴&lt;/h1&gt;
+     *     &lt;form class="datenav"&gt; ← 前日 … 翌日 → &lt;/form&gt;   ← これは移動ではなく切り替え
+     *     …
+     *   &lt;/div&gt;
+     * </pre>
+     *
+     * <p>このテストが見張っているのは<b>「戻る」と「実行」を左右で分ける</b>ことです。
+     * 帯の ← は前の日を見るための切り替えで、画面を出る操作ではありません。
+     * 混ぜると、注文履歴が「戻るボタンが右端にある」と誤判定されます。
+     */
+    private String withoutDateBand(String block) {
+        return block.replaceAll("(?s)<form[^>]*class=\"datenav\".*?</form>", "");
+    }
+
     /** 戻るボタンを含む {@code .page-head} を、テンプレートから丸ごと集める。 */
     private List<String[]> headsWithBackButton() throws IOException {
         List<String[]> found = new ArrayList<>();
@@ -56,7 +78,7 @@ class BackButtonOnTheLeftTest {
                         .replaceAll("(?s)<!--.*?-->", "");
                 Matcher m = head.matcher(html);
                 while (m.find()) {
-                    String block = m.group(1);
+                    String block = withoutDateBand(m.group(1));
                     if (block.contains("←") && block.contains("class=\"btn")) {
                         found.add(new String[]{TPL.relativize(p).toString().replace('\\', '/'), block});
                     }

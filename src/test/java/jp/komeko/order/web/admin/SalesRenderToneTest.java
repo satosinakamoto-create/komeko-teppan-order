@@ -46,31 +46,48 @@ class SalesRenderToneTest {
         return css.substring(at, css.indexOf("}", at));
     }
 
+    /**
+     * ★ 2026-09-18: 月ナビ（.monthnav）を捨てて .datenav にそろえました。
+     *
+     * <p>店主の指示「売り上げの ← 前月 2026年08月 翌月 → のデザインは
+     * 昔のものだから新しいものに統一させて」。
+     * ここだけ文字リンク式で、月を直接選べませんでした。
+     */
     @Test
-    @DisplayName("★ 題と月ナビは 1 本の帯（page-head の中に monthnav）")
+    @DisplayName("★ 題と月の帯は 1 本の帯（page-head の中に datenav）")
     void titleAndMonthNavShareOneBand() throws Exception {
         String html = Files.readString(HTML);
 
         assertThat(html).contains("class=\"sheet salespage\"");
         // 帯は素の .page-head（16/40）。--bare は余白 0 なので設計と別物
         assertThat(html).doesNotContain("page-head--bare");
-        // 題が先、月ナビが後ろ（帯の右端）
+        // 題が先、月の帯が後ろ
         int title = html.indexOf("page-head__title\">売上");
-        int nav = html.indexOf("class=\"monthnav\"");
+        int nav = html.indexOf("class=\"datenav\"");
         assertThat(title).as("題が無い").isGreaterThan(0);
-        assertThat(nav).as("月ナビが無い").isGreaterThan(0);
-        assertThat(nav).as("月ナビは題の後ろ（帯の中の右端）に置く").isGreaterThan(title);
+        assertThat(nav).as("月の帯が無い").isGreaterThan(0);
+        assertThat(nav).as("月の帯は題の後ろに置く").isGreaterThan(title);
     }
 
+    /**
+     * ★ 2026-09-18: 上書きそのものを廃止しました。
+     *
+     * <p>{@code .monthnav} はバー（面・枠・角丸・高さ 68px）として作られていて、
+     * 帯の中に入れるときに<b>その箱を打ち消す上書き</b>が要りました。
+     * {@code .datenav} はもともと箱を持たないので、打ち消す相手がいません。
+     *
+     * <p>いまは「昔の月ナビが残っていないこと」だけを見ます。
+     */
     @Test
-    @DisplayName("★ 帯の中の月ナビは箱をやめる（バー時代の面・枠・角丸を落とす）")
+    @DisplayName("★ 昔の月ナビ（.monthnav）はもう無い")
     void monthNavLosesItsBox() throws Exception {
-        String rule = block(css(), ".salespage .monthnav {");
-        // 上下 13px は帯を設計の 100px にそろえる詰め物（左右は 0）
-        assertThat(rule).contains("padding: 13px 0;");
-        assertThat(rule).contains("border: 0;");
-        assertThat(rule).contains("background: transparent;");
-        assertThat(rule).contains("height: auto;");
+        assertThat(css()).as("捨てたはずの .monthnav が app.css に残っている")
+                .doesNotContain(".monthnav {").doesNotContain(".monthnav__");
+
+        // コメントは落とす。「なぜ捨てたか」の記録に .monthnav の語が出てくるため
+        String markup = Files.readString(HTML).replaceAll("(?s)<!--.*?-->", "");
+        assertThat(markup).as("売上がまだ昔の月ナビを使っている")
+                .doesNotContain("monthnav");
     }
 
     @Test
@@ -83,11 +100,11 @@ class SalesRenderToneTest {
         //   配置　＝Figma 07 トi18（737:7983）＝題のすぐ隣。右端に置くのをやめる
         // 実装上は spacer（のばす）を月ナビの後ろへ動かすだけ
         int title = html.indexOf("page-head__title\">売上");
-        int nav = html.indexOf("class=\"monthnav\"");
+        int nav = html.indexOf("class=\"datenav\"");
         int spacer = html.indexOf("page-head__spacer");
         assertThat(title).isGreaterThan(0);
-        assertThat(nav).as("月ナビは題の直後").isGreaterThan(title);
-        assertThat(spacer).as("のばすは月ナビの後ろ（月ナビを左に寄せる）").isGreaterThan(nav);
+        assertThat(nav).as("月の帯は題の直後").isGreaterThan(title);
+        assertThat(spacer).as("のばすは月の帯の後ろ（帯を左に寄せる）").isGreaterThan(nav);
 
         // 題と月ナビの間はトi18 の 24px（共通の .page-head は 16）
         String css = css();

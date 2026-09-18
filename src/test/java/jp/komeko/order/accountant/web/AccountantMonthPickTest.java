@@ -41,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AccountantMonthPickTest {
 
     private static final Path LAYOUT =
-            Path.of("src/main/resources/templates/layout/accountant.html");
+            Path.of("src/main/resources/templates/fragments/common.html");
 
     @Autowired
     private MockMvc mockMvc;
@@ -97,8 +97,10 @@ class AccountantMonthPickTest {
         assertThat(input).as("表示ボタンが入力欄より前にある").isLessThan(show);
         assertThat(show).as("翌月が表示ボタンより前にある").isLessThan(next);
 
-        assertThat(html).as("注文履歴と同じ行の部品（.row）を使っていない")
-                .contains("row row--wrap");
+        // ★ 2026-09-18: .row row--wrap はやめました。題の行の中に入ったので、
+        //    並びは .datenav 自身が持ちます（app.css の .datenav）。
+        assertThat(html).as("帯のクラス（.datenav）が付いていない")
+                .contains("class=\"datenav\"");
         assertThat(html).as("「対象の月」の文字が残っている（入力欄と二重）")
                 .doesNotContain("対象の月");
     }

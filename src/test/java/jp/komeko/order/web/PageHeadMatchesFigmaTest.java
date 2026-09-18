@@ -150,7 +150,18 @@ class PageHeadMatchesFigmaTest {
      * そのルールとも噛み合います。帯の中は 戻る → 題 → 補足 → のばす → 実行 の順。
      *
      * <p>売上（14）の のばす だけは別物なので、{@link #theSalesSpacerStays()} で
-     * 別に見ています。あちらは月ナビを左に寄せるためのものです。
+     * 別に見ています。あちらは月の帯を左に寄せるためのものです。
+     *
+     * <p><b>2026-09-18 に 2 点ゆるめました（店主の指示で帯を題の行へ入れたため）。</b>
+     * <ul>
+     *   <li>日付・月の帯（{@code .datenav}）は数える前に外します。帯の中の
+     *       「← 前月」もボタンなので、外さないと<b>いちばん前のボタンが帯のもの</b>に
+     *       なり、「のばす より前にボタンがある」と誤判定します。
+     *       ここが見張っているのは<b>実行のボタン</b>の位置です</li>
+     *   <li>仕入れ・経費は補足（{@code page-head__sub}）を持ちません。もとは
+     *       「2026年08月」でしたが、すぐ隣の入力欄に同じ月が出るようになったので
+     *       外しました。注文履歴の補足は曜日と件数を足しているので残っています</li>
+     * </ul>
      */
     @Test
     @DisplayName("★ ボタンは帯の右端（のばすで送る）")
@@ -167,14 +178,16 @@ class PageHeadMatchesFigmaTest {
             int head = m.indexOf("class=\"page-head\"");
             assertThat(head).as(s + " に見出し帯が無い").isGreaterThanOrEqualTo(0);
             int end = m.indexOf("</div>", head);
-            String band = m.substring(head, end);
-
-            int sub = band.indexOf("page-head__sub");
-            assertThat(sub).as(s + " に補足が無い").isGreaterThan(0);
+            String band = m.substring(head, end)
+                    .replaceAll("(?s)<form[^>]*class=\"datenav\".*?</form>", "");
 
             int spacer = band.indexOf("page-head__spacer");
             assertThat(spacer).as(s + " に のばす（page-head__spacer）が無い").isGreaterThan(0);
-            assertThat(spacer).as(s + " の のばす が補足より前にある").isGreaterThan(sub);
+
+            int sub = band.indexOf("page-head__sub");
+            if (sub > 0) {
+                assertThat(spacer).as(s + " の のばす が補足より前にある").isGreaterThan(sub);
+            }
 
             // ボタンが 2 つある画面（仕入れ・経費）もあるので、いちばん前のものを見る。
             // のばす がその前にあれば、まとめて右端へ送られる。

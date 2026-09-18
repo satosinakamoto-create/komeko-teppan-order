@@ -14,6 +14,9 @@
 
   <div class="section-title">
     <h1 class="section-title__text">消費税の集計</h1>
+    <!--/* 月の帯は題の行に置く（2026-09-18・店主の指示）。実体は fragments/common.html。
+           「いま何月を見ているか」は題とひと続きで読む情報なので、離して置かない。 */-->
+    <div th:replace="~{fragments/common :: monthband}"></div>
     <span class="section-title__count">課税仕入（税率 × 控除区分）</span>
   </div>
 

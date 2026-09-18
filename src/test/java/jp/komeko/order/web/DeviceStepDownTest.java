@@ -88,11 +88,19 @@ class DeviceStepDownTest {
         assertThat(b).contains("padding: 15px 16px;");   // カード（枠 1px を返して 16）
         assertThat(b).contains(".panel { padding: 16px; }");
         assertThat(b).contains(".page-head { padding: 12px 24px; }");
-        // 売上の帯は月ナビ（基準 68px）が入って背が決まる。帯の余白だけ 12 に
-        // 落としても 12+68+12=92px にしかならず、iPad で間延びして見えた
-        // （2026-09-14、店主「iPad は 80px とかにした方が使いやすい」）。
-        // 月ナビを 56px に落として 12+56+12=80px。Figma トi18 も 80 に直し済み
-        assertThat(b).contains(".salespage .monthnav { height: 56px; }");
+        // ★ 2026-09-18：売上だけの高さ調整は要らなくなりました。
+        //
+        //   もとは月ナビ（.monthnav）がバーとして高さ 68px を持っていたため、
+        //   帯の余白を 12 に落としても 12+68+12=92px にしかならず、iPad で
+        //   間延びして見えました（2026-09-14、店主「iPad は 80px とかにした方が
+        //   使いやすい」）。そこで月ナビだけ 56px に落としていました。
+        //
+        //   店主の指示で帯を .datenav にそろえたので（「デザインは昔のものだから
+        //   新しいものに統一させて」）、高さを主張する箱そのものが消えました。
+        //   いまは入力欄 50px が背を決め、12+50+12=74px。これは注文履歴・
+        //   仕入れ・経費・税理士も同じで、売上だけ別の数字を持つ理由がありません。
+        assertThat(b).as("捨てた月ナビの上書きが残っている")
+                .doesNotContain(".salespage .monthnav");
         // 仕入れの大きいカード（202px 設計）はこの詰めの対象外
         assertThat(b).contains(":not(.statcard--tall)");
     }
