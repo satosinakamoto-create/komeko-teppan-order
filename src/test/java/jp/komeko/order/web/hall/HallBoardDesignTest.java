@@ -179,13 +179,35 @@ class HallBoardDesignTest {
                 .contains("flex-wrap:nowrap");
     }
 
+    /**
+     * ★ 調理中の札は残す（会計を切る前に気づくため）。
+     *
+     * <p><b>2026-09-19：「お会計待ち」の札は見張るのをやめました。</b>
+     * 店主の判断で外しています
+     * （「お会計待ちってカテゴリーに入ってるんだから要らないでしょ」）。
+     * その卓がお会計待ちであることは、列の見出し・赤い線・赤いボタンが言っています。
+     *
+     * <p><b>「調理中あり」だけは消してはいけません。</b>
+     * まだ厨房に残っている品がある卓を締めると、
+     * 出していない料理の代金を頂くことになります。これは色の話ではなく金額の話です。
+     */
     @Test
-    @DisplayName("★ お会計待ち・調理中の札は残す（会計を切る前に気づくため）")
-    void badgesSurvivedTheRedesign() throws Exception {
+    @DisplayName("★ 調理中の札は残す（会計を切る前に気づくため）")
+    void theCookingWarningSurvivedTheRedesign() throws Exception {
         String html = Files.readString(BOARD);
-        assertThat(html).contains("badge--stop");
-        assertThat(html).contains("badge--rec");
-        assertThat(html).contains("bill.hasPendingOrders()");
+        assertThat(html).as("調理中ありの札が消えている").contains("badge--rec");
+        assertThat(html).as("調理中かどうかの判定が消えている").contains("bill.hasPendingOrders()");
+
+        // お会計待ちの列のカードにも「調理中あり」が付いていること。
+        // 在卓の列にだけ残して会計待ちから消すと、締める直前がいちばん危ない
+        String body = html.replaceAll("(?s)<!--.*?-->", "");
+        int from = body.indexOf("lane--closing");
+        int to = body.indexOf("lane--cleanup", from);
+        assertThat(from).as("お会計待ちの列が無い").isGreaterThan(0);
+        assertThat(body.substring(from, to))
+                .as("★ お会計待ちの列のカードに「調理中あり」が無い。"
+                        + "締める直前こそ、料理が残っていることに気づく必要がある")
+                .contains("badge--rec");
     }
 
     @Test
