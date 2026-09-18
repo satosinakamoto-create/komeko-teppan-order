@@ -67,8 +67,16 @@ class StockRecordPageTest {
         // 生きているように見える（同じフォームが 2 か所で違う動きをする）
         assertThat(main).as("一覧に棚卸しフォームが残っている")
                 .doesNotContain("/inventory/ingredients/stocktake");
-        assertThat(main).as("記録ページへの口が無い")
-                .contains("/inventory/ingredients/record?ingredient=" + i.getId());
+        // ★ 2026-09-18 に行き先を変えました（店主の判断）。
+        //   行の「記録する」は、その食材の画面（棚卸し・廃棄のフォームがある）へ。
+        //   それまでは record?ingredient={id} へ飛ばしていましたが、食材を選んだ
+        //   状態で開くので、行から見ると食材名のリンクと同じ食材・同じ操作でした。
+        //   1 行から道が 2 本出ている形だったので 1 本にしています。
+        assertThat(main).as("その食材の画面への口が無い")
+                .contains("/inventory/ingredients/" + i.getId());
+        // 食材を選び直しながら続けて入力する画面は、帯から入る
+        assertThat(main).as("まとめて棚卸しの入口が無い")
+                .contains("/inventory/ingredients/record");
 
         ingredients.deleteById(i.getId());
     }
