@@ -4739,6 +4739,14 @@ body.is-sending .staff-main {
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+  /* ★ 設計（ト02「ホール/頭」）は札の有無にかかわらず 36px。
+       実装は札があると 37.6px、無いと 33.6px でした。4px ちがうと
+       その下の「人数／滞在」「金額」「ボタン」が全部 4px ずれ、
+       レーンをまたいで段が揃いません。床を敷いてどちらも 36 にします。
+
+     ★ padding が 0 の要素なので min-height がそのまま中身の床になります
+       （padding があると box-sizing: border-box に食われる。CLAUDE.md 参照）。 */
+  min-height: 36px;
 }
 .hallboard .billcard__table { font-size: 24px; font-weight: 700; line-height: 1.4; }
 /* ★ 札は「塗りつぶし・枠なし」に統一する（2026-09-12）。
@@ -4753,7 +4761,15 @@ body.is-sending .staff-main {
   font-weight: 700;
   padding: 8px 16px;
   border-radius: 999px;
-  border-color: transparent;
+  /* ★ 設計の札はちょうど 36px（上下 8 ＋ 文字 20）。
+       素の .badge が border:1px solid transparent を持っているため、
+       透明でも上下 2px ぶん高くなり 38px になります。この画面では枠を消します
+       （枠の色を透明にするだけでは太さは残る。実測 38 → 36）。
+
+       36px にそろえると、札のあるカードと無いカードで頭の高さが同じになり、
+       下の「人数／滞在」「金額」「ボタン」が 1px もずれません。 */
+  border: 0;
+  line-height: 20px;
 }
 /* 調理中あり。.badge--rec は .theme-snow で --accent がほぼ黒になるので、
    この画面だけ設計どおりの緑（面 #ddf0ec ／ 文字 #0b7a78）に差し替える */
@@ -4770,17 +4786,40 @@ body.is-sending .staff-main {
   line-height: 1.4;
   color: var(--text-muted);
 }
-.hallboard .billcard__amount { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+/* 金額の行。設計（ト02「Frame 2」）は 280x39・gap 25・NO_WRAP。
+
+   ★ 2026-09-19：wrap をやめました（店主の指摘「line がズレてる」）。
+     折り返すと行が 39.2px → 80px に伸び、その下のボタンだけ 42.8px 下がります。
+     同じ列でも注記の長さで伸びたり伸びなかったりするので、
+     カードごとにボタンの高さが変わって見えていました。実測:
+
+       カウンター札1「テーブルチャージ ¥900 を含む」   → 収まる  39.2px
+       カウンター札3「テーブルチャージ ¥1,800 を含む」 → あふれる 80px（★）
+
+   ★ 注記は「消す」のではなく「中で折る」。金額（28px）は縮めず、
+     注記だけ min-width:0 で縮ませます。12px の 2 行は 33.6px なので
+     金額の 39.2px に収まり、行の高さは変わりません。
+     設計の注記は金額を書いていません（「テーブルチャージ を含む」）が、
+     いくら乗っているかは会計前に知りたい数字なので実装では残します。 */
+.hallboard .billcard__amount {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: nowrap;
+  min-height: 39px;
+}
 .hallboard .billcard__yen {
   font-size: 28px;
   font-weight: 700;
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 /* ★ 内訳だけ 12px（設計どおり）。
      ほかの補足は 14px ですが、これは 28px の金額の真横に置く注記で、
      14px にすると金額と competing して、どちらを読めばいいか分からなくなります */
-.hallboard .billcard__note { font-size: 12px; line-height: 1.4; color: var(--text-muted); }
+/* min-width:0 が無いと、flex の子は中身より小さくなれず行からあふれる */
+.hallboard .billcard__note { font-size: 12px; line-height: 1.4; color: var(--text-muted); min-width: 0; }
 /* ★ カードのボタンだけ 44px（設計 453:5744 ほかの実測値）。
      2026-09-12 に「Figma を正とする」とユーザーが決めたので、設計に合わせた。
      それまでは CLAUDE.md の「タップ領域は 48px 以上」を優先して 48px にしていた。
@@ -4933,8 +4972,20 @@ body.is-sending .staff-main {
 .hallboard .billcard--cleanup .billcard__meta { font-size: 16px; }
 .hallboard .billcard--cleanup .billcard__meta b { font-size: 20px; font-weight: 700; color: #1c1c1c; }
 
-/* 中身は余白 24・カード間 24 */
-.hallboard .lane__body { padding: 24px; gap: 24px; }
+/* 中身は上下 24・左右 16、カード間 24（設計 ト02「Frame 11」pad 24/16/24/16）。
+
+   ★ 2026-09-19：左右を 24 から 16 へ戻しました（店主の指摘「line がズレてる」）。
+     8px×2 を余分に食っていたせいでカードが 15.3px 細くなり、
+     卓名の横に札が入らず 2 行目に落ちていました。落ちると
+     その下の行が全部 45.6px 下がるので、金額とボタンの段が
+     レーンをまたいで揃わなくなります。実測:
+
+       設計   列 360 → 本文 328（左右 16）→ 頭 280   卓名 135 + 8 + 札 102 = 245（あまり 35）
+       実装   列 363 → 本文 315（左右 24）→ 頭 265   卓名 158 + 8 + 札 108 = 274（★ -9.3）
+
+     卓名が長いのも一因（設計の見本は「カウンター2」6 文字、実物は
+     「カウンター札1」7 文字）。ただし設計どおりの幅に戻せば 7 文字でも収まります。 */
+.hallboard .lane__body { padding: 24px 16px; gap: 24px; }
 .hallboard .lane__empty { padding: 24px 0; }
 
 /* ボタンは既存の --btn-* の仕組みに乗せる（.btn の形は変えない）。

@@ -155,8 +155,28 @@ class HallBoardDesignTest {
         String block = html.substring(at, html.indexOf("</div>", at));
         assertThat(block).contains("billcard__yen");
         assertThat(block).contains("billcard__note");
-        assertThat(Files.readString(CSS).replace("\r\n", "\n"))
-                .contains(".hallboard .billcard__amount { display: flex; align-items: center; gap: 24px;");
+
+        // ★ 2026-09-19：書き方ではなく中身を見るようにしました。
+        //   それまでは 1 行に書いてある前提で
+        //   ".hallboard .billcard__amount { display: flex; align-items: center; gap: 24px;"
+        //   という文字列をそのまま探していたので、規則を複数行に書き直しただけで落ちました。
+        //   守りたいのは「横並びであること」で、改行の位置ではありません。
+        //
+        //   このとき同時に flex-wrap: wrap → nowrap にしています。
+        //   wrap のままだと注記が長いカードだけ行が 39.2px → 80px に伸び、
+        //   そのカードのボタンだけ 42.8px 下がっていました（実測）。
+        //   「横並び」を守るなら折り返さないほうが筋が通ります。
+        //   詳しくは HallCardRowsLineUpTest。
+        String css = Files.readString(CSS).replace("\r\n", "\n")
+                .replaceAll("(?s)/\\*.*?\\*/", "");
+        int rule = css.indexOf(".hallboard .billcard__amount");
+        assertThat(rule).as(".hallboard .billcard__amount が無い").isGreaterThan(0);
+        String decl = css.substring(css.indexOf('{', rule) + 1, css.indexOf('}', rule))
+                .replaceAll("\\s+", "");
+        assertThat(decl).as("金額と注記が横並びでない").contains("display:flex");
+        assertThat(decl).as("金額と注記の間が 24px でない").contains("gap:24px");
+        assertThat(decl).as("金額の行が折り返す。注記の長さでボタンの高さが変わる")
+                .contains("flex-wrap:nowrap");
     }
 
     @Test
