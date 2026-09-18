@@ -4138,14 +4138,18 @@ body.is-sending .staff-main {
   font-size: 15px;
 }
 .catpick__item:hover { background: var(--accent-soft); }
-.catpick__item.is-active { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+/* ★ 2026-09-18：--accent をやめました。:root では黒ですが .theme-desk では
+     --green-700（＝ #0b7a78・古いティール）になり、選択中だけティールに
+     なっていました。押せるもの・選ばれているものは --action 系で持ちます。
+     サイドバーの選択中（#0b7a1a / 薄い緑）と同じ見え方になります。 */
+.catpick__item.is-active { background: var(--action-soft); color: var(--action); font-weight: 700; }
 .catpick__count {
   flex: none;
   font-size: 13px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
-.catpick__item.is-active .catpick__count { color: var(--accent); }
+.catpick__item.is-active .catpick__count { color: var(--action); }
 
 /* 構成比の棒（注文履歴の「売れた商品」）。
 
@@ -7199,15 +7203,21 @@ body.is-sending .staff-main {
    34-4. 表
    -------------------------------------------------------------------------- */
 /* 見出し行。地のティールと白文字は共通のまま、寸法だけ設計に寄せる */
+/* ★ 2026-09-18：色を設計（ト03 725:4168）にそろえました（店主の指摘）。
+     「線色とかおススメが昔の緑だったりしてるから」
+
+     下線が #0b7a78（古いティール）で、表の頭に緑の線が 1 本入って見えていました。
+     設計は #e3e3e3。字も 13px でしたが設計は 12px です。 */
 .soldoutpage .table th {
   padding: 14px 16px;
-  font-size: 13px;
-  border-bottom-color: #0b7a78;
+  font-size: 12px;
+  border-bottom-color: #e3e3e3;
 }
 .soldoutpage .table td {
   padding: 12px 16px;
   font-size: 15px;
-  border-bottom: 1px solid #e8e8e8;
+  /* 設計は #e3e3e3（#e8e8e8 だと 1 段薄い） */
+  border-bottom: 1px solid #e3e3e3;
 }
 /* 列幅（設計：商品は残り全部／価格 100／状態 110／残数 240／操作 170） */
 .soldoutpage .table th:nth-child(2), .soldoutpage .table td:nth-child(2) { width: 100px; }
@@ -7233,12 +7243,18 @@ body.is-sending .staff-main {
 /* 価格。設計は 15px の中太。右寄せは共通の td.num のまま残している */
 .soldoutpage .table td.num { font-size: 15px; font-weight: 500; }
 
-/* 「おすすめ」。品名より小さく、地は薄いティール */
+/* 「おすすめ」。品名より小さく、地は薄い緑。
+
+   ★ 2026-09-18：ティールから緑へ（店主の指摘）。
+     地 #ddf0ec → 設計 #ddf0e0、文字 #0b7a78 → 設計 #0b7a1a。
+     どちらも 1 文字ちがいなので、並べて見ないと気づけませんでした。
+     ベタ書きをやめて --action 系で持ちます。他の画面と同じ栓になるので、
+     色を変えるときに、ここだけ取り残されることがなくなります。 */
 .soldoutpage .table .badge--rec {
   padding: 2px 8px;
   font-size: 11px;
-  background: #ddf0ec;
-  color: #0b7a78;
+  background: var(--action-soft);
+  color: var(--action);
   border-color: transparent;
 }
 
