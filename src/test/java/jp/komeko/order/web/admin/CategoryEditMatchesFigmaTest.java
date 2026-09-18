@@ -68,6 +68,32 @@ class CategoryEditMatchesFigmaTest {
                 .as("グリッドの下にボタンがぶら下がる元の形が残っている").isLessThan(0);
     }
 
+    /**
+     * ★ 入力とボタンの下端がそろうこと（2026-09-17、店主の指摘）。
+     *
+     * <p>{@code .row} は既定が {@code align-items: center} です。ラベル付きの入力は
+     * 「ラベル＋入力欄」で背が高く、ボタンは 48px しかありません。中央でそろえると
+     * <b>ボタンだけ上に浮きます</b>。
+     *
+     * <p>「入力が並んで右端にボタン」の形は カテゴリの追加・税率の改定 の 2 画面に
+     * あり、どちらも同じずれ方をしていました。{@code .row__grow} を含む行だけ
+     * 下ぞろえにして、まとめて直します。
+     */
+    @Test
+    @DisplayName("★ 入力とボタンの下端がそろう（ボタンだけ浮かない）")
+    void theButtonLinesUpWithTheInputs() throws Exception {
+        String css = Files.readString(
+                Path.of("src/main/resources/static/css/app.css")).replace("\r\n", "\n");
+
+        int at = css.indexOf(".row:has(.row__grow)");
+        assertThat(at)
+                .as("入力の行を下ぞろえにする指定が無い。"
+                        + ".row の既定（align-items: center）だとボタンだけ上に浮く")
+                .isGreaterThan(0);
+        assertThat(css.substring(at, css.indexOf("}", at)))
+                .as("下ぞろえになっていない").contains("align-items: flex-end");
+    }
+
     @Test
     @DisplayName("★ 節見出しに件数が出る（登録済みのカテゴリ N 件）")
     void theSectionHeadingShowsTheCount() throws Exception {
