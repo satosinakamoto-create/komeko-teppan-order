@@ -220,8 +220,13 @@ class StockRecordPageTest {
         assertThat(Files.readString(LIST)).doesNotContain("searchbox--slim");
         // しぼり込みは 2 つ並び、間は 42（設計 466:5915）
         assertThat(css).contains(".stockpage .stockfind { gap: 42px; margin-top: 0; }");
-        // 見出しは左右 40・上下 16、ボタンは右端
-        assertThat(css).contains(".stockpage .inv-ingredients .btn { margin-left: auto; }");
+        // 見出しは左右 40・上下 16、ボタンは右端。
+        // ★ :first-of-type を付けること（2026-09-18・店主の指摘）。
+        //   flex の margin:auto は余白を吸収するので、全部の .btn に付けると
+        //   ボタンが 2 つ並んだとき余白が半分ずつ分配されて間が開く。
+        //   「まとめて棚卸し」を足した時点で実際そうなった。
+        assertThat(css).contains(
+                ".stockpage .inv-ingredients .btn:first-of-type { margin-left: auto; }");
 
         // 行の上下 9（2026-09-07 に 16 から変更）。
         // 「記録する」がボタン（高さ 54）になり、行の高さはボタンで決まるようになった。
