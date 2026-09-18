@@ -39,7 +39,7 @@
            ただし<b>行から入るものではありません</b>。行から入ると
            「その食材の画面」と行き先が二重になるので、帯に独立させました。 */-->
     <a class="btn" th:href="@{/inventory/ingredients/record}">まとめて棚卸し</a>
-    <a class="btn btn--primary" th:href="@{/inventory/ingredients/new}">食材を追加</a>
+    <a class="btn btn--primary" th:href="@{/inventory/ingredients/new}">＋食材を追加</a>
   </div>
 
   <!--/* ★ ここにあった「◯件の食材が少なくなっています」の知らせは
@@ -92,7 +92,7 @@
       「食材を追加」から、よく使うものを 5 つ 10 つだけ登録してみてください。<br>
       全部そろえなくても、登録したぶんから在庫が動きはじめます。
     </p>
-    <a class="btn btn--primary" th:href="@{/inventory/ingredients/new}">最初の食材を追加する</a>
+    <a class="btn btn--primary" th:href="@{/inventory/ingredients/new}">＋最初の食材を追加する</a>
   </div>
 
   <div th:unless="${levels.isEmpty()}" class="table-wrap">
