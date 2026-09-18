@@ -154,6 +154,65 @@ class DateBandIsOneDesignTest {
     }
 
     /**
+     * ★ 補足は題と帯の<b>あいだ</b>に置く（2026-09-18、店主の指示）。
+     *
+     * <pre>
+     *   「消費税の立場が未設定です／課税仕入（税率 × 控除区分）／未確認 17 件／
+     *     弥生形式（25項目）／60 行 …などを、見出しと ← 前月 2026年08月 翌月 →
+     *     の間に来るようにしてください。そうしないと意味が伝わりずらくなるので」
+     * </pre>
+     *
+     * <p><b>補足は題の説明だからです。</b>「未確認 17 件」は「証憑の確認」に
+     * かかる言葉で、月の帯にかかる言葉ではありません。あいだに帯が入ると、
+     * 何の 17 件なのかが読み取りにくくなります。
+     *
+     * <pre>
+     *   ×  証憑の確認  [← 前月][2026年08月][翌月 →]  未確認 17 件
+     *                                                 ↑ 何の 17 件か遠い
+     *   ○  証憑の確認  未確認 17 件  [← 前月][2026年08月][翌月 →]
+     * </pre>
+     *
+     * <p>補足を持たない画面（売上・仕入れ・経費）は、題の直後が帯になります。
+     */
+    @Test
+    @DisplayName("★ 補足は題と帯のあいだ（題 → 補足 → 帯）")
+    void theSubtitleSitsBetweenTheTitleAndTheBand() throws Exception {
+        record Row(String path, String rowClass, String subClass) {}
+        List<Row> rows = List.of(
+                new Row("src/main/resources/templates/admin/orders.html",
+                        "page-head", "page-head__sub"),
+                new Row("src/main/resources/templates/accountant/index.html",
+                        "section-title", "section-title__count"),
+                new Row("src/main/resources/templates/accountant/tax.html",
+                        "section-title", "section-title__count"),
+                new Row("src/main/resources/templates/accountant/evidence.html",
+                        "section-title", "section-title__count"),
+                new Row("src/main/resources/templates/accountant/journal.html",
+                        "section-title", "section-title__count"),
+                new Row("src/main/resources/templates/accountant/rules.html",
+                        "section-title", "section-title__count"));
+
+        for (Row r : rows) {
+            String html = body(r.path());
+
+            int row = html.indexOf("class=\"" + r.rowClass() + "\"");
+            assertThat(row).as(r.path() + " に題の行が無い").isGreaterThan(0);
+
+            int sub = html.indexOf(r.subClass(), row);
+            int band = html.indexOf("datenav", row);
+            if (band < 0) band = html.indexOf("common :: monthband", row);
+
+            assertThat(sub).as(r.path() + " に補足が無い").isGreaterThan(row);
+            assertThat(band).as(r.path() + " に帯が無い").isGreaterThan(row);
+
+            assertThat(sub)
+                    .as(r.path() + " の補足が帯より後ろにある。補足は題の説明なので、"
+                            + "あいだに帯が入ると何についての言葉か読み取りにくくなる")
+                    .isLessThan(band);
+        }
+    }
+
+    /**
      * ★ 帯はレイアウトから消えていること。
      *
      * <p>題の行へ移したので、レイアウトに残っていると<b>同じ帯が 2 つ</b>出ます。

@@ -26,6 +26,10 @@
            「いつを見ているか」は題とひと続きで読む情報なので、
            離すと題を読んでから視線を下げてもう一度読むことになります。
 
+         ★ 並びは 題 → 補足 → 帯（2026-09-18・店主の指示）。
+           補足は題の説明なので、あいだに帯が入ると何についての言葉か
+           読み取りにくくなります。「18 件」は「注文履歴」にかかる言葉です。
+
          ★ 補足は「曜日 ／ 件数」に減らしました。
            もとは「2026年8月16日(日) ／ 12 件」でしたが、入力欄が題の行に
            入った結果、同じ日付が 2 か所に出ることになったためです。
@@ -40,6 +44,10 @@
   <div class="page-head">
     <h1 class="page-head__title">注文履歴</h1>
 
+    <span class="page-head__sub" th:text="${weekdayLabel} + ' ／ ' + ${#lists.size(rows)} + ' 件'">
+      日曜日 ／ 12 件
+    </span>
+
     <form th:action="@{/admin/orders}" method="get" class="datenav">
       <a class="btn btn--sm" th:href="@{/admin/orders(date=${prevDateIso})}">← 前日</a>
       <input class="input" type="date" name="date" th:value="${dateIso}" aria-label="日付を選ぶ">
@@ -49,10 +57,6 @@
       <button type="submit" class="btn btn--sm datenav__go">この日を表示</button>
       <a class="btn btn--sm" th:href="@{/admin/orders(date=${nextDateIso})}">翌日 →</a>
     </form>
-
-    <span class="page-head__sub" th:text="${weekdayLabel} + ' ／ ' + ${#lists.size(rows)} + ' 件'">
-      日曜日 ／ 12 件
-    </span>
 
     <!--/* 「この日の売上」は移動で、帯の操作ではないので外に出して右端へ送る
            （2026-09-16 に決めた形。左端は戻るの居場所、右端は実行と移動） */-->
