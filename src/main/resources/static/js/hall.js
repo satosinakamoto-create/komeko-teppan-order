@@ -126,7 +126,10 @@
     var other = form.querySelector('[data-guest-other]');
     var picked = form.querySelector('input[name="guestCount"]:checked');
     var n = (other && other.value) ? other.value : (picked ? picked.value : '');
-    echo.textContent = n ? (n + ' 名さま') : '';
+    /* 設計（ト02c 725:2910）は「4 名様」。2026-09-18 に
+       「2 名さま」から合わせました。ここは見出しなので、
+       お客さま向けの丁寧語ではなく設計の表記に寄せます。 */
+    echo.textContent = n ? (n + ' 名様') : '';
   }
 
   document.addEventListener('click', function (e) {

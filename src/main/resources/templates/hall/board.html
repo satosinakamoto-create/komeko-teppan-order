@@ -71,7 +71,6 @@
 
         <div class="hallmodal__head">
           <h2 class="hallmodal__title">新規お客様</h2>
-          <button type="button" class="hallmodal__close" data-close-modal aria-label="閉じる">✕</button>
         </div>
 
         <div class="hallmodal__field">
@@ -104,11 +103,12 @@
       <section class="hallmodal__pane" data-pane="2" hidden>
         <div th:replace="~{hall/fragments :: step(2, '人数を選ぶ', '卓を選ぶ')}"></div>
 
+        <!--/* Title shows the guest count (design 725:2910, 2026-09-18).
+               The implementation had them swapped: title "どの卓", sup "2 名さま".
+               Design: title = 4 名様 (24px Bold), and "どの卓" stays as the
+               small label above the list below. Do not say it twice. */-->
         <div class="hallmodal__head">
-          <h2 class="hallmodal__title">どの卓</h2>
-          <!--/* 1 枚目で選んだ人数をここに出す。戻らなくても確かめられる */-->
-          <span class="hallmodal__sup" data-guest-echo>2 名さま</span>
-          <button type="button" class="hallmodal__close" data-close-modal aria-label="閉じる">✕</button>
+          <h2 class="hallmodal__title hallmodal__title--lg" data-guest-echo>2 名様</h2>
         </div>
 
         <div class="hallmodal__field">
@@ -365,7 +365,6 @@
           <h2 class="hallmodal__title" th:text="${bill.diningTable.name}">カウンター2</h2>
           <span class="hallmodal__sup"
                 th:text="${bill.guestCount} + ' 名 ／ 滞在 ' + ${bill.stayMinutes} + ' 分'">2 名 ／ 滞在 96 分</span>
-          <button type="button" class="hallmodal__close" data-close-modal aria-label="閉じる">✕</button>
         </div>
 
         <div class="hallmodal__field">
@@ -414,7 +413,6 @@
           <span class="hallmodal__sup"
                 th:text="${bill.diningTable.name} + ' ／ ' + ${bill.guestCount} + ' 名 ／ 滞在 ' + ${bill.stayMinutes} + ' 分'">
             カウンター2 ／ 2 名 ／ 滞在 96 分</span>
-          <button type="button" class="hallmodal__close" data-close-modal aria-label="閉じる">✕</button>
         </div>
 
         <!--/* 金額はすべて TableSession が計算した値をそのまま出します。

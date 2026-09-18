@@ -4947,11 +4947,15 @@ body.is-sending .staff-main {
   background: rgba(28, 28, 28, .4);
   backdrop-filter: blur(3px);
 }
+/* ★ 2026-09-18：設計（ト02c 725:2910 ほか）に合わせました（店主の指摘
+     「枠幅とか枠の色とか…も違うし」）。上下 40・左右 24、枠 #e3e3e3 1px。
+     実測では上下も 24px で、枠は 1 本も引かれていませんでした。 */
 .hallmodal__box {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 24px;
+  padding: 40px 24px;
+  border: 1px solid #e3e3e3;
 }
 .hallmodal__pane { display: flex; flex-direction: column; gap: 20px; }
 .hallmodal__pane[hidden] { display: none; }
@@ -4963,6 +4967,9 @@ body.is-sending .staff-main {
   flex-wrap: wrap;
 }
 .hallmodal__title { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.4; }
+/* 卓を選ぶ画面の題だけ 24px（設計 ト02c 725:2910）。
+   あちらは題が人数（4 名様）で、この画面のいちばん大きい文字になります。 */
+.hallmodal__title--lg { font-size: 24px; }
 .hallmodal__sup { font-size: 14px; color: var(--text-muted); }
 .hallmodal__close {
   margin-left: auto;
@@ -4988,7 +4995,10 @@ body.is-sending .staff-main {
 
 /* 足元。副ボタン 1 ： 主ボタン 3。押す回数が多いほうを広く取る */
 .hallmodal__foot { display: flex; gap: 12px; }
-.hallmodal__sub  { flex: 1 1 0; min-height: 48px; font-size: 15px; border-radius: 4px; }
+/* 設計（ト02c/d/e）の副ボタンは枠 #d1d1d1。共通の .btn は --border-strong が
+   効いて #c7c7c7 になっていました（2026-09-18 の実測）。 */
+.hallmodal__sub  { flex: 1 1 0; min-height: 48px; font-size: 15px; border-radius: 4px;
+                   border-color: #d1d1d1; }
 /* ★ セレクタを .hallmodal から書くこと（2026-09-17・店主の指摘で判明）。
 
    .hallmodal__main だけ（0,1,0）だと、3401 行の .theme-desk .btn（0,2,0）に
@@ -5120,9 +5130,12 @@ body.is-sending .staff-main {
   /* ★ 最低 60px。札の有無で高さが変わると、並べたとき行がガタつく */
   min-height: 60px;
   padding: 12px 16px;
-  border: 1px solid var(--border);
+  /* ★ 2026-09-18：設計は 地 #ffffff・枠 #e8e8e8（店主の指摘「枠の色」）。
+       var(--border) は .theme-desk で文字色に寄っていて、
+       実測では #1c1c1c の黒い枠になっていました。地も #f7f9fb で灰色がかっていました。 */
+  border: 1px solid #e8e8e8;
   border-radius: 6px;
-  background: var(--surface);
+  background: #ffffff;
   cursor: pointer;
 }
 .seatrow input { width: 18px; height: 18px; accent-color: var(--action); flex: 0 0 auto; }
