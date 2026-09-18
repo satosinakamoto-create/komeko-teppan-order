@@ -3489,7 +3489,12 @@ body.is-sending .staff-main {
    -------------------------------------------------------------------------- */
 .theme-desk .section-title__text { font-size: 24px; font-weight: 700; }
 .theme-desk h1,
-.theme-desk h1.section-title__text { font-size: 32px; font-weight: 700; }
+/* ★ 行間も書くこと（2026-09-18・店主の指摘「ホール会計のフォントまだ統一されてないくない？」）。
+     字は 32px でそろっていましたが、行間の指定が無く 1.4 倍＝44.8px になっていて、
+     .page-head__title（36px 明示）より行が 9px 高くなっていました。
+     実測で 22 画面中 8 枚（ホール・品切れ・食材・税理士 5）がこちら側。
+     同じ 32px でも、行が高いぶん大きく見えます。 */
+.theme-desk h1.section-title__text { font-size: 32px; font-weight: 700; line-height: 36px; }
 .theme-desk h2,
 .theme-desk h2.section-title__text { font-size: 24px; font-weight: 700; }
 .theme-desk h3,
@@ -4656,7 +4661,9 @@ body.is-sending .staff-main {
    落としているので、ここで開け直す（設計 438:2438 の 2px） */
 .hallboard h2.section-title__text { font-size: 20px; letter-spacing: 2px; }
 .hallboard .section-title__count { font-size: 12px; }
-.hallboard h1.section-title__text + .section-title__count { font-size: 13px; }
+/* ★ 2026-09-18：13px の上書きをやめました（店主の指示）。
+     .theme-desk の 16px にそろえます。節の補足は画面ごとに
+     16 / 13 / 14px とばらついていました。 */
 
 /* ★ 数字カード（在席・未提供・空席の 3 枚）の規則はここにありましたが、
      2026-09-14 にカードの段ごと畳みました。店主の指摘
@@ -5236,6 +5243,26 @@ body.is-sending .staff-main {
    .theme-desk の (0,2,0) に必ず勝つので、この節を上に動かしても壊れない。
    -------------------------------------------------------------------------- */
 .theme-desk.theme-ledger { line-height: 1.9; }
+
+/* ★ 題の行の上下を、店舗管理の見出し帯にそろえる（2026-09-18・店主の指摘）。
+
+     「上下の余白も統一感ないんだけど調べて」を実測したところ、
+     税理士だけ「器の上 ～ 題」が 39px（他は 55px）、
+     「題 ～ 次のブロック」が 55px（他は 71px）でした。
+
+     差はちょうど 16px ずつ。原因は<b>題の行の上下 padding</b>だけです。
+
+         店舗管理 .page-head      padding 16・16 → 帯の高さ 82
+         税理士   .section-title  padding  0・0  → 帯の高さ 50
+
+     左右は触りません。あちらは 40px を持っていますが、
+     税理士は .staff-main の --main-pad-x に任せる作りのままにします。 */
+.theme-ledger .section-title:has(h1) { padding-block: 16px; }
+
+/* iPad では帯も一段詰める（.page-head の 12px と同じ）。 */
+@media (max-width: 1380px) {
+  .theme-ledger .section-title:has(h1) { padding-block: 12px; }
+}
 
 .theme-desk.theme-ledger .help,
 .theme-desk.theme-ledger .small,
@@ -7157,7 +7184,8 @@ body.is-sending .staff-main {
    （設計では h1 ＝ ページの題、h2 ＝ 節の題、と大きさで段を付けている） */
 .soldoutpage .soldout-head .section-title__text { font-size: 32px; }
 /* 「／ 掲載中 94 品」。件数は本文より一段小さい補足 */
-.soldoutpage .soldout-head .section-title__count { font-size: 14px; color: #828282; }
+/* ★ 2026-09-18：14px をやめて 16px（.theme-desk の既定）にそろえました。 */
+.soldoutpage .soldout-head .section-title__count { color: #828282; }
 
 /* --------------------------------------------------------------------------
    34-2. しぼり込み（設計「Frame 3」）
@@ -7263,7 +7291,11 @@ body.is-sending .staff-main {
 .soldoutpage .table .status-chip::before { width: 6px; height: 6px; }
 
 /* 残数の欄と「設定」。設計は 38px / 36px だが、押せるものなので 48px は割らない */
-.soldoutpage .table .input { font-size: 14px; }
+/* ★ 14px にしないこと（2026-09-18）。CLAUDE.md の
+     「入力欄の font-size は 16px 未満にしない」に反します。
+     iOS は 16px 未満の入力欄にフォーカスすると画面を勝手に拡大し、
+     営業中に卓の画面が飛びます。狭いなら幅で詰めること。 */
+.soldoutpage .table .input { font-size: 16px; }
 .soldoutpage .table .btn--sm {
   min-height: 48px;
   padding-inline: 14px;

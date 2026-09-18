@@ -269,7 +269,13 @@ class DateBandIsOneDesignTest {
     @Test
     @DisplayName("★ 帯は縮めない・折らない（2 段に割れない）")
     void theBandNeverFolds() throws Exception {
-        String css = Files.readString(CSS).replace("\r\n", "\n");
+        // ★ コメントを落としてから探すこと（2026-09-18 に 1 度踏みました）。
+        //   この app.css は「なぜそう書くか」を注記に残す方針なので、
+        //   .page-head__title という語が本物の指定より前の注記に出てきます。
+        //   indexOf はそちらを拾い、中身が無いので落ちます。
+        //   DeviceStepDownTest・PageHeadMatchesFigmaTest が踏んだのと同じ罠です。
+        String css = Files.readString(CSS).replace("\r\n", "\n")
+                .replaceAll("(?s)/\\*.*?\\*/", "");
 
         int at = css.indexOf(".datenav {");
         String rule = css.substring(at, css.indexOf("}", at));

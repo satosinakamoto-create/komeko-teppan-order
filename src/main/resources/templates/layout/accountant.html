@@ -109,8 +109,28 @@
     </div>
   </aside>
 
-  <main class="staff-main">
-    <div class="container container--wide">
+  <!--/* ============ 本文 ============
+
+        ★ 器は <div>、中身の <main> は直下に置くこと（2026-09-18・店主の指摘）。
+
+          「上下の余白も統一感ないんだけど調べて」を実測したところ、
+          税理士 5 画面だけブロックの間が 16px（他は 48px）、
+          題の上が 80px（他は 0〜32px）でした。原因は<b>構造</b>です。
+
+              店舗管理  .staff-main > main            … 縦オートレイアウトが効く
+              税理士    main.staff-main > .container > main … 効かない
+
+          ブロックの間を決めているのは
+          .theme-desk .staff-main > main { display: flex; gap: 48px }。
+          あいだに .container が挟まっていたので、一度も届いていませんでした。
+
+          ついでに <main> の入れ子（HTML として不正）も解けます。
+          店舗管理側が外側を div にしているのは、まさにこれを避けるためでした
+          （layout/staff.html の同じ位置にその注意書きがあります）。
+
+          .container も外します。左右の余白は .staff-main が
+          --main-pad-x で持っているので、二重にかかっていました。 */-->
+  <div class="staff-main">
 
       <!--/* ★ 月の切り替えの帯は、ここにはもうありません（2026-09-18）。
 
@@ -165,10 +185,9 @@
              ★ 行き先はいまの画面のまま、月だけ変える。
                currentPath は GlobalModelAttributes が全画面に渡している
                （#httpServletRequest は Thymeleaf 3.1 で使えない）。 */-->
-      <div th:replace="~{fragments/common :: flash}"></div>
-      <div th:replace="${content}">ページ本文</div>
-    </div>
-  </main>
+    <div th:replace="~{fragments/common :: flash}"></div>
+    <div th:replace="${content}">ページ本文</div>
+  </div>
 
 </div>
 </body>
