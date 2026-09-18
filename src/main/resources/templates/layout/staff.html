@@ -30,6 +30,19 @@
   <title th:text="${pageTitle} + ' | ' + ${shop.shopName} + ' 店舗管理'">店舗管理</title>
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
+
+  <!--/* 日付・月の帯（.datenav）を「選んだら表示」にします（2026-09-18）。
+         使うのは注文履歴と仕入れ・経費の 2 画面だけですが、帯のある画面が
+         増えたときに読み込み忘れないよう、レイアウト側に置いています。
+         帯が無い画面では何もしません（document で拾って範囲を絞っているだけ）。
+
+         ・datenav.js … 選んだ瞬間に送信し、キーボードでは打たせない
+         ・app.css    … 送信ボタン（.datenav__go）を既定で隠す
+         ・下の noscript … JavaScript が動かないときだけボタンを出す
+         ボタンを HTML から消していないのは、動かない環境では
+         それが唯一の送信手段になるためです。 */-->
+  <script th:src="@{/js/datenav.js}" defer></script>
+  <noscript><style>.datenav__go { display: inline-flex; }</style></noscript>
 </head>
 <!--/* theme-desk … 店側の画面の寸法とトンマナ（app.css の 30 節）。
        文字を大きくし、余白を広げ、表の見出しを緑でベタ塗りにする。

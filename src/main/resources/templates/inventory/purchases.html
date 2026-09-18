@@ -55,8 +55,9 @@
          「2026年09月」とカレンダーのアイコンが入りきらず切れていました。 */-->
   <form th:action="@{/inventory/purchases}" method="get" class="row row--wrap datenav">
     <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${prevMonth})}">← 前月</a>
-    <input class="input" type="month" name="month" th:value="${month}">
-    <button type="submit" class="btn btn--sm">この月を表示</button>
+    <input class="input" type="month" name="month" th:value="${month}" aria-label="月を選ぶ">
+    <!--/* 既定では隠れています（app.css の .datenav__go）。詳しくは datenav.js の冒頭。 */-->
+    <button type="submit" class="btn btn--sm datenav__go">この月を表示</button>
     <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${nextMonth})}">翌月 →</a>
   </form>
 

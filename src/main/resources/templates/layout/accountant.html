@@ -28,6 +28,15 @@
   <title th:text="${pageTitle} + ' | ' + ${shop.shopName} + ' 帳簿'">帳簿</title>
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
+
+  <!--/* 日付・月の帯（.datenav）を「選んだら表示」にします（2026-09-18）。
+         ・datenav.js … 選んだ瞬間に送信し、キーボードでは打たせない
+         ・app.css    … 送信ボタン（.datenav__go）を既定で隠す
+         ・下の noscript … JavaScript が動かないときだけボタンを出す
+         ボタンを HTML から消していないのは、動かない環境では
+         それが唯一の送信手段になるためです。 */-->
+  <script th:src="@{/js/datenav.js}" defer></script>
+  <noscript><style>.datenav__go { display: inline-flex; }</style></noscript>
 </head>
 <!--/* 3 枚重ね。それぞれ引き受けるものが違う。
        theme-snow   … 配色（白基調）。お客さん側も含む全レイアウト共通
@@ -122,9 +131,18 @@
                いまが 2026-09 で 2025-12 を見たいときに 9 回押すことになるためです。
                税理士の画面は過去の月を見に来る画面なので、ここが一番効きます。
 
-             ★ JavaScript は使いません（スタッフ側は素の HTML で動かす決まり）。
-               <input type="month"> はブラウザが月のカレンダーを出してくれます。
+             ★ <input type="month"> はブラウザが月のカレンダーを出してくれます。
                month モデル属性は 2026-09 の形で、この入力欄の値の形そのものです。
+
+             ★ 選んだら、その場で表示します（2026-09-18・店主の判断）。
+               ここは長く「JavaScript は使わない」と書いてありましたが、
+               <input> は値を入れるだけの部品で、選んでも送信は起きません。
+               そのため「この月を表示」を押させていました。
+               いまは datenav.js が選んだ瞬間に送信し、そのかわり
+               キーボードでは打てなくしています（打つ途中で
+               飛ばされるのを防ぐため。詳しくは datenav.js の冒頭）。
+               JavaScript が動かない環境では、<head> の noscript が
+               下のボタンを出すので、押せば今までどおり動きます。
 
              ★ GET にするのは、月を見るのが読むだけの操作だからです。
                URL に残るので戻る・進むが効き、ブックマークもできます。
@@ -137,7 +155,7 @@
         <a class="btn btn--sm" th:href="@{__${p}__(month=${prevMonth})}">← 前月</a>
         <input class="input" type="month" name="month"
                th:value="${month}" aria-label="月を選ぶ">
-        <button type="submit" class="btn btn--sm">この月を表示</button>
+        <button type="submit" class="btn btn--sm datenav__go">この月を表示</button>
         <a class="btn btn--sm" th:href="@{__${p}__(month=${nextMonth})}">翌月 →</a>
       </form>
 

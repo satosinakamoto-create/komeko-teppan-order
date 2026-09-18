@@ -29,8 +29,11 @@
          （もとはここに style="max-width:12rem" を直接書いていました）。 */-->
   <form th:action="@{/admin/orders}" method="get" class="row row--wrap datenav">
     <a class="btn btn--sm" th:href="@{/admin/orders(date=${prevDateIso})}">← 前日</a>
-    <input class="input" type="date" name="date" th:value="${dateIso}">
-    <button type="submit" class="btn btn--sm">この日を表示</button>
+    <input class="input" type="date" name="date" th:value="${dateIso}" aria-label="日付を選ぶ">
+    <!--/* 既定では隠れています（app.css の .datenav__go）。
+           カレンダーで選んだ瞬間に datenav.js が送信するためです。
+           JavaScript が動かない環境でだけ、noscript がこれを出します。 */-->
+    <button type="submit" class="btn btn--sm datenav__go">この日を表示</button>
     <a class="btn btn--sm" th:href="@{/admin/orders(date=${nextDateIso})}">翌日 →</a>
     <span class="spacer"></span>
     <a class="btn btn--sm btn--ghost" th:href="@{/admin/sales(date=${dateIso})}">この日の売上</a>
