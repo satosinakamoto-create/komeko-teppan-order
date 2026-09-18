@@ -3917,7 +3917,16 @@ body.is-sending .staff-main {
   padding: 16px 40px;
   margin: 0 0 16px;
 }
-.stockpage .inv-ingredients .btn { margin-left: auto; }
+/* ★ 最初のボタンだけ右へ送ること（2026-09-18・店主の指摘）。
+
+   flex の margin:auto は余白を吸収します。すべての .btn に付けると、
+   ボタンが 2 つ並んだとき<b>余白が半分ずつ分配されて間が開きます</b>。
+   （「まとめて棚卸し」を足した 2026-09-18 に実際そうなりました）
+
+   仕入れ・経費は「のばす」を前に 1 つだけ置いて 2 つまとめて送る形で、
+   そちらが正しい組み方です。ここは目印が付けにくいので、
+   最初の 1 つだけに auto を効かせて同じ結果にします。 */
+.stockpage .inv-ingredients .btn:first-of-type { margin-left: auto; }
 
 /* しぼり込み（設計 466:5915）。2 つの間は 42。上の間隔は見出しの 16 に任せる。
    ★ 高さは素の .searchbox が 64 で設計どおりなので、何も足さない。
