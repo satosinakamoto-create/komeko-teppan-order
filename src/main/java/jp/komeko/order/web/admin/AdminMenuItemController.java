@@ -129,6 +129,20 @@ public class AdminMenuItemController {
             new ItemTab("draft", "編集中", MenuItem::isDraft));
 
     /** 画面に渡すタブ 1 つぶん。 */
+    /**
+     * 「カテゴリーから検索」の 1 行（2026-09-19、設計 ト10 731:4408）。
+     *
+     * <p>件数は<b>そのカテゴリの全品数</b>です。タブや検索語では減らしません。
+     * ここは行き先を示す看板で、押す前に「そこに何品あるか」が分かることが大事です
+     * （タブの件数を all から数えているのと同じ理由）。
+     *
+     * @param id    カテゴリの ID。押すと {@code ?category=id} で絞り込む
+     * @param name  画面に出す名前
+     * @param count そのカテゴリの品数
+     */
+    public record CategoryPick(Long id, String name, int count) {
+    }
+
     public record TabView(String key, String label, int count, boolean active) {
     }
 
@@ -159,6 +173,10 @@ public class AdminMenuItemController {
     @Transactional(readOnly = true)
     public String list(@RequestParam(required = false, defaultValue = "all") String tab,
                        @RequestParam(required = false) String q,
+                       // ★ 変数名は categoryId。下の categoryNames のループが
+                       //   「category」を使っていて、同じ名前にすると衝突する。
+                       //   URL の名前（?category=）は name で保つ
+                       @RequestParam(name = "category", required = false) Long categoryId,
                        Model model) {
         List<Category> categories = categoryRepository.findAllByOrderBySortOrderAscIdAsc();
         List<MenuItem> all = menuItemRepository.findAllForAdmin();
@@ -174,6 +192,39 @@ public class AdminMenuItemController {
                         .filter(item -> item.getName() != null
                                 && item.getName().toLowerCase().contains(needle))
                         .toList();
+
+        // ── カテゴリーから検索（2026-09-19、設計 ト10 731:4408）──
+        //
+        // ★ 探すときはカテゴリを無視します（品切れ・残数と同じ考え方）。
+        //   「たこ焼」と打った人は、それがどのカテゴリにあるかを覚えていません。
+        //   覚えていたらカテゴリのほうから辿ります。
+        //   なので語が入っているあいだは category を効かせません。
+        //
+        // ★ ここでいう「カテゴリ」は商品カテゴリ（お品書きの分類）です。
+        //   CLAUDE.md の注意どおり、ほかのまとまりにこの語を使っていません。
+        Long selectedCategoryId = keyword.isEmpty() ? categoryId : null;
+        if (selectedCategoryId != null) {
+            items = items.stream()
+                    .filter(item -> item.getCategory() != null
+                            && selectedCategoryId.equals(item.getCategory().getId()))
+                    .toList();
+        }
+
+        // 件数は all（絞り込む前）から数える。タブの件数と同じ理由で、
+        // 押す前に「そこに何品あるか」が読めることを優先する
+        List<CategoryPick> categoryPicks = categories.stream()
+                .map(c -> new CategoryPick(c.getId(), c.getName(),
+                        (int) all.stream()
+                                .filter(i -> i.getCategory() != null
+                                        && c.getId().equals(i.getCategory().getId()))
+                                .count()))
+                .toList();
+        String selectedCategoryName = selectedCategoryId == null ? null
+                : categoryPicks.stream()
+                        .filter(p -> selectedCategoryId.equals(p.id()))
+                        .map(CategoryPick::name)
+                        .findFirst()
+                        .orElse(null);
 
         ItemTab selected = TABS.stream()
                 .filter(t -> t.key().equals(tab))
@@ -235,13 +286,21 @@ public class AdminMenuItemController {
         // 入力した語を画面に返す。返さないと、検索したあとに入力欄が空に戻り、
         // 何で絞った結果を見ているのか分からなくなる
         model.addAttribute("q", keyword);
+        // カテゴリーから検索（設計 ト10）。選んだ名前も返す——閉じた状態でも
+        // 「いま何で絞っているか」が読めるようにするため（品切れ・残数と同じ）
+        model.addAttribute("categoryPicks", categoryPicks);
+        model.addAttribute("selectedCategoryId", selectedCategoryId);
+        model.addAttribute("selectedCategoryName", selectedCategoryName);
         // 並び替えのボタンを出してよいか。
         //
         // 絞り込んでいる最中は出しません。画面に見えている隣の行が、
         // 本当の隣とは限らないからです。「上へ」を押すと隠れている品と
         // 入れ替わり、画面上は何も起きていないように見えます。
         // 並べ替えは全体が見えているときの作業なので、そのときだけ出します。
-        model.addAttribute("canReorder", keyword.isEmpty() && "all".equals(selected.key()));
+        // ★ カテゴリで絞っているあいだも出しません（検索と同じ理由）。
+        //   画面に見えている隣の行が、本当の隣とは限らないためです。
+        model.addAttribute("canReorder",
+                keyword.isEmpty() && selectedCategoryId == null && "all".equals(selected.key()));
         return "admin/items";
     }
 

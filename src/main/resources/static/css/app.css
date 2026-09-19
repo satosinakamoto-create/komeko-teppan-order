@@ -3914,10 +3914,22 @@ body.is-sending .staff-main {
      この表は「見出し 16 / 行 20」と上下で余白が違う唯一の表なので、
      共通側（.theme-desk .table）を動かさず、こちらで受ける。 */
 .theme-desk .table--items th { padding: 16px; height: 64px; }
-/* 下だけ 19px。行の区切り線（border-bottom 1px）が設計では面の内側にあり、
-   68px の中に含まれる。CSS の border は外に足されるので、
-   そのぶんを下の余白から返して 68px にそろえる（ピルと同じ理由） */
-.theme-desk .table--items td { padding: 20px 20px 19px; height: 68px; }
+/* 行は 68px（設計 ト10「行」1120x68・セルは上下 0／左右 20 で中央ぞろえ）。
+
+   ★ 2026-09-19：上下の余白を 20/19 から 0 に変えました（店主の指摘
+     「表のレイアウトがズレててみずらかった」）。実測で 80px ありました。
+
+     原因は余白ではなく<b>並び列の並べ替えボタン（40px）</b>でした。
+       文字 21 ／ 札・フォーム 29.6 ／ 並べ替えボタン 40
+     20 + 40 + 19 = 79 に区切り線 1 を足して 80。
+
+     上下を 0 にすると 40px が収まり、height の 67 が効いて
+     区切り線 1 と合わせてちょうど 68 になります。
+     <b>ボタンは 1px も小さくしていません。</b>
+
+   ★ 67 なのは、区切り線が設計では面の内側にあるため。
+     CSS の border は外に足されるので、そのぶんを引いておく（ピルと同じ理由）。 */
+.theme-desk .table--items td { padding: 0 20px; height: 67px; vertical-align: middle; }
 
 /* 列幅は設計どおり（合計 1120）。
    画面が 1432px より広いときは、この比率のまま横に伸びる */
@@ -4089,6 +4101,29 @@ body.is-sending .staff-main {
 @media (max-width: 900px) {
   .stockfind { grid-template-columns: 1fr; }
 }
+/* 商品の「探す」と「カテゴリーから検索」（2026-09-19、設計 ト10 731:4408）。
+
+   設計は「しぼり込み 527x48」を 2 つ、あいだ 42px。
+   ただし設計の箱は 1096px で右端が 1384、見出しと表（1408）より
+   24px 短かったので、実装は 1120 いっぱいに伸ばしてそろえている
+   （Figma 側も 1120 に直した）。1 つあたり (1120 - 42) / 2 = 539px。
+
+   ★ .stockfind と作りは同じだが別名にしている。
+     あちらは品切れ・残数と食材・在庫の 2 画面で使っていて、
+     間隔（42px）は .stockpage で上書きしている。相乗りすると
+     「片方を直すともう片方が動く」関係ができる。 */
+.itemfind {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 42px;
+}
+/* カテゴリが 1 つも無い店では 1 列。2 列のまま片側を空けると壊れて見える */
+.itemfind--single { grid-template-columns: 1fr; }
+/* ★ .searchbox は単独で置かれる前提の margin-top: 48px を持っている。
+     grid の中だとセルの中で効いて、探す欄だけ 48px 下にずれる。
+     段の間隔は外側（.theme-desk .staff-main > main の gap 48）が決める。 */
+.itemfind .searchbox { margin-top: 0; }
+
 /* ★ 中に入れた探す欄の上マージンを消す（2026-09-07 に修正）。
      .searchbox は単独で置かれる前提で margin-top:48px を持っている。
      grid の中だとこれがセルの中で効き、行の高さが 64 → 112 に伸びて、
