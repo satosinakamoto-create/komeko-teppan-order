@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.beans.PropertyEditorSupport;
@@ -229,13 +230,33 @@ public class AdminSettingController {
      * <p>混雑して手が回らなくなったときの「非常ブレーキ」なので、
      * 設定フォームの保存とは別のボタン・別の URL にしています。
      * 他の項目を触らずに、これだけを即座に切り替えられることが大事です。
+     *
+     * <p><b>ボタンはダッシュボードにあります</b>（2026-09-19 に店舗設定から移動）。
+     * 店主の指摘「店舗設定の受付再開ボタンはダッシュボードか営業中につかうの所に
+     * あるべきじゃね？」。店舗設定は一度決めたら触らない画面で、
+     * 混雑した瞬間に開く場所ではありません。
+     * URL はこのコントローラのままにしてあります（設定の一部という位置づけは変わらないため）。
+     *
+     * @param from 押した画面。戻り先を決めるためだけに使う
      */
     @PostMapping("/toggle-accepting")
-    public String toggleAccepting(RedirectAttributes redirectAttributes) {
+    public String toggleAccepting(@RequestParam(required = false) String from,
+                                  RedirectAttributes redirectAttributes) {
         boolean accepting = shopSettingService.toggleAccepting();
         redirectAttributes.addFlashAttribute("flashSuccess",
                 accepting ? "注文の受付を再開しました" : "注文の受付を一時停止しました");
-        return "redirect:/admin/settings";
+        return "redirect:" + backTo(from);
+    }
+
+    /**
+     * 切り替えたあとに戻る場所。
+     *
+     * <p><b>受け取った文字列をそのまま {@code redirect:} に渡してはいけません。</b>
+     * {@code //example.com} のような値を入れられると、そのまま外のサイトへ飛ばせます
+     * （オープンリダイレクト）。行き先は許可した 2 つだけに丸めます。
+     */
+    private String backTo(String from) {
+        return "/admin".equals(from) ? "/admin" : "/admin/settings";
     }
 
     // ========================================================================

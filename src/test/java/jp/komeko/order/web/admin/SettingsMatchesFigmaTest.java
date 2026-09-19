@@ -57,19 +57,25 @@ class SettingsMatchesFigmaTest {
      * 設計も題が先頭なので、そこにそろえます。
      */
     @Test
-    @DisplayName("★ 題は本文のいちばん上（受付の非常ブレーキより前）")
+    @DisplayName("★ 題は本文のいちばん上（設定フォームより前）")
     void theTitleComesFirst() throws Exception {
         String html = body();
 
+        // ★ 2026-09-19：見張る相手を「受付の非常ブレーキ」から「設定フォーム」に変えました。
+        //   ブレーキはダッシュボードへ移したので、この画面にはもうありません
+        //   （店主の指摘「店舗設定の受付再開ボタンはダッシュボードか
+        //     営業中につかうの所にあるべきじゃね？」）。
+        //   守りたいのは「題が本文のいちばん上にあること」で、
+        //   何より前にあるかではありません。
         int title = html.indexOf("page-head__title");
-        int brake = html.indexOf("toggle-accepting");
+        int form = html.indexOf("id=\"settings-form\"");
 
         assertThat(title).as("題が無い").isGreaterThan(0);
-        assertThat(brake).as("受付の一時停止が無い").isGreaterThan(0);
+        assertThat(form).as("設定フォームが無い").isGreaterThan(0);
         assertThat(title)
-                .as("題が受付の一時停止より後ろにある。"
-                        + "この画面だけ題が本文のずっと下に沈む（実測 271px・他は 48px）")
-                .isLessThan(brake);
+                .as("題が設定フォームより後ろにある。"
+                        + "この画面だけ題が本文のずっと下に沈む（かつて実測 271px・他は 48px）")
+                .isLessThan(form);
     }
 
     /**
@@ -117,8 +123,26 @@ class SettingsMatchesFigmaTest {
     @DisplayName("★ 設計に無い機能（非常ブレーキ・片付け待ち）は残す")
     void nothingIsLost() throws Exception {
         String html = body();
-        assertThat(html).as("受付の一時停止が消えている").contains("toggle-accepting");
         assertThat(html).as("片付け待ちの設定が消えている").contains("cleanupAfterCheckout");
         assertThat(html).as("受付停止中のメッセージが消えている").contains("closedMessage");
+
+        // ★ 2026-09-19：非常ブレーキはこの画面から<b>ダッシュボードへ移しました</b>。
+        //   消したのではありません。店主の指摘
+        //   「店舗設定の受付再開ボタンはダッシュボードか営業中につかうの所に
+        //     あるべきじゃね？」。
+        //
+        //   このテストが守っているのは「設計に無い機能を落とさないこと」なので、
+        //   置き場所が変わっただけなら、移った先で生きていることを確かめます。
+        //   両方から消える、を捕まえられる形にしておきます。
+        assertThat(Files.readString(Path.of("src/main/resources/templates/admin/home.html")))
+                .as("非常ブレーキが店舗設定からもダッシュボードからも消えている。"
+                        + "混雑したときに受付を止める手段が無くなる")
+                .contains("toggle-accepting");
+
+        // 保存のときに初期値を書き戻さないよう、入力欄はこの画面に残すこと
+        assertThat(html)
+                .as("acceptingOrders の入力欄が消えている。"
+                        + "欄が無いと保存のたびに初期値が書き込まれ、受付が勝手に再開する")
+                .contains("*{acceptingOrders}");
     }
 }

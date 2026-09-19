@@ -19,6 +19,7 @@
    ここだけ注文ベースにすると「ダッシュボードと売上で今日の額が違う」ことになります。
 */-->
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
       th:replace="~{layout/staff :: layout('ダッシュボード', ~{::main})}">
 <body>
 <!--/* dashpage は CSS の目印。この画面だけの寸法は app.css の 38 節にあります
@@ -38,7 +39,72 @@
 
   <!--/* 「注文受付の状態」の大きなパネルは置かない（設計 01 ダッシュボード 15:319。2026-09-07）。
          受付中／停止中は上の帯のピルが全画面に出していて、ここに再掲すると
-         同じ情報が 2 か所に並ぶだけだった。切り替えは店舗設定の役目のまま。 */-->
+         同じ情報が 2 か所に並ぶだけだった。
+
+         ★ 2026-09-19：この方針はそのままに、<b>切り替えだけ</b>を店舗設定から
+           ここへ移しました。店主の指摘
+           「店舗設定の受付再開ボタンはダッシュボードか営業中につかうの所に
+             あるべきじゃね？」。
+
+           そのとおりで、店舗設定は一度決めたら触らない画面です。
+           混雑して手が回らなくなった瞬間に開く場所ではありません。
+           ダッシュボードはログイン後の最初の画面で、在席・進行中・提供待ちが
+           並んでいる「いまの営業」の画面なので、ブレーキはここにあるべきです。
+
+           ★ 置いたのは<b>操作</b>だけで、状態の大きなパネルは今も置きません。
+             状態はボタンの文言（一時停止する／再開する）が兼ねます。
+
+           ★ 設計（ト00・ト14）には受付の操作そのものが描かれていません。
+             上の帯の「注文を受付中」表示だけです。設計に答えが無いので、
+             実装の都合（誰が押せるか・いつ押すか）で決めています。 */-->
+
+  <!--/* ====== 受付の一時停止／再開（非常ブレーキ） ======
+
+         ★ ADMIN にだけ出すこと。/admin/** の GET は STAFF も通りますが、
+           POST は ADMIN のみです（SecurityConfig）。権限で隠さないと、
+           スタッフには「押すと 403 になるボタン」が見えます。
+
+         ★ 上の帯のピルとこのボタンは<b>見ているものが違います</b>。
+             帯のピル … isOrderAcceptable（営業時間・ラストオーダーも見る）
+             ボタン   … acceptingOrders（店長が手で倒すブレーキだけ）
+           なので開店前は「注文を停止中」と出ているのにボタンは
+           「一時停止する」のままになります。食い違って見えるので、
+           そのときだけ理由を 1 行添えます。 */-->
+  <div class="card mt-6" sec:authorize="hasRole('ADMIN')">
+    <div class="card__body row row--between row--wrap">
+      <div>
+        <p class="mb-0 bold"
+           th:text="${shop.acceptingOrders}
+                      ? (${headerAccepting} ? '注文を受け付けています' : 'いまは営業時間外です')
+                      : '注文の受付を止めています'">注文を受け付けています</p>
+
+        <!--/* ブレーキを引いているとき */-->
+        <p class="help mb-0" th:unless="${shop.acceptingOrders}">
+          お客さんの注文ボタンが押せなくなっています。すでに受け付けた注文は消えていません。
+        </p>
+        <!--/* ブレーキは引いていないが、営業時間外で通らないとき */-->
+        <p class="help mb-0" th:if="${shop.acceptingOrders and headerAccepting == false}">
+          受付そのものは止めていません。営業開始（<span th:text="${shop.openTime}">17:30</span>）
+          からラストオーダー（<span th:text="${shop.lastOrderTime}">01:30</span>）の間だけ注文が通ります。
+        </p>
+        <!--/* ふつうに受付中 */-->
+        <p class="help mb-0" th:if="${shop.acceptingOrders and headerAccepting}">
+          手が回らなくなったら、ここで止められます。止めても伝票とお会計はふつうに続けられます。
+        </p>
+      </div>
+
+      <!--/* ★ 保存フォームとは別の form・別の URL にすること。
+             他の設定を触らずに、これだけを即座に切り替えられることが大事です。
+             from はどこへ戻るかの目印。コントローラ側で許可した 2 つだけに
+             丸めています（外から来た文字列をそのまま redirect に渡さない）。 */-->
+      <form th:action="@{/admin/settings/toggle-accepting}" method="post">
+        <input type="hidden" name="from" value="/admin">
+        <button type="submit" class="btn btn--lg"
+                th:classappend="${shop.acceptingOrders} ? 'btn--danger' : 'btn--ok'"
+                th:text="${shop.acceptingOrders} ? '受付を一時停止する' : '受付を再開する'">受付を一時停止する</button>
+      </form>
+    </div>
+  </div>
 
   <!--/* ====== 厨房の状況 ====== */-->
   <div class="statrow">
