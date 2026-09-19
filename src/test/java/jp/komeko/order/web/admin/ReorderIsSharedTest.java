@@ -124,19 +124,56 @@ class ReorderIsSharedTest {
     }
 
     /**
-     * ★ カテゴリと卓の<b>読む画面</b>には置かないこと。
+     * ★ 一覧（サイドバーから来る画面）でも並べ替えられること。
      *
-     * <p>あちらは読むだけの画面で、入力欄も form も置かない決まりです。
+     * <p><b>2026-09-19 に、前の判断をひっくり返しました。</b>
+     * はじめは「あの 2 つは読むだけの画面なので置かない」として {@code /edit} だけに
+     * 置きましたが、店主が<b>サイドバーから来て並べようとして見つけられません</b>でした。
+     * 「カテゴリ、卓でもドラッグ＆ドロップできるようにして」と 2 度言われています。
+     *
+     * <p>読むだけ、という決まりが守りたいのは
+     * 「見ているだけのつもりが、押し間違いで書き換わる」を防ぐことです。
+     * 的になるのは入力欄と保存ボタンで、つまみは掴んで動かす 2 段階の操作なので、
+     * その的にはなりません。<b>目に見える入力欄は 1 つも増えていません。</b>
      */
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("★ 読む画面（一覧）には置かない")
-    void theReadOnlyListsStayClean() throws Exception {
+    @DisplayName("★ 一覧（サイドバーから来る画面）でも並べ替えられる")
+    void theListsCanReorderToo() throws Exception {
         for (String url : new String[]{"/admin/categories", "/admin/tables"}) {
             String html = page(url);
             String main = html.substring(html.indexOf("<main"), html.lastIndexOf("</main>"));
-            assertThat(main).as(url + " は読むだけの画面。並べ替えを置かない")
-                    .doesNotContain("data-reorder");
+
+            assertThat(main).as(url + " に並べ替えが無い。"
+                    + "サイドバーから来るのはこの画面なので、ここで並べられないと見つからない")
+                    .contains("data-reorder=\"on\"");
+            assertThat(main).as(url + " につまみが無い").contains("data-reorder-handle");
+
+            // ★ ただし目に見える入力欄は増やさないこと。
+            //   隠しフォームの中身（hidden）だけが例外
+            String visible = main.replaceAll("(?s)<form id=\"reorder-form\".*?</form>", "");
+            assertThat(visible).as(url + " は読むだけの画面。目に見える入力欄を置かない")
+                    .doesNotContain("<input");
+        }
+    }
+
+    /** ★ 並び列は右端（店主の指示「並び順を一番右に来るようにレイアウト変更もしておいて」）。 */
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("★ 並び列は表のいちばん右")
+    void theOrderColumnIsLast() throws Exception {
+        for (String url : new String[]{"/admin/categories", "/admin/tables"}) {
+            String html = page(url);
+            int head = html.indexOf("<thead>");
+            int endHead = html.indexOf("</thead>", head);
+            String thead = html.substring(head, endHead);
+
+            int order = thead.lastIndexOf(">並び<");
+            assertThat(order).as(url + " に並び列が無い").isGreaterThan(0);
+            // 並びのあとに列見出しが無いこと＝いちばん右
+            assertThat(thead.substring(order))
+                    .as(url + " の並び列が右端にない")
+                    .doesNotContain("<th");
         }
     }
 

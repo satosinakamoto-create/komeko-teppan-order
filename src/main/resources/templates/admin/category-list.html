@@ -50,12 +50,15 @@
       <tr>
         <th>カテゴリ名</th>
         <th>品数</th>
-        <th>並び</th>
         <th>状態</th>
+        <th class="col-order">並び</th>
       </tr>
       </thead>
-      <tbody>
-      <tr th:each="c : ${categories}">
+      <!--/* data-reorder は reorder.js の目印。カテゴリは 1 本の並びなので、
+             行の group はすべて同じ値（"all"）です。 */-->
+      <tbody th:attr="data-reorder=${!categories.isEmpty()} ? 'on' : null">
+      <tr th:each="c : ${categories}"
+          th:data-item-id="${c.id}" data-group-id="all">
         <!--/* 名前を押すと直す画面へ。行そのものを押せるようにはしていない。
                読む画面で行全体が押せると、目で追っているだけのつもりが
                画面ごと切り替わることがある */-->
@@ -63,7 +66,6 @@
           <a th:href="@{/admin/categories/edit}" th:text="${c.name}">広島風お好み焼き</a>
         </td>
         <td th:text="${itemCounts.get(c.id)} + ' 品'">5 品</td>
-        <td th:text="${c.sortOrder}">1</td>
         <!--/* 「表示中」「非表示」はお客さまのメニューに出るかどうか。
                商品の「掲載」と同じ言い方にしていないのは、
                カテゴリを隠すと中の商品ごと消えるためで、意味の重さが違う */-->
@@ -71,10 +73,38 @@
           <span class="badge badge--gf" th:if="${c.visible}">表示中</span>
           <span class="badge" th:unless="${c.visible}">非表示</span>
         </td>
+        <td class="num col-order">
+          <!--/* ★ 並べ替えのつまみ（2026-09-19・店主の指示）。
+                 つまんで動かすか、選んで ↑ ↓ を押すと動きます。
+
+               ★ <button type="button">。div だと tabindex を足す羽目になり、
+                 「押せるもの」だと読み上げにも伝わりません。
+               ★ CSS で既定は隠してあり、reorder.js が表に is-reorderable を
+                 付けたときだけ現れます（押しても何も起きないものを見せない）。 */-->
+          <button type="button" class="dragdot" data-reorder-handle
+                  th:aria-label="${c.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
+            <span aria-hidden="true">⠿</span>
+          </button>
+          <span class="faint tiny" th:text="${c.sortOrder}">1</span>
+        </td>
       </tr>
       </tbody>
     </table>
   </div>
+
+  <!--/* ★ 並び順を送るための隠しフォーム（2026-09-19）。
+         reorder.js が id と before / after を詰めて submit します。
+
+       ★ この画面は「読むだけ」が決まりですが、<b>並べ替えだけは例外</b>にしました
+         （店主の指示。サイドバーから来るのはこの画面で、ここで並べたいため）。
+         読む画面に置かないのは<b>入力欄</b>——見ているだけのつもりが
+         押し間違いで書き換わるもの——で、つまみは掴んで動かす 2 段階の操作です。
+         入力欄は 1 つも増やしていません（この form の中身は hidden だけ）。 */-->
+  <form id="reorder-form" method="post" th:action="@{/admin/categories/place}" hidden>
+    <input type="hidden" name="id">
+    <input type="hidden" name="before">
+    <input type="hidden" name="after">
+  </form>
 
 </main>
 </body>

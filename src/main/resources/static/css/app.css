@@ -4177,10 +4177,15 @@ body.is-sending .staff-main {
 .theme-desk .table--cats th { padding: 16px; height: 64px; }
 .theme-desk .table--cats td { padding: 20px 20px 19px; height: 68px; }
 .table--cats { table-layout: fixed; }
+/* ★ 2026-09-19：並び列を右端へ移しました（店主の指示
+     「並び順を一番右に来るようにレイアウト変更もしておいて」）。
+
+     カテゴリ名 400 ／ 品数 200 ／ 状態 360 ／ 並び 160 ＝ 1120。
+     幅の組み合わせは変えていません。3 番目と 4 番目が入れ替わっただけです。 */
 .table--cats th:nth-child(1), .table--cats td:nth-child(1) { width: 400px; }
 .table--cats th:nth-child(2), .table--cats td:nth-child(2) { width: 200px; }
-.table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 160px; }
-.table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 360px; }
+.table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 360px; }
+.table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 160px; }
 
 /* 厨房ボードの見出しカード（設計 現01 434:2045 / 2026-09-07 に実測合わせ）は
    2026-09-12 に 33 節（.kitchenboard）へ移しました。

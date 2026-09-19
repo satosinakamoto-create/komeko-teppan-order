@@ -92,7 +92,21 @@ class TableQrScreenSplitTest {
                 .andReturn().getResponse().getContentAsString();
 
         // ★ 文言ではなく実体で見る。「入力欄が無い」は <input> の有無が答え
-        assertThat(main(html)).as("読む画面に入力欄が残っている").doesNotContain("<input");
+        // ★ 2026-09-19：並べ替えだけは<b>例外</b>にしました（店主の指示）。
+        //   サイドバーから来るのはこの画面なので、ここで並べたい、という理由です。
+        //
+        //   この決まりが守りたいのは「<b>見ているだけのつもりが、押し間違いで
+        //   書き換わる</b>」を防ぐこと。的になるのは入力欄と保存ボタンで、
+        //   つまみは掴んで動かす 2 段階の操作なので、その的にはなりません。
+        //   実際、入力欄は 1 つも増えていません（隠しフォームの中身は hidden だけ）。
+        //
+        //   なので見張る相手を変えます：
+        //     ・目に見える入力欄が無いこと（hidden は数えない）
+        //     ・並べ替え以外の form が無いこと
+        String visible = main(html)
+                .replaceAll("(?s)<form id=\"reorder-form\".*?</form>", "");
+        assertThat(visible).as("読む画面に目に見える入力欄が残っている")
+                .doesNotContain("<input");
         // ★ 2026-09-15 に入口を 2 つへ割った（TableAddEditSplitTest）。
         //   もとは「卓を 編集・追加」の 1 つだった
         assertThat(main(html)).contains("＋新規追加");

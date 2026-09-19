@@ -55,12 +55,27 @@ class CategoryScreenSplitTest {
 
         // 本文（サイドバーや上の帯は共通レイアウトなので、そちらの form は数えない）
         String main = html.substring(html.indexOf("<main"), html.lastIndexOf("</main>"));
-        assertThat(main).as("読む画面に入力欄が残っている").doesNotContain("<input");
+
+        // ★ 2026-09-19：並べ替えだけは<b>例外</b>にしました（店主の指示）。
+        //   サイドバーから来るのはこの画面なので、ここで並べたい、という理由です。
+        //
+        //   この決まりが守りたいのは「<b>見ているだけのつもりが、押し間違いで
+        //   書き換わる</b>」を防ぐこと。的になるのは入力欄と保存ボタンで、
+        //   つまみは掴んで動かす 2 段階の操作なので、その的にはなりません。
+        //   実際、入力欄は 1 つも増えていません（隠しフォームの中身は hidden だけ）。
+        //
+        //   なので見張る相手を変えます：
+        //     ・目に見える入力欄が無いこと（hidden は数えない）
+        //     ・並べ替え以外の form が無いこと
+        String visible = main.replaceAll("(?s)<form id=\"reorder-form\".*?</form>", "");
+        assertThat(visible).as("読む画面に目に見える入力欄が残っている")
+                .doesNotContain("<input");
 
         // ★ 文言ではなく実体で見ること。
         //   「カテゴリを追加」という語は、1 件も無いときの案内リンクにも出る。
         //   語で判定すると、その案内があるだけで落ちる（実際に落とした）
-        assertThat(main).as("読む画面から書き換えられる").doesNotContain("method=\"post\"");
+        assertThat(visible).as("読む画面から書き換えられる（並べ替え以外の form がある）")
+                .doesNotContain("method=\"post\"");
 
         // 直す口はボタン 1 つだけ
         assertThat(main).contains("/admin/categories/edit");
@@ -115,8 +130,10 @@ class CategoryScreenSplitTest {
         String css = Files.readString(Path.of("src/main/resources/static/css/app.css"));
         assertThat(css).contains(".table--cats th:nth-child(1), .table--cats td:nth-child(1) { width: 400px; }");
         assertThat(css).contains(".table--cats th:nth-child(2), .table--cats td:nth-child(2) { width: 200px; }");
-        assertThat(css).contains(".table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 160px; }");
-        assertThat(css).contains(".table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 360px; }");
+        // ★ 2026-09-19：並び列を右端へ移したので 3 番目と 4 番目が入れ替わりました
+        //   （店主の指示）。幅の組み合わせ（400/200/360/160＝1120）は同じです。
+        assertThat(css).contains(".table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 360px; }");
+        assertThat(css).contains(".table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 160px; }");
         // 幅を効かせるには table-layout: fixed が要る（auto だと中身の長さで決まる）
         assertThat(css).contains(".table--cats { table-layout: fixed; }");
     }

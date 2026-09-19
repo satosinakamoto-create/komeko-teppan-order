@@ -58,26 +58,57 @@
         <th>卓名</th>
         <th>席数</th>
         <th>エリア</th>
-        <th>並び</th>
         <th>状態</th>
+        <th class="col-order">並び</th>
       </tr>
       </thead>
-      <tbody>
-      <tr th:each="t : ${tables}">
+      <!--/* data-reorder は reorder.js の目印。卓は 1 本の並びなので、
+             行の group はすべて同じ値（"all"）です。
+             エリア（1F・2F など）で分けていますが、並び順は全体で 1 つです。 */-->
+      <tbody th:attr="data-reorder=${!tables.isEmpty()} ? 'on' : null">
+      <tr th:each="t : ${tables}"
+          th:data-item-id="${t.id}" data-group-id="all">
         <td>
           <a th:href="@{/admin/tables/edit}" th:text="${t.name}">3番テーブル</a>
         </td>
         <td class="num" th:text="${t.capacity} + ' 席'">4 席</td>
         <td th:text="${#strings.isEmpty(t.area)} ? '—' : ${t.area}">カウンター</td>
-        <td class="num" th:text="${t.sortOrder}">10</td>
         <td>
           <span class="badge badge--ok" th:if="${t.active}">使用中</span>
           <span class="badge badge--stop" th:unless="${t.active}">利用停止中</span>
+        </td>
+        <td class="num col-order">
+          <!--/* ★ 並べ替えのつまみ（2026-09-19・店主の指示）。
+                 つまんで動かすか、選んで ↑ ↓ を押すと動きます。
+
+               ★ <button type="button">。div だと tabindex を足す羽目になり、
+                 「押せるもの」だと読み上げにも伝わりません。
+               ★ CSS で既定は隠してあり、reorder.js が表に is-reorderable を
+                 付けたときだけ現れます（押しても何も起きないものを見せない）。 */-->
+          <button type="button" class="dragdot" data-reorder-handle
+                  th:aria-label="${t.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
+            <span aria-hidden="true">⠿</span>
+          </button>
+          <span class="faint tiny" th:text="${t.sortOrder}">10</span>
         </td>
       </tr>
       </tbody>
     </table>
   </div>
+
+  <!--/* ★ 並び順を送るための隠しフォーム（2026-09-19）。
+         reorder.js が id と before / after を詰めて submit します。
+
+       ★ この画面は「読むだけ」が決まりですが、<b>並べ替えだけは例外</b>にしました
+         （店主の指示。サイドバーから来るのはこの画面で、ここで並べたいため）。
+         読む画面に置かないのは<b>入力欄</b>——見ているだけのつもりが
+         押し間違いで書き換わるもの——で、つまみは掴んで動かす 2 段階の操作です。
+         入力欄は 1 つも増やしていません（この form の中身は hidden だけ）。 */-->
+  <form id="reorder-form" method="post" th:action="@{/admin/tables/place}" hidden>
+    <input type="hidden" name="id">
+    <input type="hidden" name="before">
+    <input type="hidden" name="after">
+  </form>
 
 </main>
 </body>
