@@ -94,6 +94,9 @@ class AllScreensDumpTest {
         // 下でお客側の注文を作り終えてから撮る。
         staff.put("s04-stock", "/kitchen/stock");
         staff.put("s05-items", "/admin/items");
+        // 商品を追加（設計 ト10b）。2026-09-19 に追加。
+        // それまで撮っていなかったので、余白を実測できなかった
+        staff.put("s05b-item-new", "/admin/items/new");
         staff.put("s06-categories", "/admin/categories");
         staff.put("s07-tables", "/admin/tables");
         staff.put("s08-qr", "/admin/qr");

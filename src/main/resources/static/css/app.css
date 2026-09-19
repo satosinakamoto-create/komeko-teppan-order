@@ -605,6 +605,28 @@ hr {
   background: var(--bg-elevated);
 }
 .formcard__rule { width: 100%; height: 1px; margin: 0; border: 0; background: var(--border); }
+
+/* 掲載と販売は 1 組（2026-09-19、設計 ト10b 745:7822「あき 24」）。
+
+   店主の指摘「販売と掲載の間に余計な余白が合ったから消した」。実測:
+
+     直す前  .field の下マージン 16 ＋ .formcard の gap 28 ＝ 44px
+     設計    24px
+
+   ★ .formcard の gap（28）は動かさないこと。
+     あれは商品名・価格・写真のあいだにも効いていて、
+     ここだけのために動かすと 4 か所が一緒に動きます。
+     この 2 つを包んで、中の間隔だけ 24 にします。
+
+   ★ 3 幅とも同じ値です（1432 / 1024 / 1920 で実測 44 → 24）。
+     この画面に幅ごとの上書きは無いので、1 か所直せば 3 つとも直ります。 */
+.statefields {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+/* 包んだぶん .field の下マージンが中で効くと 24 + 16 になる */
+.statefields .field { margin-bottom: 0; }
 /* 2 列。狭い画面では縦に落ちる */
 .formrow { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 @media (max-width: 900px) { .formrow { grid-template-columns: 1fr; } }
