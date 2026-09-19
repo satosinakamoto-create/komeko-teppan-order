@@ -4077,11 +4077,41 @@ body.is-sending .staff-main {
   color: var(--action);
 }
 
-/* 動かしている行。持ち上がって見えるように、面を浮かせて薄くする */
-.table--items tr.is-dragging { background: var(--action-soft); opacity: .9; }
+/* 動かしている行（2026-09-19・店主の指示
+   「ドラッグ＆ドロップしてる時の動かしてるアニメーション追加して欲しいかな」）。
+
+   ★ 掴んだ行は<b>指に付いてくる</b>。位置は JavaScript が transform で動かします。
+     ここでは「持ち上がって見える」見た目だけを決めます。
+
+   ★ position: relative と z-index が要ります。付けないと、
+     動かしている行が下の行の<b>後ろ</b>に潜って見えます。
+     表の行は既定では重なり順を持たないためです。
+
+   ★ transition は書かないこと。指に付いてくる動きに transition を当てると、
+     指より遅れてついてきて「引きずっている」感じになります。
+     遅れてよいのは<b>よける行</b>と<b>指を離したあと</b>だけです。 */
+.table--items tr.is-dragging {
+  position: relative;
+  z-index: 2;
+  background: var(--action-soft);
+  box-shadow: 0 6px 16px rgba(28, 28, 28, .18);
+  cursor: grabbing;
+}
+/* 指を離したあと、本来の位置へ滑って収まるあいだ */
+.table--items tr.is-landing { position: relative; z-index: 2; }
+
 /* 動かしているあいだは文字を選ばせない。指でなぞると選択が始まって
    「掴んでいるのか選んでいるのか」分からなくなる */
-.table--items tbody.is-dragging-rows { user-select: none; }
+.table--items tbody.is-dragging-rows { user-select: none; cursor: grabbing; }
+
+/* ★ 「動きを減らす」設定の人には滑らせない。
+     並べ替えそのものは同じように使えて、演出だけ止まります。
+     JavaScript 側でも見ていますが、CSS でも止めておくと
+     取りこぼしがありません。 */
+@media (prefers-reduced-motion: reduce) {
+  .table--items tbody tr { transition: none !important; }
+  .table--items tr.is-dragging { box-shadow: none; }
+}
 
 .table--items th:nth-child(1), .table--items td:nth-child(1) { width: 280px; }
 .table--items th:nth-child(2), .table--items td:nth-child(2) { width: 200px; }

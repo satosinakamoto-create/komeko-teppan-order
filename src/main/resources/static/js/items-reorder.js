@@ -84,8 +84,25 @@
     save(tr.dataset.itemId, beforeId);
   });
 
+  // ── 動きの設定 ──────────────────────────────────────────
+  // 「動きを減らす」設定の人には動かさない。
+  // 並べ替えそのものは同じように使えて、滑る演出だけ止まります。
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var SLIDE_MS = 160;   // よける行が滑る時間
+
+  // 変形を外した「本来の位置」を測る。
+  // getBoundingClientRect は transform 込みの値を返すので、
+  // 掴んでいる行の位置を知るにはいったん外して測る必要があります。
+  function layoutTop(el) {
+    var keep = el.style.transform;
+    el.style.transform = '';
+    var top = el.getBoundingClientRect().top;
+    el.style.transform = keep;
+    return top;
+  }
+
   // ── つまんで動かす ──────────────────────────────────────
-  var dragging = null;   // { tr, rows, placeholder, startY, offsetY }
+  var dragging = null;
 
   tbody.addEventListener('pointerdown', function (e) {
     var handle = e.target.closest('[data-reorder-handle]');
@@ -107,7 +124,8 @@
       pointerId: e.pointerId,
       // つまんだ位置と行の上端のズレ。これを保たないと行が指へ飛びつく
       offsetY: e.clientY - rect.top,
-      height: rect.height,
+      // 変形を外した本来の位置。差し込み直すたびに測り直す
+      baseTop: rect.top,
       moved: false
     };
     tr.classList.add('is-dragging');
@@ -119,46 +137,114 @@
     e.preventDefault();
     dragging.moved = true;
 
-    // 指（マウス）の位置にいちばん近い行の境目を探す
+    var d = dragging;
+
+    // ① 指（マウス）の位置にいちばん近い行の境目を探す
     var y = e.clientY;
-    var rows = dragging.rows;
+    var rows = d.rows;
     var target = null;
     for (var i = 0; i < rows.length; i++) {
-      if (rows[i] === dragging.tr) continue;
+      if (rows[i] === d.tr) continue;
       var r = rows[i].getBoundingClientRect();
       var middle = r.top + r.height / 2;
       if (y < middle) { target = rows[i]; break; }
     }
 
-    // 掴んでいる行を、その場に差し込んで見せる（保存はまだしない）
-    if (target) {
-      if (target !== dragging.tr.nextElementSibling) {
-        tbody.insertBefore(dragging.tr, target);
+    // ② 差し込む先が変わったときだけ、DOM を動かす
+    var next = target || null;
+    var willMove = next
+      ? (next !== d.tr.nextElementSibling)
+      : (rows[rows.length - 1] !== d.tr);
+
+    if (willMove) {
+      // ★ FLIP。動かす<b>前</b>に他の行の位置を控えておき、動かした<b>後</b>に
+      //   「元の位置へ戻す変形」を当ててから 0 へ戻す。
+      //   こうすると、行が瞬間移動せずに滑ってよけます。
+      var before = [];
+      if (!calm) {
+        for (var k = 0; k < rows.length; k++) {
+          if (rows[k] === d.tr) continue;
+          before.push({ el: rows[k], top: rows[k].getBoundingClientRect().top });
+        }
       }
-    } else {
-      var last = rows[rows.length - 1];
-      if (last !== dragging.tr) {
-        tbody.insertBefore(dragging.tr, last.nextElementSibling);
+
+      if (next) {
+        tbody.insertBefore(d.tr, next);
+      } else {
+        var last = rows[rows.length - 1];
+        tbody.insertBefore(d.tr, last.nextElementSibling);
       }
+
+      if (!calm) {
+        for (var m = 0; m < before.length; m++) {
+          var item = before[m];
+          var delta = item.top - item.el.getBoundingClientRect().top;
+          if (!delta) continue;
+          item.el.style.transition = 'none';
+          item.el.style.transform = 'translateY(' + delta + 'px)';
+        }
+        // 次の描画で 0 へ戻す。ここで初めて滑って見える
+        requestAnimationFrame(function () {
+          for (var n = 0; n < before.length; n++) {
+            var el = before[n].el;
+            el.style.transition = 'transform ' + SLIDE_MS + 'ms ease';
+            el.style.transform = '';
+          }
+        });
+      }
+
+      // 差し込み直したので、掴んでいる行の本来の位置を測り直す
+      d.baseTop = layoutTop(d.tr);
     }
+
+    // ③ 掴んでいる行は指に付いてくる
+    d.tr.style.transform = 'translateY(' + (e.clientY - d.offsetY - d.baseTop) + 'px)';
   });
+
+  // 滑る演出のために当てた指定を全部はがす
+  function clearMotion(rows) {
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].style.transition = '';
+      rows[i].style.transform = '';
+    }
+  }
 
   function endDrag(e) {
     if (!dragging || (e && e.pointerId !== dragging.pointerId)) return;
     var d = dragging;
     dragging = null;
 
-    d.tr.classList.remove('is-dragging');
     tbody.classList.remove('is-dragging-rows');
     try { d.handle.releasePointerCapture(d.pointerId); } catch (ignore) {}
 
-    if (!d.moved) return;   // 押しただけ。並びは変わっていない
+    if (!d.moved) {
+      d.tr.classList.remove('is-dragging');
+      clearMotion(d.rows);
+      return;   // 押しただけ。並びは変わっていない
+    }
+
+    // ★ 指を離したら、掴んでいた行を本来の位置へ<b>滑らせて</b>置く。
+    //   ここで transform を 0 にせずに送ると、送信中のあいだ
+    //   行が指の位置に浮いたまま止まって見えます。
+    d.tr.style.transition = calm ? 'none' : 'transform ' + SLIDE_MS + 'ms ease';
+    d.tr.style.transform = '';
+    d.tr.classList.add('is-landing');
+    d.tr.classList.remove('is-dragging');
 
     // いまの並びから「直前に入れる相手」を決める
     var rows = rowsOf(d.tr.dataset.categoryId);
     var at = rows.indexOf(d.tr);
     var beforeId = beforeIdFor(rows, at + 1);
-    save(d.tr.dataset.itemId, beforeId);
+
+    // 置きにいく動きを見せてから送る。待つのは 1 回だけで、
+    // 送信そのものは止めない（遅れて見えるのは 0.16 秒）
+    if (calm) {
+      save(d.tr.dataset.itemId, beforeId);
+    } else {
+      window.setTimeout(function () {
+        save(d.tr.dataset.itemId, beforeId);
+      }, SLIDE_MS);
+    }
   }
 
   tbody.addEventListener('pointerup', endDrag);
