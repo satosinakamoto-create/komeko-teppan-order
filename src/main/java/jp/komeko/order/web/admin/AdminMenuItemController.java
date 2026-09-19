@@ -534,6 +534,46 @@ public class AdminMenuItemController {
      * 押せると、隠れた品と入れ替わって「押しても動かない」ように見えるためです。
      * だから戻り先にタブや検索語を持ち帰る必要もありません。
      */
+    /**
+     * 並び順を、つまんだ位置へ一度に動かす（2026-09-19）。
+     *
+     * <p>店主の指示「並び順はドラック＆ドロップで入れ替えられる仕様にしたいかな、
+     * その方が直感的だし 1 つづつずらして行く必要ないし」。
+     *
+     * <p>{@code before} は<b>その商品の直前に入れる</b>という意味で、
+     * 空なら先頭へ。末尾へ落としたときは空ではなく「最後の商品の次」になるので、
+     * 画面側が末尾の 1 つ後ろを表す値を送ります（{@code before=} 無しは先頭）。
+     *
+     * <p><b>カテゴリはまたげません。</b>別のカテゴリの行へ落としたときは
+     * 何も起きずに戻ります（{@link MenuService#placeItemBefore}）。
+     * カテゴリを変えるのは編集フォームの仕事です。
+     *
+     * <p>画面は JavaScript から呼びますが、<b>ふつうのフォーム送信</b>です。
+     * テンプレートに隠しフォームを 1 つ置いてあり（{@code th:action} なので
+     * CSRF トークンは Thymeleaf が入れる）、JavaScript は値を詰めて
+     * {@code submit()} するだけ。{@code fetch} は使っていません。
+     * CSRF も PRG も、ほかの画面とまったく同じ扱いになります。
+     *
+     * <p><b>商品の id はパスではなく問い合わせ文字で受けます。</b>
+     * パスに入れると隠しフォームの {@code action} を JavaScript で
+     * 組み立て直すことになり、そのとき Thymeleaf が入れた CSRF の入力欄と
+     * ちぐはぐになります。{@code th:action="@{/admin/items/{id}/place}"} の
+     * {@code {id}} を後から差し替える手も、Thymeleaf の前処理記号
+     * （{@code __...__}）と紛らわしく、CLAUDE.md が禁じている書き方に近づきます。
+     */
+    @PostMapping("/place")
+    public String place(@RequestParam Long id,
+                        @RequestParam(required = false) Long before,
+                        RedirectAttributes redirectAttributes) {
+        if (!menuService.placeItemBefore(id, before)) {
+            // 別カテゴリへ落とした、または動かす必要が無かった。
+            // 黙って戻すと「効かなかった」のか「そこで正しい」のか分からない
+            redirectAttributes.addFlashAttribute("flashInfo",
+                    "並び順は変わりませんでした（カテゴリをまたぐ移動はできません）");
+        }
+        return "redirect:/admin/items";
+    }
+
     @PostMapping("/{id}/move")
     public String move(@PathVariable("id") Long id,
                        @RequestParam boolean up,

@@ -161,8 +161,19 @@
           <th class="col-order">並び</th>
         </tr>
         </thead>
-        <tbody>
-        <tr th:each="item : ${rows}">
+        <!--/* data-reorder は items-reorder.js の目印。
+               canReorder が false（絞り込み中）のときは付けないので、
+               見えている隣が本当の隣とは限らない状態では動かせません。 */-->
+        <!--/* ★ 値を空文字にしないこと。Thymeleaf は値が空だと
+               <b>属性ごと落とします</b>（2026-09-19 に実際そうなり、
+               JavaScript が目印を見つけられずに何も起きませんでした）。 */-->
+        <tbody th:attr="data-reorder=${canReorder} ? 'on' : null">
+        <!--/* 行にカテゴリを持たせる。並び順はカテゴリごとに独立していて、
+               またぐ移動は「カテゴリを変える」ことになるため、
+               画面側でも境界を越えさせません（サーバ側でも弾いています）。 */-->
+        <tr th:each="item : ${rows}"
+            th:data-item-id="${item.id}"
+            th:data-category-id="${item.category.id}">
           <td>
             <a th:href="@{/admin/items/{id}/edit(id=${item.id})}" th:text="${item.name}">肉玉米粉そば</a>
           </td>
@@ -266,16 +277,31 @@
                  絞り込んでいるとき（検索語あり・「すべて」以外のタブ）は出しません。
                  隣の行が本当の隣とは限らないので、押しても動かないように見える
                  ことがあり、そのほうが混乱するためです。 */-->
+          <!--/* ====== 並び順（2026-09-19・店主の指示） ======
+                 「並び順はドラック＆ドロップで入れ替えられる仕様にしたいかな、
+                   その方が直感的だし 1 つづつずらして行く必要ないし」。
+
+                 ★ つまみは <button>。ボタンにするとキーボードで選べて、
+                   矢印キーでも動かせます。div にすると tabindex を足す羽目になり、
+                   「押せるもの」だと読み上げにも伝わりません。
+
+                 ★ type="button" にすること。表の中は掲載・販売のフォームの
+                   外なので送信は起きませんが、既定の submit のままだと
+                   将来フォームで包んだ瞬間に勝手に送信されます。
+
+                 ★ 動かす仕掛けは items-reorder.js。
+                   つまみは CSS で隠してあり、JavaScript が表に
+                   is-reorderable を付けたときだけ現れます。
+                   押しても何も起きないものを見せないため。 */-->
           <td class="num col-order">
-            <form th:if="${canReorder}" th:action="@{/admin/items/{id}/move(id=${item.id})}"
-                  method="post" class="row">
-              <button type="submit" name="up" value="true" class="btn btn--ghost btn--sm"
-                      title="ひとつ上へ" aria-label="ひとつ上へ">↑</button>
-              <button type="submit" name="up" value="false" class="btn btn--ghost btn--sm"
-                      title="ひとつ下へ" aria-label="ひとつ下へ">↓</button>
-              <span class="faint tiny" th:text="${item.sortOrder}">1</span>
-            </form>
-            <span th:unless="${canReorder}" class="faint" th:text="${item.sortOrder}">1</span>
+            <button th:if="${canReorder}" type="button"
+                    class="dragdot" data-reorder-handle
+                    th:data-item-id="${item.id}"
+                    th:data-item-name="${item.name}"
+                    th:aria-label="${item.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
+              <span aria-hidden="true">⠿</span>
+            </button>
+            <span class="faint tiny" th:text="${item.sortOrder}">1</span>
           </td>
         </tr>
         <!--/* 0 件の理由が「タブ」なのか「検索語」なのかを分けて出す。
@@ -291,6 +317,23 @@
         </tbody>
       </table>
     </div>
+
+    <!--/* ★ 並び順を送るための隠しフォーム（2026-09-19）。
+           items-reorder.js が id と before を詰めて submit します。
+
+           <b>fetch を使わないのはこのためです。</b>th:action で書いてあるので
+           CSRF トークンは Thymeleaf が入れてくれます。JavaScript から
+           fetch で送ると、トークンを自分で拾って付ける仕組みが要り、
+           このアプリにはその仕組み（meta タグなど）がありません。
+
+         ★ 商品の id はパスではなく入力欄で送ります。パスに入れると
+           action を JavaScript で組み立て直すことになり、
+           Thymeleaf が入れた CSRF の入力欄とちぐはぐになります。 */-->
+    <form th:if="${canReorder}" id="reorder-form" method="post"
+          th:action="@{/admin/items/place}" hidden>
+      <input type="hidden" name="id">
+      <input type="hidden" name="before">
+    </form>
   </div>
 
 </main>

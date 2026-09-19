@@ -292,6 +292,72 @@ public class MenuService {
         return true;
     }
 
+    /**
+     * 商品を、同じカテゴリの中の好きな位置へ動かす（2026-09-19）。
+     *
+     * <p>店主の指示「並び順はドラック＆ドロップで入れ替えられる仕様にしたいかな、
+     * その方が直感的だし 1 つづつずらして行く必要ないし」。
+     * {@link #moveItem(Long, boolean)} が隣と 1 つ入れ替えるのに対し、
+     * こちらは<b>離れた場所へ一度に</b>動かします。
+     *
+     * <p><b>カテゴリはまたげません。</b>並び順の値はカテゴリごとに独立していて、
+     * 一覧も「カテゴリ順 → 並び順」で並んでいます。別のカテゴリの位置へ動かすのは
+     * 「カテゴリを変える」ことなので、それは編集フォームの仕事です。
+     * 相手が別のカテゴリなら何もせずに {@code false} を返します。
+     *
+     * <p><b>並び順は 10 きざみで振り直します。</b>入れ替えのたびに 1 ずつ
+     * ずらしていくと、いつか隣同士の数字が同じになって順番が決まらなくなります
+     * （{@code swapSortOrder} の注意書きと同じ話）。
+     * 動かした列だけ通しで振り直すほうが、あとから読んでも分かります。
+     *
+     * @param menuItemId 動かす商品
+     * @param beforeId   この商品の<b>直前</b>に入れる。{@code null} なら先頭へ
+     * @return 動かせたら true。相手が見つからない・別カテゴリ・動かす必要が無いときは false
+     */
+    @Transactional
+    public boolean placeItemBefore(Long menuItemId, Long beforeId) {
+        MenuItem item = menuItemRepository.findById(menuItemId)
+                .orElseThrow(() -> new MenuItemNotFoundException(menuItemId));
+        Long categoryId = item.getCategory().getId();
+
+        List<MenuItem> siblings = new java.util.ArrayList<>(
+                menuItemRepository.findByCategoryIdOrderBySortOrderAscIdAsc(categoryId));
+
+        int from = indexOf(siblings, m -> m.getId().equals(menuItemId));
+        if (from < 0) {
+            return false;
+        }
+
+        // 落とした先。null は「いちばん上へ」
+        int to;
+        if (beforeId == null) {
+            to = 0;
+        } else {
+            int at = indexOf(siblings, m -> m.getId().equals(beforeId));
+            if (at < 0) {
+                // 別のカテゴリの行か、消えた商品。動かさない
+                return false;
+            }
+            to = at;
+        }
+
+        // 自分を抜いてから入れる。抜いたぶん、後ろへ動かすときは位置が 1 つ手前にずれる
+        MenuItem moving = siblings.remove(from);
+        if (from < to) {
+            to--;
+        }
+        if (from == to) {
+            return false;
+        }
+        siblings.add(to, moving);
+
+        // 10 きざみで振り直す
+        for (int i = 0; i < siblings.size(); i++) {
+            siblings.get(i).setSortOrder((i + 1) * 10);
+        }
+        return true;
+    }
+
     private static <T> int indexOf(List<T> list, java.util.function.Predicate<T> match) {
         for (int i = 0; i < list.size(); i++) {
             if (match.test(list.get(i))) {

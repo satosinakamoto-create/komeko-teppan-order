@@ -4037,6 +4037,52 @@ body.is-sending .staff-main {
 .table--items th.col-state, .table--items td.col-state,
 .table--items th.col-order, .table--items td.col-order { padding-inline: 8px; }
 
+/* --------------------------------------------------------------------------
+   並び順のつまみ（2026-09-19・店主の指示「ドラック＆ドロップで入れ替え」）
+   --------------------------------------------------------------------------
+   ★ 既定では隠してあります。items-reorder.js が表に is-reorderable を
+     付けたときだけ現れます。JavaScript が動かない環境で、押しても何も
+     起きないものを見せないため。
+
+   ★ つまみは <button>。キーボードで選べて ↑ ↓ で動かせます。
+     div にすると tabindex を足す羽目になり、「押せるもの」だと
+     読み上げにも伝わりません。
+
+   ★ touch-action: none が要ります。これが無いと、指で動かしたときに
+     ブラウザが「画面を縦にスクロールする操作」と解釈して、
+     pointermove が途中で来なくなります（iPad で実際に効きます）。 */
+.dragdot { display: none; }
+.table--items.is-reorderable .dragdot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+}
+.table--items.is-reorderable .dragdot:hover { background: var(--surface-2); color: var(--text); }
+.table--items.is-reorderable .dragdot:active { cursor: grabbing; }
+/* キーボードで選んだときは、どの行を動かすのか分かるように強く出す */
+.table--items.is-reorderable .dragdot:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+  color: var(--action);
+}
+
+/* 動かしている行。持ち上がって見えるように、面を浮かせて薄くする */
+.table--items tr.is-dragging { background: var(--action-soft); opacity: .9; }
+/* 動かしているあいだは文字を選ばせない。指でなぞると選択が始まって
+   「掴んでいるのか選んでいるのか」分からなくなる */
+.table--items tbody.is-dragging-rows { user-select: none; }
+
 .table--items th:nth-child(1), .table--items td:nth-child(1) { width: 280px; }
 .table--items th:nth-child(2), .table--items td:nth-child(2) { width: 200px; }
 .table--items th:nth-child(3), .table--items td:nth-child(3) { width: 140px; }

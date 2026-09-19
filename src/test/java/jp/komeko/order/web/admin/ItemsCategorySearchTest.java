@@ -157,13 +157,18 @@ class ItemsCategorySearchTest {
     @WithMockUser(roles = "ADMIN")
     @DisplayName("★ カテゴリで絞っているあいだは並べ替えを出さない")
     void reorderIsHiddenWhileFiltered() throws Exception {
+        // ★ 2026-09-19：目印を /move から data-reorder に変えました。
+        //   並べ替えが ↑↓ のボタン（POST /move）から
+        //   つまんで動かす形に変わったためです（店主の指示）。
+        //   守りたいのは「絞っているあいだは並べ替えさせない」で、
+        //   どの仕組みで並べ替えるかではありません。
         assertThat(page("/admin/items"))
-                .as("絞っていないのに並べ替えが無い").contains("/move");
+                .as("絞っていないのに並べ替えが無い").contains("data-reorder");
 
         assertThat(page("/admin/items?category=" + yakiId))
                 .as("★ 絞っているのに並べ替えが出ている。"
-                        + "「上へ」を押すと隠れている品と入れ替わり、画面上は何も起きていないように見える")
-                .doesNotContain("/move");
+                        + "見えている隣が本当の隣とは限らず、動かすと隠れている品を飛び越える")
+                .doesNotContain("data-reorder");
     }
 
     /**

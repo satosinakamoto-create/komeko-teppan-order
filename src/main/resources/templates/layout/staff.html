@@ -42,6 +42,9 @@
          ボタンを HTML から消していないのは、動かない環境では
          それが唯一の送信手段になるためです。 */-->
   <script th:src="@{/js/datenav.js}" defer></script>
+  <!--/* 商品一覧の並べ替え。目印（tbody[data-reorder]）が無い画面では
+         何もせずに抜けるので、全画面で読み込んで差し支えありません。 */-->
+  <script th:src="@{/js/items-reorder.js}" defer></script>
   <noscript><style>.datenav__go { display: inline-flex; }</style></noscript>
 </head>
 <!--/* theme-desk … 店側の画面の寸法とトンマナ（app.css の 30 節）。
