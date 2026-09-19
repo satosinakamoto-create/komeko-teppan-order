@@ -81,13 +81,36 @@
     <div th:replace="~{fragments/common :: empty('席', '卓がまだありません。「＋新規追加」から、店内の席の数だけ追加してください')}"></div>
   </div>
 
-  <ul class="stack" style="list-style:none;padding:0;margin:0">
+  <!--/* data-reorder は reorder.js の目印。卓は 1 本の並びなので、
+         行の group はすべて同じ値（"all"）です。
+         エリア（1F・2F など）で分けていますが、並び順は全体で 1 つです。 */-->
+  <ul class="stack" style="list-style:none;padding:0;margin:0"
+      th:attr="data-reorder=${!tables.isEmpty()} ? 'on' : null">
     <li class="card" th:each="t : ${tables}"
+        th:data-item-id="${t.id}" data-group-id="all"
         th:with="editing=${editingId != null and editingId == t.id},
                  errs=${(editingId != null and editingId == t.id) ? editErrors : null}">
       <div class="card__body">
 
         <div class="row row--wrap" style="align-items:flex-end">
+
+          <!--/* ★ 並び替えのつまみ（2026-09-19・店主の指示
+                 「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
+
+                 つまんで動かすか、選んで ↑ ↓ を押すと動きます。
+                 数字での指定は左の更新フォームに残してあります
+                 （まとめて並べ直すときはそちらのほうが速いため）。
+
+               ★ <button> にすること。div だと tabindex を足す羽目になり、
+                 「押せるもの」だと読み上げにも伝わりません。
+               ★ type="button" にすること。すぐ隣に更新フォームがあるので、
+                 既定の submit のままだと将来包まれた瞬間に勝手に送信されます。
+               ★ CSS で既定は隠してあり、reorder.js が入れ物に is-reorderable を
+                 付けたときだけ現れます（押しても何も起きないものを見せない）。 */-->
+          <button type="button" class="dragdot" data-reorder-handle
+                  th:aria-label="${t.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
+            <span aria-hidden="true">⠿</span>
+          </button>
 
           <!--/* 更新フォーム。行ごとに独立した <form> になっています */-->
           <form class="row row--wrap" style="flex:1 1 460px;align-items:flex-end"
@@ -230,6 +253,21 @@
       </p>
     </div>
   </div>
+
+  <!--/* ★ 並び順を送るための隠しフォーム（2026-09-19）。
+         reorder.js が id と before / after を詰めて submit します。
+
+         <b>fetch を使わないのはこのためです。</b>th:action で書いてあるので
+         CSRF トークンは Thymeleaf が入れてくれます。fetch で送ると、
+         トークンを自分で拾う仕組みが要り、このアプリにはそれがありません。
+
+       ★ 行き先は「どの並びの隣か」で指します。空なら先頭、という決め方だと
+         下端に落としたときに送るものが無くなって先頭へ飛びます。 */-->
+  <form id="reorder-form" method="post" th:action="@{/admin/tables/place}" hidden>
+    <input type="hidden" name="id">
+    <input type="hidden" name="before">
+    <input type="hidden" name="after">
+  </form>
 
 </main>
 </body>

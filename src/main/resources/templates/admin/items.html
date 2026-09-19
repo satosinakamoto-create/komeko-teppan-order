@@ -173,12 +173,14 @@
                <b>属性ごと落とします</b>（2026-09-19 に実際そうなり、
                JavaScript が目印を見つけられずに何も起きませんでした）。 */-->
         <tbody th:attr="data-reorder=${canReorder} ? 'on' : null">
-        <!--/* 行にカテゴリを持たせる。並び順はカテゴリごとに独立していて、
-               またぐ移動は「カテゴリを変える」ことになるため、
-               画面側でも境界を越えさせません（サーバ側でも弾いています）。 */-->
+        <!--/* 行に「同じ並びの仲間」を持たせる（data-group-id）。
+               商品の並び順はカテゴリごとに独立していて、またぐ移動は
+               「カテゴリを変える」ことになるため、画面側でも境界を越えさせません
+               （サーバ側でも弾いています）。
+               カテゴリと卓は 1 本の並びなので、あちらは全行が同じ値です。 */-->
         <tr th:each="item : ${rows}"
             th:data-item-id="${item.id}"
-            th:data-category-id="${item.category.id}">
+            th:data-group-id="${item.category.id}">
           <td>
             <a th:href="@{/admin/items/{id}/edit(id=${item.id})}" th:text="${item.name}">肉玉米粉そば</a>
           </td>

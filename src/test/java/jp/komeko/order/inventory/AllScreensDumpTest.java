@@ -99,6 +99,10 @@ class AllScreensDumpTest {
         staff.put("s05b-item-new", "/admin/items/new");
         staff.put("s06-categories", "/admin/categories");
         staff.put("s07-tables", "/admin/tables");
+        // 直す画面（並べ替えのつまみはこちらにある。2026-09-19 に追加）。
+        // 読む画面は読むだけなので、つまみは置いていない
+        staff.put("s06b-categories-edit", "/admin/categories/edit");
+        staff.put("s07b-tables-edit", "/admin/tables/edit");
         staff.put("s08-qr", "/admin/qr");
         staff.put("s09-settings", "/admin/settings");
         staff.put("s10-staff", "/admin/staff");

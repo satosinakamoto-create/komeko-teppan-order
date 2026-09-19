@@ -124,8 +124,12 @@
 
   <!--/* .catlist は行の中のボタンを 48px にそろえる目印（2026-09-17）。
          ↑↓ と削除だけ 40px で、頭が 8px 下がって沈んで見えていました。 */-->
-  <ul class="stack catlist" style="list-style:none;padding:0;margin:0">
+  <!--/* data-reorder は reorder.js の目印。カテゴリは 1 本の並びなので、
+         行の group はすべて同じ値（"all"）です。 */-->
+  <ul class="stack catlist" style="list-style:none;padding:0;margin:0"
+      th:attr="data-reorder=${!categories.isEmpty()} ? 'on' : null">
     <li class="card" th:each="c : ${categories}"
+        th:data-item-id="${c.id}" data-group-id="all"
         th:with="editing=${editingId != null and editingId == c.id},
                  errs=${(editingId != null and editingId == c.id) ? editErrors : null}">
       <div class="card__body">
@@ -188,17 +192,23 @@
             <button class="btn btn--primary" type="submit">更新</button>
           </form>
 
-          <!--/* 並び替え。数字を入れ直すより押した回数ぶん動くほうが速い。
+          <!--/* ★ 並び替えのつまみ（2026-09-19・店主の指示
+                 「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
+
+                 つまんで動かすか、選んで ↑ ↓ を押すと動きます。
                  数字での指定は左の更新フォームに残してあります
                  （まとめて並べ直すときはそちらのほうが速いため）。
-                 フォームは入れ子にできないので、更新フォームとは別に置きます。 */-->
-          <form method="post" th:action="@{/admin/categories/{id}/move(id=${c.id})}"
-                class="row" style="flex:0 1 auto">
-            <button type="submit" name="up" value="true" class="btn btn--ghost btn--sm"
-                    title="ひとつ上へ" aria-label="ひとつ上へ">↑</button>
-            <button type="submit" name="up" value="false" class="btn btn--ghost btn--sm"
-                    title="ひとつ下へ" aria-label="ひとつ下へ">↓</button>
-          </form>
+
+               ★ <button> にすること。div だと tabindex を足す羽目になり、
+                 「押せるもの」だと読み上げにも伝わりません。
+               ★ type="button" にすること。すぐ隣に更新フォームがあるので、
+                 既定の submit のままだと将来包まれた瞬間に勝手に送信されます。
+               ★ CSS で既定は隠してあり、reorder.js が入れ物に is-reorderable を
+                 付けたときだけ現れます（押しても何も起きないものを見せない）。 */-->
+          <button type="button" class="dragdot" data-reorder-handle
+                  th:aria-label="${c.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
+            <span aria-hidden="true">⠿</span>
+          </button>
 
           <div style="flex:0 1 auto">
             <span class="label">商品数</span>
@@ -221,6 +231,21 @@
       </div>
     </li>
   </ul>
+
+  <!--/* ★ 並び順を送るための隠しフォーム（2026-09-19）。
+         reorder.js が id と before / after を詰めて submit します。
+
+         <b>fetch を使わないのはこのためです。</b>th:action で書いてあるので
+         CSRF トークンは Thymeleaf が入れてくれます。fetch で送ると、
+         トークンを自分で拾う仕組みが要り、このアプリにはそれがありません。
+
+       ★ 行き先は「どの並びの隣か」で指します。空なら先頭、という決め方だと
+         下端に落としたときに送るものが無くなって先頭へ飛びます。 */-->
+  <form id="reorder-form" method="post" th:action="@{/admin/categories/place}" hidden>
+    <input type="hidden" name="id">
+    <input type="hidden" name="before">
+    <input type="hidden" name="after">
+  </form>
 
 </main>
 </body>

@@ -342,47 +342,35 @@ public class MenuService {
         List<MenuItem> siblings = new java.util.ArrayList<>(
                 menuItemRepository.findByCategoryIdOrderBySortOrderAscIdAsc(categoryId));
 
-        int from = indexOf(siblings, m -> m.getId().equals(menuItemId));
-        if (from < 0) {
-            return false;
-        }
-
-        // 落とした先。隣の商品を指してもらう
-        int to;
-        if (beforeId != null) {
-            int at = indexOf(siblings, m -> m.getId().equals(beforeId));
-            if (at < 0) {
-                // 別のカテゴリの行か、消えた商品。動かさない
-                return false;
-            }
-            to = at;
-        } else if (afterId != null) {
-            int at = indexOf(siblings, m -> m.getId().equals(afterId));
-            if (at < 0) {
-                return false;
-            }
-            to = at + 1;
-        } else {
-            // 行き先が分からない。黙って先頭へ動かすより、何もしないほうが安全
-            return false;
-        }
-
-        // 自分を抜いてから入れる。抜いたぶん、後ろへ動かすときは位置が 1 つ手前にずれる
-        MenuItem moving = siblings.remove(from);
-        if (from < to) {
-            to--;
-        }
-        if (from == to) {
-            return false;
-        }
-        siblings.add(to, moving);
-
-        // 10 きざみで振り直す
-        for (int i = 0; i < siblings.size(); i++) {
-            siblings.get(i).setSortOrder((i + 1) * 10);
-        }
-        return true;
+        // ★ 並べ替えそのものは SortOrderPlacer にまとめてあります（カテゴリ・卓と共通）。
+        //   ここでやるのは「同じカテゴリの中だけ」という境界の見張りだけです。
+        return SortOrderPlacer.place(siblings, menuItemId,
+                MenuItem::getId, MenuItem::setSortOrder, beforeId, afterId);
     }
+
+    /**
+     * カテゴリを、好きな位置へ動かす（2026-09-19、店主の指示
+     * 「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
+     *
+     * <p>商品の {@link #placeItemNextTo} と同じ考え方です。行き先は
+     * 「どの並びの隣か」で指します——{@code beforeId} があればその直前、
+     * 無ければ {@code afterId} の直後。
+     *
+     * <p><b>カテゴリは 1 本の並びです。</b>商品のような「またげない境界」はありません。
+     *
+     * <p>並び順は 10 きざみで振り直します。1 ずつずらしていくと、
+     * いつか隣同士の数字が同じになって順番が決まらなくなります。
+     *
+     * @return 動かせたら true。相手が見つからない・動かす必要が無いときは false
+     */
+    @Transactional
+    public boolean placeCategoryNextTo(Long categoryId, Long beforeId, Long afterId) {
+        List<Category> all =
+                new java.util.ArrayList<>(categoryRepository.findAllByOrderBySortOrderAscIdAsc());
+        return SortOrderPlacer.place(all, categoryId,
+                Category::getId, Category::setSortOrder, beforeId, afterId);
+    }
+
 
     private static <T> int indexOf(List<T> list, java.util.function.Predicate<T> match) {
         for (int i = 0; i < list.size(); i++) {

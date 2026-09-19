@@ -247,6 +247,28 @@ public class AdminCategoryController {
      * <p>数字の欄は各行の編集フォームに残してあります。
      * 「まとめて並べ直す」ときはそちらのほうが速いためです。
      */
+    /**
+     * つまんで動かした結果を保存する（2026-09-19、店主の指示
+     * 「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
+     *
+     * <p>行き先は「どの並びの隣か」で指します。{@code before} があればその直前、
+     * 無ければ {@code after} の直後。商品の {@code /admin/items/place} と同じ形です。
+     *
+     * <p>画面は JavaScript から呼びますが<b>ふつうのフォーム送信</b>です。
+     * テンプレートに隠しフォームを置いてあり（{@code th:action} なので
+     * CSRF は Thymeleaf が入れる）、値を詰めて送るだけ。
+     */
+    @PostMapping("/place")
+    public String place(@RequestParam Long id,
+                        @RequestParam(required = false) Long before,
+                        @RequestParam(required = false) Long after,
+                        RedirectAttributes redirectAttributes) {
+        if (!menuService.placeCategoryNextTo(id, before, after)) {
+            redirectAttributes.addFlashAttribute("flashInfo", "並び順は変わりませんでした");
+        }
+        return "redirect:/admin/categories/edit";
+    }
+
     @PostMapping("/{id}/move")
     public String move(@PathVariable("id") Long id,
                        @RequestParam boolean up,

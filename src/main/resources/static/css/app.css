@@ -4037,6 +4037,11 @@ body.is-sending .staff-main {
 .table--items th.col-state, .table--items td.col-state,
 .table--items th.col-order, .table--items td.col-order { padding-inline: 8px; }
 
+/* 並び列（商品・カテゴリ・卓で共通）。つまみと数字を中央に置く。
+   中央ぞろえでは左右の余白は位置に効かず、使える幅を削るだけなので詰める。 */
+.table th.col-order,
+.table td.col-order { text-align: center; padding-inline: 8px; }
+
 /* --------------------------------------------------------------------------
    並び順のつまみ（2026-09-19・店主の指示「ドラック＆ドロップで入れ替え」）
    --------------------------------------------------------------------------
@@ -4052,7 +4057,7 @@ body.is-sending .staff-main {
      ブラウザが「画面を縦にスクロールする操作」と解釈して、
      pointermove が途中で来なくなります（iPad で実際に効きます）。 */
 .dragdot { display: none; }
-.table--items.is-reorderable .dragdot {
+.is-reorderable .dragdot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4068,10 +4073,10 @@ body.is-sending .staff-main {
   cursor: grab;
   touch-action: none;
 }
-.table--items.is-reorderable .dragdot:hover { background: var(--surface-2); color: var(--text); }
-.table--items.is-reorderable .dragdot:active { cursor: grabbing; }
+.is-reorderable .dragdot:hover { background: var(--surface-2); color: var(--text); }
+.is-reorderable .dragdot:active { cursor: grabbing; }
 /* キーボードで選んだときは、どの行を動かすのか分かるように強く出す */
-.table--items.is-reorderable .dragdot:focus-visible {
+.is-reorderable .dragdot:focus-visible {
   outline: 2px solid var(--action);
   outline-offset: 2px;
   color: var(--action);
@@ -4090,7 +4095,7 @@ body.is-sending .staff-main {
    ★ transition は書かないこと。指に付いてくる動きに transition を当てると、
      指より遅れてついてきて「引きずっている」感じになります。
      遅れてよいのは<b>よける行</b>と<b>指を離したあと</b>だけです。 */
-.table--items tr.is-dragging {
+.is-reorderable tr.is-dragging {
   position: relative;
   z-index: 2;
   background: var(--action-soft);
@@ -4098,19 +4103,19 @@ body.is-sending .staff-main {
   cursor: grabbing;
 }
 /* 指を離したあと、本来の位置へ滑って収まるあいだ */
-.table--items tr.is-landing { position: relative; z-index: 2; }
+.is-reorderable tr.is-landing { position: relative; z-index: 2; }
 
 /* 動かしているあいだは文字を選ばせない。指でなぞると選択が始まって
    「掴んでいるのか選んでいるのか」分からなくなる */
-.table--items tbody.is-dragging-rows { user-select: none; cursor: grabbing; }
+.is-reorderable tbody.is-dragging-rows { user-select: none; cursor: grabbing; }
 
 /* ★ 「動きを減らす」設定の人には滑らせない。
      並べ替えそのものは同じように使えて、演出だけ止まります。
      JavaScript 側でも見ていますが、CSS でも止めておくと
      取りこぼしがありません。 */
 @media (prefers-reduced-motion: reduce) {
-  .table--items tbody tr { transition: none !important; }
-  .table--items tr.is-dragging { box-shadow: none; }
+  .is-reorderable tbody tr { transition: none !important; }
+  .is-reorderable tr.is-dragging { box-shadow: none; }
 }
 
 .table--items th:nth-child(1), .table--items td:nth-child(1) { width: 280px; }

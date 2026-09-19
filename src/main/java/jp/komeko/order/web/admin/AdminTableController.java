@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.LinkedHashMap;
@@ -241,6 +242,28 @@ public class AdminTableController {
      * 「削除できない理由を一覧画面で読ませて、そのまま利用停止に切り替えてもらう」ほうが
      * 店の人にとっては親切なので、ここで受け止めてフラッシュメッセージに変換します。
      */
+    /**
+     * つまんで動かした結果を保存する（2026-09-19、店主の指示
+     * 「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
+     *
+     * <p>行き先は「どの卓の隣か」で指します。{@code before} があればその直前、
+     * 無ければ {@code after} の直後。商品・カテゴリと同じ形です。
+     *
+     * <p>画面は JavaScript から呼びますが<b>ふつうのフォーム送信</b>です。
+     * テンプレートに隠しフォームを置いてあり（{@code th:action} なので
+     * CSRF は Thymeleaf が入れる）、値を詰めて送るだけ。
+     */
+    @PostMapping("/place")
+    public String place(@RequestParam Long id,
+                        @RequestParam(required = false) Long before,
+                        @RequestParam(required = false) Long after,
+                        RedirectAttributes redirectAttributes) {
+        if (!tableService.placeTableNextTo(id, before, after)) {
+            redirectAttributes.addFlashAttribute("flashInfo", "並び順は変わりませんでした");
+        }
+        return "redirect:/admin/tables/edit";
+    }
+
     @PostMapping("/{id}/delete")
     public String delete(@PathVariable("id") Long id, RedirectAttributes redirectAttributes) {
         String name;

@@ -41,8 +41,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("つまんで動かすときの見え方")
 class ReorderMotionTest {
 
+    /**
+     * ★ 2026-09-19：{@code items-reorder.js} から {@code reorder.js} へ改名しました。
+     * 商品だけでなくカテゴリと卓でも使うようになったためです
+     * （店主の指示「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
+     */
     private static final Path JS =
-            Path.of("src/main/resources/static/js/items-reorder.js");
+            Path.of("src/main/resources/static/js/reorder.js");
     private static final Path CSS =
             Path.of("src/main/resources/static/css/app.css");
 
@@ -84,7 +89,7 @@ class ReorderMotionTest {
     @DisplayName("★ 掴んだ行に transition を当てていない")
     void theGrabbedRowHasNoTransition() throws Exception {
         String css = css();
-        int at = css.indexOf(".table--itemstr.is-dragging{");
+        int at = css.indexOf(".is-reorderabletr.is-dragging{");
         assertThat(at).as(".is-dragging の指定が無い").isGreaterThan(0);
         assertThat(css.substring(at, css.indexOf('}', at)))
                 .as("★ 掴んだ行に transition を当てている。"
@@ -101,7 +106,7 @@ class ReorderMotionTest {
     @DisplayName("★ 掴んだ行は下の行の上に出る（position と z-index）")
     void theGrabbedRowStaysOnTop() throws Exception {
         String css = css();
-        int at = css.indexOf(".table--itemstr.is-dragging{");
+        int at = css.indexOf(".is-reorderabletr.is-dragging{");
         String rule = css.substring(at, css.indexOf('}', at));
 
         assertThat(rule).as("position: relative が無い。下の行に潜って見える")

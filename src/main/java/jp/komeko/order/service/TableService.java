@@ -90,6 +90,28 @@ public class TableService {
         return tableRepository.save(table);
     }
 
+    /**
+     * 卓を、好きな位置へ動かす（2026-09-19、店主の指示
+     * 「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
+     *
+     * <p>行き先は「どの卓の隣か」で指します——{@code beforeId} があればその直前、
+     * 無ければ {@code afterId} の直後。商品・カテゴリと同じ考え方で、
+     * 中身は {@code SortOrderPlacer} にまとめてあります。
+     *
+     * <p><b>卓は 1 本の並びです。</b>エリア（1F・2F など）で分けていますが、
+     * 並び順そのものは全体で 1 つなので、エリアをまたいで動かせます。
+     * 画面もエリアで分けずに 1 枚の表で出しています。
+     *
+     * @return 動かせたら true。相手が見つからない・動かす必要が無いときは false
+     */
+    @Transactional
+    public boolean placeTableNextTo(Long tableId, Long beforeId, Long afterId) {
+        List<DiningTable> all =
+                new java.util.ArrayList<>(tableRepository.findAllByOrderBySortOrderAscIdAsc());
+        return SortOrderPlacer.place(all, tableId,
+                DiningTable::getId, DiningTable::setSortOrder, beforeId, afterId);
+    }
+
     /** エリアを変えない更新（既存呼び出し向けの薄い委譲）。 */
     @Transactional
     public void updateTable(Long id, String name, int capacity, int sortOrder, boolean active) {

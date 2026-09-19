@@ -84,12 +84,29 @@ class CategoryScreenSplitTest {
     @DisplayName("★ 保存したあとは直す画面に留まる（一覧へ飛ばさない）")
     void savingStaysOnTheEditScreen() throws Exception {
         // 続けて何個も直したいので、1 個保存するたびに読む画面へ戻されると作業にならない
-        String java = Files.readString(
+        // ★ 変数名を java にしないこと。java.util.regex… がこの変数に解決され、
+        //   「変数 util が見つかりません」という分かりにくい形で落ちます。
+        String source = Files.readString(
                 Path.of("src/main/java/jp/komeko/order/web/admin/AdminCategoryController.java"));
-        assertThat(java.split("redirect:/admin/categories/edit", -1).length - 1)
-                .as("保存後に読む画面へ戻る口が残っている").isEqualTo(7);
-        assertThat(java).as("素の一覧へ戻す redirect が残っている")
-                .doesNotContain("\"redirect:/admin/categories\"");
+
+        // ★ 2026-09-19：戻り先の「数」を数えるのをやめました。
+        //   もとは redirect:/admin/categories/edit がちょうど 7 個、と書いてあり、
+        //   POST の口を 1 つ足すたびに落ちました（並べ替えの /place を足して実際に落ちた）。
+        //   守りたいのは「保存したあと読む画面へ飛ばさないこと」で、口の数ではありません。
+        //
+        //   カテゴリへ戻る redirect を全部拾って、どれも /edit で終わることを見ます。
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("\"redirect:/admin/categories([^\"]*)\"")
+                .matcher(source);
+        int found = 0;
+        while (m.find()) {
+            found++;
+            assertThat(m.group(1))
+                    .as("保存後に読む画面へ戻る口がある（" + m.group(0) + "）。"
+                            + "続けて何個も直したいので、1 個ごとに読む画面へ戻されると作業にならない")
+                    .isEqualTo("/edit");
+        }
+        assertThat(found).as("カテゴリへ戻る redirect が 1 つも無い").isGreaterThan(0);
     }
 
     @Test

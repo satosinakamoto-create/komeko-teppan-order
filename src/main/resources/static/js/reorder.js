@@ -1,5 +1,5 @@
 /*
-  商品一覧の並び順を、つまんで動かす（2026-09-19・店主の指示
+  表の行を、つまんで動かして並べ替える（2026-09-19・店主の指示
   「並び順はドラック＆ドロップで入れ替えられる仕様にしたいかな、
     その方が直感的だし 1 つづつずらして行く必要ないし」）。
 
@@ -14,12 +14,26 @@
   つまみは <button> です。Tab で選んで ↑ ↓ で 1 つずつ動かせます。
   ドラッグだけにすると、キーボードで操作する人が並べ替えできなくなります。
 
-  ── カテゴリはまたげない ────────────────────────────────────
-  並び順の値はカテゴリごとに独立しています。またぐ移動は「カテゴリを変える」
-  ことなので、それは編集フォームの仕事です。
-  ここでは同じ data-category-id の行の中だけで動かします。
-  （サーバ側の MenuService#placeItemNextTo でも弾いています。
-    画面だけで守ると、URL を直接叩かれたときに素通りします）
+  ── 3 つの画面で使い回しています ────────────────────────────
+  商品 ／ カテゴリ ／ 卓。必要な目印はどれも同じです。
+
+    [data-reorder]               … この入れ物は並べ替えられる
+    [data-item-id]               … 動かせる行（その入れ物の直下）
+    [data-group-id]              … 同じ group どうしでしか動かせない
+    [data-reorder-handle]        … つまみ
+    form#reorder-form            … 送り先（id / before / after を詰める）
+
+  ★ 入れ物と行のタグは問いません。商品は <tbody> / <tr>、
+    カテゴリと卓は <ul> / <li> です。セレクタにタグ名を書かないこと。
+
+  ── group をまたげない ──────────────────────────────────────
+  商品の並び順はカテゴリごとに独立しているので、またぐ移動は
+  「カテゴリを変える」ことになります。それは編集フォームの仕事です。
+  カテゴリと卓は 1 本の並びなので、全行が同じ group です
+  （テンプレートが "all" のような固定値を入れます）。
+
+  ★ サーバ側でも弾いています。画面だけで守ると、
+    URL を直接叩かれたときに素通りします。
 
   ── 保存は「ふつうのフォーム送信」──────────────────────────
   fetch ではなく form を組み立てて送ります。CSRF も PRG も、
@@ -30,12 +44,13 @@
 (function () {
   'use strict';
 
-  var tbody = document.querySelector('tbody[data-reorder]');
+  var tbody = document.querySelector('[data-reorder]');
   if (!tbody) return;
 
-  // ここまで来たら JavaScript は動いている。つまみを見せる
-  var table = tbody.closest('table');
-  if (table) table.classList.add('is-reorderable');
+  // ここまで来たら JavaScript は動いている。つまみを見せる。
+  // 表なら <table> に、それ以外なら入れ物そのものに印を付ける
+  var host = tbody.closest('table') || tbody;
+  host.classList.add('is-reorderable');
 
   // ── 送信 ────────────────────────────────────────────────
   // テンプレートに置いてある隠しフォームに値を詰めて送るだけ。
@@ -71,10 +86,17 @@
     return null;   // 1 行しかない。動かしようがない
   }
 
-  function rowsOf(categoryId) {
+  // つまみから、その行（入れ物の直下にいる [data-item-id]）まで遡る
+  function rowOf(handle) {
+    var el = handle;
+    while (el && el.parentElement !== tbody) el = el.parentElement;
+    return el;
+  }
+
+  function rowsOf(groupId) {
     return Array.prototype.filter.call(
-      tbody.querySelectorAll('tr[data-item-id]'),
-      function (tr) { return tr.dataset.categoryId === categoryId; }
+      tbody.querySelectorAll(':scope > [data-item-id]'),
+      function (tr) { return tr.dataset.groupId === groupId; }
     );
   }
 
@@ -86,8 +108,8 @@
     if (!handle) return;
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
 
-    var tr = handle.closest('tr');
-    var rows = rowsOf(tr.dataset.categoryId);
+    var tr = rowOf(handle);
+    var rows = rowsOf(tr.dataset.groupId);
     var at = rows.indexOf(tr);
     var to = e.key === 'ArrowUp' ? at - 1 : at + 1;
     if (at < 0 || to < 0 || to >= rows.length) return;   // 端。何もしない
@@ -127,8 +149,8 @@
     if (!handle) return;
     if (e.button != null && e.button !== 0) return;   // 右クリックでは始めない
 
-    var tr = handle.closest('tr');
-    var rows = rowsOf(tr.dataset.categoryId);
+    var tr = rowOf(handle);
+    var rows = rowsOf(tr.dataset.groupId);
     if (rows.length < 2) return;                       // 1 行しかなければ動かしようがない
 
     e.preventDefault();
@@ -250,7 +272,7 @@
     d.tr.classList.remove('is-dragging');
 
     // いまの並びから「隣は誰か」を決める
-    var rows = rowsOf(d.tr.dataset.categoryId);
+    var rows = rowsOf(d.tr.dataset.groupId);
     var side = neighbourOf(rows, rows.indexOf(d.tr));
     if (!side) return;
 
