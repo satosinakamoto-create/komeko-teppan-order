@@ -35,8 +35,11 @@
   <div class="page-head">
     <a class="btn" th:href="@{/admin/categories}">← カテゴリ一覧へ戻る</a>
     <h1 class="page-head__title">カテゴリを 編集・追加</h1>
+    <!--/* ★ この span は消さないこと（SecondaryScreenHeadTest が帯の補足を見張っている）。
+           文言だけ 2026-09-19 に差し替え。数字で並べる欄がこの画面から無くなったので、
+           「数字が小さいほど上」はもう読む人を迷わせるだけです。 */-->
     <span class="page-head__sub"
-          th:text="${categories.size()} + ' 件 ／ 並び順の数字が小さいほど上に出ます'">4 件</span>
+          th:text="${categories.size()} + ' 件 ／ 並べ替えは一覧の画面でできます'">4 件</span>
     <span class="page-head__spacer"></span>
   </div>
 
@@ -94,8 +97,13 @@
              この文はもともと Thymeleaf のコメントの中に書いてあり、
              画面には出ていませんでした。追加フォームに並び順の欄が無い理由が
              誰にも伝わっていなかったことになります。 */-->
+      <!--/* ★「並び順はここでは聞きません」は CategoryEditMatchesFigmaTest が
+             この文字列のまま見張っています。消さないこと。
+             2026-09-19 に後半だけ差し替え（「下の一覧」はこの画面の下の一覧を
+             指していましたが、そちらで並べ替えられなくなったため）。 */-->
       <p class="help mt-4">
-        並び順はここでは聞きません。追加した瞬間はいちばん下に入り、下の一覧で直せます。
+        並び順はここでは聞きません。追加した瞬間はいちばん下に入り、
+        カテゴリの一覧（左のメニューの「カテゴリ」）でつまんで直せます。
         （既定の 0 のままだと、追加したカテゴリがメニューの先頭に割り込むためです）
       </p>
 
@@ -123,13 +131,18 @@
   </div>
 
   <!--/* .catlist は行の中のボタンを 48px にそろえる目印（2026-09-17）。
-         ↑↓ と削除だけ 40px で、頭が 8px 下がって沈んで見えていました。 */-->
-  <!--/* data-reorder は reorder.js の目印。カテゴリは 1 本の並びなので、
-         行の group はすべて同じ値（"all"）です。 */-->
-  <ul class="stack catlist" style="list-style:none;padding:0;margin:0"
-      th:attr="data-reorder=${!categories.isEmpty()} ? 'on' : null">
+         削除だけ 40px で、頭が 8px 下がって沈んで見えていました。 */-->
+  <!--/* ★ この画面では並べ替えません（2026-09-19、店主の指示
+         「卓は編集する画面で並び替えは出来ない仕様にして」。カテゴリも同じ扱いに）。
+
+         並べ替えは一覧（サイドバーの「カテゴリ」＝ /admin/categories）の
+         ドラッグ＆ドロップだけが行います。ここは「直す」画面です。
+
+         ★ data-reorder / data-reorder-handle / #reorder-form は置かないこと。
+           reorder.js は data-reorder が無ければ何もしないので、
+           目印を戻した瞬間にこの画面でも掴めるようになります。 */-->
+  <ul class="stack catlist" style="list-style:none;padding:0;margin:0">
     <li class="card" th:each="c : ${categories}"
-        th:data-item-id="${c.id}" data-group-id="all"
         th:with="editing=${editingId != null and editingId == c.id},
                  errs=${(editingId != null and editingId == c.id) ? editErrors : null}">
       <div class="card__body">
@@ -172,16 +185,11 @@
                  th:text="${errs.get('name')}">エラー内容</p>
             </div>
 
-            <div class="field" style="flex:0 1 110px;margin-bottom:0">
-              <label class="label" th:for="'cat-sort-' + ${c.id}">並び順</label>
-              <input class="input" type="number" name="sortOrder" min="0" max="9999"
-                     inputmode="numeric"
-                     th:id="'cat-sort-' + ${c.id}"
-                     th:value="${editing ? editForm.sortOrder : c.sortOrder}"
-                     th:classappend="${errs != null and errs.containsKey('sortOrder')} ? 'is-error'">
-              <p class="error" th:if="${errs != null and errs.containsKey('sortOrder')}"
-                 th:text="${errs.get('sortOrder')}">エラー内容</p>
-            </div>
+            <!--/* ★ 並び順の入力欄は置きません（2026-09-19）。
+                   並べ替えは一覧（/admin/categories）でつまんで動かします。
+
+                   ★ 戻すときは AdminCategoryController も一緒に直すこと。
+                     いまは setSortOrder を呼んでいません。欄だけ戻しても効きません。 */-->
 
             <label class="choice" style="flex:0 1 auto">
               <input type="checkbox" name="visible" value="true"
@@ -191,24 +199,6 @@
 
             <button class="btn btn--primary" type="submit">更新</button>
           </form>
-
-          <!--/* ★ 並び替えのつまみ（2026-09-19・店主の指示
-                 「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
-
-                 つまんで動かすか、選んで ↑ ↓ を押すと動きます。
-                 数字での指定は左の更新フォームに残してあります
-                 （まとめて並べ直すときはそちらのほうが速いため）。
-
-               ★ <button> にすること。div だと tabindex を足す羽目になり、
-                 「押せるもの」だと読み上げにも伝わりません。
-               ★ type="button" にすること。すぐ隣に更新フォームがあるので、
-                 既定の submit のままだと将来包まれた瞬間に勝手に送信されます。
-               ★ CSS で既定は隠してあり、reorder.js が入れ物に is-reorderable を
-                 付けたときだけ現れます（押しても何も起きないものを見せない）。 */-->
-          <button type="button" class="dragdot" data-reorder-handle
-                  th:aria-label="${c.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
-            <span aria-hidden="true">⠿</span>
-          </button>
 
           <div style="flex:0 1 auto">
             <span class="label">商品数</span>
@@ -231,21 +221,6 @@
       </div>
     </li>
   </ul>
-
-  <!--/* ★ 並び順を送るための隠しフォーム（2026-09-19）。
-         reorder.js が id と before / after を詰めて submit します。
-
-         <b>fetch を使わないのはこのためです。</b>th:action で書いてあるので
-         CSRF トークンは Thymeleaf が入れてくれます。fetch で送ると、
-         トークンを自分で拾う仕組みが要り、このアプリにはそれがありません。
-
-       ★ 行き先は「どの並びの隣か」で指します。空なら先頭、という決め方だと
-         下端に落としたときに送るものが無くなって先頭へ飛びます。 */-->
-  <form id="reorder-form" method="post" th:action="@{/admin/categories/place}" hidden>
-    <input type="hidden" name="id">
-    <input type="hidden" name="before">
-    <input type="hidden" name="after">
-  </form>
 
 </main>
 </body>

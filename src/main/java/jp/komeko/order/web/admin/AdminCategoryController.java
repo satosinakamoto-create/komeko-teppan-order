@@ -185,8 +185,16 @@ public class AdminCategoryController {
         // save() を書かなくてよいのは、このメソッドが @Transactional だから。
         category.setName(form.getName().trim());
         category.setGroupName(form.getGroupName());   // 空白だけなら setter 側で未設定に揃える
-        category.setSortOrder(form.getSortOrder());
         category.setVisible(form.isVisible());
+
+        // ★ 並び順はここでは触りません（2026-09-19、店主の指示
+        //   「卓は編集する画面で並び替えは出来ない仕様にして」。カテゴリも同じ扱いに）。
+        //   並べ替えは一覧のドラッグ＆ドロップ（POST /place）だけが行います。
+        //
+        //   ★ 親切心で setSortOrder を戻さないこと。この行フォームは
+        //     name="sortOrder" を送らないので、写すと Form の初期値 0 が
+        //     そのまま書かれ、更新したカテゴリが黙って一覧の先頭へ飛びます。
+        //     触らなければダーティチェックの対象にならず、いまの並びが残ります。
 
         redirectAttributes.addFlashAttribute("flashSuccess",
                 "カテゴリ「%s」を更新しました".formatted(category.getName()));
@@ -266,7 +274,11 @@ public class AdminCategoryController {
         if (!menuService.placeCategoryNextTo(id, before, after)) {
             redirectAttributes.addFlashAttribute("flashInfo", "並び順は変わりませんでした");
         }
-        return "redirect:/admin/categories/edit";
+        // ★ 戻り先は一覧（2026-09-19 に /edit から変更）。
+        //   つまみが両方の画面にあった頃の名残で編集画面へ戻していましたが、
+        //   並べ替えが一覧だけになった今、つまんだ瞬間に別の画面へ飛ばされます。
+        //   動かした結果をその場で見せるのが正しい戻り先です。
+        return "redirect:/admin/categories";
     }
 
     @PostMapping("/{id}/move")

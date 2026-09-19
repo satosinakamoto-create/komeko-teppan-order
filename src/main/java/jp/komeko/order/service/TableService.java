@@ -118,6 +118,41 @@ public class TableService {
         updateTable(id, name, capacity, sortOrder, active, getById(id).getArea());
     }
 
+    /**
+     * 並び順を変えない更新（2026-09-19、店主の指示
+     * 「卓は編集する画面で並び替えは出来ない仕様にして」）。
+     *
+     * <p>編集画面の行フォームはここを呼びます。並べ替えは一覧の
+     * ドラッグ＆ドロップ（{@code POST /admin/tables/place}）だけが行います。
+     *
+     * <h2>なぜ専用のメソッドが要るのか</h2>
+     *
+     * <p>下の {@code updateTable} は必ず {@code setSortOrder} を呼ぶので、
+     * 画面から並び順が来なくなると<b>0 で上書きされます</b>。
+     * {@code TableForm.sortOrder} は初期値 0 で宣言してあり、
+     * 送られてこない項目の setter を Spring は呼ばないためです。
+     * {@code @NotNull} も {@code @Min(0)} も 0 は通すので<b>エラーは一切出ません</b>。
+     * 卓名を 1 文字直して「更新」を押しただけで、その卓が一覧の先頭へ飛びます。
+     * 例外も警告も出ず、次に一覧を見るまで誰も気づけません。
+     *
+     * <h2>★ 現在値の読み取りは、必ずこの中で行うこと</h2>
+     *
+     * <p>コントローラで {@code getById(id).getSortOrder()} を読んで渡すと、
+     * 読みと書きが別のトランザクションになります。その隙間に
+     * {@code /admin/tables/place} が書いた新しい並びを、古い値で踏み潰します。
+     * ここは {@code @Transactional} の中なので、{@code getById} が返すのは
+     * 同じ永続化コンテキストの実体です。追加のクエリも競合も起きません。
+     *
+     * <p>名前を {@code updateTable} にしないのは、引数 5 個の既存メソッドと
+     * 数が同じで、違いが 4 番目の {@code int} / {@code boolean} だけになるためです。
+     * コンパイラは迷いませんが、人が読み違えます。
+     */
+    @Transactional
+    public void updateTableKeepingOrder(Long id, String name, int capacity,
+                                        boolean active, String area) {
+        updateTable(id, name, capacity, getById(id).getSortOrder(), active, area);
+    }
+
     @Transactional
     public void updateTable(Long id, String name, int capacity, int sortOrder,
                             boolean active, String area) {

@@ -41,18 +41,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * カテゴリと卓は {@code <ul>} / {@code <li>} です。
  * セレクタにタグ名を書くと、片方でしか動きません。
  *
- * <h2>カテゴリと卓は「直す画面」に置いた</h2>
- * <p>{@code /admin/categories} と {@code /admin/tables} は<b>読むだけの画面</b>です
- * （{@code CategoryScreenSplitTest} / {@code TableQrScreenSplitTest} が見張っています）。
- * 一度そちらへ置いて、読む画面に入力欄が入ってしまい落ちました。
- * 並べ替えは直す作業なので、置き場は {@code /edit} です。
+ * <h2>置き場は一覧。ここは 2 度ひっくり返した</h2>
  *
- * <h2>ブラウザで実際に動かして確かめたこと</h2>
- * <pre>
- *   商品      <tbody> つまみ 100 個   1 2 3 4 5 → 2 1 3 4 5   id=1 after=2
- *   カテゴリ  <ul>    つまみ  15 個   1 2 3 4 5 → 2 1 3 4 5   id=1 after=2
- *   卓        <ul>    つまみ  10 個   1 2 3 4 5 → 2 1 3 4 5   id=1 after=2
- * </pre>
+ * <p>同じ往復をもう一度やらないために、経緯を残します。
+ *
+ * <ol>
+ *   <li><b>はじめ</b>：{@code /admin/categories} と {@code /admin/tables} は
+ *       読むだけの画面なので、つまみは {@code /edit} に置いた</li>
+ *   <li><b>09-19 昼</b>：店主が<b>サイドバーから来て並べようとして見つけられません</b>でした。
+ *       サイドバーが指すのは一覧のほうです。一覧にも置きました</li>
+ *   <li><b>09-19 夕（いまここ）</b>：店主の指示
+ *       「卓は編集する画面で並び替えは出来ない仕様にして」。カテゴリも同じ扱いに。
+ *       <b>編集画面からは、つまみも数字の欄も両方外しました</b></li>
+ * </ol>
+ *
+ * <p>いまの決まりは 1 行で言えます——<b>並べ替えは一覧だけ。編集画面は直すだけ。</b>
+ *
+ * <p>「読むだけの画面に書き換えの手段を置いてよいのか」への答えは
+ * {@code #theListsCanReorderToo} に書いてあります。
+ * 目に見える入力欄は 1 つも増えていないので、押し間違いの的にはなりません。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -106,13 +113,18 @@ class ReorderIsSharedTest {
                 .andReturn().getResponse().getContentAsString();
     }
 
-    /** ★ 3 画面とも、必要な目印がそろっていること。 */
+    /**
+     * ★ 3 画面とも、必要な目印がそろっていること。
+     *
+     * <p>カテゴリと卓は<b>一覧</b>（サイドバーから来る画面）です。
+     * 2026-09-19 に {@code /edit} から差し替えました。
+     */
     @Test
     @WithMockUser(roles = "ADMIN")
     @DisplayName("★ 商品・カテゴリ・卓のどれにも仕掛けがある")
     void allThreeScreensHaveIt() throws Exception {
         for (String url : new String[]{
-                "/admin/items", "/admin/categories/edit", "/admin/tables/edit"}) {
+                "/admin/items", "/admin/categories", "/admin/tables"}) {
             String html = page(url);
             assertThat(html).as(url + " に並べ替えの入れ物が無い").contains("data-reorder=\"on\"");
             assertThat(html).as(url + " につまみが無い").contains("data-reorder-handle");
@@ -149,11 +161,66 @@ class ReorderIsSharedTest {
                     .contains("data-reorder=\"on\"");
             assertThat(main).as(url + " につまみが無い").contains("data-reorder-handle");
 
+            // ★ 送り先まで見ること（2026-09-19 に追加）。
+            //   編集画面から隠しフォームを外す作業のついでに、
+            //   一覧側まで巻き添えで消すのがいちばんありそうな壊し方です。
+            //   つまみだけ残って送り先が無いと、掴んで動かせるのに保存されません
+            //   （画面の上では動くので、見ただけでは気づけない）。
+            assertThat(main).as(url + " に送り先のフォームが無い。"
+                    + "つまみは動くのに保存されない状態になる")
+                    .contains("id=\"reorder-form\"");
+            assertThat(main).as(url + " のフォームに after が無い。"
+                    + "いちばん下へ落としたときに行き先を指せず、先頭へ飛ぶ")
+                    .contains("name=\"after\"");
+            assertThat(main).as(url + " の送り先が place になっていない")
+                    .contains(url + "/place");
+
             // ★ ただし目に見える入力欄は増やさないこと。
             //   隠しフォームの中身（hidden）だけが例外
             String visible = main.replaceAll("(?s)<form id=\"reorder-form\".*?</form>", "");
             assertThat(visible).as(url + " は読むだけの画面。目に見える入力欄を置かない")
                     .doesNotContain("<input");
+        }
+    }
+
+    /**
+     * ★ 直す画面には並べ替えを置かないこと（2026-09-19、店主の指示
+     * 「卓は編集する画面で並び替えは出来ない仕様にして」。カテゴリも同じ扱い）。
+     *
+     * <p>つまみだけでなく<b>数字で打ち込む欄も</b>置きません。
+     * 欄が残っていると「編集画面では並び替えできない」が成り立たないからです。
+     *
+     * <h2>★「無いこと」を見る前に「行があること」を確かめる</h2>
+     *
+     * <p>行が 0 件だと中身が空なだけで、何を探しても見つからず通ってしまいます。
+     * このクラス自身が {@code setUp} のコメントで、
+     * {@code TableQrScreenSplitTest} も同じ罠を踏んだと書き残しています。
+     * ここでは先に「行フォームがある」ことを確かめてから「無い」を見ます。
+     */
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("★ 直す画面には並べ替えが無い（つまみも数字の欄も）")
+    void theEditScreensCannotReorder() throws Exception {
+        for (String url : new String[]{"/admin/categories/edit", "/admin/tables/edit"}) {
+            String html = page(url);
+            String main = html.substring(html.indexOf("<main"), html.lastIndexOf("</main>"));
+
+            // ① まず行があることを確かめる。無いと以下が全部素通りする
+            assertThat(main).as(url + " に行フォームが無い。"
+                    + "中身が空では「並べ替えが無い」を確かめたことにならない")
+                    .contains("name=\"name\"");
+
+            // ② そのうえで、並べ替えの手段がどれも無いこと
+            for (String mark : new String[]{
+                    "data-reorder", "dragdot", "reorder-form",
+                    "data-item-id", "data-group-id"}) {
+                assertThat(main).as(url + " に " + mark + " が残っている。"
+                        + "並べ替えは一覧だけ、編集画面は直すだけ")
+                        .doesNotContain(mark);
+            }
+            assertThat(main).as(url + " に並び順の入力欄が残っている。"
+                    + "数字で打ち込めるなら「並び替えできない」ことにならない")
+                    .doesNotContain("name=\"sortOrder\"");
         }
     }
 

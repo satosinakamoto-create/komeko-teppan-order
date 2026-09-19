@@ -210,7 +210,12 @@ public class AdminTableController {
 
         String name = form.getName().trim();
         try {
-            tableService.updateTable(id, name, form.getCapacity(), form.getSortOrder(),
+            // ★ 並び順はここでは触りません（2026-09-19、店主の指示
+            //   「卓は編集する画面で並び替えは出来ない仕様にして」）。
+            //   並べ替えは一覧のドラッグ＆ドロップ（POST /place）だけが行います。
+            //   form.getSortOrder() を渡すと、画面に入力欄が無いぶん初期値 0 が
+            //   そのまま書かれ、更新した卓が黙って一覧の先頭へ飛びます。
+            tableService.updateTableKeepingOrder(id, name, form.getCapacity(),
                     form.isActive(), form.getArea());
         } catch (TableService.TableNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors",
@@ -261,7 +266,11 @@ public class AdminTableController {
         if (!tableService.placeTableNextTo(id, before, after)) {
             redirectAttributes.addFlashAttribute("flashInfo", "並び順は変わりませんでした");
         }
-        return "redirect:/admin/tables/edit";
+        // ★ 戻り先は一覧（2026-09-19 に /edit から変更）。
+        //   つまみが両方の画面にあった頃の名残で編集画面へ戻していましたが、
+        //   並べ替えが一覧だけになった今、つまんだ瞬間に別の画面へ飛ばされます。
+        //   動かした結果をその場で見せるのが正しい戻り先です。
+        return "redirect:/admin/tables";
     }
 
     @PostMapping("/{id}/delete")

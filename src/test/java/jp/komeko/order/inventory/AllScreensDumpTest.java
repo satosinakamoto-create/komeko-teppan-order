@@ -99,8 +99,9 @@ class AllScreensDumpTest {
         staff.put("s05b-item-new", "/admin/items/new");
         staff.put("s06-categories", "/admin/categories");
         staff.put("s07-tables", "/admin/tables");
-        // 直す画面（並べ替えのつまみはこちらにある。2026-09-19 に追加）。
-        // 読む画面は読むだけなので、つまみは置いていない
+        // 直す画面。★ つまみはこちらには無い（2026-09-19 夕に外した。店主の指示
+        // 「卓は編集する画面で並び替えは出来ない仕様にして」。カテゴリも同じ扱い）。
+        // 並べ替えは上の一覧（s06-categories / s07-tables）だけにある
         staff.put("s06b-categories-edit", "/admin/categories/edit");
         staff.put("s07b-tables-edit", "/admin/tables/edit");
         staff.put("s08-qr", "/admin/qr");

@@ -110,9 +110,23 @@ class CategoryScreenSplitTest {
         //   守りたいのは「保存したあと読む画面へ飛ばさないこと」で、口の数ではありません。
         //
         //   カテゴリへ戻る redirect を全部拾って、どれも /edit で終わることを見ます。
+        //
+        // ★ 2026-09-19 夕：並べ替え（/place）だけは対象外にしました。
+        //   店主の指示で並べ替えが一覧だけになり、/place の戻り先を
+        //   /admin/categories（一覧）に変えたためです。
+        //   ここが守りたいのは「保存のたびに読む画面へ飛ばされて作業が続かない」ことで、
+        //   並べ替えは保存ではありません。つまんだ画面にそのまま戻るのが正しく、
+        //   編集画面へ飛ばすと、続けて動かそうとした人がつまみを探すことになります。
+        //   戻り先そのものは ReorderStaysOnTheListTest が見張っています。
+        String withoutPlace = source.replaceAll("(?s)@PostMapping\\(\"/place\"\\).*?\\n    \\}", "");
+        assertThat(withoutPlace)
+                .as("/place の口が見つからず、切り出しが効いていない。"
+                        + "口の形を変えたなら、この切り出しも直すこと")
+                .hasSizeLessThan(source.length());
+
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("\"redirect:/admin/categories([^\"]*)\"")
-                .matcher(source);
+                .matcher(withoutPlace);
         int found = 0;
         while (m.find()) {
             found++;
