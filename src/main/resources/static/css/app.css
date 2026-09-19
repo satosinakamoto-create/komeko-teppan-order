@@ -3983,6 +3983,52 @@ body.is-sending .staff-main {
 .table--items th:nth-child(6), .table--items td:nth-child(6) { width: 130px; }
 .table--items th:nth-child(7), .table--items td:nth-child(7) { width: 120px; }
 
+/* レシピ・原価表（設計 ト09 731:4147）。見出し 64／行 68 は商品の表と同じ流儀。
+
+   列は 商品 300 ／ 売価税込 140 ／ 原価税込 140 ／ 原価率税込 150 ／
+   原価税抜 140 ／ 原価率税抜 150 ／ 操作 100 ＝ 1120。
+
+   ★ 幅は nth-child ではなく<b>クラス</b>で指定すること。
+     原価の 4 列は店長と見学者にしか出ません（スタッフには 3 列）。
+     順番で当てると、隠れたぶんだけ別の列に幅が当たります。
+
+   ★ 商品の列にも幅を書くこと。7 本の合計を 1120 にすると、
+     table-layout: fixed が 3 つの幅を勝手に作り分けてくれます（実測で確認）。
+
+       1432px  入れ物 1120 ＝ 合計 1120       → 設計どおりの実寸
+       1024px  入れ物  912 ＜ 合計 1120       → 表は 1120 のまま。
+                                                .table-wrap が横スクロール。
+                                                設計 トi11 の「実機では横にスクロール
+                                                します（表の幅 1120px）」と同じ
+       1920px  入れ物 1444 ＞ 合計 1120       → 全列が比例して伸びる。
+                                                387/181/181/193/181/193/129 となり、
+                                                設計 トp11 の実測値と一致
+
+     いちど商品の列だけ幅を書かずに「残りを吸わせる」形にしたところ、
+     iPad で商品名の列が 92px まで潰れました（実測）。合計が 1120 に
+     届かないと、入れ物より狭くなって横スクロールが働かないためです。 */
+.theme-desk .table--recipes th { padding: 16px; height: 64px; }
+.theme-desk .table--recipes td { padding: 0 20px; height: 67px; vertical-align: middle; }
+.table--recipes { table-layout: fixed; }
+.table--recipes .col-name  { width: 300px; }
+.table--recipes .col-money { width: 140px; }
+.table--recipes .col-rate  { width: 150px; }
+.table--recipes .col-act   { width: 100px; }
+
+/* ★ 操作の列だけ左右の余白を詰める（2026-09-19、実測で発見）。
+
+   設計の操作の列は 100px で、中身は「編集」という<b>文字</b>です。
+   実装は .recbtn というボタンで、min-width が 88px あります。
+
+     セル 100 － 左右の余白 20×2 ＝ 中に使えるのは 60px
+     ボタン 88px  →  28px はみ出す（1432px と 1024px で実測）
+
+   列を広げると設計の 1120 が崩れるので、余白のほうを詰めます。
+   100 － 6×2 ＝ 88 でちょうど収まります。
+   （1920px では列が 128.9 に伸びるので元から収まっていました） */
+.theme-desk .table--recipes td.col-act,
+.theme-desk .table--recipes th.col-act { padding-inline: 6px; }
+
 /* カテゴリの表（設計 09 カテゴリ 41:1725）。
    見出し 16／行 20 の流儀は商品・仕入れと同じ。列幅だけ違う（合計 1120） */
 .theme-desk .table--cats th { padding: 16px; height: 64px; }

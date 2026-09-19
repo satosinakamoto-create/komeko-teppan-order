@@ -56,21 +56,32 @@
   </div>
 
   <div th:unless="${costs.isEmpty()}" class="table-wrap">
-    <table class="table">
+    <!--/* 列は設計（ト09 731:4147）のとおり 7 本。
+           商品 300 ／ 売価税込 140 ／ 原価税込 140 ／ 原価率税込 150 ／
+           原価税抜 140 ／ 原価率税抜 150 ／ 操作 100 ＝ 1120。
+
+         ★ 列見出しは 1 行に戻した（設計は「原価税込」で 1 つの文字列）。
+           実装は「原価」＋小さい「税込」の 2 行で、見出しが 86px あった。
+           設計は 64px。この表は商品が増えるほど縦に伸びるので、
+           1 行あたりの高さは効いてくる。 */-->
+    <table class="table table--recipes">
       <thead>
       <tr>
-        <th>商品</th>
-        <th class="right">売価<br><span class="tiny faint">税込</span></th>
+        <th class="col-name">商品</th>
+        <th class="right col-money">売価税込</th>
         <!--/* 原価と原価率は店長（ADMIN）と公開デモの見学者（GUEST）にだけ。
-               設計 6 章の初期案どおり。スタッフには分量の登録だけしてもらう。 */-->
+               設計 6 章の初期案どおり。スタッフには分量の登録だけしてもらう。
+
+               ★ 列幅は nth-child ではなくクラスで指定すること。
+                 ここが隠れるとスタッフには 3 列しか出ないので、
+                 順番で幅を当てると別の列に当たる。 */-->
         <th:block sec:authorize="hasAnyRole('ADMIN','GUEST')">
-        <th class="right">原価<br><span class="tiny faint">税込</span></th>
-        <th class="right">原価率<br><span class="tiny faint">税込</span></th>
-        <th class="right">原価<br><span class="tiny faint">税抜</span></th>
-        <th class="right">原価率<br><span class="tiny faint">税抜</span></th>
+        <th class="right col-money">原価税込</th>
+        <th class="right col-rate">原価率税込</th>
+        <th class="right col-money">原価税抜</th>
+        <th class="right col-rate">原価率税抜</th>
         </th:block>
-        <th>材料</th>
-        <th></th>
+        <th class="right col-act">操作</th>
       </tr>
       </thead>
       <tbody>
@@ -80,9 +91,21 @@
                同じ場所へ行く道を 2 つ持たない、は何度か採ってきた判断
                （QR の印刷の入口を卓へ一本化したのと同じ）。
                押す前にどちらを押すか考えさせるだけで、得るものが無い。 */-->
+        <!--/* ★ 「単価不明」はここに残すこと（2026-09-19）。
+               材料の列を消したときに一緒に消えかけました。
+
+               あれは見た目の印ではなく<b>金額の警告</b>です。まだ一度も
+               仕入れていない食材が混ざっている商品で、その分の原価が
+               抜けているので、右に出ている<b>原価率は実際より低く出ています</b>。
+               表の下の但し書きもそう説明しています。
+
+               消すと「原価率 26% の商品」に見えたまま、本当は 35% かもしれない、
+               という状態になります。行の目印なので商品名の隣に置きました。 */-->
         <td>
           <span th:text="${c.menuItem().name}">米粉のお好み焼き</span>
           <span th:unless="${c.menuItem().visible}" class="badge">非表示</span>
+          <span th:if="${c.isIncomplete()}" class="badge badge--soldout"
+                th:text="'単価不明 ' + ${c.unknownCostCount()}">単価不明 1</span>
         </td>
 
         <td class="right num"
@@ -114,21 +137,24 @@
         </td>
         </th:block>
 
-        <!--/* ★ 「未登録」と言ってよいのは、金額の手がかりが本当に何も無いときだけ。
-               その他材料費だけ入れた商品は原価が出ているので、
-               隣に「未登録」と書くとどちらが本当か読む人に分からない（2026-09-16） */-->
-        <td class="tiny">
-          <span th:if="${c.isNothingRegistered()}" class="faint">未登録</span>
-          <span th:if="${c.isOtherCostOnly()}" class="faint">金額のみ</span>
-          <span th:unless="${c.isEmpty()}" th:text="${c.lines().size()} + ' 種類'">4 種類</span>
-          <span th:if="${c.isIncomplete()}" class="badge badge--soldout"
-                th:text="'単価不明 ' + ${c.unknownCostCount()}">単価不明 1</span>
-        </td>
+        <!--/* ★ 「材料」の列は消しました（2026-09-19・店主の指摘
+               「レシピ・原価表で材料の項目があるけど要らないよね？」）。
+               設計（ト09 731:4147）にも無く、7 列です。
+
+               消えたのは「未登録／金額のみ／N 種類」の 3 つ。
+               どれも<b>レシピの登録ぐあい</b>を表す目安で、金額そのものではありません。
+               登録されていないことは右の「登録する」ボタン（登録済みなら「編集」）が
+               そのまま言っているので、同じことを 2 か所で言っていました。
+
+             ★ 「単価不明」だけは商品名の隣へ移しました。上の注記を参照。 */-->
 
         <!--/* 白地・緑枠・緑文字（店主の指定）。棚卸しの「記録する」と同じ .recbtn。
                同じ「表の行からその先へ入る」用途なので、部品を増やさない。
                この列が、この行から編集画面へ入る唯一の道。 */-->
-        <td class="right">
+        <!--/* col-act は幅と余白のための目印。td 側にも付けること。
+               th だけだと、列幅（table-layout: fixed）は効くが
+               セルの余白が 20px のままでボタンが 28px はみ出す（実測） */-->
+        <td class="right col-act">
           <a class="recbtn"
              th:href="@{/inventory/recipes/{id}(id=${c.menuItem().id})}"
              th:aria-label="${c.menuItem().name} + ' のレシピを編集する'">
