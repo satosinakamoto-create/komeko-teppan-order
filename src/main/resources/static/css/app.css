@@ -3655,6 +3655,22 @@ body.is-sending .staff-main {
   --btn-bd: var(--action-hover);
 }
 
+/* ★ 危険ボタンの枠は赤のまま（2026-09-19、実測で発見）。
+
+   上の「.btn--danger は枠線のままにします」という判断は生きています。
+   問題は枠の<b>色</b>でした。
+
+     .btn--danger        { --btn-bd: var(--danger) }   (0,1,0)
+     .theme-desk .btn    { --btn-bd: #c7c7c7 }         (0,2,0)  ← こちらが勝つ
+
+   机で読む画面では枠だけ灰色に落ちて、赤い文字に灰色の枠という
+   中途半端な見た目になっていました（実測 rgb(199,199,199)）。
+   設計の部品「ボタン／種類=危険」は 白地・枠 #d33f3f・文字 #d33f3f です。
+
+   ★ 地は白のままでよいので、枠だけ戻します。
+     .btn--ok のように 3 つまとめて上書きすると塗りボタンになってしまいます。 */
+.theme-desk .btn--danger { --btn-bd: var(--danger); }
+
 .theme-desk .label { font-size: 16px; letter-spacing: .02em; }
 /* 入力欄は 16px・48px のまま。16px 未満にすると iOS が勝手に拡大する（11 節） */
 
