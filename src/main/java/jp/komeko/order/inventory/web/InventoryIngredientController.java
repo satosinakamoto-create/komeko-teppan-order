@@ -51,11 +51,16 @@ public class InventoryIngredientController {
     private final RecipeService recipeService;
     private final jp.komeko.order.service.ShopSettingService shopSettingService;
 
+    /** 商品カテゴリ（お品書きの分類）。食材の分類ではない。 */
+    private final jp.komeko.order.repository.CategoryRepository categoryRepository;
+
     public InventoryIngredientController(IngredientService ingredientService,
                                          StockService stockService,
                                          PurchaseService purchaseService,
                                          RecipeService recipeService,
-                                         jp.komeko.order.service.ShopSettingService shopSettingService) {
+                                         jp.komeko.order.service.ShopSettingService shopSettingService,
+                                         jp.komeko.order.repository.CategoryRepository categoryRepository) {
+        this.categoryRepository = categoryRepository;
         this.ingredientService = ingredientService;
         this.stockService = stockService;
         this.purchaseService = purchaseService;
@@ -94,16 +99,43 @@ public class InventoryIngredientController {
      * 注意が要るものはバッジで目立たせ、上部に件数を出します。
      */
     /**
-     * 食材・在庫の一覧（設計 現04 441:2715）。
+     * 食材・在庫の一覧（設計 ト04 725:4457）。
      *
-     * <p>分類での絞り込みは 2026-09-16 にやめました（{@code IngredientCategoryRemovedTest}）。
-     * 古いリンクに {@code ?category=…} が残っていても、知らない問い合わせ文字として
-     * 黙って無視され、一覧がそのまま出ます。
+     * <p><b>「カテゴリーから検索」は商品カテゴリです</b>（2026-09-19。
+     * 店主の言葉「商品カテゴリのこと言ってる」）。お品書きの分類を選ぶと、
+     * <b>その分類の商品に使われている食材</b>だけが残ります。
      *
-     * @param q 食材名の一部。入っていれば名前で絞り込む（2026-09-07 に追加）
+     * <p><b>食材そのものの分類ではありません。</b>あれは 2026-09-16 に消した機能で
+     * （{@code IngredientCategoryRemovedTest}・CLAUDE.md「やらないと決めたこと」）、
+     * {@code Ingredient} に分類の項目はもうありません。
+     * ここはレシピを辿るだけなので、<b>新しく入力してもらうものはありません</b>。
+     *
+     * <p>裏を返すと、<b>レシピが登録されていない商品の食材は出てきません</b>。
+     * レシピが増えるほど、この絞り込みの網も広がります。
+     *
+     * <p><b>{@code category} は文字列で受け取ること。</b>
+     * ブックマークや履歴に古い {@code ?category=VEGETABLE}（消した分類の名前）が
+     * 残っている人がいます。{@code Long} で受けると数字でない値が
+     * <b>400 で突き返され</b>、一覧そのものが開けません。
+     * 知らない値は黙って無視して一覧を出すのが正しい振る舞いです
+     * （{@code IngredientCategoryRemovedTest} が見張っています）。
+     *
+     * @param q        食材名の一部。入っていれば名前で絞り込む（2026-09-07 に追加）
+     * @param category 商品カテゴリの ID。数字でなければ無視する
      */
     @GetMapping
-    public String index(@RequestParam(required = false) String q, Model model) {
+    public String index(@RequestParam(required = false) String q,
+                        @RequestParam(required = false) String category,
+                        Model model) {
+        Long categoryId = null;
+        if (category != null && !category.isBlank()) {
+            try {
+                categoryId = Long.valueOf(category.trim());
+            } catch (NumberFormatException ignored) {
+                // 古い分類の名前（VEGETABLE など）。絞り込まずに全件を出す
+                categoryId = null;
+            }
+        }
         List<StockLevel> all = stockService.currentLevels();
         List<StockLevel> levels = all;
 
@@ -115,6 +147,39 @@ public class InventoryIngredientController {
                             && l.ingredient().getName().toLowerCase().contains(needle))
                     .toList();
         }
+
+        // ── カテゴリーから検索（商品カテゴリ）──
+        //
+        // ★ 探すときはカテゴリを無視する。商品・品切れ・残数と同じ考え方。
+        //   「キャベツ」と打った人は、それがどの商品に使われているかを覚えていない。
+        java.util.Map<Long, java.util.Set<Long>> byCategory =
+                recipeService.ingredientIdsByMenuCategory();
+        Long selectedCategoryId = keyword.isEmpty() ? categoryId : null;
+        if (selectedCategoryId != null) {
+            java.util.Set<Long> allowed =
+                    byCategory.getOrDefault(selectedCategoryId, java.util.Set.of());
+            levels = levels.stream()
+                    .filter(l -> allowed.contains(l.ingredient().getId()))
+                    .toList();
+        }
+
+        // 件数はレシピから数えた「その分類の商品が使う食材の数」。
+        // 押す前に何品あるか読めるようにする（商品の一覧と同じ理由）
+        List<CategoryPick> categoryPicks = categoryRepository
+                .findAllByOrderBySortOrderAscIdAsc().stream()
+                .map(c -> new CategoryPick(c.getId(), c.getName(),
+                        byCategory.getOrDefault(c.getId(), java.util.Set.of()).size()))
+                .toList();
+        String selectedCategoryName = selectedCategoryId == null ? null
+                : categoryPicks.stream()
+                        .filter(p -> selectedCategoryId.equals(p.id()))
+                        .map(CategoryPick::name)
+                        .findFirst()
+                        .orElse(null);
+
+        model.addAttribute("categoryPicks", categoryPicks);
+        model.addAttribute("selectedCategoryId", selectedCategoryId);
+        model.addAttribute("selectedCategoryName", selectedCategoryName);
 
         int attention = 0;
         for (StockLevel level : levels) {
@@ -457,5 +522,17 @@ public class InventoryIngredientController {
         return bindingResult.getAllErrors().stream()
                 .map(e -> e.getDefaultMessage() != null ? e.getDefaultMessage() : "入力を確認してください")
                 .toList();
+    }
+
+    /**
+     * 「カテゴリーから検索」の 1 行（2026-09-19、設計 ト04 725:4457）。
+     *
+     * <p><b>商品カテゴリです。</b>お品書きの分類で、食材そのものの分類ではありません。
+     *
+     * @param id    商品カテゴリの ID。押すと {@code ?category=id} で絞り込む
+     * @param name  画面に出す名前
+     * @param count その分類の商品が使っている食材の数（レシピから数える）
+     */
+    public record CategoryPick(Long id, String name, int count) {
     }
 }

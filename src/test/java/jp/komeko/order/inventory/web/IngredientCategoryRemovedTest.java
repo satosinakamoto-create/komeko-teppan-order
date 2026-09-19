@@ -95,8 +95,21 @@ class IngredientCategoryRemovedTest {
                 .doesNotContain("unclassifiedCount");
         assertThat(html).as("分類での絞り込みが残っている")
                 .doesNotContain("categoryGroups");
-        assertThat(html).as("「カテゴリーから検索」が残っている（商品カテゴリと紛らわしい語）")
-                .doesNotContain("カテゴリーから検索");
+
+        // ★ 2026-09-19：「カテゴリーから検索」の文字を見るのをやめました。
+        //
+        //   もともとは「商品カテゴリと紛らわしい語」だから消す、という理由でした。
+        //   いまは設計（ト04 725:4457）に合わせて、<b>商品カテゴリそのもの</b>で
+        //   絞り込む欄として置いてあります（店主の言葉「商品カテゴリのこと言ってる」）。
+        //   紛らわしさは「食材の分類だと思わせる語なのに中身が別物」という点に
+        //   ありました。中身が商品カテゴリになった以上、語と中身は一致しています。
+        //
+        //   このテストが守りたいのは<b>食材そのものの分類を作り直さないこと</b>なので、
+        //   そちらを直接見ます。
+        assertThat(html).as("★ 食材の分類を作り直している。"
+                + "2026-09-16 に、計算に一切使われていないことを確かめて落とした機能")
+                .doesNotContain("ingredient.category")
+                .doesNotContain("ingredientCategory");
     }
 
     @Test

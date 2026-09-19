@@ -68,6 +68,37 @@
       <input class="searchbox__input" type="search" name="q" placeholder="食材を探す"
              th:value="${q}" aria-label="食材を探す">
     </form>
+
+    <!--/* ★ カテゴリーから検索（2026-09-19・設計 ト04 725:4457）。
+           店主の言葉「商品カテゴリのこと言ってる」。
+
+           <b>お品書きの分類</b>を選ぶと、その分類の商品に使われている食材だけが残ります。
+           食材そのものに分類は持たせていません（2026-09-16 に消した機能）。
+           レシピを辿るだけなので、新しく入力してもらうものはありません。
+
+         ★ 裏を返すと、レシピが登録されていない商品の食材は出てきません。
+           件数の 0 はそれを正直に出しています（隠すと、選んでから空に気づく）。
+
+         ★ 開閉は <details>。JavaScript は使いません（品切れ・残数と同じ）。 */-->
+    <details class="catpick" th:unless="${categoryPicks.isEmpty()}">
+      <summary class="catpick__head">
+        <span class="catpick__mark" aria-hidden="true"></span>
+        <span th:text="${selectedCategoryName} ?: 'カテゴリーから検索'">カテゴリーから検索</span>
+      </summary>
+      <div class="catpick__list">
+        <!--/* 全件へ戻る道。無いとブラウザの戻るか URL を消すしかなくなる */-->
+        <a class="catpick__item" th:classappend="${selectedCategoryId == null} ? 'is-active'"
+           th:href="@{/inventory/ingredients}">
+          <span>すべてのカテゴリ</span>
+        </a>
+        <a th:each="c : ${categoryPicks}" class="catpick__item"
+           th:classappend="${selectedCategoryId != null and selectedCategoryId == c.id()} ? 'is-active'"
+           th:href="@{/inventory/ingredients(category=${c.id()})}">
+          <span th:text="${c.name()}">広島風お好み焼き</span>
+          <span class="catpick__count" th:text="${c.count()}">4</span>
+        </a>
+      </div>
+    </details>
   </div>
 
   <!--/* 探して 0 件のとき。空の表は「登録が無い」と見分けが付かない。

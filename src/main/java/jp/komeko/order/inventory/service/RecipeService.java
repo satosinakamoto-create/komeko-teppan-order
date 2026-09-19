@@ -205,6 +205,40 @@ public class RecipeService {
      * <p>必要な関連は、この {@code @Transactional} の中で読み終えてから返す——
      * CLAUDE.md の決まりどおりの形。
      */
+    /**
+     * 商品カテゴリごとに、そのカテゴリの商品が使っている食材の ID（2026-09-19）。
+     *
+     * <p>食材・在庫の「カテゴリーから検索」に使います（設計 ト04 725:4457）。
+     * 店主の言葉は「商品カテゴリのこと言ってる」。
+     *
+     * <p><b>食材そのものに分類は持たせません。</b>
+     * あれは 2026-09-16 に消した機能です（CLAUDE.md「やらないと決めたこと」）。
+     * ここはレシピを辿って「この分類の商品に使われている食材」を集めるだけなので、
+     * <b>新しく入力してもらうものはありません</b>。
+     *
+     * <p>だから、<b>レシピが登録されていない商品の食材は出てきません</b>。
+     * レシピが増えるほど、この絞り込みの網も広がります。
+     *
+     * <p>関連は {@code @Transactional} の中で読み終えて ID だけ返します
+     * （{@code open-in-view: false} なので、画面では関連を辿れない）。
+     *
+     * @return 商品カテゴリの ID → その分類の商品が使う食材 ID の集合
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, java.util.Set<Long>> ingredientIdsByMenuCategory() {
+        Map<Long, java.util.Set<Long>> out = new java.util.LinkedHashMap<>();
+        for (RecipeLine line : recipes.findAllWithRelations()) {
+            MenuItem item = line.getMenuItem();
+            Ingredient ingredient = line.getIngredient();
+            if (item == null || ingredient == null || item.getCategory() == null) {
+                continue;
+            }
+            out.computeIfAbsent(item.getCategory().getId(), k -> new java.util.LinkedHashSet<>())
+                    .add(ingredient.getId());
+        }
+        return out;
+    }
+
     @Transactional(readOnly = true)
     public String categoryNameOf(Long menuItemId) {
         MenuItem item = menuItems.findById(menuItemId).orElse(null);
