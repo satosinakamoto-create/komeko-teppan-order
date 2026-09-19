@@ -88,7 +88,12 @@ class RecipeLinkageTest {
     @DisplayName("★ 一覧の原価列は価格の右。未登録は赤いリンクでレシピ編集へ")
     void theCostColumnShowsTheGap() throws Exception {
         String t = read(ITEMS);
-        int price = t.indexOf("<th>価格（税込）</th>");
+        // ★ 2026-09-19：見出しのタグを丸ごと探すのをやめました。
+        //   設計 ト10 の揃え方を当てるため、列見出しにクラスを付けています
+        //   （<th class="col-price">価格（税込）</th>）。
+        //   このテストが守りたいのは<b>列の順番</b>——原価が価格の右で掲載の左に
+        //   あること——なので、文言の位置だけを見ます。
+        int price = t.indexOf(">価格（税込）</th>");
         int cost = t.indexOf(">原価</th>");
         int listed = t.indexOf(">掲載</th>");
         assertThat(price).isGreaterThan(0);

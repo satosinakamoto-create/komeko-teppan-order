@@ -149,16 +149,16 @@
       <table class="table table--items">
         <thead>
         <tr>
-          <th>商品名</th>
-          <th>カテゴリ</th>
-          <th>価格（税込）</th>
+          <th class="col-name">商品名</th>
+          <th class="col-cat">カテゴリ</th>
+          <th class="col-price">価格（税込）</th>
           <!--/* 原価列（設計 ト10・2026-09-14）。レシピ未登録がここで見える。
                  itemCosts は在庫モジュールが有効なときだけコントローラが渡す。
                  切った店では列ごと消える（データの出しようがない） */-->
-          <th th:if="${itemCosts != null}">原価</th>
-          <th>掲載</th>
-          <th>販売</th>
-          <th>並び</th>
+          <th class="col-cost" th:if="${itemCosts != null}">原価</th>
+          <th class="col-state">掲載</th>
+          <th class="col-state">販売</th>
+          <th class="col-order">並び</th>
         </tr>
         </thead>
         <tbody>
@@ -173,7 +173,7 @@
                    下書きは価格を空のまま保存できるので、DB には 0 が入る。
                    そこに「時価」と出すと、値段を決めずに保存しただけの品が
                    「その日の仕入れで決める品」に見える。意味がまるで違う。 */-->
-          <td class="num">
+          <td class="num col-price">
             <span th:if="${item.price > 0}"
                   th:text="'¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥1,180</span>
             <span class="faint" th:if="${item.price <= 0 and item.draft}">未入力</span>
@@ -183,7 +183,7 @@
                  未登録は赤いリンクで、その品のレシピ編集へ直行できる。
                  赤の直値クラスを増やさず var(--danger) をインラインで使うのは
                  品切れ・残数の状態チップと同じ理由（CLAUDE.md）。 */-->
-          <td class="num" th:if="${itemCosts != null}"
+          <td class="num col-cost" th:if="${itemCosts != null}"
               th:with="c=${itemCosts.get(item.id)}">
             <span th:if="${c != null and c.costIncludingTax() != null}">
               <span th:text="'¥' + ${#numbers.formatInteger(c.costIncludingTax(), 1, 'COMMA')}">¥312</span><span
@@ -207,7 +207,7 @@
                    ワンタップで止められる便利さは 09-07 のまま残っています。
 
                  ★ 押した場所へ戻すため、タブと検索語を持たせています。 */-->
-          <td>
+          <td class="col-state">
             <!--/* ★ 書きかけ（編集中）はここで切り替えさせません。
                    まだ価格やカテゴリが空かもしれないので、
                    一覧のワンタップで掲載できてしまうと中身の無い品が
@@ -229,7 +229,7 @@
                       title="押すと掲載します">掲載停止</button>
             </form>
           </td>
-          <td>
+          <td class="col-state">
             <!--/* 掲載していない品の販売状態は意味を持たないので出さない。
                    メニューに無いものが「販売中」でも「品切れ」でもない。
                    書きかけも同じ（まだメニューに出ていない） */-->
@@ -266,7 +266,7 @@
                  絞り込んでいるとき（検索語あり・「すべて」以外のタブ）は出しません。
                  隣の行が本当の隣とは限らないので、押しても動かないように見える
                  ことがあり、そのほうが混乱するためです。 */-->
-          <td class="num">
+          <td class="num col-order">
             <form th:if="${canReorder}" th:action="@{/admin/items/{id}/move(id=${item.id})}"
                   method="post" class="row">
               <button type="submit" name="up" value="true" class="btn btn--ghost btn--sm"

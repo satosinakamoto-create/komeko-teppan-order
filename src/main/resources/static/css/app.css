@@ -3975,6 +3975,68 @@ body.is-sending .staff-main {
    ★ 在庫モジュールを切った店では 4 列目（原価）が出ず 6 列になるが、
      table-layout: fixed は「出ている列」に幅を当てるので、この指定のままで
      商品名 280…掲載 120 と前へ詰まり、余りは最後の列に寄る。列が消えても崩れない */
+/* 列ごとの揃え方（設計 ト10 731:4408・2026-09-19、店主の指摘
+   「表のレイアウトがずれてる」）。
+
+   設計の指定（見出し・行とも同じ）
+
+     商品名 ／ カテゴリ ／ 価格（税込）   左
+     原価 ／ 掲載 ／ 販売 ／ 並び         中央
+
+   直す前の実測。見出しが全部左なのに中身が右や中央で、
+   見出しと数字が 1 本の線に乗っていませんでした。
+
+     列            見出し   行
+     商品名         左      左
+     カテゴリ       左      左
+     価格（税込）   左      右   ★
+     原価          左 ★    右   ★
+     掲載          左 ★    左寄り ★
+     販売          左 ★    左寄り ★
+     並び          左 ★    左寄り ★
+
+   ★ 揃えはクラスで当てること。原価の列は在庫モジュールを切った店では
+     出ないので、nth-child で当てると列がずれた瞬間に別の列へ効きます。
+
+   ★ .num（数字をそろえる指定）は残す。あれは等幅の数字を使うためのもので、
+     揃え方とは別の役目です。
+
+   ★★ セレクタに th / td を付けること（2026-09-19 に 1 回踏みました）。
+     1566 行の .table td.num が text-align: right を持っていて、
+     詳細度が (0,2,1) あります。クラスだけの .table--items .col-price は
+     (0,2,0) で<b>負けます</b>。見出しだけ直って行が右のまま残りました。
+     th/td を付けて (0,2,1) にし、あちらより後ろに置けば勝ちます。 */
+.table--items th.col-name,  .table--items td.col-name,
+.table--items th.col-cat,   .table--items td.col-cat,
+.table--items th.col-price, .table--items td.col-price { text-align: left; }
+.table--items th.col-cost,  .table--items td.col-cost,
+.table--items th.col-state, .table--items td.col-state,
+.table--items th.col-order, .table--items td.col-order { text-align: center; }
+/* 中央の列は中身も中央へ。掲載・販売・並びのセルは中がフォームで、
+   並びは .row（flex）なので text-align だけでは寄りません */
+.table--items td.col-state > form,
+.table--items td.col-order > form { justify-content: center; }
+
+/* ★ 中央ぞろえの列は左右の余白を詰める（2026-09-19、実測で発見）。
+
+   設計の余白は 20px ですが、<b>設計自身の中身がそれでは収まっていません</b>。
+
+     列     セル  余白20のとき中に使える  中身      結果
+     原価   120        80              100〜115   あふれる
+     販売   130        90               94.8      あふれる
+     並び   120        80              131.3      あふれる
+
+   左ぞろえの列では余白が「字の始まる位置」を決めるので動かせませんが、
+   中央ぞろえの列では余白は<b>使える幅を削るだけ</b>で、位置には効きません。
+   なので 8px にして中身の置き場を広げます。中央という設計の指定は守ったまま。
+
+   ★ それでも原価（¥377（31.9%）＝114.8）と並び（↑↓＋数字＝131.3）は
+     まだ収まりません。列を広げると設計の合計 1120 が崩れるので、
+     いまは詰めるところまで。ボタンの大きさは 1px も変えていません。 */
+.table--items th.col-cost,  .table--items td.col-cost,
+.table--items th.col-state, .table--items td.col-state,
+.table--items th.col-order, .table--items td.col-order { padding-inline: 8px; }
+
 .table--items th:nth-child(1), .table--items td:nth-child(1) { width: 280px; }
 .table--items th:nth-child(2), .table--items td:nth-child(2) { width: 200px; }
 .table--items th:nth-child(3), .table--items td:nth-child(3) { width: 140px; }
