@@ -4175,7 +4175,37 @@ body.is-sending .staff-main {
 /* カテゴリの表（設計 09 カテゴリ 41:1725）。
    見出し 16／行 20 の流儀は商品・仕入れと同じ。列幅だけ違う（合計 1120） */
 .theme-desk .table--cats th { padding: 16px; height: 64px; }
-.theme-desk .table--cats td { padding: 20px 20px 19px; height: 68px; }
+/* ★ 2026-09-19：上下の余白を 0 にしました（店主の指摘「レイアウトちょっとズレてる」）。
+
+     並べ替えのつまみ（36px）を置いたら、20 + 36 + 19 ＋ 区切り線 1 ＝ 76px になり、
+     設計の 68px から 8px はみ出していました。上下を 0 にすると 36px が収まり、
+     height の 67 が効いて区切り線と合わせてちょうど 68 になります。
+     <b>つまみは 1px も小さくしていません。</b>商品・レシピの表と同じ直し方です。 */
+.theme-desk .table--cats td { padding: 0 20px; height: 67px; vertical-align: middle; }
+
+/* 卓の表（2026-09-19 に追加）。
+
+   ★ <b>それまで指定が 1 行もありませんでした。</b>カテゴリと並べると、
+     列幅は中身任せ（table-layout: auto）、見出しは 61.5px、
+     セルの余白は 20/12 と、どこもそろっていませんでした。実測:
+
+       項目            カテゴリ   卓（直す前）
+       列幅            固定       自動（355.1 / 148 / 167.3 / 238.4 / 211.2）
+       見出しの高さ     64         61.5
+       行の高さ         68         77
+       セルの余白       16 / 16    20 / 12
+
+   ★ 列幅は設計（ト12）の 320 / 180 / 240 を引き継ぎ、
+     設計に無い「並び」を 160（カテゴリと同じ）、残りを状態へ。
+     320 + 180 + 240 + 220 + 160 ＝ 1120。 */
+.theme-desk .table--tables th { padding: 16px; height: 64px; }
+.theme-desk .table--tables td { padding: 0 20px; height: 67px; vertical-align: middle; }
+.table--tables { table-layout: fixed; }
+.table--tables th:nth-child(1), .table--tables td:nth-child(1) { width: 320px; }
+.table--tables th:nth-child(2), .table--tables td:nth-child(2) { width: 180px; }
+.table--tables th:nth-child(3), .table--tables td:nth-child(3) { width: 240px; }
+.table--tables th:nth-child(4), .table--tables td:nth-child(4) { width: 220px; }
+.table--tables th:nth-child(5), .table--tables td:nth-child(5) { width: 160px; }
 .table--cats { table-layout: fixed; }
 /* ★ 2026-09-19：並び列を右端へ移しました（店主の指示
      「並び順を一番右に来るようにレイアウト変更もしておいて」）。

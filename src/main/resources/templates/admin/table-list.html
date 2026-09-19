@@ -71,7 +71,15 @@
         <td>
           <a th:href="@{/admin/tables/edit}" th:text="${t.name}">3番テーブル</a>
         </td>
-        <td class="num" th:text="${t.capacity} + ' 席'">4 席</td>
+        <!--/* ★ 2026-09-19：num（右ぞろえ）を外しました。
+
+               隣のカテゴリ画面の「品数」（5 品）は左ぞろえなのに、
+               こちらの「席数」（4 席）だけ右に寄っていました。同じ性質の値です。
+               設計（ト12・トi14・トp14）もどちらも左です。
+
+               num は桁をそろえて読む金額のための目印なので、
+               1 桁で単位が付くこの列には要りません。 */-->
+        <td th:text="${t.capacity} + ' 席'">4 席</td>
         <td th:text="${#strings.isEmpty(t.area)} ? '—' : ${t.area}">カウンター</td>
         <td>
           <span class="badge badge--ok" th:if="${t.active}">使用中</span>
