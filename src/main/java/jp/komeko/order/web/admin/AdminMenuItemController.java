@@ -293,14 +293,23 @@ public class AdminMenuItemController {
         model.addAttribute("selectedCategoryName", selectedCategoryName);
         // 並び替えのボタンを出してよいか。
         //
-        // 絞り込んでいる最中は出しません。画面に見えている隣の行が、
-        // 本当の隣とは限らないからです。「上へ」を押すと隠れている品と
-        // 入れ替わり、画面上は何も起きていないように見えます。
-        // 並べ替えは全体が見えているときの作業なので、そのときだけ出します。
-        // ★ カテゴリで絞っているあいだも出しません（検索と同じ理由）。
-        //   画面に見えている隣の行が、本当の隣とは限らないためです。
-        model.addAttribute("canReorder",
-                keyword.isEmpty() && selectedCategoryId == null && "all".equals(selected.key()));
+        // ★ 2026-09-19：絞り込んでいても並べ替えられるようにしました。
+        //   店主の指示「掲載中〜編集中すべてにドラッグ＆ドロップできる仕様に
+        //   してほしい」「カテゴリー検索とか絞ってもドラッグ＆ドロップ
+        //   出来るようにもしてほしい」。
+        //
+        //   それまでは「すべて」タブで絞り込みが無いときだけ出していました。
+        //   理由は<b>↑↓ が隣と 1 つ入れ替える操作だった</b>ことです。
+        //   見えている隣が本当の隣とは限らないので、押すと隠れている品と
+        //   入れ替わり、画面上は何も起きていないように見えました。
+        //
+        //   つまんで動かす形に変えたことで、この理由は消えました。
+        //   いまは「<b>どの商品の隣に置くか</b>」を指して送ります
+        //   （MenuService#placeItemNextTo）。隠れている行が何行あっても、
+        //   落とした場所どおりの並びになります。
+        //
+        // ★ 行が 1 つも無いときは出しません。動かしようがないので。
+        model.addAttribute("canReorder", !items.stream().filter(selected.条件()).toList().isEmpty());
         return "admin/items";
     }
 
@@ -545,7 +554,7 @@ public class AdminMenuItemController {
      * 画面側が末尾の 1 つ後ろを表す値を送ります（{@code before=} 無しは先頭）。
      *
      * <p><b>カテゴリはまたげません。</b>別のカテゴリの行へ落としたときは
-     * 何も起きずに戻ります（{@link MenuService#placeItemBefore}）。
+     * 何も起きずに戻ります（{@link MenuService#placeItemNextTo}）。
      * カテゴリを変えるのは編集フォームの仕事です。
      *
      * <p>画面は JavaScript から呼びますが、<b>ふつうのフォーム送信</b>です。
@@ -564,14 +573,48 @@ public class AdminMenuItemController {
     @PostMapping("/place")
     public String place(@RequestParam Long id,
                         @RequestParam(required = false) Long before,
+                        @RequestParam(required = false) Long after,
+                        @RequestParam(required = false) String tab,
+                        @RequestParam(required = false) String q,
+                        @RequestParam(required = false) Long category,
                         RedirectAttributes redirectAttributes) {
-        if (!menuService.placeItemBefore(id, before)) {
+        if (!menuService.placeItemNextTo(id, before, after)) {
             // 別カテゴリへ落とした、または動かす必要が無かった。
             // 黙って戻すと「効かなかった」のか「そこで正しい」のか分からない
             redirectAttributes.addFlashAttribute("flashInfo",
                     "並び順は変わりませんでした（カテゴリをまたぐ移動はできません）");
         }
-        return "redirect:/admin/items";
+        // ★ 押した場所へ戻す（2026-09-19）。
+        //   絞り込み中でも並べ替えられるようにしたので、素の一覧へ戻すと
+        //   「掲載停止」タブで 1 つ動かしたとたんに全件へ飛ばされ、
+        //   続けて並べ替えられません（掲載の切り替えと同じ扱い）。
+        return "redirect:" + jp.komeko.order.web.admin.AdminMenuItemController
+                .itemsUrlWith(tab, q, category);
+    }
+
+    /**
+     * 一覧へ戻る URL に、いまの絞り込みを持ち帰る。
+     *
+     * <p>値が無いものは付けません。{@code ?tab=&q=} のような空の問い合わせ文字が
+     * 残ると、ブラウザの履歴に意味の無い URL が積み上がります。
+     */
+    static String itemsUrlWith(String tab, String q, Long category) {
+        StringBuilder url = new StringBuilder("/admin/items");
+        char sep = '?';
+        if (tab != null && !tab.isBlank()) {
+            url.append(sep).append("tab=").append(
+                    java.net.URLEncoder.encode(tab, java.nio.charset.StandardCharsets.UTF_8));
+            sep = '&';
+        }
+        if (q != null && !q.isBlank()) {
+            url.append(sep).append("q=").append(
+                    java.net.URLEncoder.encode(q, java.nio.charset.StandardCharsets.UTF_8));
+            sep = '&';
+        }
+        if (category != null) {
+            url.append(sep).append("category=").append(category);
+        }
+        return url.toString();
     }
 
     @PostMapping("/{id}/move")

@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * その方が直感的だし 1 つづつずらして行く必要ないし」。
  *
  * <p>{@code moveItem} は隣と 1 つ入れ替えるだけで、10 番目を 1 番目へ持っていくには
- * 9 回押す必要がありました。{@code placeItemBefore} は一度で動かします。
+ * 9 回押す必要がありました。{@code placeItemNextTo} は一度で動かします。
  *
  * <h2>守っていること</h2>
  * <ol>
@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("test")
 @DisplayName("並び順をまとめて動かす")
-class PlaceItemBeforeTest {
+class PlaceItemNextToTest {
 
     @Autowired
     private MenuService menuService;
@@ -93,17 +93,33 @@ class PlaceItemBeforeTest {
     @Test
     @DisplayName("★ 離れた場所へ一度で動かせる（D を先頭へ）")
     void itMovesAcrossSeveralRowsAtOnce() {
-        assertThat(menuService.placeItemBefore(d.getId(), a.getId())).isTrue();
+        assertThat(menuService.placeItemNextTo(d.getId(), a.getId(), null)).isTrue();
         assertThat(order(yaki))
                 .as("D が先頭に来ていない。1 つずつずらす必要が無いのが要点")
                 .containsExactly("D", "A", "B", "C");
     }
 
+    /**
+     * ★ 「いちばん下」は {@code after} で指す。
+     *
+     * <p>2026-09-19 に「相手が空なら先頭」という決め方をやめました。
+     * 画面は下端に落としたときに<b>送るものが無く</b>、空を送って先頭へ飛んでいました。
+     */
     @Test
-    @DisplayName("★ 相手を空にすると、いちばん上へ")
-    void nullMeansTheTop() {
-        assertThat(menuService.placeItemBefore(c.getId(), null)).isTrue();
-        assertThat(order(yaki)).containsExactly("C", "A", "B", "D");
+    @DisplayName("★ after で指すと、その商品の直後に入る")
+    void afterPutsItRightBehind() {
+        assertThat(menuService.placeItemNextTo(a.getId(), null, d.getId())).isTrue();
+        assertThat(order(yaki))
+                .as("A が D の直後（＝いちばん下）に来ていない")
+                .containsExactly("B", "C", "D", "A");
+    }
+
+    /** ★ 行き先を 1 つも指さなければ、何もしない（黙って先頭へ動かさない）。 */
+    @Test
+    @DisplayName("★ 行き先が無ければ何もしない")
+    void noDestinationMeansNoMove() {
+        assertThat(menuService.placeItemNextTo(c.getId(), null, null)).isFalse();
+        assertThat(order(yaki)).containsExactly("A", "B", "C", "D");
     }
 
     /**
@@ -115,19 +131,16 @@ class PlaceItemBeforeTest {
     @Test
     @DisplayName("★ 下へ動かしても 1 つ行きすぎない（A を C の前へ）")
     void movingDownDoesNotOvershoot() {
-        assertThat(menuService.placeItemBefore(a.getId(), c.getId())).isTrue();
+        assertThat(menuService.placeItemNextTo(a.getId(), c.getId(), null)).isTrue();
         assertThat(order(yaki))
                 .as("A が C の直前に来ていない")
                 .containsExactly("B", "A", "C", "D");
     }
 
     @Test
-    @DisplayName("★ いちばん下へ動かせる（相手が自分の次だと何も起きないので注意）")
-    void itMovesToTheBottom() {
-        // A を「D の次」へ＝相手を空にできないので、いったん D の前へ、ではなく
-        // 画面は「末尾なら相手を送らない」ではなく「最後の行の次」を送る作りにしている。
-        // ここでは D の直前へ動かして、末尾の 1 つ手前に入ることを確かめる
-        assertThat(menuService.placeItemBefore(a.getId(), d.getId())).isTrue();
+    @DisplayName("★ before は直前に入る（末尾の 1 つ手前）")
+    void beforePutsItRightInFront() {
+        assertThat(menuService.placeItemNextTo(a.getId(), d.getId(), null)).isTrue();
         assertThat(order(yaki)).containsExactly("B", "C", "A", "D");
     }
 
@@ -140,7 +153,7 @@ class PlaceItemBeforeTest {
     @Test
     @DisplayName("★ カテゴリをまたぐ移動は断る")
     void itRefusesToCrossCategories() {
-        assertThat(menuService.placeItemBefore(a.getId(), other.getId()))
+        assertThat(menuService.placeItemNextTo(a.getId(), other.getId(), null))
                 .as("★ 別カテゴリの行の前へ動かせてしまった")
                 .isFalse();
 
@@ -152,7 +165,7 @@ class PlaceItemBeforeTest {
     @Test
     @DisplayName("動かす必要が無いときは false（同じ場所へ落とした）")
     void itReportsWhenNothingMoved() {
-        assertThat(menuService.placeItemBefore(a.getId(), b.getId()))
+        assertThat(menuService.placeItemNextTo(a.getId(), b.getId(), null))
                 .as("A はもともと B の直前。動かす必要が無い")
                 .isFalse();
         assertThat(order(yaki)).containsExactly("A", "B", "C", "D");
@@ -166,7 +179,7 @@ class PlaceItemBeforeTest {
     @Test
     @DisplayName("★ 動かしたあとの並び順は 10・20・30…")
     void theSortOrderIsRenumbered() {
-        menuService.placeItemBefore(d.getId(), a.getId());
+        menuService.placeItemNextTo(d.getId(), a.getId(), null);
 
         List<MenuItem> rows = menuItemRepository
                 .findByCategoryIdOrderBySortOrderAscIdAsc(yaki.getId());
@@ -179,7 +192,7 @@ class PlaceItemBeforeTest {
     @Test
     @DisplayName("知らない相手なら何もしない")
     void unknownTargetIsIgnored() {
-        assertThat(menuService.placeItemBefore(a.getId(), 999999L)).isFalse();
+        assertThat(menuService.placeItemNextTo(a.getId(), 999999L, null)).isFalse();
         assertThat(order(yaki)).containsExactly("A", "B", "C", "D");
     }
 }

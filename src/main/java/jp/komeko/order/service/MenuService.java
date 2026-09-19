@@ -310,12 +310,31 @@ public class MenuService {
      * （{@code swapSortOrder} の注意書きと同じ話）。
      * 動かした列だけ通しで振り直すほうが、あとから読んでも分かります。
      *
+     * <p><b>行き先は「どの商品の隣か」で指します。</b>
+     * {@code beforeId} があればその直前、無ければ {@code afterId} の直後。
+     *
+     * <p>2026-09-19 に「相手が {@code null} なら先頭」という決め方をやめました。
+     * 理由は 2 つあります。
+     *
+     * <ol>
+     *   <li><b>下端に落としたときに送るものが無くなる。</b>その行の次が無いので
+     *       画面は {@code null} を送り、先頭へ飛んでいました。</li>
+     *   <li><b>絞り込んでいると「いちばん下」が曖昧になる。</b>タブやカテゴリで
+     *       隠れている同じカテゴリの商品が、見えている最後の行のさらに下にいる
+     *       ことがあります。「いちばん下」と言われても、<b>見えている下</b>なのか
+     *       <b>本当の下</b>なのか決められません。</li>
+     * </ol>
+     *
+     * <p>隣の商品を指せば、隠れている行が何行あっても<b>落とした場所どおり</b>になります。
+     * これが、絞り込み中でも並べ替えを許せる理由です。
+     *
      * @param menuItemId 動かす商品
-     * @param beforeId   この商品の<b>直前</b>に入れる。{@code null} なら先頭へ
+     * @param beforeId   この商品の<b>直前</b>に入れる
+     * @param afterId    {@code beforeId} が無いとき、この商品の<b>直後</b>に入れる
      * @return 動かせたら true。相手が見つからない・別カテゴリ・動かす必要が無いときは false
      */
     @Transactional
-    public boolean placeItemBefore(Long menuItemId, Long beforeId) {
+    public boolean placeItemNextTo(Long menuItemId, Long beforeId, Long afterId) {
         MenuItem item = menuItemRepository.findById(menuItemId)
                 .orElseThrow(() -> new MenuItemNotFoundException(menuItemId));
         Long categoryId = item.getCategory().getId();
@@ -328,17 +347,24 @@ public class MenuService {
             return false;
         }
 
-        // 落とした先。null は「いちばん上へ」
+        // 落とした先。隣の商品を指してもらう
         int to;
-        if (beforeId == null) {
-            to = 0;
-        } else {
+        if (beforeId != null) {
             int at = indexOf(siblings, m -> m.getId().equals(beforeId));
             if (at < 0) {
                 // 別のカテゴリの行か、消えた商品。動かさない
                 return false;
             }
             to = at;
+        } else if (afterId != null) {
+            int at = indexOf(siblings, m -> m.getId().equals(afterId));
+            if (at < 0) {
+                return false;
+            }
+            to = at + 1;
+        } else {
+            // 行き先が分からない。黙って先頭へ動かすより、何もしないほうが安全
+            return false;
         }
 
         // 自分を抜いてから入れる。抜いたぶん、後ろへ動かすときは位置が 1 つ手前にずれる

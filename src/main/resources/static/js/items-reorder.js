@@ -18,7 +18,7 @@
   並び順の値はカテゴリごとに独立しています。またぐ移動は「カテゴリを変える」
   ことなので、それは編集フォームの仕事です。
   ここでは同じ data-category-id の行の中だけで動かします。
-  （サーバ側の MenuService#placeItemBefore でも弾いています。
+  （サーバ側の MenuService#placeItemNextTo でも弾いています。
     画面だけで守ると、URL を直接叩かれたときに素通りします）
 
   ── 保存は「ふつうのフォーム送信」──────────────────────────
@@ -41,14 +41,34 @@
   // テンプレートに置いてある隠しフォームに値を詰めて送るだけ。
   // フォームを自分で作らないのは、CSRF トークンを Thymeleaf が
   // th:action で入れてくれるものをそのまま使うため。
-  // before が空なら「いちばん上へ」。
   var form = document.getElementById('reorder-form');
   if (!form) return;
 
-  function save(itemId, beforeId) {
+  // ★ 行き先は「どの商品の隣か」で送ります。
+  //   before があればその直前、無ければ after の直後。
+  //
+  //   「相手が空なら先頭」という決め方はやめました（2026-09-19）。
+  //   下端に落としたときは<b>その行の次が無いので送るものが無く</b>、
+  //   空を送って先頭へ飛んでいました。
+  //   それに絞り込んでいると、見えている最後の行のさらに下に
+  //   隠れた同じカテゴリの行がいることがあり、「いちばん下」が決まりません。
+  function save(itemId, beforeId, afterId) {
     form.elements.id.value = String(itemId);
     form.elements.before.value = beforeId == null ? '' : String(beforeId);
+    form.elements.after.value = afterId == null ? '' : String(afterId);
     form.submit();
+  }
+
+  // いまの並びから「隣は誰か」を出す。
+  // 上に行があればその行の直後、無ければ下の行の直前。
+  function neighbourOf(rows, index) {
+    if (index > 0) {
+      return { before: null, after: rows[index - 1].dataset.itemId };
+    }
+    if (rows.length > 1) {
+      return { before: rows[1].dataset.itemId, after: null };
+    }
+    return null;   // 1 行しかない。動かしようがない
   }
 
   function rowsOf(categoryId) {
@@ -58,11 +78,7 @@
     );
   }
 
-  // 動かした先の「直前に入れる相手」を返す。末尾なら null ではなく
-  // 「最後の行の次」を表すため、呼び出し側で場合分けする
-  function beforeIdFor(rows, index) {
-    return index < rows.length ? rows[index].dataset.itemId : null;
-  }
+
 
   // ── キーボード（↑ ↓）────────────────────────────────────
   tbody.addEventListener('keydown', function (e) {
@@ -77,11 +93,13 @@
     if (at < 0 || to < 0 || to >= rows.length) return;   // 端。何もしない
 
     e.preventDefault();
-    // 上へ：その行の直前。下へ：その次の行の直前（＝末尾なら null）
-    var beforeId = e.key === 'ArrowUp'
-      ? rows[to].dataset.itemId
-      : beforeIdFor(rows, to + 1);
-    save(tr.dataset.itemId, beforeId);
+    // 上へ：その行の直前。下へ：その行の直後。
+    // どちらも実在する行を指すので、末尾でも先頭でも迷いません
+    if (e.key === 'ArrowUp') {
+      save(tr.dataset.itemId, rows[to].dataset.itemId, null);
+    } else {
+      save(tr.dataset.itemId, null, rows[to].dataset.itemId);
+    }
   });
 
   // ── 動きの設定 ──────────────────────────────────────────
@@ -231,18 +249,18 @@
     d.tr.classList.add('is-landing');
     d.tr.classList.remove('is-dragging');
 
-    // いまの並びから「直前に入れる相手」を決める
+    // いまの並びから「隣は誰か」を決める
     var rows = rowsOf(d.tr.dataset.categoryId);
-    var at = rows.indexOf(d.tr);
-    var beforeId = beforeIdFor(rows, at + 1);
+    var side = neighbourOf(rows, rows.indexOf(d.tr));
+    if (!side) return;
 
     // 置きにいく動きを見せてから送る。待つのは 1 回だけで、
     // 送信そのものは止めない（遅れて見えるのは 0.16 秒）
     if (calm) {
-      save(d.tr.dataset.itemId, beforeId);
+      save(d.tr.dataset.itemId, side.before, side.after);
     } else {
       window.setTimeout(function () {
-        save(d.tr.dataset.itemId, beforeId);
+        save(d.tr.dataset.itemId, side.before, side.after);
       }, SLIDE_MS);
     }
   }

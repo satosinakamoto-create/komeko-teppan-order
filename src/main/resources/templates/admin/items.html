@@ -162,8 +162,13 @@
         </tr>
         </thead>
         <!--/* data-reorder は items-reorder.js の目印。
-               canReorder が false（絞り込み中）のときは付けないので、
-               見えている隣が本当の隣とは限らない状態では動かせません。 */-->
+               行が 1 つも無いときだけ付けません（動かしようがないため）。
+
+             ★ 2026-09-19：絞り込み中も並べ替えられるようにしました。
+               もとは「見えている隣が本当の隣とは限らない」ので止めていましたが、
+               それは ↑↓ が隣と 1 つ入れ替える操作だったからです。
+               いまは「どの商品の隣に置くか」を指して送るので、
+               隠れている行が何行あっても落とした場所どおりになります。 */-->
         <!--/* ★ 値を空文字にしないこと。Thymeleaf は値が空だと
                <b>属性ごと落とします</b>（2026-09-19 に実際そうなり、
                JavaScript が目印を見つけられずに何も起きませんでした）。 */-->
@@ -332,7 +337,20 @@
     <form th:if="${canReorder}" id="reorder-form" method="post"
           th:action="@{/admin/items/place}" hidden>
       <input type="hidden" name="id">
+      <!--/* ★ 行き先は「どの商品の隣か」で送ります。
+             before があればその直前、無ければ after の直後。
+             どちらも実在する行を指すので、末尾でも先頭でも迷いません。
+
+             「空なら先頭」という決め方だと、下端に落としたときに
+             送るものが無くなって先頭へ飛びます（実際そうなっていました）。 */-->
       <input type="hidden" name="before">
+      <input type="hidden" name="after">
+      <!--/* ★ いまの絞り込みを持ち帰る。落とすと、1 つ動かしたとたんに
+             「すべて」の一覧へ飛ばされて続けて並べ替えられません
+             （掲載の切り替えと同じ扱い）。 */-->
+      <input type="hidden" name="tab" th:value="${currentTab}">
+      <input type="hidden" name="q" th:value="${q}">
+      <input type="hidden" name="category" th:value="${selectedCategoryId}">
     </form>
   </div>
 

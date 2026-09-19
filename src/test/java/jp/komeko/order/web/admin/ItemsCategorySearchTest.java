@@ -153,21 +153,52 @@ class ItemsCategorySearchTest {
      *
      * <p>画面に見えている隣の行が、本当の隣とは限りません。
      */
+    /**
+     * ★ 絞っていても並べ替えられること（2026-09-19・店主の指示）。
+     *
+     * <p>「掲載中〜編集中すべてにドラッグ＆ドロップできる仕様にしてほしい」
+     * 「カテゴリー検索とか絞ってもドラッグ＆ドロップ出来るようにもしてほしい」。
+     *
+     * <p><b>それまでは逆のことを守っていました。</b>
+     * 「すべて」タブで絞り込みが無いときだけ並べ替えを出していたのは、
+     * ↑↓ が<b>隣と 1 つ入れ替える</b>操作だったからです。
+     * 見えている隣が本当の隣とは限らないので、押すと隠れている品と入れ替わり、
+     * 画面上は何も起きていないように見えました。
+     *
+     * <p>つまんで動かす形に変えたことで、この理由は消えました。
+     * いまは「<b>どの商品の隣に置くか</b>」を指して送るので
+     * （{@code MenuService#placeItemNextTo}）、隠れている行が何行あっても
+     * 落とした場所どおりの並びになります。
+     */
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("★ カテゴリで絞っているあいだは並べ替えを出さない")
-    void reorderIsHiddenWhileFiltered() throws Exception {
-        // ★ 2026-09-19：目印を /move から data-reorder に変えました。
-        //   並べ替えが ↑↓ のボタン（POST /move）から
-        //   つまんで動かす形に変わったためです（店主の指示）。
-        //   守りたいのは「絞っているあいだは並べ替えさせない」で、
-        //   どの仕組みで並べ替えるかではありません。
+    @DisplayName("★ 絞っていても並べ替えられる（タブ・カテゴリ・検索のどれでも）")
+    void reorderWorksEvenWhileFiltered() throws Exception {
         assertThat(page("/admin/items"))
                 .as("絞っていないのに並べ替えが無い").contains("data-reorder");
 
         assertThat(page("/admin/items?category=" + yakiId))
-                .as("★ 絞っているのに並べ替えが出ている。"
-                        + "見えている隣が本当の隣とは限らず、動かすと隠れている品を飛び越える")
+                .as("★ カテゴリで絞ると並べ替えが消えている")
+                .contains("data-reorder");
+
+        for (String tab : new String[]{"published", "soldout", "hidden", "draft"}) {
+            String html = page("/admin/items?tab=" + tab);
+            // 行が 1 つも無いタブでは出さない（動かしようがないため）。
+            // 行があるのに出ていないときだけ落とす
+            if (html.contains("data-item-id")) {
+                assertThat(html).as("★ " + tab + " タブで並べ替えが消えている")
+                        .contains("data-reorder");
+            }
+        }
+    }
+
+    /** ★ 行が 1 つも無いときは出さない（動かしようがない）。 */
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("★ 行が無いときは並べ替えを出さない")
+    void noRowsMeansNoReorder() throws Exception {
+        assertThat(page("/admin/items?q=" + "存在しない商品名ZZZ"))
+                .as("行が 1 つも無いのに並べ替えが出ている")
                 .doesNotContain("data-reorder");
     }
 
