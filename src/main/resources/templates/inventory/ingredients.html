@@ -125,9 +125,19 @@
                  押せると分かるのは色が付いているからでしかありません。
 
                  原価表で「商品名を黒くして編集ボタンに集約」したのと同じ判断です。 */-->
+          <!--/* ★ 札は赤にする（2026-09-19・店主の指摘「少ないが赤くない」）。
+                 設計（ト04 725:4457）は 地 #fdebeb ／ 文字 #d33f3f ／ 11px。
+
+                 .badge--soldout は<b>灰色の塗りつぶしに白文字</b>で、
+                 「止まっている」ことを強く伝えるためのものです
+                 （お客さま側の品切れで使う形）。
+                 ここで言いたいのは「減ってきた」なので、強さが合っていませんでした。
+
+                 .badge--stop がちょうど 地 var(--danger-soft)＝#fdebeb ／
+                 文字 var(--danger)＝#d33f3f で、設計の値と一致します。 */-->
           <span th:text="${l.ingredient().name}">キャベツ</span>
-          <span th:if="${l.isNegative()}" class="badge badge--soldout">マイナス</span>
-          <span th:if="${!l.isNegative() and l.isBelowThreshold()}" class="badge badge--soldout">少ない</span>
+          <span th:if="${l.isNegative()}" class="badge badge--stop">マイナス</span>
+          <span th:if="${!l.isNegative() and l.isBelowThreshold()}" class="badge badge--stop">少ない</span>
         </td>
 
         <td class="right num bold"

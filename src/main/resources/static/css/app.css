@@ -4100,9 +4100,32 @@ body.is-sending .staff-main {
 /* しぼり込みと表の間は 16 */
 .stockpage > .table-wrap { margin-top: 16px; }
 
-/* 食材の表の寸法（設計 現04）。見出し行は上下 14、列幅は合計 1120 */
+/* 食材の表の寸法（設計 ト04 725:4457）。列幅は合計 1120。
+
+   ★ 2026-09-19：高さを設計の実測値にそろえました。
+
+       見出し  実装 49.5 → 設計 56
+       行      実装 67   → 設計 72
+
+     見出しは「上下 14 ＋ 中身」で書いてあり、中身が 12px の文字で 21.5 しか
+     無いため 49.5 止まりでした。設計の中身は 28 なので、高さを直接敷きます。
+
+   ★ 行は 71 で書くこと。区切り線（border-bottom 1px）が設計では面の内側に
+     あり、72 の中に含まれます。CSS の border は外に足されるので 1 引きます
+     （商品・レシピの表と同じ理由）。 */
 .theme-desk .table--stock th { padding-top: 14px; padding-bottom: 14px; }
 .theme-desk .table--stock td { padding-top: 16px; padding-bottom: 16px; }
+/* ★ 高さは :has(.recbtn) で絞ること（2026-09-19）。
+     同じ .table--stock を「未学習のレシート品名」の表も使っていて、
+     あちらは設計に無い別の表です。絞らずに敷くと、
+     関係のない表の行まで 50 → 72px に太ります（下の余白の指定と同じ理由）。 */
+.theme-desk .table--stock:has(.recbtn) th { height: 56px; }
+.theme-desk .table--stock:has(.recbtn) td { height: 71px; }
+
+/* 「少ない」「マイナス」の札（設計 ト04 は 11px・49x21）。
+   共通の .theme-desk .badge は 14px なので、この表だけ一段小さくする。
+   行が 72px の中に名前と札が並ぶので、14px だと札のほうが目立ちすぎる。 */
+.theme-desk .table--stock .badge { font-size: 11px; line-height: 1.4; padding: 2px 8px; }
 
 /* ★ 行の上下 9 は「記録する」ボタンがある表だけ（2026-09-07）。
      ボタンが高さ 54 なので、上下 16 のままだと行が 86px になり、
