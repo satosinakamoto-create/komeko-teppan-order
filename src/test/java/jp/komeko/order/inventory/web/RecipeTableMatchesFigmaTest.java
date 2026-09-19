@@ -176,6 +176,47 @@ class RecipeTableMatchesFigmaTest {
                 .contains(".theme-desk.table--recipestd{padding:020px;height:67px;vertical-align:middle;}");
     }
 
+    /**
+     * ★ まだ登録していない行だけ赤くする（2026-09-19・店主の指摘
+     * 「編集するは緑だけど登録するは赤の方が良いんじゃない？」）。
+     *
+     * <p>緑＝もう済んでいる／赤＝まだ。実測:
+     *
+     * <pre>
+     *   編集      5 品   文字・枠 rgb(11,122,26)  ＝ #0b7a1a（設計 ト09 と同じ緑）
+     *   登録する 95 品   文字・枠 rgb(211,63,63)  ＝ #d33f3f（--danger）
+     * </pre>
+     *
+     * <p><b>設計には答えがありませんでした。</b>ト09 は登録済みの行しか
+     * 描いていないので「登録する」の状態が存在しません
+     * （ついでに トp11 だけ「開く」の黒で、ト09 の「編集」の緑と食い違っています）。
+     *
+     * <p><b>塗りつぶしにはしていません。</b>押すと編集画面が開くだけで、
+     * 消したり止めたりするボタンではないためです。
+     */
+    @Test
+    @DisplayName("★ 未登録の行だけ赤（済みは緑）")
+    void theUnregisteredRowsAreRed() throws Exception {
+        String css = css();
+        String html = tpl();
+
+        assertThat(html)
+                .as("未登録のときだけ赤くする指定が無い")
+                .contains("${c.isNothingRegistered()} ? 'recbtn--todo'");
+
+        assertThat(css).as(".recbtn--todo が無い").contains(".recbtn--todo{");
+        assertThat(css).as("赤くなっていない")
+                .contains(".recbtn--todo{border-color:var(--danger);color:var(--danger);}");
+
+        // ★ .recbtn そのものは緑のまま。食材・在庫の「記録する」も同じクラスで、
+        //   あちらに「済み／未済」の区別は無い
+        int at = css.indexOf(".recbtn{");
+        assertThat(at).as(".recbtn が無い").isGreaterThan(0);
+        assertThat(css.substring(at, css.indexOf('}', at)))
+                .as(".recbtn 自体を赤くしている。食材・在庫の「記録する」まで赤くなる")
+                .contains("color:var(--action)");
+    }
+
     /** ★ 列見出しは 1 行（設計は「原価税込」で 1 つの文字列）。 */
     @Test
     @DisplayName("★ 列見出しは 1 行（2 行だと見出しが 86px になる）")
