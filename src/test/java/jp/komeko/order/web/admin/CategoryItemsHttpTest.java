@@ -230,32 +230,38 @@ class CategoryItemsHttpTest {
     }
 
     /**
-     * ★ 編集画面が大分類を書き換えないこと。
+     * ★ 大分類は編集画面から直せること（2026-09-20 夕に開き直した）。
      *
-     * <p>画面に欄はありませんが、URL を手で組めば送れます。
-     * 受け取って書いていると「変えられない仕様」が見た目だけの決まりになります。
+     * <p>いったん「変えられない」にしましたが、同じ日に自由入力をやめて
+     * 選ぶ方式にしたので、閉じる理由（打ち間違い）のほうが先に消えていました。
+     * 閉じたままだと、すでに入っている変な値を直す手段がどこにも無くなります。
+     *
+     * <p><b>ただし表示／非表示は今も送れません。</b>切り替え口は一覧の札だけです。
+     * 送られてこない項目を写すと、Form の初期値 true が書かれ、
+     * 隠したカテゴリが名前を直しただけで表に戻ります。
      */
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("★ 大分類を送りつけても書き換わらない")
-    void theGroupNameCannotBeChangedFromTheEditScreen() throws Exception {
+    @DisplayName("★ 大分類は直せる／表示は送りつけても変わらない")
+    void theGroupNameCanBeFixedButVisibilityCannot() throws Exception {
         Category c = categoryRepository.findById(from).orElseThrow();
-        c.setGroupName("お食事");
+        c.setGroupName("お好み焼き");     // カテゴリ名とほぼ同じ、直したい値
+        c.setVisible(false);
         categoryRepository.save(c);
 
         mockMvc.perform(post("/admin/categories/{id}", from).with(csrf())
                         .param("name", "鉄板おつまみ")
-                        .param("groupName", "ドリンク")
-                        .param("visible", "false"))
+                        .param("groupName", "鉄板料理")
+                        .param("visible", "true"))     // ★ 送っても効かないこと
                 .andExpect(status().is3xxRedirection());
 
         Category after = categoryRepository.findById(from).orElseThrow();
         assertThat(after.getGroupName())
-                .as("★ 大分類が書き換わった。お客さまのメニューのタブが動く")
-                .isEqualTo("お食事");
+                .as("★ 大分類を直せない。変な値が入ったままになる")
+                .isEqualTo("鉄板料理");
         assertThat(after.isVisible())
-                .as("★ 表示／非表示まで書き換わった。Form の初期値がそのまま入っている")
-                .isTrue();
+                .as("★ 表示／非表示まで書き換わった。切り替え口は一覧の札だけのはず")
+                .isFalse();
     }
 
     /** ★ 他のカテゴリの商品が混ざらないこと。 */

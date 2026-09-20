@@ -49,22 +49,58 @@
           th:text="(${#strings.isEmpty(category.groupName)} ? '大分類なし' : ${category.groupName})
                    + ' ／ ' + ${itemCount} + ' 品'">お食事 ／ 12 品</span>
     <span class="page-head__spacer"></span>
-    <button class="btn btn--sm" type="button" data-name-editor-toggle>名前を変える</button>
+    <button class="btn btn--sm" type="button" data-name-editor-toggle>名前・大分類を変える</button>
   </div>
 
-  <!--/* ★ 名前を変える欄。JS が無くても操作できるよう、既定で出しておいて JS が畳みます。
-         検証エラーで戻ってきたときは開いたまま（nameEditorOpen）。 */-->
-  <form class="row row--wrap nameeditor" method="post"
+  <!--/* ★ 名前と大分類を変える欄。
+         JS が無くても操作できるよう、既定で出しておいて JS が畳みます。
+         検証エラーで戻ってきたときは開いたまま（nameEditorOpen）。
+
+       ★ 大分類は一度「変えられない」にして、同じ日に戻しました。
+         閉じた理由は「打ち間違えるとお客さまのメニューのタブが割れる」でしたが、
+         同じ日に自由入力をやめて選ぶ方式にしたので、その危険は先に消えていました。
+         閉じたままだと、すでに入っている変な値（例：大分類が「お好み焼き」）を
+         直す手段がどこにも無くなります。 */-->
+  <form class="row row--wrap nameeditor catnew" method="post"
+        style="align-items:flex-end"
         th:action="@{/admin/categories/{id}(id=${category.id})}" th:object="${editForm}"
         th:attr="data-name-editor=${nameEditorOpen} ? 'open' : 'closed'">
-    <div class="field row__grow mb-0">
+
+    <div class="field mb-0" style="flex:1 1 0">
+      <label class="label" for="groupName">↳ 大分類（メニューの大見出し）</label>
+      <select class="select" th:field="*{groupName}"
+              th:classappend="${#fields.hasErrors('groupName')} ? 'is-error'">
+        <option value="">大分類なし</option>
+        <!--/* ★ いま付いている値が一覧に無いことがあります（昔の自由入力で入った値）。
+               出しておかないと、開いた瞬間に別の値へ化けます。 */-->
+        <option th:if="${!#strings.isEmpty(category.groupName)
+                        and !groupNames.contains(category.groupName)}"
+                th:value="${category.groupName}" th:text="${category.groupName}">お好み焼き</option>
+        <option th:each="g : ${groupNames}" th:value="${g}" th:text="${g}">鉄板料理</option>
+        <option th:value="${newGroupSentinel}">＋ 新しい大分類を作る</option>
+      </select>
+      <p class="error" th:if="${#fields.hasErrors('groupName')}"
+         th:errors="*{groupName}">エラー内容</p>
+    </div>
+
+    <div class="field mb-0" style="flex:2 1 0">
       <label class="label" for="name">↳ カテゴリ名</label>
       <input class="input" type="text" th:field="*{name}" maxlength="40"
              th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
       <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
     </div>
+
     <button class="btn btn--sm" type="submit">保存</button>
-    <p class="help mb-0">大分類はここでは変えられません。追加のときに決まります</p>
+
+    <!--/*「＋ 新しい大分類を作る」を選んだときだけ出る欄。追加画面と同じ作り */-->
+    <div class="field catnew__name mb-0" style="flex:1 1 100%">
+      <label class="label" for="newGroupName">↳ 新しい大分類の名前</label>
+      <input class="input" type="text" th:field="*{newGroupName}" maxlength="20"
+             placeholder="例：食べ放題"
+             th:classappend="${#fields.hasErrors('newGroupName')} ? 'is-error'">
+      <p class="error" th:if="${#fields.hasErrors('newGroupName')}"
+         th:errors="*{newGroupName}">エラー内容</p>
+    </div>
   </form>
 
   <!--/* ───────────────────────── このカテゴリの商品 ───────────────────────── */-->

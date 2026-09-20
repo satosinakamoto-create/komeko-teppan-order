@@ -236,6 +236,17 @@ public class AdminCategoryController {
             return "redirect:/admin/categories";
         }
 
+        // ★ 追加画面と同じく、「＋ 新しい大分類を作る」を実際の名前に直します。
+        String group = form.getGroupName();
+        if (CategoryForm.NEW_GROUP.equals(group)) {
+            String fresh = form.getNewGroupName();
+            if (fresh == null || fresh.isBlank()) {
+                binding.rejectValue("newGroupName", "required", "新しい大分類の名前を入力してください");
+            } else {
+                group = fresh.trim();
+            }
+        }
+
         if (binding.hasErrors()) {
             prepareEditScreen(id, model);
             model.addAttribute("nameEditorOpen", true);   // 直している欄を開いたまま出す
@@ -245,9 +256,13 @@ public class AdminCategoryController {
         // ここで setter を呼ぶだけで UPDATE 文が発行される（ダーティチェック）。
         // save() を書かなくてよいのは、このメソッドが @Transactional だから。
         category.setName(form.getName().trim());
+        category.setGroupName(group);
+
+        // ★ visible はここでも触りません。切り替えは一覧の札だけ（店主の決定）。
+        //   写すと Form の初期値 true が書かれ、隠したカテゴリが名前を直しただけで戻ります。
 
         redirectAttributes.addFlashAttribute("flashSuccess",
-                "カテゴリ名を「%s」に変えました".formatted(category.getName()));
+                "カテゴリ「%s」を更新しました".formatted(category.getName()));
         return "redirect:/admin/categories/" + id + "/edit";
     }
 
@@ -478,6 +493,11 @@ public class AdminCategoryController {
         model.addAttribute("category", category);
         model.addAttribute("items", items);
         model.addAttribute("itemCount", items.size());
+        // 大分類の選択肢（2026-09-20 夕に編集画面でも選べるようにした）。
+        // ★ いま付いている値が一覧に無いことがあります（昔の自由入力で入った値）。
+        //   その場合でも選び直せるよう、テンプレート側で今の値を先頭に足しています。
+        model.addAttribute("groupNames", menuService.groupNames());
+        model.addAttribute("newGroupSentinel", CategoryForm.NEW_GROUP);
         // 掲載中／書きかけの内訳（節見出しの補足に出す）
         model.addAttribute("publishedCount", items.stream().filter(i -> !i.isDraft()).count());
         model.addAttribute("draftCount", items.stream().filter(MenuItem::isDraft).count());
@@ -504,13 +524,23 @@ public class AdminCategoryController {
     /**
      * 名前を変えるフォームで受け取らない項目（2026-09-20）。
      *
-     * <p>この画面が送るのは {@code name} だけです。
-     * 大分類も表示/非表示も、この画面では変えられません。
+     * <p>この画面が送るのは {@code name} と {@code groupName} だけです。
+     * 表示／非表示は一覧の札からしか変えられません。
      * URL を手で組んで送りつけられても、ここで落ちます。
+     *
+     * <h2>★ 大分類は一度「変えられない」にして、同じ日に戻しました</h2>
+     *
+     * <p>閉じた理由は「打ち間違えるとお客さまのメニューのタブが割れる」でした。
+     * ところが<b>同じ日に自由入力をやめて選ぶ方式にした</b>ので、
+     * 打ち間違いはもう起きません。閉じる理由のほうが先に消えていました。
+     *
+     * <p>閉じたままだと実害が出ます。実際、この DB には
+     * 「広島風お好み焼き → 大分類 お好み焼き」のように
+     * <b>カテゴリ名とほぼ同じ大分類</b>が 2 件入っていて、直す手段がありませんでした。
      */
     @InitBinder("editForm")
     void restrictUpdate(WebDataBinder binder) {
-        binder.setDisallowedFields("id", "groupName", "newGroupName", "visible");
+        binder.setDisallowedFields("id", "visible");
     }
 
     private void prepareList(Model model) {

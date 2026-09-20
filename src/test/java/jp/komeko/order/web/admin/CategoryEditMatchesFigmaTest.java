@@ -154,29 +154,38 @@ class CategoryEditMatchesFigmaTest {
     }
 
     /**
-     * ★ 大分類を変えられない理由が、編集画面に出ていること（2026-09-20）。
+     * ★ 大分類は「選ぶ」こと。打ち込ませないこと（2026-09-20）。
      *
-     * <p>欄が無いだけだと「作り忘れ」に見えます。次に触る人が善意で足し、
-     * 足した瞬間に打ち間違いでメニューのタブが割れる道が戻ります。
+     * <h2>一度「変えられない」にして、同じ日に戻しました</h2>
      *
-     * <p>これもコメントを落とした本文で探します。
-     * 「テンプレートには書いてある」では画面に出ていないのと同じです。
+     * <p>閉じた理由は「打ち間違えるとお客さまのメニューのタブが割れる」でした。
+     * ところが<b>同じ日に自由入力をやめて選ぶ方式にした</b>ので、
+     * 打ち間違いはもう起きません。閉じる理由のほうが先に消えていました。
+     *
+     * <p>閉じたままだと実害が出ます。実際に本番の DB には
+     * 「広島風お好み焼き → 大分類 お好み焼き」のように
+     * <b>カテゴリ名とほぼ同じ大分類</b>が 2 件入っていて、直す手段がありませんでした。
+     *
+     * <p>だから守るのは「変えられないこと」ではなく<b>「打ち込めないこと」</b>です。
      */
     @Test
-    @DisplayName("★ 大分類を変えられない理由が編集画面に出ている")
-    void theGroupNameIsExplainedAsFixed() throws Exception {
-        String visible = read(EDIT_TPL);
+    @DisplayName("★ 大分類は選ぶ（打ち込ませない）")
+    void theGroupNameIsPickedNotTyped() throws Exception {
+        for (Path p : new Path[]{EDIT_TPL, NEW_TPL}) {
+            String visible = read(p);
 
-        assertThat(visible)
-                .as("大分類を変えられない理由が画面に出ていない。"
-                        + "欄が無いだけだと作り忘れに見え、次の人が足してしまう")
-                .contains("大分類はここでは変えられません");
+            assertThat(visible).as(p + " に大分類の選ぶ欄が無い")
+                    .contains("<select").contains("*{groupName}");
 
-        // ★ 実際に欄を置いていないこと（説明だけ書いて欄も置く、が起きないように）
-        assertThat(visible)
-                .as("★ 編集画面に大分類の入力がある。"
-                        + "送ると Form の初期値 null が書かれ、タブが分裂する")
-                .doesNotContain("*{groupName}")
-                .doesNotContain("name=\"groupName\"");
+            // ★ 素のテキスト入力で大分類を受けていないこと。
+            //   打てるようにした瞬間に「お食事」と「お食亊」でタブが割れます。
+            assertThat(visible)
+                    .as("★ " + p + " で大分類を打ち込めるようになっている")
+                    .doesNotContain("type=\"text\" th:field=\"*{groupName}\"");
+
+            // 新しい大分類を作る逃げ道はあること（無いと新しい区分を作れない）
+            assertThat(visible).as(p + " に「＋ 新しい大分類を作る」が無い")
+                    .contains("newGroupSentinel");
+        }
     }
 }
