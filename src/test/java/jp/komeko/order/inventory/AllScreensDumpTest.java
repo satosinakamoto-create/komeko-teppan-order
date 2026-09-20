@@ -70,6 +70,9 @@ class AllScreensDumpTest {
     @Autowired
     private MenuItemRepository menuItems;
 
+    @Autowired
+    private jp.komeko.order.repository.CategoryRepository categories;
+
     /** 会計後の画面（c04b）を撮るために、伝票を一時的に締める。 */
     @Autowired
     private jp.komeko.order.repository.TableSessionRepository tableSessions;
@@ -102,7 +105,10 @@ class AllScreensDumpTest {
         // 直す画面。★ つまみはこちらには無い（2026-09-19 夕に外した。店主の指示
         // 「卓は編集する画面で並び替えは出来ない仕様にして」。カテゴリも同じ扱い）。
         // 並べ替えは上の一覧（s06-categories / s07-tables）だけにある
-        staff.put("s06b-categories-edit", "/admin/categories/edit");
+        //
+        // ★ 2026-09-20：カテゴリは 3 枚に分かれました。
+        //   編集画面は id が要るので、このマップでは撮れません（下でまとめて撮ります）。
+        staff.put("s06b-category-new", "/admin/categories/new");
         staff.put("s07b-tables-edit", "/admin/tables/edit");
         staff.put("s08-qr", "/admin/qr");
         staff.put("s09-settings", "/admin/settings");
@@ -122,6 +128,14 @@ class AllScreensDumpTest {
                     .andReturn().getResponse().getContentAsString();
             write(page.getKey(), html);
         }
+
+        // ── カテゴリの編集画面（id が要るので個別に撮る。2026-09-20） ──
+        //
+        // ★ 2 つの状態を撮ること。片方だけだと測れないものがあります。
+        //     品が入っている … 商品の表・移す欄・押せない削除の 3 つが同時に写る
+        //     品が 0 件      … 削除が押せる姿は、これでしか写らない
+        dumpCategoryEdit("s06c-category-edit", true);
+        dumpCategoryEdit("s06d-category-edit-empty", false);
 
         // ── お客側（卓の QR から入る。セッションに卓が紐づく） ──
         DiningTable table = tables.findAll().stream().findFirst().orElse(null);
@@ -302,6 +316,39 @@ class AllScreensDumpTest {
      * ブラウザが前回の中身を使い回す。<b>app.css を直したのに古い見た目のまま撮れてしまい、
      * 「効いていない」と誤って判断した</b>ので、名前を変わるようにしてある。
      */
+    /**
+     * カテゴリの編集画面を撮る（2026-09-20）。
+     *
+     * <p>id が要るので、条件に合うカテゴリを DB から選んで撮ります。
+     *
+     * <p>★ 空のファイルを黙って書き出さないこと。
+     * 上のループは {@code andExpect} を 1 つも付けていないので、
+     * URL が死んでも 0 バイトのファイルが静かにできます。
+     * ここでは中身があることを確かめてから書きます。
+     *
+     * @param withItems 商品が入っているカテゴリを選ぶか
+     */
+    private void dumpCategoryEdit(String name, boolean withItems) throws Exception {
+        Long id = categories.findAllByOrderBySortOrderAscIdAsc().stream()
+                .filter(c -> (menuItems.countByCategoryId(c.getId()) > 0) == withItems)
+                .map(jp.komeko.order.domain.Category::getId)
+                .findFirst().orElse(null);
+        if (id == null) {
+            System.out.println("  " + name + " は撮れず（"
+                    + (withItems ? "品の入ったカテゴリ" : "空のカテゴリ") + "が無い）");
+            return;
+        }
+        String html = mockMvc.perform(get("/admin/categories/" + id + "/edit")
+                        .with(user("店長").roles("ADMIN")))
+                .andReturn().getResponse().getContentAsString();
+        if (html.isBlank() || !html.contains("</main>")) {
+            throw new IllegalStateException(
+                    name + " が空で返ってきた（URL が死んでいる可能性）: /admin/categories/"
+                            + id + "/edit");
+        }
+        write(name, html);
+    }
+
     private void write(String name, String html) throws Exception {
         String cssUrl = "css/app.css?v=" + Files.getLastModifiedTime(
                 Path.of("src/main/resources/static/css/app.css")).toMillis();

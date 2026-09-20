@@ -4221,6 +4221,17 @@ body.is-sending .staff-main {
      .badge--act 単体だと実効 29.6px しかありません。行は 67px あるので収まります。 */
 .table--cats td.col-state .badge--act { min-height: var(--tap); }
 
+/* ★ 操作列の［編集する］も 48px（2026-09-20）。
+
+   .catlist を落としたときに、この床まで一緒に無くしていました。
+   .theme-desk .btn--sm は 40px なので、行の中の小さいボタンは
+   放っておくと CLAUDE.md の「タップ領域は 48px 以上」を割ります。
+
+   ★ .theme-desk から書くこと。.table--cats .btn--sm だけ（0,2,0）だと、
+     あとに出てくる .theme-desk .btn--sm（同じ詳細度）に負けます。
+     もとの .catlist の規則が、同じ理由で同じ書き方をしていました。 */
+.theme-desk .table--cats .btn--sm { min-height: var(--tap); }
+
 /* ── カテゴリの編集画面の商品表（2026-09-20・設計 ト11b） ──────────────
 
    ★ .table--items を流用しないこと。あちらは 7 列ぶんの幅を持っているので、

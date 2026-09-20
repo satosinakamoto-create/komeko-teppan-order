@@ -134,6 +134,11 @@ class GuestLoginTest {
                                 // （フィルタが先に弾くので、消しても 403 のまま緑になってしまう）。
                                 "/admin/items", "/admin/items/1/delete",
                                 "/admin/categories", "/admin/categories/1/delete",
+                                // 2026-09-20 に足した口。見せる範囲を広げたぶん、
+                                // 新しい POST を足すたびにここへも足すこと
+                                "/admin/categories/1/visibility",
+                                "/admin/categories/1/items",
+                                "/admin/categories/1/items/move",
                                 "/admin/staff", "/admin/staff/1/password", "/admin/staff/1/delete",
                                 "/admin/options/1/delete", "/admin/backups/run"})
         @WithMockUser(roles = "STAFF")
