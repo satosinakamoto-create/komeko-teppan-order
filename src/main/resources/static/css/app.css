@@ -4217,20 +4217,55 @@ body.is-sending .staff-main {
      表示／非表示を切り替えられるのはここだけになりました。
      .badge--act が枠と ▸ を足して「押せる」を形で伝えます（2026-09-17 の決まり）。
 
-     押すためのものなので、タップ領域は 48px 以上（CLAUDE.md）。
-     .badge--act 単体だと実効 29.6px しかありません。行は 67px あるので収まります。 */
-.table--cats td.col-state .badge--act { min-height: var(--tap); }
+   ★ 寸法は設計 ト11 の実測に合わせてあります（店主の指摘
+     「表示中のボタンとかフィグマと違うから修正して」）。
 
-/* ★ 操作列の［編集する］も 48px（2026-09-20）。
+       設計   64 x 24   pad 4/10   字 13
+       実装   79.9 x 48（直す前）  ← min-height: 48px を入れていた
 
-   .catlist を落としたときに、この床まで一緒に無くしていました。
-   .theme-desk .btn--sm は 40px なので、行の中の小さいボタンは
-   放っておくと CLAUDE.md の「タップ領域は 48px 以上」を割ります。
+     いったん「押すものだからタップ領域 48px」と考えて床を入れましたが、
+     設計は 24px で、商品一覧の札（29.6px）とも食い違っていました。
+     .theme-desk .badge の 14px が効いているので、ここだけ 13px に戻します。
+     4 + 16 + 4 = 24。
+
+   ★ カテゴリの表に絞ること。.badge--act は商品一覧でも使っていて、
+     あちらの設計（ト10）は押せない札のまま（59x16 の塗りつぶし）です。
+     全体を動かすと、商品一覧で「押せる札だけ小さい」がその場で起きます。 */
+.table--cats td.col-state .badge--act {
+  font-size: 13px;
+  line-height: 16px;
+  /* ★ 上下は 3px。設計の 24px には 1px の枠が含まれています
+       （Figma の線は内側に引かれるので、padding 4 の中に枠が乗っている）。
+       CSS の枠は padding の外に積まれるので、4 のままだと 26px になります。
+       3 + 16 + 3 + 枠 2 = 24。 */
+  padding-block: 3px;
+  /* 設計の文字と ▸ の間は 1px。.badge の gap 4px と
+     .badge--act::after の margin-left 1px が足されて 5px になっていました */
+  gap: 0;
+}
+
+/* ★ 操作列の［編集する］（設計 ト11）。
+
+       設計   84 x 40   枠 #0e9721   字 15   文字色 #0b7a1a
+       実装   87.8 x 48 枠 #c7c7c7（直す前）
+
+     部品としては「枠線・小」です。この設計システムでは
+     小さい枠線ボタンだけ緑枠（標準と大はグレー）になっています。
+     行の中の「直しに行く」口は緑、という使い分けです。
 
    ★ .theme-desk から書くこと。.table--cats .btn--sm だけ（0,2,0）だと、
      あとに出てくる .theme-desk .btn--sm（同じ詳細度）に負けます。
-     もとの .catlist の規則が、同じ理由で同じ書き方をしていました。 */
-.theme-desk .table--cats .btn--sm { min-height: var(--tap); }
+
+   ★ 40px は CLAUDE.md の「タップ領域 48px 以上」を割ります。
+     .btn--sm は他の画面でも 40px で出荷済みなので、ここだけ広げると
+     設計とも他画面とも食い違います。設計に合わせ、床は入れていません。 */
+.theme-desk .table--cats .btn--sm {
+  --btn-bd: #0e9721;
+  --btn-fg: var(--action);
+}
+
+/* 操作列は中央ぞろえ（設計 ト11。セルの揃えは CENTER） */
+.table--cats th.col-act, .table--cats td.col-act { text-align: center; }
 
 /* ── カテゴリの編集画面の商品表（2026-09-20・設計 ト11b） ──────────────
 
@@ -4282,7 +4317,13 @@ body.is-sending .staff-main {
    ★ 既定を「出す」にしてあるのは、CSS が効かない環境で
      操作不能にしないためです（datenav.js が明文化している方針）。
      .field は display 指定を持たないので、隠すときに素直に消えます。 */
-.catnew:has(select:not(:has(option[value="__new__"]:checked))) .catnew__name { display: none; }
+/* ★ :has() の中に :has() を入れないこと。仕様で禁止されていて、
+     規則ごと無効になります。エラーは出ず、欄が出しっぱなしになるだけなので、
+     測るまで気づけませんでした（実測 display: block のまま）。
+
+     × .catnew:has(select:not(:has(option[value="__new__"]:checked)))
+     ○ .catnew:not(:has(option[value="__new__"]:checked))            ← 入れ子なし */
+.catnew:not(:has(option[value="__new__"]:checked)) .catnew__name { display: none; }
 
 /* 名前を変える欄は既定で畳む。開けるのは JS（無ければ出たまま＝操作はできる） */
 .nameeditor[data-name-editor="closed"] { display: none; }

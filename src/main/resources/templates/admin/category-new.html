@@ -48,7 +48,12 @@
 
       <div class="row row--wrap">
 
-        <div class="field row__grow mb-0">
+        <!--/* ★ 幅の比は設計 ト11c どおり 大分類 1 : カテゴリ名 2（実測 241 : 483）。
+
+               .row__grow は flex: 1 1 220px です。grow だけ 1 と 2 にしても、
+               220px の土台が先に配られるので 1 : 1.43 にしかなりません（実測 384.7 : 549.5）。
+               土台を 0 にして、余りを丸ごと 1 : 2 で分けます。 */-->
+        <div class="field row__grow mb-0" style="flex:1 1 0">
           <label class="label" for="groupName">大分類（メニューの大見出し）</label>
           <!--/* ★ 番兵 __new__ を選んだときだけ、下の「新しい大分類の名前」が出ます。
                  出し入れは CSS（:has）で、JS が無くても操作できる形にしてあります。 */-->
@@ -64,7 +69,7 @@
              th:errors="*{groupName}">エラー内容</p>
         </div>
 
-        <div class="field row__grow mb-0">
+        <div class="field row__grow mb-0" style="flex:2 1 0">
           <label class="label" for="name">カテゴリ名<span class="req">必須</span></label>
           <input class="input" type="text" th:field="*{name}" maxlength="40"
                  placeholder="例：鉄板デザート"
