@@ -121,7 +121,18 @@
     <div class="card mt-6">
       <div class="card__head">選んだ商品を、別のカテゴリへ移す</div>
       <div class="card__body">
-        <div class="row row--wrap">
+        <!--/* ★ align-items: flex-end を書くこと（店主の指摘
+               「行先のカテゴリの下のテキストボックスと移すボタンズレてる」）。
+
+               .row の既定は align-items: center です。ラベル付きの欄は
+               「ラベル＋選ぶ欄」で 70px、ボタンは 48px しかないので、
+               中央でそろえると<b>ボタンだけ 11px 上に浮きます</b>。
+
+               .row:has(.row__grow) が下ぞろえにしてくれますが、この欄は
+               幅を 300px で固定したいので .row__grow を付けていません。
+               付けない以上、下ぞろえは自分で書く必要があります。
+               卓の編集画面が同じ理由で同じ書き方をしています。 */-->
+        <div class="row row--wrap" style="align-items:flex-end">
           <div class="field mb-0" style="flex:0 1 300px">
             <label class="label" for="targetCategoryId">行き先のカテゴリ</label>
             <select class="select" id="targetCategoryId" name="targetCategoryId" required>

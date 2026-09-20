@@ -104,6 +104,10 @@ public class AdminCategoryController {
     public String newForm(Model model) {
         model.addAttribute("categoryForm", new CategoryForm());
         model.addAttribute("groupNames", menuService.groupNames());
+        // ★ 番兵はここから渡すこと。テンプレートで T(...) を使って定数を引くと、
+        //   動いているアプリのクラスにまだ無いとき（Java を直して再起動する前）に
+        //   式が落ち、画面が途中で切れます。エラー画面も出ません。
+        model.addAttribute("newGroupSentinel", CategoryForm.NEW_GROUP);
         return "admin/category-new";
     }
 
@@ -170,8 +174,10 @@ public class AdminCategoryController {
         }
 
         if (binding.hasErrors()) {
-            // ★ 選択肢を詰め直すこと。忘れると、戻ってきた画面の <select> が空になります。
+            // ★ 選択肢と番兵を詰め直すこと。忘れると、戻ってきた画面の <select> が空になり、
+            //   「＋ 新しい大分類を作る」の値も空になります。
             model.addAttribute("groupNames", menuService.groupNames());
+            model.addAttribute("newGroupSentinel", CategoryForm.NEW_GROUP);
             return "admin/category-new";
         }
 

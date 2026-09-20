@@ -61,9 +61,16 @@
                   th:classappend="${#fields.hasErrors('groupName')} ? 'is-error'">
             <option value="">選んでください</option>
             <option th:each="g : ${groupNames}" th:value="${g}" th:text="${g}">お食事</option>
-            <option th:value="${T(jp.komeko.order.web.admin.form.CategoryForm).NEW_GROUP}">
-              ＋ 新しい大分類を作る
-            </option>
+            <!--/* ★ T(...) で定数を引かないこと。
+
+                   はじめは th:value="${T(...CategoryForm).NEW_GROUP}" と書いていました。
+                   動いているアプリのクラスにその定数がまだ無いと（＝Java を直して
+                   再起動する前）、式がそこで落ちて<b>画面が途中で切れます</b>。
+                   200 で返り始めたあとなので、エラー画面にもならず、
+                   「大分類しか出ていない」という形で現れました。
+
+                   値はコントローラがモデルに入れて渡します。 */-->
+            <option th:value="${newGroupSentinel}">＋ 新しい大分類を作る</option>
           </select>
           <p class="error" th:if="${#fields.hasErrors('groupName')}"
              th:errors="*{groupName}">エラー内容</p>
