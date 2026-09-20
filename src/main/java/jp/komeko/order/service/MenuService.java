@@ -237,6 +237,158 @@ public class MenuService {
                 .stream().map(MenuItem::getSortOrder).toList());
     }
 
+    // ========================================================================
+    //  カテゴリの編集画面から商品を出し入れする（2026-09-20）
+    //
+    //  店主の指示「カテゴリーで編集するボタン追加で商品名を追加、削除出来るように」
+    //  → 話し合って「削除」ではなく「別のカテゴリへ移す」になりました。
+    //    商品は必ずどこか 1 つのカテゴリに属するので（category_id は NOT NULL）、
+    //    「ここに足す」＝「よそから移す」です。消す操作は商品の画面に任せます。
+    // ========================================================================
+
+    /**
+     * 大分類（メニューのタブ名）を、重複を落として並べる。
+     *
+     * <p>カテゴリの追加・編集で {@code <select>} に出す選択肢です。
+     * <b>専用のテーブルは作っていません。</b>{@code Category.groupName} を舐めるだけです。
+     * 十数件しかないので、これで足ります。
+     *
+     * <p>★ {@code getTabName()} ではなく {@code getGroupName()} を使うこと。
+     * 前者は大分類が未設定のときカテゴリ名を返すので、
+     * 「広島風お好み焼き」がタブの候補として並んでしまいます。
+     *
+     * <p>並び順はカテゴリの並び順のまま（{@code LinkedHashSet}）。
+     * 名前順に並べ替えると、お客さまのメニューのタブの並びと食い違います。
+     */
+    @Transactional(readOnly = true)
+    public List<String> groupNames() {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        for (Category c : allCategories()) {
+            String g = c.getGroupName();
+            if (g != null && !g.isBlank()) {
+                names.add(g);
+            }
+        }
+        return List.copyOf(names);
+    }
+
+    /**
+     * 名前だけの「書きかけ」を 1 件作る。
+     *
+     * <p>価格はあとから商品の画面で入れます。
+     *
+     * <h2>★ draft と visible を両方落とすこと</h2>
+     *
+     * <p>{@link MenuItem} の初期値は {@code visible=true} / {@code draft=false} です。
+     * <b>どちらか片方だけでは、お客さまの画面に出ます。</b>
+     *
+     * <pre>
+     *   draft しか見ていない門  … findVisibleForCustomer の where、isOrderable()
+     *   visible しか見ていない門 … MenuController.item、itemsForSoldOutPanel
+     * </pre>
+     *
+     * <p>2026-09-07 に「書きかけ」を実際にお客さまのメニューへ出しました。
+     * {@code isOrderable()} に {@code !draft} を足しただけで安心し、
+     * お客さまのメニューの問い合わせがそこを通っていないことを見落としたためです。
+     *
+     * <p>★ 並び順も必ず付けること。0 のままだと、
+     * 名前を打っただけの品が看板メニューの上に割り込みます。
+     */
+    @Transactional
+    public MenuItem createDraftItem(Long categoryId, String name) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new IllegalArgumentException("カテゴリが見つかりません: " + categoryId));
+        MenuItem item = new MenuItem(category, name.trim(), 0);
+        item.setDraft(true);
+        item.setVisible(false);
+        item.setSortOrder(nextItemSortOrder(categoryId));
+        return menuItemRepository.save(item);
+    }
+
+    /**
+     * 選んだ商品を、まとめて別のカテゴリへ移す。
+     *
+     * <h2>★ 並び番号は 1 回だけ読んで、自分で進めること</h2>
+     *
+     * <p>{@code nextItemSortOrder} をループの中で呼び直すと、
+     * 商品の数だけ {@code @EntityGraph} 付きの SELECT が飛びます。
+     * かといって 1 回取った値を全員に使うと<b>全員が同じ番号</b>になり、
+     * 行き先でドラッグしても上下ボタンを押しても順番が決まりません
+     * （押しても何も起きないだけで、例外は出ません）。
+     * 1 回取って {@code +10} ずつ自分で進めるのが正解です。
+     *
+     * <p>★ すでに行き先にいる商品は飛ばします。飛ばさないと
+     * {@code nextItemSortOrder} がその商品自身を含んだ最大値を返し、
+     * 「移していないのに自分のカテゴリの末尾へ黙って飛ぶ」ことになります。
+     *
+     * <p>元のカテゴリに空いた番号は詰め直しません（10, 40 のように飛んで構いません）。
+     * 順番は数字の大小で決まるので、詰める必要がないためです。
+     *
+     * @return 実際に移した件数
+     */
+    @Transactional
+    public int moveItemsToCategory(List<Long> itemIds, Long targetCategoryId) {
+        if (itemIds == null || itemIds.isEmpty() || targetCategoryId == null) {
+            return 0;
+        }
+        Category target = categoryRepository.findById(targetCategoryId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "移す先のカテゴリが見つかりません: " + targetCategoryId));
+
+        int next = nextItemSortOrder(targetCategoryId);
+        int moved = 0;
+        for (Long id : itemIds) {
+            MenuItem item = menuItemRepository.findById(id).orElse(null);
+            if (item == null || targetCategoryId.equals(item.getCategory().getId())) {
+                continue;                       // すでに行き先にいるものは触らない
+            }
+            item.setCategory(target);
+            item.setSortOrder(next);
+            next += 10;
+            moved++;
+        }
+        return moved;
+    }
+
+    /**
+     * 同じ名前の商品を探す（見つからなければ null）。
+     *
+     * <p>カテゴリの編集画面で名前を打ったとき、
+     * 別のカテゴリに同じ品がないかを確かめるために使います。
+     *
+     * <h2>なぜ {@code findFirstByNameIgnoreCase} を使わないか</h2>
+     *
+     * <p>Spring Data が吐くのは {@code upper(name) = upper(?)} で、日本語には効きません。
+     * さらに dev（H2）と本番（PostgreSQL）で照合順序が違うので、
+     * 手元で通ったものが本番で通らない形の食い違いを抱えます。
+     *
+     * <h2>なぜ {@code AliasText.normalize} を使わないか</h2>
+     *
+     * <p>あちらはレシートの品名を食材へ名寄せするための正規化で、
+     * {@code ()（）・-} などの記号を落とします。ここに使うと
+     * <b>「生ビール（中）」と「生ビール中」が同名扱い</b>になり、正しい商品を作れません。
+     * 名寄せは「寄せたい」、重複判定は「区別したい」で、目的が逆です。
+     *
+     * <p>ここでは全角半角（NFKC）・大文字小文字・前後の空白だけを吸収します。
+     */
+    @Transactional(readOnly = true)
+    public MenuItem findSameNameItem(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        String want = normalizeItemName(name);
+        for (MenuItem item : menuItemRepository.findAllForAdmin()) {
+            if (want.equalsIgnoreCase(normalizeItemName(item.getName()))) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private static String normalizeItemName(String s) {
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC).trim();
+    }
+
     /**
      * カテゴリをひとつ上（または下）へ動かす。
      *

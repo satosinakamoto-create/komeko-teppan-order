@@ -32,12 +32,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("カテゴリの編集・追加は設計 ト11b どおり")
 class CategoryEditMatchesFigmaTest {
 
-    private static final Path TPL =
-            Path.of("src/main/resources/templates/admin/categories.html");
+    // ★ 2026-09-20：categories.html が 2 枚に割れました（ト11c 追加 / ト11b 編集）。
+    //   どの主張がどちらの画面のものかを、ここで固定しておきます。
+    private static final Path NEW_TPL =
+            Path.of("src/main/resources/templates/admin/category-new.html");
+    private static final Path EDIT_TPL =
+            Path.of("src/main/resources/templates/admin/category-edit.html");
 
     /** コメントを落とした本文。「書いてあるのに出ていない」を見抜くため、これで判定する。 */
     private String body() throws Exception {
-        return Files.readString(TPL).replace("\r\n", "\n")
+        return read(NEW_TPL);
+    }
+
+    private String read(Path p) throws Exception {
+        return Files.readString(p).replace("\r\n", "\n")
                 .replaceAll("(?s)<!--.*?-->", "");
     }
 
@@ -94,19 +102,36 @@ class CategoryEditMatchesFigmaTest {
                 .as("下ぞろえになっていない").contains("align-items: flex-end");
     }
 
+    /**
+     * ★ 節見出しに件数が出ること。
+     *
+     * <p>2026-09-20 に行き先が変わりました。もとは追加画面の下にあった
+     * 「登録済みのカテゴリ　4 件」で、いまは編集画面の
+     * 「このカテゴリの商品　12 品（掲載中 10 ／ 書きかけ 2）」です。
+     *
+     * <p><b>守っている主張は同じです</b>——節見出しに題だけ出して、
+     * いくつあるか画面から分からない状態にしないこと。
+     *
+     * <p>★ 書きかけの数まで出すのは、削除の門と噛み合わせるためです。
+     * 品数は書きかけも数えるので（{@code countByCategoryId}）、
+     * 内訳が見えないと「0 品に見えるのに消せない」になります。
+     */
     @Test
-    @DisplayName("★ 節見出しに件数が出る（登録済みのカテゴリ N 件）")
+    @DisplayName("★ 節見出しに件数が出る（このカテゴリの商品 N 品）")
     void theSectionHeadingShowsTheCount() throws Exception {
-        String html = body();
+        String html = read(EDIT_TPL);
 
-        int at = html.indexOf("登録済みのカテゴリ");
+        int at = html.indexOf("このカテゴリの商品");
         assertThat(at).as("節見出しが無い").isGreaterThan(0);
 
         String around = html.substring(at, Math.min(html.length(), at + 400));
         assertThat(around).as("件数の部品（.section-title__count）が無い")
                 .contains("section-title__count");
-        assertThat(around).as("件数が数えられていない")
-                .contains("categories.size()");
+        assertThat(around).as("件数が出ていない").contains("itemCount");
+        assertThat(around)
+                .as("書きかけの数が出ていない。品数は書きかけも数えるので、"
+                        + "内訳が見えないと「0 品に見えるのに消せない」になる")
+                .contains("draftCount");
     }
 
     /**
@@ -120,11 +145,38 @@ class CategoryEditMatchesFigmaTest {
     @DisplayName("★ 並び順を聞かない理由が画面に出ている（コメントの中ではない）")
     void theSortOrderExplanationIsVisible() throws Exception {
         String visible = body();
-        String raw = Files.readString(TPL).replace("\r\n", "\n");
+        String raw = Files.readString(NEW_TPL).replace("\r\n", "\n");
 
         assertThat(raw).as("そもそも説明がテンプレートに無い").contains("並び順");
         assertThat(visible)
                 .as("並び順の説明がコメントの中に隠れていて、画面に出ていない")
-                .contains("並び順はここでは聞きません");
+                .contains("並び順もここでは聞きません");
+    }
+
+    /**
+     * ★ 大分類を変えられない理由が、編集画面に出ていること（2026-09-20）。
+     *
+     * <p>欄が無いだけだと「作り忘れ」に見えます。次に触る人が善意で足し、
+     * 足した瞬間に打ち間違いでメニューのタブが割れる道が戻ります。
+     *
+     * <p>これもコメントを落とした本文で探します。
+     * 「テンプレートには書いてある」では画面に出ていないのと同じです。
+     */
+    @Test
+    @DisplayName("★ 大分類を変えられない理由が編集画面に出ている")
+    void theGroupNameIsExplainedAsFixed() throws Exception {
+        String visible = read(EDIT_TPL);
+
+        assertThat(visible)
+                .as("大分類を変えられない理由が画面に出ていない。"
+                        + "欄が無いだけだと作り忘れに見え、次の人が足してしまう")
+                .contains("大分類はここでは変えられません");
+
+        // ★ 実際に欄を置いていないこと（説明だけ書いて欄も置く、が起きないように）
+        assertThat(visible)
+                .as("★ 編集画面に大分類の入力がある。"
+                        + "送ると Form の初期値 null が書かれ、タブが分裂する")
+                .doesNotContain("*{groupName}")
+                .doesNotContain("name=\"groupName\"");
     }
 }

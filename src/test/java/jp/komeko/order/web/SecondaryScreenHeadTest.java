@@ -49,7 +49,8 @@ class SecondaryScreenHeadTest {
         put("inventory/purchase-detail.html", null);                  // ト05e（題は店名）
         put("inventory/tax-rates.html", "税率・控除率マスタ");         // ト05f
         put("inventory/recipe-edit.html", null);                      // ト09c（題は商品名）
-        put("admin/categories.html", "カテゴリを 編集・追加");          // ト11b
+        put("admin/category-new.html", "カテゴリの新規追加");           // ト11c
+        put("admin/category-edit.html", null);                        // ト11b（題はカテゴリ名）
         put("admin/staff.html", "スタッフ 編集・追加");                 // ト15b
         put("admin/options.html", null);                              // ト10d（題は商品名）
         put("accountant/evidence-detail.html", null);                 // トt19b（題は店名）
@@ -133,6 +134,9 @@ class SecondaryScreenHeadTest {
                 "inventory/tax-rates.html",
                 "inventory/recipe-edit.html",
                 "accountant/evidence-detail.html",
+                // 2026-09-20 に 3 枚化したカテゴリ。どちらも一覧へ戻る口を持つ
+                "admin/category-new.html",
+                "admin/category-edit.html",
         };
         for (String name : withBack) {
             String band = firstHead(read(name));
@@ -148,7 +152,8 @@ class SecondaryScreenHeadTest {
     @DisplayName("★ 補足（件数・日付・親の名前）は帯の中に残す")
     void theSubtitleSurvives() throws Exception {
         String[] withSub = {
-                "admin/categories.html",
+                "admin/category-new.html",
+                "admin/category-edit.html",
                 "admin/staff.html",
                 "admin/options.html",
                 "accountant/evidence-detail.html",

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<!--/*
+   カテゴリの新規追加（設計 ト11c・2026-09-20）。
+
+   ── なぜ「足す」だけの画面にしたか ──
+   もとは追加フォームと登録済みの一覧が 1 画面に同居していました
+   （/admin/categories/edit）。カテゴリを 1 つ足しに来ただけでも、
+   下に 15 カテゴリぶんの入力欄が並びます。逆に名前を直しに来た人は、
+   上の追加フォームを読み飛ばしてから目的の行を探すことになっていました。
+   卓（/admin/tables/new）と商品（/admin/items/new）が先に分かれており、
+   カテゴリだけが古い形で残っていました。
+
+   ★ 送信先（POST /admin/categories）は変えていません。
+     画面を割っても送信先まで変えると、ブックマークや戻るボタンからの
+     再送信が壊れます（卓・QR を分けたときと同じ判断）。
+
+   ── 大分類を <select> にした理由 ──
+   大分類は Category.getTabName() を通って、お客さまのメニューの
+   タブ名そのものになります。さらに MenuController.DRINK_SECTION（"ドリンク"）との
+   完全一致で、商品ページの見せ方が切り替わります。
+   自由入力だと「お食事」と「お食亊」でタブが 2 つに割れ、
+   「ドリンク」を打ち間違えると飲み物用の並べ方が黙って効かなくなります。
+   どちらも例外を出さず、お客さまの画面を見るまで気づけません。
+
+   使えるモデルの値：
+     ${categoryForm} … 入力の入れ物（CategoryForm）
+     ${groupNames}   … いまある大分類（重複なし・カテゴリの並び順のまま）
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('カテゴリの新規追加', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <!--/* 戻るボタンは帯の左端（2026-09-15 の方針。BackButtonOnTheLeftTest） */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/admin/categories}">← カテゴリ一覧へ戻る</a>
+    <h1 class="page-head__title">カテゴリの新規追加</h1>
+    <span class="page-head__sub">追加したら、そのカテゴリに商品を足せます</span>
+    <span class="page-head__spacer"></span>
+  </div>
+
+  <form class="card catnew" method="post" th:action="@{/admin/categories}"
+        th:object="${categoryForm}">
+    <div class="card__head">カテゴリを追加</div>
+    <div class="card__body">
+
+      <div class="row row--wrap">
+
+        <div class="field row__grow mb-0">
+          <label class="label" for="groupName">大分類（メニューの大見出し）</label>
+          <!--/* ★ 番兵 __new__ を選んだときだけ、下の「新しい大分類の名前」が出ます。
+                 出し入れは CSS（:has）で、JS が無くても操作できる形にしてあります。 */-->
+          <select class="select" th:field="*{groupName}"
+                  th:classappend="${#fields.hasErrors('groupName')} ? 'is-error'">
+            <option value="">選んでください</option>
+            <option th:each="g : ${groupNames}" th:value="${g}" th:text="${g}">お食事</option>
+            <option th:value="${T(jp.komeko.order.web.admin.form.CategoryForm).NEW_GROUP}">
+              ＋ 新しい大分類を作る
+            </option>
+          </select>
+          <p class="error" th:if="${#fields.hasErrors('groupName')}"
+             th:errors="*{groupName}">エラー内容</p>
+        </div>
+
+        <div class="field row__grow mb-0">
+          <label class="label" for="name">カテゴリ名<span class="req">必須</span></label>
+          <input class="input" type="text" th:field="*{name}" maxlength="40"
+                 placeholder="例：鉄板デザート"
+                 th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
+          <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
+        </div>
+
+        <button class="btn btn--primary" type="submit">追加する</button>
+      </div>
+
+      <!--/* ★「＋ 新しい大分類を作る」を選んだときだけ出る欄。
+
+             JS が動かなくても操作できるよう、既定で出しておいて CSS が隠します
+             （datenav.js が明文化している「JS が死んでも操作不能にしない」に合わせる）。
+             .field 自体は display を持たないので、:has が外れれば素直に消えます。 */-->
+      <div class="field catnew__name mt-4 mb-0">
+        <label class="label" for="newGroupName">↳ 新しい大分類の名前</label>
+        <input class="input" type="text" th:field="*{newGroupName}" maxlength="20"
+               placeholder="例：デザート"
+               th:classappend="${#fields.hasErrors('newGroupName')} ? 'is-error'">
+        <p class="error" th:if="${#fields.hasErrors('newGroupName')}"
+           th:errors="*{newGroupName}">エラー内容</p>
+      </div>
+
+      <p class="help mt-4">
+        追加したカテゴリは表示中で入ります（隠したいときは一覧の「表示中」を押してください）。
+        並び順もここでは聞きません。いちばん下に入り、一覧でつまんで直せます。
+        大分類は打ち間違えるとメニューのタブが割れるので、選ぶ方式にしています。
+      </p>
+
+    </div>
+  </form>
+
+</main>
+</body>
+</html>

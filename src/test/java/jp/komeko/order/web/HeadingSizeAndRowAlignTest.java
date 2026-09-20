@@ -44,9 +44,6 @@ class HeadingSizeAndRowAlignTest {
 
     private static final Path CSS =
             Path.of("src/main/resources/static/css/app.css");
-    private static final Path CATEGORIES =
-            Path.of("src/main/resources/templates/admin/categories.html");
-
     private String css() throws Exception {
         return Files.readString(CSS).replace("\r\n", "\n");
     }
@@ -107,29 +104,18 @@ class HeadingSizeAndRowAlignTest {
 
     // ------------------------------------------------------------------
     // ② カテゴリ行の縦位置
+    //
+    // ★ 2026-09-20 に 2 本とも落としました。
+    //
+    //   守っていたのは「1 行に ↑↓ と削除が並ぶカテゴリ一覧で、
+    //   小さいボタンだけ 40px になって頭が 8px 沈む」ことでした。
+    //   その画面（admin/categories.html）が無くなったので、
+    //   .catlist という目印も、それを当てにした CSS 規則も消しました。
+    //
+    //   ★ 片方だけ残さないこと。テストだけ残せば必ず落ち、
+    //     CSS だけ残せば「どこにも効かない規則を誰も消せない」状態になります。
+    //
+    //   ボタンの高さそのものは、いまは .btn--sm（36px）が
+    //   カードの中で使われるだけなので、行の頭がそろう問題は起きません。
     // ------------------------------------------------------------------
-
-    @Test
-    @DisplayName("★ カテゴリ行の ↑↓・削除も 48px（行の頭がそろう）")
-    void theCategoryRowButtonsAreFullHeight() throws Exception {
-        String css = css();
-
-        // ★ .theme-desk から書くこと。.catlist .btn--sm だけ（0,2,0）だと、
-        //   3557 行の .theme-desk .btn--sm（同じ詳細度で、より後ろ）に負ける。
-        //   実際に一度それで効かず、実測 40px のままだった。
-        int at = css.indexOf(".theme-desk .catlist .btn--sm");
-        assertThat(at).as(".theme-desk .catlist .btn--sm の規則が無い").isGreaterThan(0);
-        String rule = css.substring(at, css.indexOf("}", at));
-
-        assertThat(rule).as("48px になっていない。40px のままだと頭が 8px 下がる")
-                .contains("min-height: 48px");
-    }
-
-    @Test
-    @DisplayName("★ カテゴリの一覧に目印（.catlist）が付いている")
-    void theCategoryListHasItsMarker() throws Exception {
-        String html = Files.readString(CATEGORIES).replace("\r\n", "\n")
-                .replaceAll("(?s)<!--.*?-->", "");
-        assertThat(html).as("一覧に .catlist が無い").contains("class=\"stack catlist\"");
-    }
 }

@@ -176,8 +176,13 @@ class ReorderIsSharedTest {
                     .contains(url + "/place");
 
             // ★ ただし目に見える入力欄は増やさないこと。
-            //   隠しフォームの中身（hidden）だけが例外
-            String visible = main.replaceAll("(?s)<form id=\"reorder-form\".*?</form>", "");
+            //   例外は 2 つだけ：並べ替えの隠しフォーム（中身は hidden）と、
+            //   カテゴリの状態の札（2026-09-20。form の中身はボタンだけ）。
+            //   どちらも入力欄は 1 つも増えていません。
+            // ★ 属性の並び順に頼らないこと（Thymeleaf が th:action を置く位置で変わる）
+            String visible = main
+                    .replaceAll("(?s)<form id=\"reorder-form\".*?</form>", "")
+                    .replaceAll("(?s)<form[^>]*/visibility\"[^>]*>.*?</form>", "");
             assertThat(visible).as(url + " は読むだけの画面。目に見える入力欄を置かない")
                     .doesNotContain("<input");
         }
@@ -201,13 +206,19 @@ class ReorderIsSharedTest {
     @WithMockUser(roles = "ADMIN")
     @DisplayName("★ 直す画面には並べ替えが無い（つまみも数字の欄も）")
     void theEditScreensCannotReorder() throws Exception {
-        for (String url : new String[]{"/admin/categories/edit", "/admin/tables/edit"}) {
+        // ★ 2026-09-20：カテゴリの編集画面が /{id}/edit になりました。
+        //   setUp が作ったカテゴリの id を使います。
+        Long categoryId = categoryRepository.findAllByOrderBySortOrderAscIdAsc()
+                .get(0).getId();
+
+        for (String url : new String[]{
+                "/admin/categories/" + categoryId + "/edit", "/admin/tables/edit"}) {
             String html = page(url);
             String main = html.substring(html.indexOf("<main"), html.lastIndexOf("</main>"));
 
-            // ① まず行があることを確かめる。無いと以下が全部素通りする
-            assertThat(main).as(url + " に行フォームが無い。"
-                    + "中身が空では「並べ替えが無い」を確かめたことにならない")
+            // ① まず中身があることを確かめる。無いと以下が全部素通りする
+            assertThat(main).as(url + " に中身が無い。"
+                    + "空では「並べ替えが無い」を確かめたことにならない")
                     .contains("name=\"name\"");
 
             // ② そのうえで、並べ替えの手段がどれも無いこと

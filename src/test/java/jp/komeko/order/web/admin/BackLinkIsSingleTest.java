@@ -36,7 +36,11 @@ class BackLinkIsSingleTest {
     /** 帯の中に戻るボタンを持つ「編集・追加」系の画面。 */
     private static final String[] SCREENS = {
             "src/main/resources/templates/admin/staff.html",
-            "src/main/resources/templates/admin/categories.html",
+            // ★ 2026-09-20：categories.html を 2 枚に割りました。
+            //   編集画面は置くものが多いので、帯の外にもう 1 本置きたくなります。
+            //   そこが落とし穴なので、両方とも見張ります。
+            "src/main/resources/templates/admin/category-new.html",
+            "src/main/resources/templates/admin/category-edit.html",
     };
 
     /** コメントを落とした本文。コメントの中の「←」を数えないため。 */

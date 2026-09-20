@@ -40,9 +40,30 @@ public class CategoryForm {
     @Size(max = 40, message = "カテゴリ名は40文字以内で入力してください")
     private String name;
 
+    /**
+     * 大分類の {@code <select>} で「＋ 新しい大分類を作る」を選んだときの合図（2026-09-20）。
+     *
+     * <p>★ これがそのまま {@code Category.setGroupName} に渡ると、
+     * {@code @Size(max=20)} を通るので<b>例外も検証エラーも出ません</b>。
+     * お客さまのメニューに {@code __new__} というタブが出るまで誰も気づけません。
+     * コントローラの {@code create} で必ず実際の名前に直すこと。
+     */
+    public static final String NEW_GROUP = "__new__";
+
     /** 大カテゴリ（メニュー画面のタブ名）。空なら、このカテゴリ名がそのままタブになる。 */
     @Size(max = 20, message = "大カテゴリは20文字以内で入力してください")
     private String groupName;
+
+    /**
+     * 「＋ 新しい大分類を作る」を選んだときに打ち込む名前（2026-09-20）。
+     *
+     * <p>大分類は自由入力をやめました。{@code Category.getTabName()} を通って
+     * お客さまのメニューのタブ名そのものになり、しかも
+     * {@code MenuController.DRINK_SECTION} との完全一致で見た目が変わるためです。
+     * 打ち間違えると、タブが 2 つに割れたり、飲み物用の並べ方が黙って効かなくなります。
+     */
+    @Size(max = 20, message = "大カテゴリは20文字以内で入力してください")
+    private String newGroupName;
 
     // ★ 並び順（sortOrder）は 2026-09-19 に消しました。
     //   店主の指示「卓は編集する画面で並び替えは出来ない仕様にして」（カテゴリも同じ扱い）。
@@ -103,6 +124,14 @@ public class CategoryForm {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getNewGroupName() {
+        return newGroupName;
+    }
+
+    public void setNewGroupName(String newGroupName) {
+        this.newGroupName = newGroupName;
     }
 
     public boolean isVisible() {

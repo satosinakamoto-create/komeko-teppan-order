@@ -252,23 +252,15 @@ hr {
    カテゴリの追加と税率の改定の 2 画面で同じずれ方をしていました。 */
 .row:has(.row__grow) { align-items: flex-end; }
 
-/* カテゴリの一覧の行（2026-09-17・店主の指摘）。
+/* ★ .catlist は 2026-09-20 に落としました。
 
-   行は下揃え（align-items: flex-end）なので底はそろいますが、
-   ↑↓ と削除だけ .btn--sm（.theme-desk で 40px）で、頭が 8px 下がって
-   その 2 つだけ沈んで見えていました。実測:
+   もとは「1 行に入力欄・更新・↑↓・削除が並ぶカテゴリ一覧」で、
+   小さいボタンだけ 40px になって頭が 8px 沈む問題を直すための目印でした
+   （2026-09-17・店主の指摘）。その画面（admin/categories.html）が
+   カテゴリの 3 枚化で無くなったので、目印ごと消しています。
 
-     入力欄 81〜129（高さ 48）   更新 81〜129（高さ 48）
-     ↑      89〜129（高さ 40）   削除 89〜129（高さ 40）
-
-   そのうえ 40px は CLAUDE.md の「タップ領域は 48px 以上」を割っています。
-   品切れ・残数の表でも同じことが起きていて、そこには
-   「押せるものなので 48px は割らない」と書いて個別に直してありました。
-   並びの問題とタップ領域の問題が、この 1 行で同時に片付きます。
-
-   ★ .theme-desk から書くこと。.catlist .btn--sm だけ（0,2,0）だと、
-     3557 行の .theme-desk .btn--sm（同じ 0,2,0 で、こちらより後ろ）に負けます。 */
-.theme-desk .catlist .btn--sm { min-height: 48px; }
+   ★ 見張っていたテスト（HeadingSizeAndRowAlignTest の 2 本）も同時に落としました。
+     片方だけ残すと「どこにも効かない規則」か「必ず落ちるテスト」になります。 */
 .spacer { flex: 1; }
 
 .grid {
@@ -4207,15 +4199,82 @@ body.is-sending .staff-main {
 .table--tables th:nth-child(4), .table--tables td:nth-child(4) { width: 220px; }
 .table--tables th:nth-child(5), .table--tables td:nth-child(5) { width: 160px; }
 .table--cats { table-layout: fixed; }
-/* ★ 2026-09-19：並び列を右端へ移しました（店主の指示
-     「並び順を一番右に来るようにレイアウト変更もしておいて」）。
+/* ★ 2026-09-20：操作（編集する）列を足して 5 本にしました（設計 ト11）。
 
-     カテゴリ名 400 ／ 品数 200 ／ 状態 360 ／ 並び 160 ＝ 1120。
-     幅の組み合わせは変えていません。3 番目と 4 番目が入れ替わっただけです。 */
-.table--cats th:nth-child(1), .table--cats td:nth-child(1) { width: 400px; }
-.table--cats th:nth-child(2), .table--cats td:nth-child(2) { width: 200px; }
-.table--cats th:nth-child(3), .table--cats td:nth-child(3) { width: 360px; }
-.table--cats th:nth-child(4), .table--cats td:nth-child(4) { width: 160px; }
+     カテゴリ名 340 ／ 品数 140 ／ 状態 300 ／ 操作 180 ／ 並び 160 ＝ 1120。
+
+   ★ nth-child ではなくクラスで当てること。
+     列は th:if で消えることがあり、nth-child だと 1 本減った瞬間に
+     別の列へ幅が当たります（.table--recipes が先にこの形に直してあります）。 */
+.table--cats { /* 合計 1120。fixed なので、足りないと .table-wrap の横スクロールが効かない */ }
+.table--cats th.col-name, .table--cats td.col-name { width: 340px; }
+.table--cats th.col-count, .table--cats td.col-count { width: 140px; }
+.table--cats th.col-state, .table--cats td.col-state { width: 300px; }
+.table--cats th.col-act, .table--cats td.col-act { width: 180px; }
+.table--cats th.col-order, .table--cats td.col-order { width: 160px; }
+
+/* ★ 状態の札は押せる（2026-09-20）。編集画面からチェックを外したので、
+     表示／非表示を切り替えられるのはここだけになりました。
+     .badge--act が枠と ▸ を足して「押せる」を形で伝えます（2026-09-17 の決まり）。
+
+     押すためのものなので、タップ領域は 48px 以上（CLAUDE.md）。
+     .badge--act 単体だと実効 29.6px しかありません。行は 67px あるので収まります。 */
+.table--cats td.col-state .badge--act { min-height: var(--tap); }
+
+/* ── カテゴリの編集画面の商品表（2026-09-20・設計 ト11b） ──────────────
+
+   ★ .table--items を流用しないこと。あちらは 7 列ぶんの幅を持っているので、
+     4 列に当てると先頭 4 本だけ効いて残りが最終列に寄ります。
+
+   選ぶ 72 ／ 商品名 468 ／ 価格 180 ／ 状態 400 ＝ 1120。
+   見出し 64 / 行 67（＋区切り線 1 ＝ 68）は、カテゴリ・卓・商品とそろえた値です。 */
+.table--catitems { table-layout: fixed; }
+.theme-desk .table--catitems th { padding: 16px; height: 64px; }
+.theme-desk .table--catitems td { padding: 0 20px; height: 67px; vertical-align: middle; }
+.table--catitems th.col-check, .table--catitems td.col-check { width: 72px; }
+.table--catitems th.col-name,  .table--catitems td.col-name  { width: 468px; }
+.table--catitems th.col-price, .table--catitems td.col-price { width: 180px; }
+.table--catitems th.col-state, .table--catitems td.col-state { width: 400px; }
+.table--catitems th.col-price, .table--catitems td.col-price { text-align: right; }
+.table--catitems th.col-check, .table--catitems td.col-check { text-align: center; padding-inline: 8px; }
+
+/* ★ 表の中のチェックボックスは、このアプリで初めてです（既存 0 件）。
+     .choice を流用しないこと。あちらは枠付き 48px のカードなので、
+     表のセルに入れると行が札だらけになります。
+
+     セル全体を押せるようにして、タップ領域 48px を満たします。 */
+.checkcell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  cursor: pointer;
+}
+.checkcell input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--action); }
+
+/* ★ カードの中に置いた .alert の余白。
+     .alert は margin: 16px 0 を持ち、<main> の直下でだけ 0 に潰しています。
+     カードの中では 16px が生きるので、.card__body の 24px と足されて
+     「別のカード」に見えてしまいます。 */
+.card__body > .alert { margin-block: 0; }
+
+/* .alert の中に押せるものを 2 つ並べる（同名で止めたときの［ここへ移す］）。
+   .alert が面倒を見ているのは p:last-child と ul:last-child だけでした。 */
+.alert__actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+.alert__actions form { display: contents; }
+
+/* ★「＋ 新しい大分類を作る」を選んだときだけ出す欄（2026-09-20）。
+
+     JS ではなく :has で出し入れします。app.css はすでに :has を 48 か所で
+     使っているので、対応そのものは懸念になりません。
+
+   ★ 既定を「出す」にしてあるのは、CSS が効かない環境で
+     操作不能にしないためです（datenav.js が明文化している方針）。
+     .field は display 指定を持たないので、隠すときに素直に消えます。 */
+.catnew:has(select:not(:has(option[value="__new__"]:checked))) .catnew__name { display: none; }
+
+/* 名前を変える欄は既定で畳む。開けるのは JS（無ければ出たまま＝操作はできる） */
+.nameeditor[data-name-editor="closed"] { display: none; }
 
 /* 厨房ボードの見出しカード（設計 現01 434:2045 / 2026-09-07 に実測合わせ）は
    2026-09-12 に 33 節（.kitchenboard）へ移しました。

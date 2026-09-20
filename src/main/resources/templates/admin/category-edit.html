@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<!--/*
+   カテゴリを 1 つ直す画面（設計 ト11b・2026-09-20）。
+
+   ── この画面の主役は「そのカテゴリに何が入っているか」 ──
+   店主の言葉：「カテゴリーで編集するボタン追加で商品名を追加、削除出来るようにしたい」
+   → 話し合って「削除」ではなく「別のカテゴリへ移す」になりました。
+     商品は必ずどこか 1 つのカテゴリに属するので（category_id は NOT NULL）、
+     「ここに足す」＝「よそから移す」です。商品を消すのは商品の画面の仕事で、
+     しかもレシートやその他原価を道連れに無条件で消えるため、
+     移すつもりで押す事故が起きる場所には置きません。
+
+   ── 大分類・カテゴリ名のカードを置いていない理由 ──
+   店主の指摘：「大分類・カテゴリ名の編集は丸々無くしてよくね？」
+   見出しに「鉄板おつまみ ／ お食事 ／ 12 品」と出ているのに、
+   その真下のカードで同じことをもう一度言っていました。
+   名前だけは打ち間違いを直せる必要があるので、帯の［名前を変える］に畳んであります。
+   ★ 大分類はここでは変えられません（店主の決定）。追加のときだけ決まります。
+
+   ── 並べ替えは置きません ──
+   2026-09-19 の決定「並べ替えは一覧だけ、編集画面は直すだけ」。
+   ★ data-item-id / data-group-id / data-reorder を付けないこと。
+     付けた瞬間に reorder.js が拾って、この画面でも掴めるようになります。
+
+   使えるモデルの値：
+     ${category}       … 直しているカテゴリ
+     ${items}          … そのカテゴリの商品（並び順）
+     ${itemCount}      … 商品の数（書きかけも含む）
+     ${publishedCount} ${draftCount} … 内訳
+     ${moveTargets}    … 移す先の候補（自分以外）
+     ${editForm}       … 名前を変える欄の入れ物
+     ${nameEditorOpen} … 名前の欄を開いたまま出すか
+     ${duplicateItem} ${duplicateItemHere} ${addItemName} … 同名で止めたとき
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('カテゴリを編集', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="page-head">
+    <a class="btn" th:href="@{/admin/categories}">← カテゴリ一覧へ戻る</a>
+    <h1 class="page-head__title" th:text="${category.name}">鉄板おつまみ</h1>
+    <!--/* ★ getTabName() ではなく getGroupName() を使うこと。
+           前者は大分類が未設定のときカテゴリ名を返すので、
+           「広島風お好み焼き ／ 広島風お好み焼き ／ 5 品」になります。 */-->
+    <span class="page-head__sub"
+          th:text="(${#strings.isEmpty(category.groupName)} ? '大分類なし' : ${category.groupName})
+                   + ' ／ ' + ${itemCount} + ' 品'">お食事 ／ 12 品</span>
+    <span class="page-head__spacer"></span>
+    <button class="btn btn--sm" type="button" data-name-editor-toggle>名前を変える</button>
+  </div>
+
+  <!--/* ★ 名前を変える欄。JS が無くても操作できるよう、既定で出しておいて JS が畳みます。
+         検証エラーで戻ってきたときは開いたまま（nameEditorOpen）。 */-->
+  <form class="row row--wrap nameeditor" method="post"
+        th:action="@{/admin/categories/{id}(id=${category.id})}" th:object="${editForm}"
+        th:attr="data-name-editor=${nameEditorOpen} ? 'open' : 'closed'">
+    <div class="field row__grow mb-0">
+      <label class="label" for="name">↳ カテゴリ名</label>
+      <input class="input" type="text" th:field="*{name}" maxlength="40"
+             th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
+      <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
+    </div>
+    <button class="btn btn--sm" type="submit">保存</button>
+    <p class="help mb-0">大分類はここでは変えられません。追加のときに決まります</p>
+  </form>
+
+  <!--/* ───────────────────────── このカテゴリの商品 ───────────────────────── */-->
+  <div class="section-title">
+    <h2 class="section-title__text">このカテゴリの商品</h2>
+    <span class="section-title__count"
+          th:text="${itemCount} + ' 品（掲載中 ' + ${publishedCount}
+                   + ' ／ 書きかけ ' + ${draftCount} + '）'">12 品</span>
+  </div>
+
+  <div th:if="${items.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('品', 'このカテゴリにはまだ商品がありません。下の欄に名前を入れて足せます')}"></div>
+  </div>
+
+  <!--/* 表と［移す］は同じ <form> の中。チェックした行の id を一緒に送るため */-->
+  <form method="post" th:unless="${items.isEmpty()}"
+        th:action="@{/admin/categories/{id}/items/move(id=${category.id})}">
+
+    <div class="table-wrap">
+      <table class="table table--catitems">
+        <thead>
+        <tr>
+          <th class="col-check"><span class="sr-only">選ぶ</span></th>
+          <th class="col-name">商品名</th>
+          <th class="col-price">価格</th>
+          <th class="col-state">状態</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="item : ${items}">
+          <td class="col-check">
+            <label class="checkcell">
+              <input type="checkbox" name="itemIds" th:value="${item.id}"
+                     th:aria-label="${item.name} + ' を選ぶ'">
+            </label>
+          </td>
+          <!--/* 価格・写真・レシピは商品の画面。入力の場所を二重に持たない */-->
+          <td class="col-name">
+            <a th:href="@{/admin/items/{id}/edit(id=${item.id})}"
+               th:text="${item.name}">牛すじ焼き</a>
+          </td>
+          <td class="num col-price"
+              th:text="${item.draft} ? '－'
+                       : '¥' + ${#numbers.formatInteger(item.price, 1, 'COMMA')}">¥980</td>
+          <td class="col-state">
+            <span class="badge badge--draft" th:if="${item.draft}">書きかけ</span>
+            <span class="badge badge--gf" th:unless="${item.draft}">掲載中</span>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card mt-6">
+      <div class="card__head">選んだ商品を、別のカテゴリへ移す</div>
+      <div class="card__body">
+        <div class="row row--wrap">
+          <div class="field mb-0" style="flex:0 1 300px">
+            <label class="label" for="targetCategoryId">行き先のカテゴリ</label>
+            <select class="select" id="targetCategoryId" name="targetCategoryId" required>
+              <option th:each="c : ${moveTargets}" th:value="${c.id}" th:text="${c.name}">鉄板麺</option>
+            </select>
+          </div>
+          <button class="btn btn--primary" type="submit"
+                  th:disabled="${moveTargets.isEmpty()}">移す</button>
+        </div>
+        <p class="help mt-4 mb-0">
+          移した商品は、行き先のいちばん下に入ります。商品そのものは消えません。
+        </p>
+      </div>
+    </div>
+  </form>
+
+  <!--/* ───────────────────────── 商品を足す ─────────────────────────
+
+         ★ 同名で止めたときの帯は、追加フォームの「外」に出すこと。
+           ［ここへ移す］は別の送信先への POST で、
+           HTML の <form> は入れ子にできません（CLAUDE.md）。 */-->
+  <div class="card mt-6">
+    <div class="card__head">このカテゴリに商品を足す</div>
+    <div class="card__body">
+
+      <form method="post" th:action="@{/admin/categories/{id}/items(id=${category.id})}">
+        <div class="row row--wrap">
+          <div class="field row__grow mb-0">
+            <label class="label" for="newItemName">商品名</label>
+            <input class="input" type="text" id="newItemName" name="name" maxlength="60"
+                   placeholder="例：秋の鉄板きのこ" th:value="${addItemName}" required>
+          </div>
+          <button class="btn btn--primary" type="submit">追加する</button>
+        </div>
+      </form>
+
+      <!--/* 同じ名前が見つかったときだけ出る。作らずに止めてある */-->
+      <div class="alert alert--error" th:if="${duplicateItem != null}">
+        <p th:if="${duplicateItemHere}"
+           th:text="'「' + ${duplicateItem.name} + '」はこのカテゴリにすでにあります。作らずに止めました'">
+          このカテゴリにあります</p>
+        <p th:unless="${duplicateItemHere}"
+           th:text="'「' + ${duplicateItem.name} + '」は ' + ${duplicateItem.category.name}
+                    + ' にあります。作らずに止めました'">鉄板麺にあります</p>
+        <div class="alert__actions" th:unless="${duplicateItemHere}">
+          <!--/* ［ここへ移す］は「まとめて移す」の口を使い回す。
+                 行き先はこのカテゴリなので hidden 1 個で足りる */-->
+          <form method="post"
+                th:action="@{/admin/categories/{id}/items/move(id=${duplicateItem.category.id})}">
+            <input type="hidden" name="itemIds" th:value="${duplicateItem.id}">
+            <input type="hidden" name="targetCategoryId" th:value="${category.id}">
+            <button class="btn btn--primary btn--sm" type="submit">ここへ移す</button>
+          </form>
+          <a class="btn btn--sm" th:href="@{/admin/categories/{id}/edit(id=${category.id})}">
+            別の名前にする</a>
+        </div>
+      </div>
+
+      <p class="help mt-4 mb-0">
+        名前だけで足せます。価格を入れるまでは「書きかけ」なので、お客さまのメニューには出ません。
+        同じ名前の商品が別のカテゴリにあるときは、作らずに止めてお知らせします。
+      </p>
+
+    </div>
+  </div>
+
+  <!--/* ───────────────────────── 消したいとき ─────────────────────────
+
+         ★ 移す先の select と削除ボタンを同じカードに入れないこと。
+           チェックした状態で削除を押す事故が起きます。 */-->
+  <div class="card mt-6">
+    <div class="card__head">このカテゴリを消したいとき</div>
+    <div class="card__body">
+      <div class="row row--wrap">
+        <form method="post" th:action="@{/admin/categories/{id}/delete(id=${category.id})}"
+              onsubmit="return confirm('このカテゴリを削除します。よろしいですか？')">
+          <button class="btn btn--danger" type="submit"
+                  th:disabled="${itemCount > 0}">削除</button>
+        </form>
+        <p class="mb-0" th:if="${itemCount > 0}"
+           th:text="'商品が ' + ${itemCount} + ' 品あるので削除できません。'
+                    + '上の一覧で別のカテゴリへ移して 0 品にすると、押せるようになります'
+                    + '（書きかけも数に入ります）'">商品があるので削除できません</p>
+        <p class="mb-0" th:unless="${itemCount > 0}">
+          商品が 1 品も無いので削除できます。消すと元に戻せません。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!--/* ★ この画面だけで使う JS。layout/staff には入れません。
+         読み込みに失敗しても、名前の欄が出たままになるだけで操作はできます。 */-->
+  <script th:src="@{/js/name-editor.js}" defer></script>
+
+</main>
+</body>
+</html>
