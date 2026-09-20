@@ -117,21 +117,51 @@ class CategoryEditMatchesFigmaTest {
      * 内訳が見えないと「0 品に見えるのに消せない」になります。
      */
     @Test
-    @DisplayName("★ 節見出しに件数が出る（このカテゴリの商品 N 品）")
+    @DisplayName("★ 帯に件数と内訳が出る（大分類 ／ N 品（掲載中 N ／ 書きかけ N））")
     void theSectionHeadingShowsTheCount() throws Exception {
         String html = read(EDIT_TPL);
 
-        int at = html.indexOf("このカテゴリの商品");
-        assertThat(at).as("節見出しが無い").isGreaterThan(0);
+        // ★ 2026-09-20 夕：置き場が帯の補足に移りました（店主の指摘
+        //   「このカテゴリの商品って段要らない」）。
+        //   帯にカテゴリ名が出ているので、その下の表が何かは見れば分かります。
+        //   守っている主張は同じ——いくつあるかが画面から分かること。
+        assertThat(html)
+                .as("★ 節見出しが残っている。帯と同じことを 2 回言っている")
+                .doesNotContain("このカテゴリの商品</h2>");
+
+        int at = html.indexOf("page-head__sub");
+        assertThat(at).as("帯の補足が無い").isGreaterThan(0);
 
         String around = html.substring(at, Math.min(html.length(), at + 400));
-        assertThat(around).as("件数の部品（.section-title__count）が無い")
-                .contains("section-title__count");
         assertThat(around).as("件数が出ていない").contains("itemCount");
         assertThat(around)
                 .as("書きかけの数が出ていない。品数は書きかけも数えるので、"
                         + "内訳が見えないと「0 品に見えるのに消せない」になる")
                 .contains("draftCount");
+    }
+
+    /**
+     * ★ 名前・大分類を変える入口は緑であること（2026-09-20、店主の指摘
+     * 「名前・大分類を変えるが緑じゃなくてボタンだと思わなかったわ」）。
+     *
+     * <p>枠線のボタン（灰色の枠）は、この画面では押せるものに見えませんでした。
+     * 押すと下に欄が出る 2 段階の操作なので、入口が見つからないと
+     * <b>カテゴリ名を直す手段が無いのと同じ</b>になります。
+     */
+    @Test
+    @DisplayName("★ 名前・大分類を変える入口が緑（押せると伝わる）")
+    void theNameEditorEntranceIsGreen() throws Exception {
+        String html = read(EDIT_TPL);
+
+        int at = html.indexOf("data-name-editor-toggle");
+        assertThat(at).as("名前・大分類を変える入口が無い").isGreaterThan(0);
+
+        // ボタンの開始タグを取り出して、その class を見る
+        int open = html.lastIndexOf("<button", at);
+        String tag = html.substring(open, at);
+        assertThat(tag)
+                .as("★ 入口が緑になっていない。枠線だと押せるものに見えない")
+                .contains("btn--primary");
     }
 
     /**

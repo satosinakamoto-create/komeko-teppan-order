@@ -45,11 +45,22 @@
     <!--/* ★ getTabName() ではなく getGroupName() を使うこと。
            前者は大分類が未設定のときカテゴリ名を返すので、
            「広島風お好み焼き ／ 広島風お好み焼き ／ 5 品」になります。 */-->
+    <!--/* ★ 品数の内訳もここに出します（節見出しを落としたぶん）。
+           書きかけも品数に数えるので、内訳が見えないと
+           「0 品に見えるのに消せない」になります。 */-->
     <span class="page-head__sub"
           th:text="(${#strings.isEmpty(category.groupName)} ? '大分類なし' : ${category.groupName})
-                   + ' ／ ' + ${itemCount} + ' 品'">お食事 ／ 12 品</span>
+                   + ' ／ ' + ${itemCount} + ' 品（掲載中 ' + ${publishedCount}
+                   + ' ／ 書きかけ ' + ${draftCount} + '）'">お食事 ／ 12 品（掲載中 10 ／ 書きかけ 2）</span>
     <span class="page-head__spacer"></span>
-    <button class="btn btn--sm" type="button" data-name-editor-toggle>名前・大分類を変える</button>
+    <!--/* ★ 緑（.btn--primary）にすること。店主の言葉：
+           「名前・大分類を変えるが緑じゃなくてボタンだと思わなかったわ」。
+
+           枠線のボタン（灰色の枠）は、この画面では押せるものに見えませんでした。
+           押すと下に欄が出る、という 2 段階の操作なので、
+           入口が見つからないと「カテゴリ名を直す手段が無い」ことになります。 */-->
+    <button class="btn btn--primary" type="button" data-name-editor-toggle>
+      名前・大分類を変える</button>
   </div>
 
   <!--/* ★ 名前と大分類を変える欄。
@@ -67,7 +78,9 @@
         th:attr="data-name-editor=${nameEditorOpen} ? 'open' : 'closed'">
 
     <div class="field mb-0" style="flex:1 1 0">
-      <label class="label" for="groupName">↳ 大分類（メニューの大見出し）</label>
+      <!--/* ラベルは短く。欄が狭い（iPad で 146px）ので、
+             「大分類（メニューの大見出し）」だと途中で切れます */-->
+      <label class="label" for="groupName">大分類</label>
       <select class="select" th:field="*{groupName}"
               th:classappend="${#fields.hasErrors('groupName')} ? 'is-error'">
         <option value="">大分類なし</option>
@@ -84,13 +97,15 @@
     </div>
 
     <div class="field mb-0" style="flex:2 1 0">
-      <label class="label" for="name">↳ カテゴリ名</label>
+      <label class="label" for="name">カテゴリ名</label>
       <input class="input" type="text" th:field="*{name}" maxlength="40"
              th:classappend="${#fields.hasErrors('name')} ? 'is-error'">
       <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">エラー内容</p>
     </div>
 
-    <button class="btn btn--sm" type="submit">保存</button>
+    <!--/* ★ ここも緑。灰色の枠線ボタンは押せると伝わりません（店主の指摘）。
+           この行でやることは「保存」だけなので、迷う相手もいません。 */-->
+    <button class="btn btn--primary" type="submit">保存</button>
 
     <!--/*「＋ 新しい大分類を作る」を選んだときだけ出る欄。追加画面と同じ作り */-->
     <div class="field catnew__name mb-0" style="flex:1 1 100%">
@@ -103,13 +118,18 @@
     </div>
   </form>
 
-  <!--/* ───────────────────────── このカテゴリの商品 ───────────────────────── */-->
-  <div class="section-title">
-    <h2 class="section-title__text">このカテゴリの商品</h2>
-    <span class="section-title__count"
-          th:text="${itemCount} + ' 品（掲載中 ' + ${publishedCount}
-                   + ' ／ 書きかけ ' + ${draftCount} + '）'">12 品</span>
-  </div>
+  <!--/* ───────────────────────── このカテゴリの商品 ─────────────────────────
+
+         ★ 節見出しは置きません（2026-09-20、店主の指摘
+           「このカテゴリの商品って段要らない」）。
+
+           帯にカテゴリ名と品数の内訳が出ているので、
+           その真下の表が「このカテゴリの商品」であることは見れば分かります。
+           同じことを 2 回言うぶん、画面が 1 段長くなっていました。
+
+         ★ 品数の内訳（掲載中 N ／ 書きかけ N）は帯の補足へ移しました。
+           書きかけも品数に数えるので（countByCategoryId）、
+           内訳が見えないと「0 品に見えるのに消せない」になります。 */-->
 
   <div th:if="${items.isEmpty()}">
     <div th:replace="~{fragments/common :: empty('品', 'このカテゴリにはまだ商品がありません。下の欄に名前を入れて足せます')}"></div>
