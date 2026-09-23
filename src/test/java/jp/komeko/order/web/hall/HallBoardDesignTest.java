@@ -261,7 +261,15 @@ class HallBoardDesignTest {
         // 文字は 15px（＝基底の .btn と同じ .9375rem）。2026-09-12 に 14px から戻した。
         // 値を 2 か所に持たないなら、この上書き自体を消して .btn に任せてもよい
         assertThat(block).contains("font-size: 15px;");
-        assertThat(block).contains("border-radius: 4px;");
+
+        // ★ 角丸の上書きは 2026-09-20 に外しました。
+        //   すぐ上のコメントに「値を 2 か所に持たないなら、この上書き自体を消して
+        //   .btn に任せてもよい」と書いてあったとおりにしたものです。
+        //   ボタンの角は 8px で全画面そろえる決定になり、ここだけ 4px に
+        //   固定し続ける理由が無くなりました（基底 .btn が直値 8px を持ちます）。
+        assertThat(block)
+                .as("角丸をここで持ち直している。値は .btn の 1 か所に置く")
+                .doesNotContain("border-radius:");
 
         // 例外はここだけ。共通の .btn は 48px（--tap）のまま
         assertThat(css).as("共通のボタンまで小さくしている")

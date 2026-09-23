@@ -82,14 +82,36 @@ class StaffScreenSplitTest {
         assertThat(html).as("一覧へ戻る口が無い").contains("← スタッフ一覧へ");
     }
 
+    /**
+     * ★ 直したあとは直す画面に留まる。
+     *
+     * <p>守っているのは「1 人直すたびに読む画面へ飛ばされない」ことです。
+     * 続けて別の人を直したいのに毎回一覧へ戻されると、そのつど
+     * ［編集］を押し直すことになります。
+     *
+     * <p><b>2026-09-20：数を 4 → 3 に減らしました。</b>
+     * 追加を {@code /admin/staff/new} へ切り出したので、
+     * <b>追加だけは直す画面に戻りません</b>（足し終わった人の用は済んでいて、
+     * 増えたことが見えるのは一覧のほうなので、一覧へ送ります）。
+     * 残る 3 つ＝更新・パスワード変更・削除は、これまでどおり直す画面に留まります。
+     */
     @Test
-    @DisplayName("★ 保存したあとは直す画面に留まる")
+    @DisplayName("★ 更新・削除のあとは直す画面に留まる（追加だけは一覧へ）")
     void savingStaysOnTheEditScreen() throws Exception {
         String java = Files.readString(
                 Path.of("src/main/java/jp/komeko/order/web/admin/AdminStaffController.java"));
+
         assertThat(java.split("redirect:/admin/staff/edit", -1).length - 1)
-                .as("読む画面へ戻る口が残っている").isEqualTo(4);
-        assertThat(java).doesNotContain("\"redirect:/admin/staff\"");
+                .as("更新・パスワード変更・削除の戻り先が直す画面でなくなっている").isEqualTo(3);
+
+        // ★ 一覧へ戻すのは「追加が成功したとき」の 1 回だけ。
+        //   更新や削除まで一覧へ送ると、続けて直せなくなる。
+        assertThat(java.split("\"redirect:/admin/staff\"", -1).length - 1)
+                .as("読む画面へ戻す口が増えている。留まるべきは更新・削除").isEqualTo(1);
+
+        // 追加の入力エラーは、足す画面へ戻して直し直せるようにする
+        assertThat(java).as("追加の失敗時に足す画面へ戻していない")
+                .contains("redirect:/admin/staff/new");
     }
 
     @Test
@@ -126,11 +148,17 @@ class StaffScreenSplitTest {
     }
 
     @Test
-    @DisplayName("★ 列幅は設計どおり 330 / 270 / 220 / 300（合計 1120）")
+    @DisplayName("★ 列幅は設計どおり 320 / 280 / 220 / 300（合計 1120）")
     void columnWidths() throws Exception {
         String css = Files.readString(Path.of("src/main/resources/static/css/app.css"));
-        assertThat(css).contains(".table--staff th:nth-child(1), .table--staff td:nth-child(1) { width: 330px; }");
-        assertThat(css).contains(".table--staff th:nth-child(4), .table--staff td:nth-child(4) { width: 300px; }");
+        // ★ 2026-09-20：330 → 320（設計 ト15 の実測値。2 列目が 270 → 280）。
+        //   合計はどちらも 1120 なので、見た目では気づけませんでした。
+        // 設計 320/280/220/300（合計 1120）を 1120 基準の割合で
+        assertThat(css).contains(".table--staff th:nth-child(1), .table--staff td:nth-child(1) { width: 28.571%; }");  // 320
+        assertThat(css).contains(".table--staff th:nth-child(2), .table--staff td:nth-child(2) { width: 25%; }");  // 280
+        assertThat(css).contains(".table--staff th:nth-child(4), .table--staff td:nth-child(4) { width: 26.786%; }");  // 300
+        assertThat(css).as("★ 列幅が px に戻っている（iPad で最終ログイン列が見切れる）")
+                .doesNotContain(".table--staff th:nth-child(1), .table--staff td:nth-child(1) { width: 320px; }");
         assertThat(css).contains(".table--staff { table-layout: fixed; }");
     }
 }

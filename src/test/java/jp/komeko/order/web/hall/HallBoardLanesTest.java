@@ -201,26 +201,51 @@ class HallBoardLanesTest {
         assertThat(lane(board(), "lane--cleanup")).doesNotContain("片付けテーブル");
     }
 
+    /**
+     * ★ 盤面のボタンは伝票ページへ渡すだけ（2026-09-23 にモーダルをやめました）。
+     *
+     * <p><b>守っているものは変わっていません</b>——「1 回押しただけでは締まらない」。
+     * 以前はモーダルを開いて、その中に支払方法と締めるフォームがありました。
+     * いまは伝票ページ（{@code /hall/bills/{id}}）へ渡します。
+     *
+     * <p><b>なぜページにしたか。</b>
+     * モーダルは 520px で、14 品の明細のうち 8 品しか一度に出せず、
+     * お客さまに読み上げながらスクロールすることになっていました。
+     * 伝票ページは同じ内容をページ幅で出せて、しかも会計メモ・人数変更・
+     * チャージ免除・お会計待ちにする、を最初から持っています。
+     *
+     * <p><b>盤面に締めるフォームが無いことを見張ります。</b>
+     * 盤面に残っていると、卓を眺めているだけのつもりで押せてしまいます。
+     * 会計は売上が確定する操作なので、伝票を開いた人にだけ触らせます。
+     */
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("★ お会計待ちのボタンはモーダルを開く（1 回押しただけでは締まらない）")
-    void checkoutButtonOpensTheModal() throws Exception {
+    @DisplayName("★ お会計待ちのボタンは伝票ページへ渡す（盤面では締められない）")
+    void checkoutButtonGoesToTheBillPage() throws Exception {
         DiningTable table = awaitingCheckout();
         Long billId = tableService.currentSession(table.getId()).orElseThrow().getId();
 
         String html = board();
 
-        // 列のボタンはモーダルを開くだけ。ここに close の form があってはいけない
-        String closingLane = lane(html, "lane--closing");
-        assertThat(closingLane).as("モーダルを開く指定が無い")
-                .contains("data-open-modal=\"bill-modal-" + billId + "\"");
+        assertThat(lane(html, "lane--closing"))
+                .as("★ お会計待ちの列から伝票ページへ行けない")
+                .contains("/hall/bills/" + billId);
 
-        // 締めるフォームはモーダルの中にある。
-        // closeSession は支払方法が必須なので、1 回押しただけでは終われない
-        assertThat(html).as("お会計のモーダルが無い").contains("id=\"bill-modal-" + billId + "\"");
-        assertThat(html).contains("/hall/bills/" + billId + "/close");
+        assertThat(html)
+                .as("★ 盤面に締めるフォームが残っている。卓を見ているだけのつもりで押せてしまう")
+                .doesNotContain("/hall/bills/" + billId + "/close");
+        assertThat(html)
+                .as("★ 盤面に支払方法が残っている。会計は伝票ページの仕事")
+                .doesNotContain("name=\"paymentMethod\"");
+
+        // 行き先の伝票ページに、支払方法と締めるフォームが揃っていること
+        String bill = mockMvc.perform(get("/hall/bills/" + billId))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(bill).as("伝票ページに支払方法が無い").contains("name=\"paymentMethod\"");
+        assertThat(bill).as("伝票ページに締めるフォームが無い")
+                .contains("/hall/bills/" + billId + "/close");
         // ★ 確認ダイアログは最後のボタンだけ。途中のボタンには付けない
-        assertThat(html).contains("komekoConfirmClose");
-        assertThat(html).as("支払方法が選べない").contains("name=\"paymentMethod\"");
+        assertThat(bill).contains("komekoConfirmClose");
     }
 }

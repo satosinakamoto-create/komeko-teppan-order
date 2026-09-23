@@ -264,7 +264,7 @@ public class AdminTableController {
                         @RequestParam(required = false) Long after,
                         RedirectAttributes redirectAttributes) {
         if (!tableService.placeTableNextTo(id, before, after)) {
-            redirectAttributes.addFlashAttribute("flashInfo", "並び順は変わりませんでした");
+            redirectAttributes.addFlashAttribute("flashWarn", "並び順は変わりませんでした");
         }
         // ★ 戻り先は一覧（2026-09-19 に /edit から変更）。
         //   つまみが両方の画面にあった頃の名残で編集画面へ戻していましたが、
@@ -326,7 +326,7 @@ public class AdminTableController {
             return "redirect:/admin/tables/edit";
         }
 
-        redirectAttributes.addFlashAttribute("flashInfo",
+        redirectAttributes.addFlashAttribute("flashWarn",
                 "卓「%s」の QR を再発行しました。古い QR はもう使えません。この画面の「印刷」から刷り直して貼り替えてください"
                         .formatted(name));
         return "redirect:/admin/tables/edit";

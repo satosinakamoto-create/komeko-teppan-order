@@ -35,7 +35,8 @@
     <!--/* 「足す」と「直す」で入口を分ける（2026-09-15・設計 ト12）。
            編集は枠ボタン、新規追加は塗り——この画面でいちばんよくやるのは
            「卓を増やす」なので、そちらを主にする */-->
-    <a class="btn" th:href="@{/admin/tables/edit}">編集</a>
+    <!--/* 編集の口は緑の枠（btn--edit）。灰色は「戻る」に使う色（2026-09-20） */-->
+    <a class="btn btn--edit" th:href="@{/admin/tables/edit}">編集</a>
     <a class="btn btn--primary" th:href="@{/admin/tables/new}">＋新規追加</a>
   </div>
 
@@ -69,7 +70,11 @@
       <tr th:each="t : ${tables}"
           th:data-item-id="${t.id}" data-group-id="all">
         <td>
-          <a th:href="@{/admin/tables/edit}" th:text="${t.name}">3番テーブル</a>
+          <!--/* ★ 名前はただの文字。リンクにしないこと（2026-09-20・店主の指摘）。
+                 設計（ト11／ト12／ト15）はどれも黒の Regular で、リンクではありません。
+                 緑の下線リンクだと「押せるもの」がこの画面に 2 系統できてしまい、
+                 どこから直すのかが名前と編集ボタンに割れます。入口は編集ボタン 1 本に。 */-->
+          <span th:text="${t.name}">3番テーブル</span>
         </td>
         <!--/* ★ 2026-09-19：num（右ぞろえ）を外しました。
 

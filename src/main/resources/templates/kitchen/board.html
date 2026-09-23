@@ -8,12 +8,18 @@
    そのためチケットの主役は注文番号ではなく **卓名** にしています。
    注文番号は伝票と突き合わせるときの目印として小さく併記するだけです。
 
-   ・3 レーン（受付 → 調理中 → 提供待ち）を左から右へ流していく作りです。
-   ・ボタンは「いま押せるもの」だけを出します。押せる状態の一覧は
-     OrderStatus#allowedNext() が持っていて、サーバ側の遷移チェックも
-     同じメソッドを見ています。画面とサーバで判断がズレません。
+   ・2 レーン（未調理 ／ 調理済み）です。2026-09-23 に 3 レーン
+     （受付 → 調理中 → 提供待ち）から作り替えました。軸は「調理」ひとつで、
+     焼かない品（瓶ビール・冷やしトマト）が「調理中」を通らずに済みます。
+   ・並べるのは注文ではなく **品**（OrderLine.stage / LineStage）です。
+     一度に 4 品頼まれても調理は 1 つずつだからです。
+     未調理は伝票ごと（一緒に焼く単位）、調理済みは卓ごと（一緒に運ぶ単位）。
+   ・押せる移り先は LineStage#allowedNext() が持っていて、
+     サーバ側の検査も同じメソッドを見ています。画面とサーバで判断がズレません。
    ・注文が入ったり状態が変わったりすると、SSE（/api/stream/kitchen）で
      通知が届き、kitchen.js が少し待ってからページを読み直します。
+   ・寸法は設計（ト01 厨房ボード 1548:20793）を **実数値で測って** 写しています。
+     値の一覧は app.css の「厨房ボード（2 レーン・品ごと）」の頭にあります。
 
    なお、この囲みは Thymeleaf 専用のコメントで、出力される HTML には残りません。
 */-->
@@ -28,256 +34,212 @@
   <!--/* 直前の操作結果（成功・お知らせ・エラー）を 1 回だけ表示する共通部品 */-->
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <!--/* ===== 見出しと稼働状況 ===== */-->
-  <section class="card griddle mt-4">
-    <div class="card__body row row--between row--wrap">
-      <!--/* 題と説明は横並び（設計 現01）。縦に積むと帯が 2 行ぶんの高さになり、
-             稼働状況のチップの位置も下がります。狭い画面では折り返します。 */-->
-      <div class="griddle__title">
-        <h1 class="mb-0">厨房ボード</h1>
-        <p class="small muted mb-0">左から右へ、ボタンを押して状態を進めます</p>
-      </div>
+  <!--/* ===== ページ見出し（設計 ト01 1548:20793）=====
 
-      <div class="row row--wrap">
-        <!--/* 注文受付の稼働状況。止まっているのに気づかないのが一番こわいので目立たせる。
+         ★ 共通部品 .page-head を使います（2026-09-23）。
+           自前の .kboard__* を作っていましたが、<b>見出しは 31 画面の共通です</b>。
+           設計の厨房だけ 24px でしたが、23 画面中 19 枚が 32px で、
+           24px は厨房の 2 枚だけ——<b>設計側が例外</b>でした
+           （店主：「見出しの厨房ボードのフォントサイズ大きすぎておかしい」）。
+           共通に寄せれば、次に見出しを直すときもここは付いてきます。
 
-               判定に使うのは shop.acceptingOrders（店長が倒す非常ブレーキ）ではなく、
-               コントローラが用意した accepting です。営業時間前・ラストオーダー後も
-               注文は通らないので、フラグだけを見ると「受付中」と出したまま
-               実際には 1 件も入ってこない、という一番まずい状態になります。 */-->
-        <span class="status-chip" style="color: var(--ok)"
-              th:if="${accepting}">注文受付中</span>
-        <span class="status-chip" style="color: var(--danger)"
-              th:unless="${accepting}">受付停止中</span>
+         実測（共通）：題 32px Bold・行間 36・床 50／補足 14px #828282／
+         間 12・padding 16 40。
 
-        <!--/* 未処理件数＝受付＋調理中＋提供待ちの合計 */-->
-        <span class="badge badge--rec"
-              th:text="'未処理 ' + ${board.activeCount()} + ' 件'">未処理 0 件</span>
+         ★ 補足は「未調理 N 件・調理済み N 件」。
+           以前の「左から右へ、ボタンを押して状態を進めます」は
+           3 レーンのときの説明でした。2 レーンになったので数に替えます。 */-->
+  <div class="page-head">
+    <h1 class="page-head__title">厨房ボード</h1>
+    <span class="page-head__sub"
+          th:text="'未調理 ' + ${lineBoard.uncookedCount()} + ' 件・調理済み '
+                   + ${lineBoard.cookedCount()} + ' 件'">未調理 4 件・調理済み 2 件</span>
+    <span class="page-head__spacer"></span>
 
-        <span class="tiny faint"
-              th:text="'ラストオーダー ' + ${shop.lastOrderTime}">ラストオーダー 18:30</span>
-      </div>
-    </div>
-  </section>
+    <!--/* 注文受付の稼働状況。止まっているのに気づかないのが一番こわいので目立たせる。
 
-  <!--/* ===== 3 レーン =====
-         lanes は KitchenController が用意した「見出し・CSS クラス・注文リスト」の組です。
-         record（値の入れ物）なので、値の取り出しは ${lane.title()} のように
-         括弧付きで呼びます（record のアクセサは getTitle() ではなく title() のため）。
+           判定に使うのは shop.acceptingOrders（店長が倒す非常ブレーキ）ではなく、
+           コントローラが用意した accepting です。営業時間前・ラストオーダー後も
+           注文は通らないので、フラグだけを見ると「受付中」と出したまま
+           実際には 1 件も入ってこない、という一番まずい状態になります。 */-->
+    <span class="status-chip" style="color: var(--ok)"
+          th:if="${accepting}">注文受付中</span>
+    <span class="status-chip" style="color: var(--danger)"
+          th:unless="${accepting}">受付停止中</span>
+    <span class="tiny faint"
+          th:text="'ラストオーダー ' + ${shop.lastOrderTime}">ラストオーダー 18:30</span>
+  </div>
+
+  <!--/* ===== 2 レーン（未調理 ／ 調理済み）=====
+
+         ★ 3 レーン（受付 → 調理中 → 提供待ち）から作り替えました（2026-09-23）。
+           設計は Figma の ト01 厨房ボード（1548:20793）。
+           経緯は docs/厨房ボード-設計-20260922.md。
+
+         ★ 軸は「調理」ひとつです。
+           焼かない品（瓶ビール・冷やしトマト）が「調理中」を通る意味がなく、
+           「提供待ち」に置いた品が調理中かどうかを知る方法もありませんでした
+           （店主：「提供待ちで調理中ってのもおかしくない？」）。
+
+         ★ 並べるのは注文ではなく品です。
+           一度に 4 品頼まれても調理は 1 つずつだからです。
+           未調理は伝票ごと（一緒に焼く単位）、調理済みは卓ごと（一緒に運ぶ単位）。
+
+         ★ 幅は 736 : 368（設計の実測値）。焼く前のほうが長く滞留するので広いほうを左に。
   */-->
-  <div class="board mt-4">
+  <div class="kboard mt-4">
 
-    <section class="lane" th:each="lane : ${lanes}" th:classappend="${lane.modifier()}">
-
-      <header class="lane__head">
-        <span th:text="${lane.title()}">受付</span>
-        <span class="count" th:text="${lane.size()}">0</span>
+    <!--/* ── 未調理 ─────────────────────────────────────── */-->
+    <section class="klane klane--todo">
+      <header class="klane__head">
+        <span class="klane__title">未調理</span>
+        <span class="klane__count" th:text="${lineBoard.uncookedCount()}">5</span>
       </header>
 
-      <div class="lane__body">
+      <div class="klane__body">
+        <p class="klane__empty" th:if="${lineBoard.uncooked().isEmpty()}">焼くものはありません</p>
 
-        <!--/* そのレーンが空のとき */-->
-        <p class="lane__empty" th:if="${lane.isEmpty()}">注文はありません</p>
+        <!--/* 伝票 1 枚＝注文 1 件。一度に入った注文は一緒に焼くのでまとめる */-->
+        <article class="kticket" th:each="t : ${lineBoard.uncooked()}"
+                 th:classappend="${elapsedDisplay.late(t.order())} ? 'kticket--late'">
 
-        <!--/* ===== 伝票 1 枚 =====
-               15 分以上たった注文には is-late が付き、枠が赤くなります。
-               経過時間はサーバが描いた値をそのまま出します。
-               ブラウザ側で 1 分ずつ足していくとサーバとズレる一方なので行いません。
+          <!--/* ★ 10 分を過ぎたら帯を薄赤に。段は作りません（1 つだけ）。
+                 枠を赤くする案は不採用——✕ の赤い線と見分けがつかなくなるためです
+                 （店主：「赤い枠にしたけどこれだと画面がうるさい気がするな」）。
 
-               赤枠にするかの判定は elapsedDisplay（KitchenController.ElapsedDisplay）に
-               任せています。閾値の比較をここに書かないのは、
-               「数字を出すか」（下の .ticket__time）と条件が食い違わないようにするためです。
-               片方だけ直して「数字は無いのに枠は赤い」を作らないための置き方です。
-        */-->
-        <article class="ticket" th:each="order : ${lane.orders()}"
-                 th:classappend="${elapsedDisplay.late(order)} ? 'is-late'">
-
-          <!--/* ===== チケットの頭 =====
-                 いちばん大きく出すのは卓名（＝運び先）です。
-                 .ticket__num はもともと 3 桁の番号を大きく出すための見た目
-                 （数字用フォント・1.75rem）なので、
-                 「カウンター2」のような日本語が入ると横にはみ出します。
-                 以前はその調整を inline style でここに書いていましたが、
-                 2026-09-12 に app.css の 33 節（.kitchenboard）へ移しました。
-                 設計の「卓名 20px 太字」と同じ値が 2 箇所にあると必ず片方だけ古くなるためです。
-          */-->
-          <div class="ticket__head">
-            <span class="ticket__num" th:text="${order.tableName}">3番テーブル</span>
-
-            <!--/* 注文番号。厨房の控えや伝票と突き合わせるときだけ使うので小さく併記する */-->
-            <span class="ticket__name" th:text="'#' + ${order.orderNumber}">#101</span>
-
-            <!--/* ===== 同じ卓の注文が複数あるときの注意喚起 =====
-                   イートインでは 1 つの卓から何度も追加注文が入ります。
-                   バラバラに運ぶとホールが同じ卓を何度も往復することになるので、
-                   「この卓はほかにも出るものがある」と気づけるようにしています。
-
-                   件数は KitchenController が数えて sameTableCount（卓名 → 件数）に
-                   詰めてくれています。Map なので [キー] の形で引きます。
-                   1 件だけのときは当たり前なので出しません（バッジだらけになると誰も見なくなる）。 */-->
-            <span class="badge badge--rec"
-                  th:if="${sameTableCount[order.tableName] != null and sameTableCount[order.tableName] > 1}"
-                  th:text="'同卓 ' + ${sameTableCount[order.tableName]} + ' 件'">同卓 2 件</span>
-
-            <!--/* 経過時間。
-
-                   公開デモでは、起動時に置かれた背景の注文が
-                   夕方には「378 分」になり、ボード全面が赤枠になります。
-                   数字が実態と合っていないので、そこまで古いものは
-                   数字も赤枠も出さず「デモ用」とだけ書きます。
-                   見学者がその場で入れた注文は経過時間が正しいので、
-                   これまでどおり分数が出て、15 分たてば赤くなります。
-
-                   実店舗（app.guest-login=false）では条件が常に成立し、
-                   これまでと 1 ピクセルも変わりません。判断は elapsedDisplay 側にあります。 */-->
-            <!--/* 出さないと決めたときは、span ごと出しません。
-                   最初は「デモ用」というラベルを入れていましたが、やめました。
-                   ここは経過時間という「計測値」の枠なので、同じ枠に出自のラベルを
-                   混ぜると意味の型が揃いません。しかも公開デモでは 7 枚中 4 枚に出て、
-                   ボードでいちばん多い語が「デモ用」になります。
-                   全部デモなのに一部だけそう名乗るので、数字が出ている側が
-                   「本物」だと読めてしまうのも具合が悪い。
-                   説明は画面の下に 1 回だけ置いて、チケットは静かにしておきます。 */-->
-            <span class="ticket__time"
-                  th:if="${elapsedDisplay.shows(order)}"
-                  th:text="${order.elapsedMinutes} + ' 分'">3 分</span>
+               ★ 経過時間は elapsedDisplay に聞くこと。直に出さないこと。
+                 見学モード（app.demo-data=true）では、あらかじめ置いてある注文の
+                 時刻が実態と合わないので出しません。しきい値の比較を画面に書くと、
+                 ここと sameTableCount で判断が割れます。 */-->
+          <div class="kticket__band">
+            <span class="kticket__table" th:text="${t.order().tableName}">カウンター札3</span>
+            <span class="kticket__no" th:text="'#' + ${t.order().orderNumber}">#104</span>
+            <span class="kticket__gap"></span>
+            <span class="kticket__time" th:if="${elapsedDisplay.shows(t.order())}"
+                  th:text="${t.elapsedMinutes()} + ' 分'">18 分</span>
           </div>
 
-          <!--/* 明細。オプションは「（チーズ増量 / 大盛り）」の形で 1 行にまとめて出す */-->
-          <ul class="ticket__items">
-            <li th:each="line : ${order.lines}">
-              <span class="ticket__qty" th:text="'×' + ${line.quantity}">×2</span>
-              <span>
-                <span th:text="${line.menuItemName}">コンプレット</span>
-                <span class="ticket__opt" th:if="${!line.options.isEmpty()}"
-                      th:text="'（' + ${line.optionSummary} + '）'">（チーズ増量）</span>
-              </span>
-            </li>
-          </ul>
+          <div class="kticket__lines">
+            <!--/* ★ th:block でループを囲みます。
+                   設計では「品目行」と「└ ねぎ増し」が<b>兄弟</b>として並ぶので、
+                   1 周で 2 つの要素を出す必要があります。
+                   行の div に th:each を置くと、オプションが line のスコープ外になり
+                   「Exception evaluating !line.options.isEmpty()」で描画ごと落ちます。 */-->
+            <th:block th:each="line : ${t.lines()}">
+            <div class="kline">
 
-          <!--/* ご要望。見落としがクレームに直結するので、明細より目立つ色にしてある */-->
-          <p class="ticket__note" th:if="${order.note != null}"
-             th:text="'要望：' + ${order.note}">要望：ソース少なめ</p>
+              <!--/* 数量の箱。黒＝鉄板で焼く品、白＝焼かない品（飲み物など）。
+                     いまは調理時間（cookMinutes）で見分けています。
+                     商品かカテゴリに「鉄板を使う」印を持たせるかは未決なので、
+                     決まったらここを差し替えてください（設計書 8 節）。 */-->
+              <span class="kline__qty" th:classappend="${line.cookMinutes > 0} ? 'kline__qty--fire'"
+                    th:text="'×' + ${line.quantity}">×2</span>
 
-          <!--/* ===== 状態を進めるボタン =====
-                 出すボタンは order.status.allowedNext() から作ります。
-                 こうしておくと「押せたのにサーバで弾かれた」が起きません。
+              <!--/* ★ 品名の太さも鉄板かどうかで変わります（設計の実測）。
+                     焼く品は Bold、焼かない品（飲み物・ポテサラ）は Regular。
+                     数の箱の色と同じ判断なので、印を 2 つ持たせず同じ条件で切り替えます。 */-->
+              <span class="kline__name" th:classappend="${line.cookMinutes > 0} ? 'kline__name--fire'"
+                    th:text="${line.menuItemName}">国産砂肝の鉄板塩たれ焼</span>
 
-                 th:each と th:if を同じタグに書いていますが、これは意図どおりです。
-                 Thymeleaf は属性を決まった優先順位で処理し、th:each のほうが
-                 th:if より先に評価されるため「繰り返した結果を 1 件ずつ絞り込む」動きになります。
-                 （th:replace と th:if を同じタグに書くのは NG。th:if が無視されます）
+              <span class="kline__gap"></span>
 
-                 HTML のフォームは入れ子にできないので、ボタン 1 つにつきフォーム 1 つです。
-                 th:action で書くと CSRF トークンの hidden 項目が自動で入ります。
-                 素の action="..." にすると 403 になるので注意してください。
-          */-->
-          <div class="ticket__actions">
-            <form th:each="next : ${order.status.allowedNext()}"
-                  th:if="${next.name() != 'CANCELED'}"
-                  th:action="@{/kitchen/orders/{id}/status(id=${order.id})}" method="post">
-              <input type="hidden" name="status" th:value="${next.name()}">
-              <!--/* ===== ボタンの強さ =====
-                     見た目は「遷移先が何か」ではなく
-                     **そのレーンでの標準の次の一手か**で決めます（OrderStatus#isPrimaryNext）。
+              <form th:action="@{/kitchen/lines/{id}/stage(id=${line.id})}" method="post">
+                <input type="hidden" name="stage" value="COOKED">
+                <button type="submit" class="btn kbtn kbtn--go">調理済み</button>
+              </form>
 
-                     以前は遷移先の名前だけで決めていて、受付レーンだけ話が逆になっていました。
-                     受付には「焼きはじめ（→調理中）」と「焼き上がり（→お渡し可）」が並びます。
-                     後者はドリンクだけの注文で焼く工程を飛ばすための操作なのに、
-                     READY 行きというだけで緑の目立つボタンになり、
-                     本来の一手である「焼きはじめ」が白いゴーストで一番弱くなっていました。
-                     忙しい厨房で一番目立つボタンが飛ばし技、というのは事故のもとです。
+              <!--/* ★ 品ごとの取り消し（設計 ト01 に 10 個あります）。
+                     焼く前に「やっぱり要らない」と言われる場面が厨房にもあります。
 
-                     文言のほうは前から「いまいるレーンで意味が変わる」を見ていました
-                     （下の COOKING の分岐）。同じ原則を見た目にも適用した、というのがこの式です。
+                   ★ 地も枠も持たせません（店主の判断）。
+                     「×ボタンはそんなに目立たせたいものでも押させたいモノでもない」。
+                     見た目は文字ひとつでも、当たり判定は 48px（--tap）を確保します。
+                     押してほしいのは隣の「調理済み」だけなので、ここに枠を足すと
+                     主従が並んでしまいます。 */-->
+              <!--/* 設計の実測は<b>文字ひとつ</b>（✕ 16px Bold #444444）。
+                     48×48・角丸 999・地も枠もなし。
+                     読み上げには aria-label で語を渡すので、画面に語は出しません。 */-->
+              <button type="button" class="linex kline__x"
+                      sec:authorize="!hasRole('GUEST')"
+                      th:data-open-modal="'kline-cancel-' + ${line.id}"
+                      th:aria-label="${line.menuItemName} + ' をキャンセルする'">✕</button>
+            </div>
 
-                     ・標準の一手 … btn--primary（草緑 #0b7a1a の塗り）
-                     ・それ以外   … 無印の .btn（白地に薄い枠）。飛ばす・戻すは例外操作
+            <!--/* 焼き加減・増し。設計では<b>行の外</b>（品目の直下）に置かれ、
+                   行と同じ 10px の間隔で下にぶら下がります。
+                   お客さまの自由入力は廃止済みで、商品のオプションだけが並びます。 */-->
+            <p class="kline__opt" th:if="${!line.options.isEmpty()}"
+               th:text="'└ ' + ${line.optionSummary}">└ ねぎ増し</p>
+            </th:block>
+          </div>
 
-                     ★ 2026-09-12 に 2 点変えました（設計 現01 厨房ボード 552:6627 に合わせた）。
+          <!--/* ★ 昔の注文に入っている「ご要望」。
+                 入力欄は 2026-09-22 に廃止しましたが、表示は残します。
+                 消すと、廃止前の注文を開いたときに<b>要望が無かったこと</b>になります。
+                 機能をやめた後も、何が起きたかの記録は残すのが筋です
+                 （CustomerNoteRemovedTest が見張っています）。 */-->
+          <p class="kticket__note" th:if="${t.order().note != null}"
+             th:text="'ご要望：' + ${t.order().note}">ご要望：ソース少なめ</p>
+        </article>
+      </div>
+    </section>
 
-                       1. 色。以前ここには「緑は完了の色なので主ボタンには使わない」と
-                          書いてありましたが、ホール盤面の色を決め直したときに
-                          **緑＝押せる**（--action）／**赤＝押したら戻しにくい**（--action-danger）
-                          という区分に変わりました。厨房の主ボタンもその緑です。
-                          表の見出しのティール（--accent）とは別の色なので、
-                          「塗ってある＝押せる」の読み方は崩れません。
+    <!--/* ── 調理済み ───────────────────────────────────── */-->
+    <section class="klane klane--done">
+      <header class="klane__head">
+        <span class="klane__title">調理済み</span>
+        <span class="klane__count" th:text="${lineBoard.cookedCount()}">3</span>
+      </header>
 
-                       2. 大きさ。「提供済みにする」だけ btn--lg で一段大きくしていましたが、
-                          設計は 3 レーンとも操作ボタンを 56px でそろえています。
-                          レーンごとにボタンの高さが変わると、ボードを縦に流し読みしたときの
-                          行の位置がそろわないほうが読みにくい、という判断です。
-                          押し間違えの防止は、キャンセルを下段に分けて赤枠にすることで担保します。 */-->
-              <button type="submit" class="btn"
-                      th:classappend="${order.status.isPrimaryNext(next)} ? 'btn--primary' : ''">
-                <!--/* ボタンの文言はイートインの動きに合わせています。
-                       OrderStatus の staffLabel（「お渡し可」「受渡済」）は
-                       テイクアウト時代の言葉のままで、他の画面も使っているため変更できません。
-                       そこで、この画面に出す文字だけをここで上書きしています。
+      <div class="klane__body">
+        <p class="klane__empty" th:if="${lineBoard.cooked().isEmpty()}">出せる品はありません</p>
 
-                       COOKING へ進むボタンだけは、いまいるレーンで意味が変わります。
-                       受付 → 調理中 は前へ進める操作ですが、
-                       提供待ち → 調理中 は「焼き直す」ために一段戻す操作です。
-                       どちらも「焼きはじめ」と書くと、提供待ちのレーンで
-                       押した人が戻したことに気づけません。 */-->
-                <th:block th:switch="${next.name()}">
-                  <span th:case="'COOKING'"
-                        th:text="${order.status.name() == 'READY'} ? '調理中に戻す' : '焼きはじめ'">焼きはじめ</span>
-                  <span th:case="'READY'">焼き上がり</span>
-                  <span th:case="'COMPLETED'">提供済みにする</span>
-                  <span th:case="*" th:text="${next.staffLabel}">次へ</span>
-                </th:block>
-              </button>
+        <!--/* 札 1 枚＝卓 1 つ。運ぶ単位が卓なので、ボタンも卓ごと。
+               並び順は「その卓の最初の 1 品が調理済みになった時刻」なので、
+               あとから品が増えても札は動きません（指を伸ばしている最中に並びが変わらない） */-->
+        <article class="kserve" th:each="c : ${lineBoard.cooked()}">
+          <div class="kserve__head">
+            <span class="kserve__table" th:text="${c.tableName}">カウンター札3</span>
+            <span class="kserve__no"
+                  th:text="'#' + ${#strings.listJoin(c.orderNumbers, ' #')}">#106</span>
+          </div>
+
+          <div class="kserve__line" th:each="line : ${c.lines}">
+            <!--/* ★ 品名が伸びて（FILL）、戻すと ✕ が右端に寄ります（設計の実測）。
+                   実測：行 308・間 6／品名 190（伸びる）／← 戻す 58／✕ 48。
+                   別に「のばす」を挟んでいましたが、設計では品名そのものが伸びます。
+                   同じ見た目に見えて、品名が長いときの折り返し方が変わります。 */-->
+            <span class="kserve__name"
+                  th:text="'×' + ${line.quantity} + ' ' + ${line.menuItemName}">×1 濃厚！国産豚ぺい焼</span>
+
+            <!--/* ★ 押し間違いの救済（店主：「一個前の状態に戻すボタンが必要なんじゃない？」）。
+                   提供済みからは戻せないので、戻せるのはここだけです。 */-->
+            <form th:action="@{/kitchen/lines/{id}/stage(id=${line.id})}" method="post">
+              <input type="hidden" name="stage" value="UNCOOKED">
+              <button type="submit" class="kback">← 戻す</button>
             </form>
+
+            <!--/* ★ 調理済みの行にも ✕ が要ります（設計 ト01 の「調理済みの品」に
+                   ボタン／品を取り消す が入っています）。
+                   焼き上がったあとに「やっぱり要らない」と言われる場面があるためで、
+                   未調理レーンと同じ形（48×48・地も枠もなし・文字ひとつ）です。 */-->
+            <button type="button" class="linex kline__x"
+                    sec:authorize="!hasRole('GUEST')"
+                    th:data-open-modal="'kline-cancel-' + ${line.id}"
+                    th:aria-label="${line.menuItemName} + ' をキャンセルする'">✕</button>
           </div>
 
-          <!--/* ===== キャンセル =====
-                 誤タップの影響が大きいので、確認ダイアログを挟み、一段下げて置きます。
-                 注文が閉じていない間だけ表示（CANCELED は allowedNext に必ず含まれる状態）。
-                 理由の入力欄は置かず既定値を送ります。自動リロードのある画面で
-                 入力途中の文字が消えるのを避けるためです。
+          <p class="kserve__rest" th:if="${!c.remaining.isEmpty()}"
+             th:text="'未調理に残り　' + ${#strings.listJoin(c.remaining, '　')}">
+            未調理に残り　×2 黒毛和牛上ホルモン焼</p>
 
-                 キャンセルした品はその卓の伝票（お会計）からも外れます。
-                 金額の計算し直しはサーバ側（TableSession）が一手に引き受けるので、
-                 この画面では一切金額に触れません。
-          */-->
-          <!--/* キャンセルは見学者（ROLE_GUEST）には出さない。
-                 「状態を進める」と違い、伝票から品が消える＝残る変更なので、
-                 公開デモの「表示のみ・状態を進める操作だけ」の約束の外にある。
-                 SecurityConfig 側でも POST を弾いている（二重の守り） */-->
-          <!--/* 上の操作との間は .ticket の gap（12px）が作ります。
-                 以前は mt-4 を付けていましたが、カードの中の間隔を 1 箇所
-                 （app.css 33 節の .kitchenboard .ticket の gap）で決める形にしたので外しました。 */-->
-          <!--/* ★ ticket__cancel を外さないこと。
-                 タブレット幅（1140px 以下）では、この入れ物ごと伝票の右上へ動かして
-                 「✕」1 文字にします（app.css 35-7 節）。理由は高さです。
-                 実測で 1024×768 のレーンに入る伝票は 1.7 枚しかなく、
-                 その内訳でいちばん大きかったのが、全伝票に必ず付くこの 48px の行でした。
-                 クラスが 1 つ増えるだけで、PC 幅の見た目は 1px も変わりません。 */-->
-          <div class="ticket__actions ticket__cancel" th:unless="${order.status.closed}"
-               sec:authorize="!hasRole('GUEST')">
-            <form th:each="next : ${order.status.allowedNext()}"
-                  th:if="${next.name() == 'CANCELED'}"
-                  th:action="@{/kitchen/orders/{id}/cancel(id=${order.id})}" method="post">
-              <input type="hidden" name="reason" value="店舗都合">
-              <!--/* 確認ダイアログに卓名と番号を出したいので、値は data-* 属性で渡します。
-                     onclick の中に Thymeleaf の式を直接書くと引用符の扱いが複雑になるため、
-                     「値は Thymeleaf、組み立ては JavaScript」と役割を分けています。 */-->
-              <button type="submit" class="btn btn--danger"
-                      th:attr="data-table=${order.tableName},data-number=${order.orderNumber}"
-                      onclick="return confirm(this.dataset.table + ' の注文（#' + this.dataset.number + '）をキャンセルします。お会計からも取り除かれます。よろしいですか？');">
-                <!--/* ★ 「キャンセル」の語を消さないこと。
-                       タブレット幅では見た目が ✕ だけになりますが、消しているのは
-                       見た目だけです（app.css で位置だけずらして隠す）。
-                       display:none にすると読み上げからも消え、
-                       目の見えない人には何のボタンか分からなくなります。
-                       ✕ のほうは飾りなので aria-hidden で読み上げから外します。 */-->
-                <span class="ticket__cancel-mark" aria-hidden="true">✕</span>
-                <span class="ticket__cancel-label">キャンセル</span>
-              </button>
-            </form>
-          </div>
-
+          <!--/* ★ あき（押し間違い防止）。「← 戻す」と「提供済み」を離します
+                 （店主：「もう少し放して欲しいかな間違って押しそう」）。
+                 被害が非対称です——提供済みを誤爆すると札ごと消えて追えません。 */-->
+          <form class="kserve__foot" th:action="@{/kitchen/bills/{id}/serve(id=${c.sessionId})}"
+                method="post" th:if="${c.sessionId > 0}">
+            <button type="submit" class="btn kbtn kbtn--go kbtn--block">提供済み</button>
+          </form>
         </article>
       </div>
     </section>
@@ -295,6 +257,99 @@
     ご自身で入れた注文には経過時間が出ます。
   </p>
 
+  <!--/* ── 品を取り消す確認（設計 ト01b 1548:20948）────────────────────
+
+         全ノードを実測して写しています。
+           箱 520×205・角丸 8・枠 #e3e3e3 1px・地 #ffffff
+           題の段 pad 24/24/20/24・段の間 6
+             題    20px Bold #1c1c1c
+             品    15px Medium #1c1c1c
+             補足  13px Regular #828282
+           仕切り 1px #e3e3e3
+           足もと pad 20/24/20/24・間 12・右寄せ
+             やめる   95×48・pad 14 24・角丸 8・枠 #e3e3e3・字 15px Bold #1c1c1c
+             取り消す 110×48・pad 14 24・角丸 8・枠 #d33f3f・字 15px Bold #9d3a32
+           暗幕 rgba(28,28,28,.4)
+
+       ★ 材料をどうするかは<b>聞きません</b>（設計に選択肢がありません）。
+         以前ここに「まだ作っていない／作った・出した」を置いていたのは
+         私の判断で、設計にはありませんでした。
+         サーバ側の既定（returnStock=false＝在庫を戻さない）に任せます。
+         迷ったら戻さないほうが安全です。戻しすぎると、実際には無い残数が
+         画面に出て売り越します（足りないぶんは棚卸しで気づけます）。
+
+       ★ フォームはホールと同じ口（/hall/bills/{id}/lines/{id}/cancel）を使います。
+         取り消しの中身（金額の再計算・在庫・記録）はどこから押しても同じで、
+         2 つ作ると必ず片方だけ直し忘れます。 */-->
+  <th:block sec:authorize="!hasRole('GUEST')">
+  <!--/* ★ 未調理と調理済み、<b>両方のレーンぶん</b>を描きます。
+         片方だけにすると、✕ を押しても何も開かないボタンができます。
+         id は line.id なので、同じ品が 2 度描かれることはありません
+         （品は必ずどちらか一方のレーンにいます）。 */-->
+  <th:block th:each="t : ${lineBoard.uncooked()}">
+  <dialog class="hallmodal linecancel" th:each="line : ${t.lines()}"
+          th:id="'kline-cancel-' + ${line.id}"
+          th:aria-label="${line.menuItemName} + ' を取り消す'">
+    <form class="hallmodal__box linecancel__box" method="post"
+          th:action="@{/hall/bills/{billId}/lines/{lineId}/cancel(billId=${t.order().session.id}, lineId=${line.id})}">
+
+      <div class="linecancel__head">
+        <h2 class="linecancel__title">この品を取り消しますか？</h2>
+        <p class="linecancel__item"
+           th:text="'×' + ${line.quantity} + ' ' + ${line.menuItemName}
+                    + '　¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">
+          ×2 黒毛和牛上ホルモン焼　¥2,360</p>
+        <p class="linecancel__note"
+           th:text="'ご請求額が ¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}
+                    + ' 下がります。材料は廃棄として原価に残ります'">
+          ご請求額が ¥2,360 下がります。材料は廃棄として原価に残ります</p>
+      </div>
+
+      <div class="linecancel__foot">
+        <span class="linecancel__gap"></span>
+        <button type="button" class="btn linecancel__cancel" data-close-modal>やめる</button>
+        <button type="submit" class="btn linecancel__go">取り消す</button>
+      </div>
+    </form>
+  </dialog>
+  </th:block>
+
+  <!--/* 調理済みレーンのぶん。中身は上とまったく同じで、
+         伝票 ID の取り方だけが違います（札は卓ごとなので c.sessionId）。
+         伝票の無い注文（sessionId が負）は取り消す先が無いので出しません。 */-->
+  <th:block th:each="c : ${lineBoard.cooked()}" th:if="${c.sessionId > 0}">
+  <dialog class="hallmodal linecancel" th:each="line : ${c.lines}"
+          th:id="'kline-cancel-' + ${line.id}"
+          th:aria-label="${line.menuItemName} + ' を取り消す'">
+    <form class="hallmodal__box linecancel__box" method="post"
+          th:action="@{/hall/bills/{billId}/lines/{lineId}/cancel(billId=${c.sessionId}, lineId=${line.id})}">
+
+      <div class="linecancel__head">
+        <h2 class="linecancel__title">この品を取り消しますか？</h2>
+        <p class="linecancel__item"
+           th:text="'×' + ${line.quantity} + ' ' + ${line.menuItemName}
+                    + '　¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">
+          ×2 黒毛和牛上ホルモン焼　¥2,360</p>
+        <p class="linecancel__note"
+           th:text="'ご請求額が ¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}
+                    + ' 下がります。材料は廃棄として原価に残ります'">
+          ご請求額が ¥2,360 下がります。材料は廃棄として原価に残ります</p>
+      </div>
+
+      <div class="linecancel__foot">
+        <span class="linecancel__gap"></span>
+        <button type="button" class="btn linecancel__cancel" data-close-modal>やめる</button>
+        <button type="submit" class="btn linecancel__go">取り消す</button>
+      </div>
+    </form>
+  </dialog>
+  </th:block>
+  </th:block>
+
+  <!--/* モーダルの開閉は hall.js が持っています（厨房ボードでも使うので読み込みます）。
+         自動更新は data-hall-board が付いた画面でだけ動くので、
+         こちらの SSE（kitchen.js）とはぶつかりません。 */-->
+  <script th:src="@{/js/hall.js}" defer></script>
   <!--/* SSE を受け取って画面を読み直すスクリプト。defer なので HTML を描き終えてから動きます */-->
   <script th:src="@{/js/kitchen.js}" defer></script>
 </main>

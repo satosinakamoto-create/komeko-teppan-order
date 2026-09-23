@@ -2,7 +2,16 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/customer :: layout('ご来店ありがとうございます', ~{::main})}">
 <body>
-<main>
+<!--/* startpage は、この画面だけに寸法を当てるための目印（.recipepage と同じ使い方）。
+
+       設計（暗00 91:3739）の「本文」は VERTICAL・pad 32/16/0/16・gap 24 の
+       1 本の段組みです。実装は mt-4 / mt-6 を段ごとに振っていたので、
+       段の間が 16 / 32 / 8 / 32 / 78 とばらついていました（実測）。
+       ここで段組みごと設計に合わせます。
+
+     ★ お客さま側の共通部品（.section-title の丸、.label、.card、.input）は
+       触らないこと。同じクラスを伝票・カート・メニューの 24 画面が使っています。 */-->
+<main class="startpage">
   <div class="container">
 
     <!--/*
@@ -27,9 +36,18 @@
         サイトの側にも同じ説明を書きますが、読まずに押す人のほうが多いので、
         迷う場所そのものに置きます。
     */-->
-    <div class="alert alert--info mt-4" th:if="${guestLogin}">
+    <!--/* ★ 1 行目は「デモ版です」から始めること（2026-09-23・店主の指示
+           「デモ版ですってのを最初に表示したいね」）。
+
+           もとは「お客さま側の画面です。」でした。これは<b>誰の画面か</b>しか
+           言っておらず、見ている人がいちばん先に知りたい
+           「これは本物の注文画面ではない」が 3 行目まで出てきませんでした。
+           人数を選ぶボタンが目の前にあるので、そこを読まずに押されます。
+
+         ★ 置き場所はここ（題より前）のまま。本文の最初の段です。 */-->
+    <div class="alert alert--info" th:if="${guestLogin}">
       <p>
-        <strong>お客さま側の画面です。</strong><br>
+        <strong>これはデモ版です。</strong><br>
         実際のお店では、席に貼ってある QR コードをスマホで読み取ると、この画面が開きます。<br>
         ここではその直後の状態をお見せしています。
       </p>
@@ -66,7 +84,9 @@
 
     <!--/* 人数選択。指で押しやすいよう大きめのボタンを並べる */-->
     <form th:action="@{/t/{token}/start(token=${table.accessToken})}" method="post" class="mt-6">
-      <p class="label">人数</p>
+      <!--/* 設計（暗00 91:3739）は「来店人数」。14px・#9e9e9e。
+             「人数」だけだと、9 名以上の欄の見出しと区別がつきません。 */-->
+      <p class="label">来店人数</p>
       <div class="grid grid--4" style="grid-template-columns:repeat(4,1fr)">
         <!--/*
           data-sending-label は customer.js が読む。押した瞬間に文字を差し替える。
@@ -76,9 +96,13 @@
           その間ブラウザは何も描き替えないため「押しても反応しない」と受け取られます。
           速くはできないので、受け付けたことだけ即座に返します。
         */-->
+        <!--/* 設計（暗00）の実測は 76×52・角丸 8・16px Bold。
+               選んでいるもの＝地 #dd9a4e・字 #141414、
+               それ以外＝地 #232323・枠 #333333・字 #ffffff。
+               .btn--lg（56px）ではなく、この画面の実寸で出します。 */-->
         <button th:each="n : ${#numbers.sequence(1, 8)}"
                 type="submit" name="guestCount" th:value="${n}"
-                class="btn btn--lg"
+                class="btn guestpick"
                 th:classappend="${n == table.capacity} ? 'btn--primary'"
                 th:disabled="${!accepting}"
                 data-sending-label="準備中"
@@ -98,11 +122,17 @@
           画面側だけの対策では、JavaScript が動かない環境で素通りします。
           サーバ側だけだと、往復してからでないと気づけません。両方あって初めて親切になります。
       */-->
+      <!--/* ★ 設計（暗00）は<b>入力欄の中に「9名以上のとき」</b>が入ります。
+             ラベルを外に出すと、人数ボタンの「来店人数」と 2 つ見出しが並び、
+             どちらが何の入力なのか読み取りに一手かかります。
+
+             ラベルの要素自体は消さず、読み上げ用に残します
+             （placeholder は支援技術では読まれないことがあるため）。 */-->
       <div class="field mt-6">
-        <label class="label" for="guestCountOther">9名以上のとき</label>
-        <div class="row">
-          <input class="input input--narrow" type="number" id="guestCountOther" name="guestCount"
-                 min="9" max="20" inputmode="numeric" placeholder="人数">
+        <label class="visually-hidden" for="guestCountOther">9名以上のとき</label>
+        <div class="row guestother">
+          <input class="input guestother__input" type="number" id="guestCountOther" name="guestCount"
+                 min="9" max="20" inputmode="numeric" placeholder="9名以上のとき">
           <!--/*
             ★ 最初は btn--primary を付けない。
 
@@ -116,7 +146,7 @@
               data-blocked は営業時間外の印。
               JavaScript 側がこれを見て、時間外なのに押せるようにしてしまうのを防ぎます。
           */-->
-          <button type="submit" id="guestCountOtherSubmit" class="btn"
+          <button type="submit" id="guestCountOtherSubmit" class="btn guestother__go"
                   th:disabled="${!accepting}"
                   th:attr="data-blocked=${!accepting} ? '1' : '0'"
                   data-sending-label="準備中"
@@ -127,7 +157,10 @@
       </div>
     </form>
 
-    <div class="alert alert--info mt-6">
+    <!--/* ★ 設計（暗00）は面 #232323 に<b>左 4px のきつね色の帯</b>。
+           青い .alert--info ではありません。
+           この画面で色が付くのはここと、選んだ人数ボタンだけです。 */-->
+    <div class="notice-night mt-6">
       <p class="mb-0" th:text="${shop.pickupNotice}">
         お会計はお席の伝票にまとめてお付けします。
       </p>

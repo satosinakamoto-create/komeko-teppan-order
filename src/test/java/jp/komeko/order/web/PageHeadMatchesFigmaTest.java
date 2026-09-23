@@ -254,15 +254,32 @@ class PageHeadMatchesFigmaTest {
         assertThat(css).contains(sel + " { padding: 12px 24px; }");
     }
 
+    /**
+     * ★ 帯そのものの寸法（16/40・gap 12）。
+     *
+     * <p><b>2026-09-20 に gap を 16 → 12 へ変えました。</b>
+     * 設計ファイルの中で食い違っていたためです。
+     * <pre>
+     *   部品の原本「見出し/ページ」  900x80 ・間 16 ← どの画面からも使われていない
+     *   画面側の帯（1432 の 21 枚） 1120x82 ・間 12 ← 実際に描かれているのはこちら
+     * </pre>
+     * 部品は寸法からして画面と別物（900 と 1120）で、古い版でした。
+     * 店主の判断で<b>画面側を正</b>とし、使われていない部品のほうを 12 に直してあります。
+     *
+     * <p><b>上下の余白 16 はそのままです。</b>設計は「行送り 36px を高さ 82 の中で
+     * 縦中央」、実装は「行送り 50px に上下 16px」。数字は違いますが、
+     * <b>どちらも字の中心が帯の上から 41px</b>で、見た目は同じです。
+     * ここを数字だけ見て 0 にすると、かえって崩れます。
+     */
     @Test
-    @DisplayName("★ 帯そのものの寸法は Figma の部品どおり（16/40・gap 16）")
+    @DisplayName("★ 帯そのものの寸法は設計どおり（16/40・gap 12）")
     void theBandItselfMatchesTheComponent() throws Exception {
         String css = read(CSS);
         int at = css.indexOf(".page-head {");
         assertThat(at).as(".page-head が無い").isGreaterThan(0);
         String rule = css.substring(at, css.indexOf("}", at));
         assertThat(rule).contains("padding: 16px 40px;");
-        assertThat(rule).contains("gap: 16px;");
+        assertThat(rule).as("帯の中の間が 12px でない（画面側の設計値）").contains("gap: 12px;");
         assertThat(rule).contains("align-items: center;");
     }
 }

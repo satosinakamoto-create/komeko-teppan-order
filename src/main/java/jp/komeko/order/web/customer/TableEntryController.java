@@ -140,7 +140,7 @@ public class TableEntryController {
         // 「押したのに変わらない」を無言でやると、お客さまは何度も送信するか、
         // 人数が直ったものと思い込んだまま会計で驚くことになる。
         if (bill.getGuestCount() != requested) {
-            redirectAttributes.addFlashAttribute("flashInfo",
+            redirectAttributes.addFlashAttribute("flashWarn",
                     "この席はすでに %d 名さまでご案内済みです。人数の変更はスタッフにお申し付けください"
                             .formatted(bill.getGuestCount()));
         }

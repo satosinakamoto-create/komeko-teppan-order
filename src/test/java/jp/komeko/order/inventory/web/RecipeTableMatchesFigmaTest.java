@@ -108,17 +108,27 @@ class RecipeTableMatchesFigmaTest {
                 .doesNotContain("</td>");
     }
 
-    /** ★ 列幅は設計どおり。合計 1120。 */
+    /**
+     * ★ 列の比は設計どおり。合計 1120。
+     *
+     * <p>★★ 2026-09-22：px → 割合。比は 1120 基準のまま、値だけ % にしました。
+     * px のままだと {@code table-layout: fixed} で<b>表が 1120 から縮まず</b>、
+     * iPad（本文 897px）で右の列が初期表示から見切れます。
+     * 商品の表を 09-20 に % 化したのと同じ直しです。<b>px に戻さないこと。</b>
+     */
     @Test
     @DisplayName("★ 列幅は 300/140/150/100（合計 1120）")
     void theColumnWidthsMatchTheDesign() throws Exception {
         String css = css();
 
         assertThat(css).as(".table--recipes が無い").contains(".table--recipes{table-layout:fixed;}");
-        assertThat(css).contains(".table--recipes.col-name{width:300px;}");
-        assertThat(css).contains(".table--recipes.col-money{width:140px;}");
-        assertThat(css).contains(".table--recipes.col-rate{width:150px;}");
-        assertThat(css).contains(".table--recipes.col-act{width:100px;}");
+        // 設計 300/140/150/100 を 1120 基準の割合で（col-money×3・col-rate×2 で合計 1120）
+        assertThat(css).contains(".table--recipes.col-name{width:26.786%;}");   // 300
+        assertThat(css).contains(".table--recipes.col-money{width:12.5%;}");  // 140
+        assertThat(css).contains(".table--recipes.col-rate{width:13.393%;}");   // 150
+        assertThat(css).contains(".table--recipes.col-act{width:8.929%;}");    // 100
+        assertThat(css).as("★ 列幅が px に戻っている")
+                .doesNotContain(".table--recipes.col-name{width:300px;}");
     }
 
     /**
@@ -171,9 +181,12 @@ class RecipeTableMatchesFigmaTest {
         String css = css();
         assertThat(css).as("見出しが 64px でない")
                 .contains(".theme-desk.table--recipesth{padding:16px;height:64px;}");
-        // 区切り線 1px は外に足されるので 67 + 1 = 68
-        assertThat(css).as("行が 68px でない（区切り線ぶん 67 で書く）")
-                .contains(".theme-desk.table--recipestd{padding:020px;height:67px;vertical-align:middle;}");
+        // ★ 2026-09-20：67 → 68。「区切り線 1px は外に足されるので 67 + 1 = 68」は
+        //   誤りでした。実測すると border-collapse: collapse では罫が行の中に描かれ、
+        //   行の箱も行の間隔も 67px のままです。仕入れ・スタッフの表（68px）と
+        //   1px 食い違っていて、画面を行き来すると行の高さが変わっていました。
+        assertThat(css).as("行が 68px でない")
+                .contains(".theme-desk.table--recipestd{padding:020px;height:68px;vertical-align:middle;}");
     }
 
     /**

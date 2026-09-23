@@ -251,11 +251,16 @@ class PressableBadgeTest {
     @Test
     @DisplayName("★ 文言は「品切れ中」「残数ゼロ」（品切れ・残数の画面と同じ言葉）")
     void theTwoStatesHaveDifferentWords() throws Exception {
-        String html = template(ITEMS);
+        // ★ 2026-09-20：この 2 つは「品切れ・残数」にだけ出るようになりました
+        //   （商品の表の販売列を編集に置き換えたため）。
+        //   守っている主張は同じ——同じ字の札を 2 つ並べないこと。
+        String stock = java.nio.file.Files.readString(
+                java.nio.file.Path.of("src/main/resources/templates/kitchen/stock.html"))
+                .replaceAll("(?s)<!--.*?-->", "");
 
-        assertThat(html).as("「品切れ中」が無い").contains(">品切れ中<");
-        assertThat(html).as("「残数ゼロ」が無い").contains(">残数ゼロ<");
-        assertThat(html).as("紛らわしい「品切れ」がまだ残っている")
+        assertThat(stock).as("「品切れ中」が無い").contains(">品切れ中<");
+        assertThat(stock).as("「残数ゼロ」が無い").contains(">残数ゼロ<");
+        assertThat(stock).as("紛らわしい「品切れ」がまだ残っている")
                 .doesNotContain(">品切れ<");
     }
 
@@ -268,25 +273,43 @@ class PressableBadgeTest {
     @Test
     @DisplayName("★ 残数ゼロは押せない見た目、掲載中・販売中は押せる見た目")
     void shapeMatchesWhetherItIsPressable() throws Exception {
-        String html = template(ITEMS);
+        String items = template(ITEMS);
 
-        int zero = html.indexOf(">残数ゼロ<");
+        // ★ 2026-09-20：残数ゼロ・品切れ中・販売中は「品切れ・残数」へ移りました。
+        //   商品の表の販売列を編集に置き換えたためです（店主の判断
+        //   「販売の品切れは品切れ残数で調整出来るからそれを編集にすればいい」）。
+        //   あちらでは 3 つとも<b>押せない span</b>で、切り替えは別のボタンです。
+        String stock = java.nio.file.Files.readString(
+                java.nio.file.Path.of("src/main/resources/templates/kitchen/stock.html"))
+                .replaceAll("(?s)<!--.*?-->", "");
+
+        // 押せない残数ゼロにボタンの形を与えない
+        int zero = stock.indexOf(">残数ゼロ<");
         assertThat(zero).as("残数ゼロが無い").isGreaterThan(0);
-        String zeroTag = html.substring(html.lastIndexOf("<", zero), zero);
+        String zeroTag = stock.substring(stock.lastIndexOf("<", zero), zero);
         assertThat(zeroTag).as("押せない残数ゼロにボタンの形を与えている")
                 .doesNotContain("badge--act");
+        // ★ 品切れ・残数の画面は .status-chip ＋ var(--info) で水色を出しています
+        //   （商品一覧の .badge--info とは別の作り）。守る主張は同じ——
+        //   押せないものは平らな水色で、押せる形を与えないこと。
         assertThat(zeroTag).as("残数ゼロが平らな水色になっていない")
-                .contains("badge--info");
+                .contains("var(--info)");
         assertThat(zeroTag).as("押せないのに button になっている")
                 .doesNotContain("<button");
 
-        // 押せる 3 つは、いずれもボタンの形を持つ
-        for (String label : new String[]{">掲載中<", ">販売中<", ">品切れ中<"}) {
-            int at = html.indexOf(label);
-            assertThat(at).as("%s が無い", label).isGreaterThan(0);
-            String tag = html.substring(html.lastIndexOf("<button", at), at);
-            assertThat(tag).as("%s がボタンの形を持っていない", label)
-                    .contains("badge--act");
+        // 商品一覧に残る押せる札は「掲載中」だけ。これはボタンの形を持つ
+        int at = items.indexOf(">掲載中<");
+        assertThat(at).as("掲載中が無い").isGreaterThan(0);
+        assertThat(items.substring(items.lastIndexOf("<button", at), at))
+                .as("掲載中がボタンの形を持っていない").contains("badge--act");
+
+        // 品切れ・残数の 3 つは押せない札。button にしないこと
+        for (String label : new String[]{">品切れ中<", ">残数ゼロ<", ">販売中<"}) {
+            int k = stock.indexOf(label);
+            assertThat(k).as("%s が無い", label).isGreaterThan(0);
+            String tag = stock.substring(stock.lastIndexOf("<", k), k);
+            assertThat(tag).as("%s が押せる見た目になっている（切り替えは別のボタン）", label)
+                    .doesNotContain("<button").doesNotContain("badge--act");
         }
     }
 

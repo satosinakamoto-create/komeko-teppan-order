@@ -26,12 +26,20 @@
   <div class="page-head">
     <h1 class="page-head__title">スタッフ</h1>
     <span class="page-head__sub" th:text="${staffList.size()} + ' 人'">3 人</span>
-    <!--/* ボタンは のばす で右端へ送る（2026-09-16・店主の判断。左端は戻るの居場所） */-->
+    <!--/* ボタンは のばす で右端へ送る（2026-09-16・店主の判断。左端は戻るの居場所）
+
+           ★ 2026-09-20 に 1 つ → 2 つへ分けました（設計 ト15 732:4888）。
+             それまでは「スタッフ 編集・追加」1 つで、追加したいだけの人も
+             全員ぶんの入力欄と削除ボタンが並ぶ画面を通ることになっていました。
+             卓（table-list.html）と同じ ［編集］［＋新規追加］の形にそろえます。 */-->
     <span class="page-head__spacer"></span>
-    <a class="btn btn--primary" th:href="@{/admin/staff/edit}">スタッフ 編集・追加</a>
+    <!--/* 編集の口は緑の枠（btn--edit）。灰色は「戻る」に使う色なので、
+           ここに使うと押せるものに見えません（2026-09-20・店主の指摘）。 */-->
+    <a class="btn btn--edit" th:href="@{/admin/staff/edit}">編集</a>
+    <a class="btn btn--primary" th:href="@{/admin/staff/new}">＋新規追加</a>
   </div>
 
-  <!--/* 列幅は設計どおり 330 / 270 / 220 / 300（合計 1120） */-->
+  <!--/* 列幅は設計どおり 320 / 280 / 220 / 300（合計 1120） */-->
   <div class="table-wrap">
     <table class="table table--staff">
       <thead>
@@ -45,7 +53,11 @@
       <tbody>
       <tr th:each="s : ${staffList}">
         <td class="wrap">
-          <a th:href="@{/admin/staff/edit}" th:text="${s.displayName}">店長</a>
+          <!--/* ★ 名前はただの文字。リンクにしないこと（2026-09-20・店主の指摘）。
+                 設計（ト11／ト12／ト15）はどれも黒の Regular で、リンクではありません。
+                 緑の下線リンクだと「押せるもの」がこの画面に 2 系統できてしまい、
+                 どこから直すのかが名前と編集ボタンに割れます。入口は編集ボタン 1 本に。 */-->
+          <span th:text="${s.displayName}">店長</span>
           <!--/* 自分の行だと分かるようにする。権限を落とすときにいちばん危ないのが自分自身 */-->
           <span class="badge badge--rec" th:if="${currentStaffId != null and currentStaffId == s.id}">ログイン中</span>
           <!--/* 無効なアカウントは、消えてはいないがログインできない。

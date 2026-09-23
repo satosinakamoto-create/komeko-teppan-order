@@ -76,17 +76,22 @@ class ItemsTableAlignmentTest {
     void everyColumnIsLabelledOnBothRows() throws Exception {
         String html = tpl();
 
-        // 見出し 7 本
+        // 見出し 6 本
+        // ★ 2026-09-20：col-order（並び）を外しました。つまみをやめたためです。
         for (String cls : new String[]{"col-name", "col-cat", "col-price",
-                                       "col-cost", "col-state", "col-order"}) {
+                                       "col-cost", "col-state", "col-act"}) {
             assertThat(html).as("見出しに " + cls + " が無い").contains("th class=\"" + cls + "\"");
         }
-        // 中身。掲載と販売は同じ col-state なので 2 つ
+        // ★ 2026-09-20：販売の列を編集に置き換えたので col-state は 1 つだけ
+        //   （店主の判断「販売の品切れは品切れ残数で調整出来るからそれを編集にすればいい」）
         assertThat(html.split("td class=\"col-state\"", -1).length - 1)
-                .as("掲載と販売の両方に col-state が付いていない").isEqualTo(2);
+                .as("掲載に col-state が付いていない").isEqualTo(1);
+        assertThat(html).as("編集の列に col-act が付いていない").contains("td class=\"col-act\"");
         assertThat(html).as("価格の中身に目印が無い").contains("td class=\"num col-price\"");
         assertThat(html).as("原価の中身に目印が無い").contains("td class=\"num col-cost\"");
-        assertThat(html).as("並びの中身に目印が無い").contains("td class=\"num col-order\"");
+        // ★ 2026-09-20：並びの列は外しました。戻さないこと——
+        //   並べ替えた表でドラッグさせると、落とした位置の意味が決まりません。
+        assertThat(html).as("★ 並びの列が戻っている").doesNotContain("col-order");
     }
 
     /**
@@ -106,7 +111,7 @@ class ItemsTableAlignmentTest {
         assertThat(css).as("中央ぞろえの 4 列の指定が無い")
                 .contains(".table--itemsth.col-cost,.table--itemstd.col-cost,"
                         + ".table--itemsth.col-state,.table--itemstd.col-state,"
-                        + ".table--itemsth.col-order,.table--itemstd.col-order{text-align:center;}");
+                        + ".table--itemsth.col-act,.table--itemstd.col-act{text-align:center;}");
     }
 
     /**
@@ -148,7 +153,7 @@ class ItemsTableAlignmentTest {
         assertThat(css).as("中央の列の余白を詰めていない")
                 .contains(".table--itemsth.col-cost,.table--itemstd.col-cost,"
                         + ".table--itemsth.col-state,.table--itemstd.col-state,"
-                        + ".table--itemsth.col-order,.table--itemstd.col-order{padding-inline:8px;}");
+                        + ".table--itemsth.col-act,.table--itemstd.col-act{padding-inline:8px;}");
 
         assertThat(css)
                 .as("左ぞろえの列まで詰めている。字の始まる位置が変わる")

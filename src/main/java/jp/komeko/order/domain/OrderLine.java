@@ -58,6 +58,68 @@ public class OrderLine {
     @BatchSize(size = 200)
     private List<OrderLineOption> options = new ArrayList<>();
 
+    // ── 品ごとの取り消し（2026-09-22 追加）──────────────────────────
+    //
+    // ★ なぜ注文（Order）ではなく明細に持たせたか。
+    //   注文はカートを一度に確定した単位なので、4 品まとめて 1 件になります。
+    //   「1 品だけ違うものが来た」ときに注文ごと消すと、残り 3 品まで
+    //   請求から落ちます。店主の指摘そのものです——
+    //   「取り消すボタンが卓ごとだから、一個の商品だけ破棄の場合とかだとムリじゃん」。
+    //
+    // ★ 行は消さずに「取り消した」と印を付けるだけにしています。
+    //   注文履歴と提供時間の集計は事実の記録なので、行ごと消すと
+    //   「厨房は作ったのに伝票に無い」を後から説明できなくなります。
+
+    // ── 品ごとの段階（2026-09-23 追加）──────────────────────────────
+    //
+    // ★ 注文（Order.status）とは別に持ちます。
+    //   注文はカートを一度に確定した単位なので、4 品で 1 件になります。
+    //   「たこ焼だけ焼き上がった」は注文の状態では表せません。
+    //   詳しくは LineStage の説明を読んでください。
+
+    /** いま どこまで進んだか。 */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private LineStage stage = LineStage.UNCOOKED;
+
+    /**
+     * 調理済みにした時刻。
+     *
+     * <p><b>調理済みレーンの並び順がこれで決まります。</b>
+     * 注文からの経過時間ではありません。左のレーンは「何分待たせたか」、
+     * 右のレーンは「焼き上がってから何分置いたか」で、見ている時計が違います。
+     * 右に注文時刻を持ち込むと、皿に乗ったばかりの品が上に、
+     * 8 分置かれた品が下に並びます。
+     */
+    @Column
+    private java.time.LocalDateTime cookedAt;
+
+    /** 卓へ運んだ時刻。 */
+    @Column
+    private java.time.LocalDateTime servedAt;
+
+    /** 取り消したか。金額の計算から外れる（{@link Order#recalculate()}）。 */
+    @Column(nullable = false)
+    private boolean canceled;
+
+    @Column
+    private java.time.LocalDateTime canceledAt;
+
+    /** 取り消した理由。列は 100 文字まで。 */
+    @Column(length = 100)
+    private String canceledReason;
+
+    /**
+     * 取り消したときに残数（在庫）を戻したか。
+     *
+     * <p>「まだ作っていない」なら戻し、「作った・出した（廃棄）」なら戻しません。
+     * <b>どちらを選んだかを残すのは、原価の説明のためです。</b>
+     * 廃棄は材料が減ったままなので、あとから「なぜ理論原価と合わないのか」を
+     * 追えるようにしておきます。
+     */
+    @Column(nullable = false)
+    private boolean stockReturned;
+
     protected OrderLine() {
     }
 
@@ -99,6 +161,94 @@ public class OrderLine {
                         ? o.getChoiceName() + " ×" + o.getQuantity()
                         : o.getChoiceName())
                 .collect(Collectors.joining(" / "));
+    }
+
+    /**
+     * この品を取り消す。
+     *
+     * <p>二度呼んでも 1 回目の記録を残します。理由や在庫の扱いを
+     * あとから静かに書き換えられると、原価の説明がつかなくなるためです。
+     * 二重に在庫を戻さないための判定にも、呼び出し側がこの戻り値を使います。
+     *
+     * @param stockReturned 残数を戻したなら true（「まだ作っていない」を選んだとき）
+     * @return 今回はじめて取り消したなら true
+     */
+    public boolean cancel(String reason, boolean stockReturned) {
+        if (canceled) {
+            return false;
+        }
+        this.canceled = true;
+        this.canceledAt = java.time.LocalDateTime.now();
+        this.canceledReason = reason;
+        this.stockReturned = stockReturned;
+        return true;
+    }
+
+    /**
+     * 段階を進める／戻す。
+     *
+     * <p>許されていない移り先は突き返します（{@link LineStage#allowedNext()}）。
+     * 画面はボタンを出していませんが、古いタブや直接 POST からは届くので、
+     * <b>ここでも閉じておきます</b>。厨房の changeStatus と同じ考え方です。
+     *
+     * @throws IllegalStateException 取り消し済みの品を動かそうとしたとき、
+     *                               または許されていない移り先を渡されたとき
+     */
+    public void moveTo(LineStage next) {
+        if (canceled) {
+            // 取り消した品は厨房ボードに出ないので、正規の操作では届きません。
+            // 通してしまうと「取り消したのに提供済みになった」行ができます
+            throw new IllegalStateException("取り消した品は動かせません：" + menuItemName);
+        }
+        if (stage == next) {
+            return;   // 二度押し。何もしない（時刻を上書きしないこと）
+        }
+        if (!stage.canMoveTo(next)) {
+            throw new IllegalStateException(
+                    "「" + menuItemName + "」を " + stage.getLabel()
+                            + " から " + next.getLabel() + " へは動かせません");
+        }
+        this.stage = next;
+        // 時刻は「はじめてそこへ行った」ときだけ記録する。
+        // 戻して進め直すと並び順が飛ぶので、上書きしない
+        if (next == LineStage.COOKED && cookedAt == null) {
+            this.cookedAt = java.time.LocalDateTime.now();
+        } else if (next == LineStage.SERVED && servedAt == null) {
+            this.servedAt = java.time.LocalDateTime.now();
+        }
+    }
+
+    public LineStage getStage() {
+        return stage;
+    }
+
+    public java.time.LocalDateTime getCookedAt() {
+        return cookedAt;
+    }
+
+    public java.time.LocalDateTime getServedAt() {
+        return servedAt;
+    }
+
+    /** 厨房ボードに出すか。取り消した品と、運び終えた品は出さない。 */
+    public boolean isOnKitchenBoard() {
+        return !canceled && stage.isOnKitchenBoard();
+    }
+
+    public boolean isCanceled() {
+        return canceled;
+    }
+
+    public java.time.LocalDateTime getCanceledAt() {
+        return canceledAt;
+    }
+
+    public String getCanceledReason() {
+        return canceledReason;
+    }
+
+    public boolean isStockReturned() {
+        return stockReturned;
     }
 
     public Long getId() {

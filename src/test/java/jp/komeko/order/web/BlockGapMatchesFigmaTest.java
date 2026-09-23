@@ -111,13 +111,20 @@ class BlockGapMatchesFigmaTest {
      * ここを広げるのは前の判断を黙って戻すことになります。
      */
     @Test
-    @DisplayName("★ 例外は 4 画面（立って使う 3 画面 24px・売上 20px）")
+    @DisplayName("★ 例外は立って使う 3 画面の 24px だけ（売上の 20px は 2026-09-20 に撤去）")
     void theStandingScreensAndSalesDiffer() throws Exception {
         String s = section();
         assertThat(s).contains("main.kitchenboard,");
         assertThat(s).contains("main.hallboard,");
         assertThat(s).contains("main.soldoutpage { --block-gap: 24px; }");
-        assertThat(s).contains("main.salespage { --block-gap: 20px; }");
+
+        // ★ 売上の 20px は外しました（2026-09-20）。
+        //   8/16/24/32/48 という余白の刻みに無い値で、設計ページ 07 でも
+        //   「あき 20」は売上 3 画面にしか存在しない外れ値でした。
+        //   立って使う 3 画面と違って、詰めた理由の記録もありません。
+        assertThat(s)
+                .as("売上の 20px が戻っている。刻みに無い値は使わない")
+                .doesNotContain("main.salespage { --block-gap: 20px; }");
     }
 
     /**
@@ -147,9 +154,10 @@ class BlockGapMatchesFigmaTest {
         assertThat(band).as("41 節に iPad の帯が無い").isGreaterThan(0);
         String b = s.substring(band);
         assertThat(b).contains("--block-gap: 32px;");
-        // 24 と 20 はここでも指定し直す。しないと基準の 32 に広がってしまう
+        // 24 はここでも指定し直す。しないと基準の 32 に広がってしまう
         assertThat(b).contains("--block-gap: 24px;");
-        assertThat(b).contains("--block-gap: 20px;");
+        // 20（売上）は 2026-09-20 に撤去。iPad でも既定の 32 に任せる
+        assertThat(b).as("売上の 20px が戻っている").doesNotContain("--block-gap: 20px;");
     }
 
     @Test

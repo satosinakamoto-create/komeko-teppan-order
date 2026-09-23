@@ -201,7 +201,9 @@ class ActionGreenTokenTest {
     void theSuccessNoticeDoesNotFillItsFaceWithGreen() throws Exception {
         String css = css();
 
-        int at = css.indexOf(".alert--success {");
+        // ★ 行頭から探すこと。".alert--success {" だけだと
+        //   ".toast.alert--success {"（浮かせる札）に先に当たります（2026-09-20 に踏みました）。
+        int at = css.indexOf("\n.alert--success {");
         assertThat(at).as(".alert--success が無い").isGreaterThan(0);
         String rule = css.substring(at, css.indexOf("}", at));
 
@@ -214,6 +216,20 @@ class ActionGreenTokenTest {
         assertThat(rule).as("良い知らせの合図（左の線）が消えている")
                 .contains("border-left-color: var(--action)");
         assertThat(css).as("チェック記号が無い").contains(".alert--success::before");
+
+        // ★ 浮かせる札（toast）も、押せるボタンの緑では塗らないこと（2026-09-20）。
+        //   2026-09-16 の指摘は「ポップアップの色が押せるボタン色と似てる」でした。
+        //   浮かせる形にしたあとも、その線引きは変わりません。
+        //   地に色を付けてよいのは、ボタンに使っていない淡い色だけです。
+        int t = css.indexOf(".toast.alert--success {");
+        if (t > 0) {
+            String toast = css.substring(t, css.indexOf("}", t));
+            assertThat(toast)
+                    .as("★ 浮かせる札が押せるボタンの緑で塗られている")
+                    .doesNotContain("var(--action)")
+                    .doesNotContain("var(--ok-soft)")
+                    .doesNotContain("#0b7a1a");
+        }
     }
 
     // ---------------------------------------------------------------- 逆転しない

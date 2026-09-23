@@ -62,6 +62,15 @@ abstract class KitchenBoardElapsedRenderSupport {
     /** 2026-08-24 に公開デモで実際に出ていた値。 */
     static final int STALE_MINUTES = 378;
 
+    /**
+     * 遅れとみなす分数（{@code KitchenController.LATE_MINUTES} と同じ値）。
+     *
+     * <p>テストが分数を直書きすると、しきい値を動かしたときに
+     * <b>実装は正しいのにテストだけ落ちます</b>（2026-09-23 に 15 → 10 で踏みました）。
+     * ここに 1 つ置いて、各テストは「しきい値の 1 分前」のように関係で書きます。
+     */
+    static final int LATE_MINUTES = 10;
+
     @Autowired
     protected MockMvc mockMvc;
     @Autowired
@@ -164,12 +173,20 @@ abstract class KitchenBoardElapsedRenderSupport {
     protected record Ticket(String time, boolean late) {
     }
 
-    /** {@code <article class="ticket …">} を丸ごと 1 枚取り出す。 */
+    /**
+     * {@code <article class="kticket …">} を丸ごと 1 枚取り出す。
+     *
+     * <p>2026-09-23 に厨房ボードを 3 レーン（注文ごと）から
+     * 2 レーン（品ごと）へ作り替えたので、クラス名が {@code ticket} → {@code kticket}、
+     * 遅れの印が {@code is-late} → {@code kticket--late} に変わりました。
+     * <b>このテストが守っているものは変わっていません</b>——
+     * テンプレートが自前でしきい値を比べず、{@code ElapsedDisplay} に聞いていること。
+     */
     private static final Pattern TICKET =
-            Pattern.compile("<article class=\"([^\"]*ticket[^\"]*)\"(.*?)</article>", Pattern.DOTALL);
+            Pattern.compile("<article class=\"([^\"]*kticket[^\"]*)\"(.*?)</article>", Pattern.DOTALL);
     /** そのチケットの経過時間の欄。 */
     private static final Pattern TIME =
-            Pattern.compile("<span class=\"ticket__time\"[^>]*>(.*?)</span>", Pattern.DOTALL);
+            Pattern.compile("<span class=\"kticket__time\"[^>]*>(.*?)</span>", Pattern.DOTALL);
 
     /**
      * 厨房ボードを描画し、ただ 1 枚のチケットの経過時間の見た目を返す。
@@ -201,6 +218,6 @@ abstract class KitchenBoardElapsedRenderSupport {
         // 同じ語になってしまうためやめました。その「消えている」を time()==null で表します。
         String label = time.find() ? time.group(1).trim() : null;
 
-        return new Ticket(label, classAttribute.contains("is-late"));
+        return new Ticket(label, classAttribute.contains("kticket--late"));
     }
 }

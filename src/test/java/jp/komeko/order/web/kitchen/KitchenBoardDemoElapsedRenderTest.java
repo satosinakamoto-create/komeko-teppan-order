@@ -79,15 +79,25 @@ class KitchenBoardDemoElapsedRenderTest extends KitchenBoardElapsedRenderSupport
         assertThat(ticket.late()).isFalse();
     }
 
+    /**
+     * ★ 分数を直書きしないこと（2026-09-23）。
+     *
+     * <p>以前は {@code backdate(14)} と {@code "14 分"} を直に書いていました。
+     * しきい値を 15 → 10 に変えた（設計の決定「10 分経ったら赤」）とたんに、
+     * 14 分が<b>境界の向こう側</b>になってこのテストだけ落ちました。
+     * 守りたいのは「しきい値の 1 分前はまだ数字が出る」という関係なので、
+     * 定数から導きます。次にしきい値が動いても、ここは動きません。
+     */
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("赤枠の条件に達する 1 分前までは、まだ数字が出ている")
+    @DisplayName("赤の条件に達する 1 分前までは、まだ数字が出ている")
     void minutesStillShowJustBeforeTheThreshold() throws Exception {
-        backdate(14);
+        int justBefore = LATE_MINUTES - 1;
+        backdate(justBefore);
 
         Ticket ticket = renderSingleTicket();
 
-        assertThat(ticket.time()).isEqualTo("14 分");
+        assertThat(ticket.time()).isEqualTo(justBefore + " 分");
         assertThat(ticket.late()).isFalse();
     }
 }

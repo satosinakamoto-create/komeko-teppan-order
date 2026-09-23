@@ -12,6 +12,10 @@
   <title th:text="${pageTitle}">米粉と鉄板</title>
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
+  <!--/* 1 回きりの報告を浮かせて出す部品（2026-09-20）。
+         flash フラグメントは 46 画面が使っているので、レイアウト 4 枚とも読み込みます。
+         読み込まないと、その画面だけ報告が本文の上に居座って表を押し下げます。 */-->
+  <script th:src="@{/js/toast.js}" defer></script>
 </head>
 <body class="theme-snow">
 <div th:replace="${content}">ページ本文</div>

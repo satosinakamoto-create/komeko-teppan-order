@@ -90,6 +90,19 @@ class HeadingSizeAndRowAlignTest {
             if (m.group(1).contains("section-title__count")) {
                 continue;
             }
+            // ★ お客さま側（.theme-night）は対象外（2026-09-23）。
+            //
+            //   このテストが見ているのは、表題のとおり<b>机で見る画面</b>——
+            //   1432px で開くスタッフ側（.theme-desk）です。32px という数は
+            //   そこで 19 / 23 画面がそろえている値でした。
+            //
+            //   お客さま側は 390px のスマホで、設計（暗00 91:3739）の題は
+            //   <b>24px</b>です。342px の幅に 32px の題を置くと
+            //   「ご来店ありがとうございます」だけで 2 行になります。
+            //   同じ物差しを当てる相手ではありません。
+            if (m.group(1).contains(".theme-night")) {
+                continue;
+            }
             Matcher f = Pattern.compile("font-size:\\s*(\\d+)px").matcher(m.group(2));
             if (f.find() && Integer.parseInt(f.group(1)) < 32) {
                 small.append("\n  ").append(m.group(1).trim())

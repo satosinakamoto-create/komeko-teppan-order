@@ -51,7 +51,10 @@ class SecondaryScreenHeadTest {
         put("inventory/recipe-edit.html", null);                      // ト09c（題は商品名）
         put("admin/category-new.html", "カテゴリの新規追加");           // ト11c
         put("admin/category-edit.html", null);                        // ト11b（題はカテゴリ名）
-        put("admin/staff.html", "スタッフ 編集・追加");                 // ト15b
+        // ★ 2026-09-20：追加フォームを staff-new.html へ切り出したので
+        //   この画面は「直す」専用になり、題も「アカウント一覧」に変わりました
+        put("admin/staff.html", "アカウント一覧");                     // ト15b
+        put("admin/staff-new.html", "スタッフを追加");                 // ト15c
         put("admin/options.html", null);                              // ト10d（題は商品名）
         put("accountant/evidence-detail.html", null);                 // トt19b（題は店名）
     }};
@@ -137,6 +140,8 @@ class SecondaryScreenHeadTest {
                 // 2026-09-20 に 3 枚化したカテゴリ。どちらも一覧へ戻る口を持つ
                 "admin/category-new.html",
                 "admin/category-edit.html",
+                // 2026-09-20 に 3 枚化したスタッフ。下り画面なので戻る口が要る
+                "admin/staff-new.html",
         };
         for (String name : withBack) {
             String band = firstHead(read(name));

@@ -17,10 +17,20 @@
    名前だけは打ち間違いを直せる必要があるので、帯の［名前を変える］に畳んであります。
    ★ 大分類はここでは変えられません（店主の決定）。追加のときだけ決まります。
 
-   ── 並べ替えは置きません ──
-   2026-09-19 の決定「並べ替えは一覧だけ、編集画面は直すだけ」。
-   ★ data-item-id / data-group-id / data-reorder を付けないこと。
-     付けた瞬間に reorder.js が拾って、この画面でも掴めるようになります。
+   ── 並べ替えはここに置きます（2026-09-20 に方針を変えました）──
+   2026-09-19 は「並べ替えは一覧だけ、編集画面は直すだけ」でした。
+   2026-09-20 に商品一覧のつまみを外した（店主「ユーザーはドラック＆ドロップで
+   商品は並び変えることない」）ので、置き場をここへ移します。店主の言葉
+   「カテゴリの中の編集で並び変えしてそれをお客に反映させればいんじゃね？」。
+
+   ★ ここが正しい置き場である理由。
+     商品の並び順は<b>カテゴリごとに独立</b>しています。この画面は最初から
+     「そのカテゴリの商品だけ」を出しているので、<b>表に見えている行が
+     そのまま並び順の全体</b>です。商品一覧では全カテゴリが混ざるため、
+     隣の行が同じカテゴリとは限らず「どこに落としたか」の意味が決まりませんでした。
+
+   ★ 送り先は既にある POST /admin/items/place をそのまま使います。
+     サーバ側は 1 行も足していません。
 
    使えるモデルの値：
      ${category}       … 直しているカテゴリ
@@ -147,10 +157,18 @@
           <th class="col-name">商品名</th>
           <th class="col-price">価格</th>
           <th class="col-state">状態</th>
+          <!--/* 並び（設計 ト11b 1145:13371）。状態の 400px から 160px を分けました。
+                 状態には札が 1 つ入るだけで、実際に要るのは 90px ほどです。 */-->
+          <th class="col-order">並び</th>
         </tr>
         </thead>
-        <tbody>
-        <tr th:each="item : ${items}">
+        <!--/* data-reorder は reorder.js の目印。0 件のときは付けません（動かしようがない）。
+               並びはカテゴリごとに独立していて、この画面は 1 カテゴリぶんしか
+               出さないので、group は全行で同じ値です。 */-->
+        <tbody th:attr="data-reorder=${!items.isEmpty()} ? 'on' : null">
+        <tr th:each="item : ${items}"
+            th:data-item-id="${item.id}"
+            th:data-group-id="${category.id}">
           <td class="col-check">
             <label class="checkcell">
               <input type="checkbox" name="itemIds" th:value="${item.id}"
@@ -169,10 +187,26 @@
             <span class="badge badge--draft" th:if="${item.draft}">書きかけ</span>
             <span class="badge badge--gf" th:unless="${item.draft}">掲載中</span>
           </td>
+          <!--/* ★ つまみは <button>。div だと tabindex を足す羽目になり、
+                 「押せるもの」だと読み上げにも伝わりません。
+               ★ type="button"。この表は「別のカテゴリへ移す」フォームの中にあるので、
+                 既定の submit のままだと押した瞬間に移動が走ります。
+               ★ CSS で既定は隠してあり、reorder.js が表に is-reorderable を
+                 付けたときだけ現れます（押しても何も起きないものを見せない）。 */-->
+          <td class="num col-order">
+            <button type="button" class="dragdot" data-reorder-handle
+                    th:data-item-id="${item.id}"
+                    th:data-item-name="${item.name}"
+                    th:aria-label="${item.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
+              <span aria-hidden="true">⠿</span>
+            </button>
+            <span class="faint tiny" th:text="${item.sortOrder}">10</span>
+          </td>
         </tr>
         </tbody>
       </table>
     </div>
+
 
     <div class="card mt-6">
       <div class="card__head">選んだ商品を、別のカテゴリへ移す</div>
@@ -203,6 +237,18 @@
         </p>
       </div>
     </div>
+  </form>
+
+  <!--/* ★ 並び順を送るための隠しフォーム（2026-09-20）。
+           reorder.js が id と before / after を詰めて submit します。
+         ★ <form> の入れ子は HTML では作れません。この画面には既に
+           「別のカテゴリへ移す」フォームがあるので、<b>その外</b>に置くこと。
+         ★ 送り先は商品の並び順の口（/admin/items/place）。
+           カテゴリの並び順（/admin/categories/place）ではありません。 */-->
+  <form id="reorder-form" method="post" th:action="@{/admin/items/place}" hidden>
+      <input type="hidden" name="id">
+      <input type="hidden" name="before">
+      <input type="hidden" name="after">
   </form>
 
   <!--/* ───────────────────────── 商品を足す ─────────────────────────

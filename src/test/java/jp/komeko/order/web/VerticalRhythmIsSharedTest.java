@@ -171,14 +171,20 @@ class VerticalRhythmIsSharedTest {
                 .isEmpty();
     }
 
-    /** ★ 節の補足は 16px。画面ごとに 13 / 14 / 16 とばらついていた。 */
+    /**
+     * ★ 節の補足は 1 つの値。画面ごとに 13 / 14 / 16 とばらついていた。
+     *
+     * <p>★ 2026-09-22：16px → 14px。設計はどの画面も 14px でした
+     * （ト04 725:4464、ト05f 841:10357 ほかで実測）。
+     * 「画面ごとに変えない」という約束はそのままで、揃える先だけ設計に寄せました。
+     */
     @Test
-    @DisplayName("★ 節の補足は 16px（画面ごとに変えない）")
+    @DisplayName("★ 節の補足は 14px（画面ごとに変えない）")
     void theSectionCountIsShared() throws Exception {
         String css = css();
 
-        assertThat(css).as("共通の 16px が無い")
-                .contains(".theme-desk .section-title__count { font-size: 16px; }");
+        assertThat(css).as("共通の 14px が無い")
+                .contains(".theme-desk .section-title__count { font-size: 14px; }");
         assertThat(css).as("ホールの 13px の上書きが残っている")
                 .doesNotContain("h1.section-title__text + .section-title__count { font-size: 13px");
         assertThat(css).as("品切れの 14px の上書きが残っている")

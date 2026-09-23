@@ -106,10 +106,15 @@ class IngredientTableMatchesFigmaTest {
     @DisplayName("★ 見出し 56／行 72")
     void theHeightsMatchTheDesign() throws Exception {
         String css = css();
-        assertThat(css).as("見出しが 56px でない")
-                .contains(".theme-desk.table--stock:has(.recbtn)th{height:56px;}");
-        assertThat(css).as("行が 72px でない（区切り線ぶん 71 で書く）")
-                .contains(".theme-desk.table--stock:has(.recbtn)td{height:71px;}");
+        // ★ 2026-09-20：56/71 → 64/68。設計（ト04 食材の表）は 64/68 で、
+        //   iPad 版・PC 版の同じ表も 64/68 でした。1432 だけ外れていたものです。
+        //   「区切り線ぶん 1px 引く」という書き方もやめました——実測すると
+        //   border-collapse: collapse では罫が行の中に描かれ、行の間隔は
+        //   箱の高さと同じでした（71 と書けば 71 で描かれる）。
+        assertThat(css).as("見出しが 64px でない")
+                .contains(".theme-desk.table--stock:has(.recbtn)th{height:64px;}");
+        assertThat(css).as("行が 68px でない")
+                .contains(".theme-desk.table--stock:has(.recbtn)td{height:68px;}");
     }
 
     /**
@@ -132,22 +137,38 @@ class IngredientTableMatchesFigmaTest {
     }
 
     /**
-     * ★ 列幅は 240/100/120/130/270/140/120（合計 1120）。
+     * ★ 列の比は 240/100/120/130/270/140/120（合計 1120）。
      *
      * <p>設計と実装がもともと一致していた場所です。動かさないための見張り。
+     *
+     * <p>★★ 2026-09-22：px → 割合。比は 1120 基準のまま、値だけ % にしました。
+     *
+     * <p>px のままだと {@code table-layout: fixed} で<b>表が 1120 から縮みません</b>。
+     * iPad（本文 897px）で右の列が初期表示から見切れていました。
+     * 商品の表を 09-20 に % 化したのと同じ直しです。
+     *
+     * <p><b>px に戻さないこと。</b>戻すと同じはみ出しが戻ります。
      */
     @Test
-    @DisplayName("★ 列幅は設計どおり（合計 1120）")
+    @DisplayName("★ 列幅は設計どおりの割合（1120 基準）")
     void theColumnWidthsStayAsDesigned() throws Exception {
         String css = css();
-        int[] widths = {240, 100, 120, 130, 270, 140, 120};
-        int sum = 0;
+        // 設計 240/100/120/130/270/140/120（合計 1120）を、1120 基準の割合で書く
+        String[] widths = {"21.429%", "8.929%", "10.714%", "11.607%", "24.107%", "12.5%", "10.714%"};
+        int[] designPx = {240, 100, 120, 130, 270, 140, 120};
         for (int i = 0; i < widths.length; i++) {
             String rule = ".table--stockth:nth-child(" + (i + 1) + "),"
-                    + ".table--stocktd:nth-child(" + (i + 1) + "){width:" + widths[i] + "px;}";
-            assertThat(css).as((i + 1) + " 本目の列幅が " + widths[i] + "px でない").contains(rule);
-            sum += widths[i];
+                    + ".table--stocktd:nth-child(" + (i + 1) + "){width:" + widths[i] + ";}";
+            assertThat(css).as((i + 1) + " 本目の列幅が " + widths[i]
+                    + "（設計 " + designPx[i] + "px）でない").contains(rule);
         }
-        assertThat(sum).as("列幅の合計が 1120 でない").isEqualTo(1120);
+        assertThat(java.util.Arrays.stream(designPx).sum())
+                .as("設計の合計が 1120 でない").isEqualTo(1120);
+
+        // ★ px に戻さないこと（2026-09-22）。fixed では表が 1120 から縮まず、
+        //   iPad の本文 897px で右の列が見切れます
+        assertThat(css)
+                .as("★ 列幅が px に戻っている")
+                .doesNotContain(".table--stocktd:nth-child(1){width:240px;}");
     }
 }

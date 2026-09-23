@@ -168,8 +168,18 @@ class MenuVisibilityAndSaleTest {
             // 設計でもこの 2 列はバッジで、ボタンの形はしていない。
             // 形を変えずに押せるようにする（状態を見る場所と変える場所を同じにする）
             assertThat(html).as("掲載を切り替える口が無い").contains("/admin/items/{id}/visibility");
-            assertThat(html).as("販売を切り替える口が無い").contains("/admin/items/{id}/sale");
             assertThat(html).as("バッジの形を捨てている").contains("class=\"badge badge--act badge--gf\"");
+
+            // ★ 2026-09-20：販売（品切れ）の列は商品の表から外しました。店主の判断
+            //   「販売の品切れは品切れ残数で調整出来るからそれを編集にすればいい」。
+            //   切り替えは「品切れ・残数」(kitchen/stock.html) の
+            //   「品切れにする／販売再開」ボタンが本家です。空いた列は編集の入口に。
+            String stock = Files.readString(
+                    Path.of("src/main/resources/templates/kitchen/stock.html"))
+                    .replaceAll("(?s)<!--.*?-->", "");
+            assertThat(stock).as("品切れを切り替える口が品切れ・残数にも無い")
+                    .contains("/kitchen/stock/{id}/toggle");
+            assertThat(stock).as("切り替えの文言が無い").contains("品切れにする");
 
             // 押した場所へ戻すために、タブと検索語を持たせる
             assertThat(html).contains("name=\"tab\" th:value=\"${currentTab}\"");
@@ -183,8 +193,14 @@ class MenuVisibilityAndSaleTest {
 
             // 手で立てたフラグ（soldOut）だけがボタン。
             // 残数ゼロ（outOfStock）は数の結果なので、ここで外しても意味が無い
-            assertThat(html).contains("th:if=\"${item.soldOut}\"");
-            assertThat(html).contains("th:if=\"${!item.soldOut and item.outOfStock}\"");
+            // ★ 2026-09-20：見る場所が「品切れ・残数」へ移りました。
+            //   守っている主張は同じ——手で立てた品切れ（soldOut）と、
+            //   数の結果である残数ゼロ（outOfStock）を別物として出すこと。
+            String stock = Files.readString(
+                    Path.of("src/main/resources/templates/kitchen/stock.html"))
+                    .replaceAll("(?s)<!--.*?-->", "");
+            assertThat(stock).contains("th:if=\"${item.soldOut}\"");
+            assertThat(stock).contains("th:if=\"${!item.soldOut and item.outOfStock}\"");
         }
 
         @Test

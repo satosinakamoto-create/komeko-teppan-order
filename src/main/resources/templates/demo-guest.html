@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   お客さま側の見学入口（設計 暗31「これはデモ版です」1597:16742）
+  ============================================================================
+
+   ★ なぜ 1 画面はさむのか
+
+     店舗側（/demo/staff）には前から説明の画面がありましたが、
+     お客さま側（/demo）は<b>押した瞬間に注文画面へ飛んでいました</b>。
+     DemoEntryController の注釈にもその非対称が書いてあります。
+
+     飛ばされた人は、人数を選ぶボタンが目の前にある状態から始まります。
+     そこには「これは本物の注文ではない」と書いてありません。
+     店舗側でわざわざ 1 クリック足してまで伝えていることを、
+     お客さま側では伝えていませんでした。
+
+   ★ ここは POST ではなく素のリンクでよい
+
+     店舗側が POST ＋ CSRF なのは、押すとゲストログインが走るためです
+     （外部サイトに <img src="…/demo/staff"> と書かれるだけで
+       ログイン状態にされるのを塞いでいる）。
+     こちらは卓の画面を開くだけで、認証も副作用もありません。
+     塞ぐものが無いところに手数を足さない。
+
+   ★ 寸法は Figma から測って入れています。目測していません。
+     値の一覧は app.css の「お客さまの見学入口」の節にあります。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title th:text="'デモ版 | ' + ${shop.shopName}">デモ版</title>
+  <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<!--/* お客さま側なので .theme-night（暗い地）。
+       店舗側の /demo/staff は .theme-snow で、こことは別物です。 */-->
+<body class="theme-night">
+<main class="demogate">
+  <div class="demogate__inner">
+
+    <!--/* 店名まわり。設計 ト08（スタッフのログイン画面）と同じ
+           「ロゴ → 店名 → 役割」の 3 段で、間は 8px。 */-->
+    <div class="demogate__brand">
+      <img class="demogate__logo" th:src="@{/images/logo.jpg}"
+           th:alt="${shop.shopName} + ' ロゴ'">
+      <p class="demogate__name" th:text="${shop.shopName}">米粉と鉄板</p>
+      <p class="demogate__role">モバイルオーダー</p>
+    </div>
+
+    <div class="demogate__card">
+      <h1 class="demogate__title">デモ版</h1>
+
+      <p class="demogate__lead">
+        実際のお店では、席に貼ってある QR コードをスマホで読み取ると、この画面が開きます。
+        ここではその直後の状態からお見せしています。
+      </p>
+
+      <!--/* ★ 押すと<b>お品書きへ直行</b>します（2026-09-23・店主の指示
+             「何人って最初に選ぶ画面の代わりに出してほしい」）。
+
+             人数を選ぶ画面（設計 暗00）は<b>実店舗のための段</b>です。
+             テーブルチャージの計算に要るので店では必ず聞きますが、
+             見学者に「何名さまですか」と尋ねても意味がありません。
+             ポートフォリオから来た人にとっては、答えようのない質問が
+             最初の 1 手になります。
+
+             そこでデモでは人数を卓の定員で埋めて送ります。
+             送り先は実店舗と同じ /t/{token}/start なので、
+             伝票の開き方・テーブルチャージの計算は本番と同じ経路を通ります。
+             <b>デモ専用の抜け道は作っていません。</b>
+
+           ★ リンクではなくフォームなのは、ここで伝票が開く（状態が変わる）ためです。
+             GET で状態を変えると、先読みやプレビューで勝手に伝票が開きます。 */-->
+      <form th:action="@{/t/{token}/start(token=${tableToken})}" method="post">
+        <input type="hidden" name="guestCount" th:value="${guestCount}">
+        <button type="submit" class="btn demogate__go">注文をはじめる</button>
+      </form>
+
+      <p class="demogate__note">
+        スマホでご覧いただくと、実際の見え方になります。<br>
+        会員登録は要りません。
+      </p>
+    </div>
+
+    <!--/* 反対側への出口。設計 ト08 の「お客さま向けメニューを見る」に当たる段。 */-->
+    <a class="demogate__link" th:href="@{/demo/staff}">お店側の画面（厨房・ホール）を見る</a>
+
+  </div>
+</main>
+</body>
+</html>

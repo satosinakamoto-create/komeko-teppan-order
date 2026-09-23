@@ -24,12 +24,33 @@
          なぜうまくいかなかったのかが分からなくなります。
 */-->
 <div th:fragment="flash" class="stack-sm">
-  <div class="alert alert--success is-transient" th:if="${flashSuccess}" role="status">
+  <!--/* ★ data-toast は「浮かせてよい」という印（2026-09-20）。
+         toast.js が拾って、本文から取り出し画面の上へ浮かせます。
+         取り出すので<b>場所を取らなくなり、下の表が押し下がりません</b>。
+         JS が動かなければ、今までどおりここに出ます（消えないだけ）。 */-->
+  <div class="alert alert--success is-transient" data-toast="ok"
+       th:if="${flashSuccess}" role="status">
     <p class="mb-0" th:text="${flashSuccess}">保存しました</p>
   </div>
-  <div class="alert alert--info is-transient" th:if="${flashInfo}" role="status">
+  <!--/* ★ flashInfo は「変更が成った」報告なので、成功と同じ緑で出します
+         （2026-09-20・店主の決定「変更とかは緑で良いんじゃない？」）。
+         それまで青で出していましたが、「掲載を止めました」が青で
+         「掲載しました」が緑と、同じ種類の報告で色が割れていました。 */-->
+  <div class="alert alert--success is-transient" data-toast="ok"
+       th:if="${flashInfo}" role="status">
     <p class="mb-0" th:text="${flashInfo}">お知らせ</p>
   </div>
+  <!--/* ★ 警告は赤（2026-09-20・店主の決定「警告ポップアップは赤」）。
+         「できなかった」「気をつけて」を伝えるもので、エラーほど重くないもの。
+         浮かせますが、色で目を引きます。 */-->
+  <div class="alert alert--error is-transient" data-toast="warn"
+       th:if="${flashWarn}" role="status">
+    <p class="mb-0" th:text="${flashWarn}">注意</p>
+  </div>
+  <!--/* ★ エラーには data-toast を付けません。
+         複数行の箇条書きになることがあり、3 秒で消えると
+         なぜうまくいかなかったのかが分からなくなります。
+         このファイルの冒頭にある方針そのままです。 */-->
   <div class="alert alert--error" th:if="${flashErrors != null and !flashErrors.isEmpty()}" role="alert">
     <ul>
       <li th:each="msg : ${flashErrors}" th:text="${msg}">エラー内容</li>

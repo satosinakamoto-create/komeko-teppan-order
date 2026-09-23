@@ -54,6 +54,35 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Long> findSessionIdByPublicToken(@Param("publicToken") String publicToken);
 
     /**
+     * 明細 1 行の ID から、その行を抱えている注文を明細ごと読む（2026-09-22 追加）。
+     *
+     * <p>品ごとの取り消しで使います。取り消すのは行ですが、
+     * 金額を計算し直すのは注文なので、注文のほうを読みます。
+     */
+    @EntityGraph(attributePaths = {"lines", "session", "session.diningTable"})
+    @Query("select o from Order o join o.lines l where l.id = :lineId")
+    Optional<Order> findWithLinesByLineId(@Param("lineId") Long lineId);
+
+    /**
+     * この伝票にぶら下がる注文を、明細ごと読む（2026-09-23 追加）。
+     *
+     * <p>厨房ボードの「その卓の調理済みをまとめて提供済みにする」で使います。
+     * キャンセルした注文も返しますが、呼び出し側が品の段階で読み飛ばします。
+     */
+    @EntityGraph(attributePaths = {"lines", "session", "session.diningTable"})
+    @Query("select o from Order o where o.session.id = :sessionId order by o.id")
+    List<Order> findWithLinesBySessionId(@Param("sessionId") Long sessionId);
+
+    /**
+     * 明細 1 行の ID から、伝票の <b>ID だけ</b>を引く。
+     *
+     * <p>ロックを先に取るためのものです。理由は {@link #findSessionIdById} と同じで、
+     * エンティティを載せずにスカラー値だけを取る必要があります。
+     */
+    @Query("select o.session.id from Order o join o.lines l where l.id = :lineId")
+    Optional<Long> findSessionIdByLineId(@Param("lineId") Long lineId);
+
+    /**
      * 厨房ボード用。指定した状態の注文を、受付が古い順に取得する。
      * 「先に来たお客さんから焼く」ため createdAt 昇順が業務的に正しい並び。
      *

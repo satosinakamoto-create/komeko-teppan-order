@@ -271,10 +271,20 @@ public class StaffOrderController {
      * 違うのは<b>入力者が記録される</b>ことだけです。
      *
      * <p>送ったあとは盤面に戻します。次の卓へ移る場面が続くためです。
+     *
+     * <p><b>★★ 要望（note）はもう受け取りません（2026-09-22）。</b><br>
+     * 店主の判断「営業中にわざわざテキスト入力するヒマなんてないでしょ」。
+     * 決め手は手間ではなく構造で、要望は注文ぜんぶに 1 つしか持てないため
+     * （{@code Order#note}）、4 品の注文に「レア寄りで」と入れても
+     * <b>どの品への要望か分からない</b>形でしか厨房に出せませんでした。
+     *
+     * <p>焼き加減は<b>商品のオプション</b>として登録してください。
+     * 品に紐づき、選ぶだけで、厨房ボードでは品名の直下に出ます。
+     * 画面から欄を消すだけでは、古い画面から飛んできた文字が保存されるので、
+     * <b>受け口そのもの</b>をここで閉じています。
      */
     @PostMapping("/submit")
-    public String submit(@RequestParam(required = false) String note,
-                         @AuthenticationPrincipal StaffUserDetails user,
+    public String submit(@AuthenticationPrincipal StaffUserDetails user,
                          RedirectAttributes redirectAttributes) {
         if (!tableContext.isStaffMode() || tableContext.getSessionId() == null) {
             redirectAttributes.addFlashAttribute("flashErrors",
@@ -284,7 +294,7 @@ public class StaffOrderController {
         String tableName = tableContext.getTableName();
         try {
             OrderService.Placed placed = orderService.placeFromStaffCart(
-                    cart, tableContext.getSessionId(), note, staffNameOf(user));
+                    cart, tableContext.getSessionId(), null, staffNameOf(user));
             Order order = placed.order();
             cart.clear();
 

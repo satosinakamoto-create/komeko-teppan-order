@@ -3,6 +3,7 @@ package jp.komeko.order.web.kitchen;
 import jp.komeko.order.cart.Cart;
 import jp.komeko.order.domain.Category;
 import jp.komeko.order.domain.DiningTable;
+import jp.komeko.order.domain.LineStage;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
@@ -76,8 +77,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("厨房ボードのボタンの強弱")
 class KitchenBoardButtonStyleTest {
 
-    /** 主ボタン（スタッフ側テーマでは草緑 #0b7a1a の塗り）。 */
-    private static final String PRIMARY = "btn--primary";
+    /**
+     * 「押して進める」ボタンの目印。
+     *
+     * <p>2026-09-23 に {@code btn--primary}（草緑の<b>塗り</b>）から変えました。
+     * 設計（ト01 厨房ボード 1548:20793）の実測値は
+     * <b>地 #ffffff・枠 #0e9721・字 #0b7a1a</b> で、塗りではなく枠です。
+     * 厨房ボードは 1 画面に操作ボタンが十数個並ぶので、全部を塗ると
+     * 盤面が緑で埋まり、かえってどれを押すか分からなくなります。
+     *
+     * <p><b>守っているものは変わっていません</b>——
+     * 押してほしいボタン（調理済み・提供済み）だけがこの顔をしていて、
+     * 取り消しや「← 戻す」は持たないこと。
+     */
+    private static final String PRIMARY = "kbtn--go";
     /**
      * 一段大きくする修飾。
      *
@@ -162,51 +175,53 @@ class KitchenBoardButtonStyleTest {
 
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("受付レーンでは「焼きはじめ（→調理中）」が主ボタン。飛ばし技の「焼き上がり」は副")
-    void receivedLaneMakesStartCookingThePrimaryButton() throws Exception {
-        Map<String, String> buttons = statusButtonClasses();
+    @DisplayName("★ 未調理の品では「調理済み」が主ボタン。取り消しは緑を持たない")
+    void uncookedLineMakesCookedThePrimaryButton() throws Exception {
+        Map<String, String> buttons = stageButtonClasses();
 
-        // ★ この 2 行がこの修正の本体。以前は逆になっていた。
-        assertThat(buttons.get("COOKING")).contains(PRIMARY);
-        assertThat(buttons.get("READY")).doesNotContain(PRIMARY);
-
-        // 飛ばし技はアクセント色を持たない。緑（btn--ok）で目立たせていたのをやめた箇所。
-        assertThat(buttons.get("READY")).doesNotContain("btn--ok");
+        assertThat(buttons.get("COOKED"))
+                .as("★ 未調理の品に「調理済み」ボタンが無い")
+                .isNotNull()
+                .contains(PRIMARY);
         // この画面のボタンは大きさで差を付けない（LARGE の説明を参照）
-        assertThat(buttons.get("COOKING")).doesNotContain(LARGE);
+        assertThat(buttons.get("COOKED")).doesNotContain(LARGE);
+
+        // ★ 取り消し（✕）は緑を持たない。押してほしいのは「調理済み」だけ。
+        //   店主の判断：「×ボタンはそんなに目立たせたいものでも押させたいモノでもない」
+        String html = board();
+        Matcher cancel = Pattern.compile("<button[^>]*?class=\"([^\"]*kline__x[^\"]*)\"")
+                .matcher(html);
+        assertThat(cancel.find()).as("★ 厨房ボードに取り消しボタンが無い（設計 ト01 には 10 個ある）").isTrue();
+        assertThat(cancel.group(1))
+                .as("★ 取り消しが主ボタンの顔をしている。隣の「調理済み」と主従が並ぶ")
+                .doesNotContain(PRIMARY);
     }
 
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("調理中レーンでは「焼き上がり（→お渡し可）」が主ボタン")
-    void cookingLaneMakesReadyThePrimaryButton() throws Exception {
-        orderService.changeStatus(placed.getId(), OrderStatus.COOKING, "厨房スタッフ");
+    @DisplayName("★ 調理済みの札では「提供済み」が主ボタン。「← 戻す」は静か")
+    void cookedCardMakesServeThePrimaryButton() throws Exception {
+        Long lineId = placed.getLines().get(0).getId();
+        orderService.moveLine(lineId, LineStage.COOKED, "厨房スタッフ");
 
-        Map<String, String> buttons = statusButtonClasses();
+        String html = board();
 
-        // 受付レーンでは副だった READY が、調理中レーンでは主になる。
-        // 「遷移先の名前で決めていない」ことが、この 1 行で分かる。
-        assertThat(buttons.get("READY")).contains(PRIMARY);
-        assertThat(buttons.get("READY")).doesNotContain(LARGE);
-    }
+        // 提供は卓ごと。運ぶ単位が卓だから（品ごとにすると運ぶ人の押す回数が増える）
+        assertThat(html).as("★ 卓ごとの「提供済み」が無い").contains("/serve");
+        Matcher serve = Pattern.compile(
+                "<form[^>]*?/serve[^>]*>(.*?)</form>", Pattern.DOTALL).matcher(html);
+        assertThat(serve.find()).isTrue();
+        assertThat(serve.group(1)).as("★ 提供済みが主ボタンでない").contains(PRIMARY);
 
-    @Test
-    @WithMockUser(roles = "STAFF")
-    @DisplayName("提供待ちレーンでは「提供済みにする」が主ボタン。「調理中に戻す」は副")
-    void readyLaneMakesCompleteThePrimaryButton() throws Exception {
-        orderService.changeStatus(placed.getId(), OrderStatus.COOKING, "厨房スタッフ");
-        orderService.changeStatus(placed.getId(), OrderStatus.READY, "厨房スタッフ");
-
-        Map<String, String> buttons = statusButtonClasses();
-
-        assertThat(buttons.get("COMPLETED")).contains(PRIMARY);
-        // 大きさで差を付けない（3 レーンとも 56px）。LARGE の説明を参照。
-        assertThat(buttons.get("COMPLETED")).doesNotContain(LARGE);
-
-        // 同じ COOKING でも、ここでは「焼き直すために一段戻す」操作なので副。
-        // 受付レーンの COOKING（主ボタン）と見た目が違うことが、
-        // 遷移先ではなくレーンの文脈で決めている証拠になる。
-        assertThat(buttons.get("COOKING")).doesNotContain(PRIMARY);
+        // ★ 戻すは「直す」系。✕ と同じ静かさに寄せる（案A・2026-09-23 採用）。
+        //   押し間違いの救済なので、押してほしい操作と同じ顔にしない
+        Map<String, String> buttons = stageButtonClasses();
+        assertThat(buttons.get("UNCOOKED"))
+                .as("★ 「← 戻す」が無い（押し間違いから戻れない）")
+                .isNotNull();
+        assertThat(buttons.get("UNCOOKED"))
+                .as("★ 「← 戻す」が主ボタンの顔をしている")
+                .doesNotContain(PRIMARY);
     }
 
     // ========================================================================
@@ -215,9 +230,16 @@ class KitchenBoardButtonStyleTest {
 
     /** {@code <form>…</form>} を 1 つずつ取り出す（{@code DOTALL} で改行をまたぐ）。 */
     private static final Pattern FORM = Pattern.compile("<form[^>]*>(.*?)</form>", Pattern.DOTALL);
-    /** そのフォームが送る遷移先（{@code <input name="status" value="COOKING">}）。 */
+    /**
+     * そのフォームが送る移り先（{@code <input name="stage" value="COOKED">}）。
+     *
+     * <p>2026-09-23 に厨房ボードを注文ごと（{@code name="status"}）から
+     * 品ごと（{@code name="stage"}）へ作り替えました。
+     * <b>守っているものは変わっていません</b>——押してほしいボタンだけが
+     * 「進める」の顔をしていること。
+     */
     private static final Pattern STATUS_VALUE =
-            Pattern.compile("name=\"status\"\\s+value=\"([A-Z]+)\"");
+            Pattern.compile("name=\"stage\"\\s+value=\"([A-Z]+)\"");
     /** そのフォームのボタンに付いた class 属性。 */
     private static final Pattern BUTTON_CLASS =
             Pattern.compile("<button[^>]*?class=\"([^\"]*)\"", Pattern.DOTALL);
@@ -228,12 +250,17 @@ class KitchenBoardButtonStyleTest {
      * <p>状態を送らないフォーム（キャンセル・ログアウト）は入りません。
      * ボードに出す注文を 1 件に絞っているので、遷移先はぶつかりません。
      */
-    private Map<String, String> statusButtonClasses() throws Exception {
-        String html = mockMvc.perform(get("/kitchen"))
+    /** 厨房ボードを描画して HTML を返す。 */
+    private String board() throws Exception {
+        return mockMvc.perform(get("/kitchen"))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
+    }
+
+    private Map<String, String> stageButtonClasses() throws Exception {
+        String html = board();
 
         Map<String, String> classes = new LinkedHashMap<>();
         Matcher forms = FORM.matcher(html);

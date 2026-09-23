@@ -219,13 +219,18 @@ class CategoryScreenSplitTest {
         //   別の列へ幅が当たります（.table--recipes が先にこの形です）。
         int sum = 0;
         for (Object[] col : new Object[][]{
-                {"col-name", 340}, {"col-count", 140}, {"col-state", 300},
-                {"col-act", 180}, {"col-order", 160}}) {
+                {"col-name", 340, "30.357%"}, {"col-count", 140, "12.5%"},
+                {"col-state", 300, "26.786%"}, {"col-act", 180, "16.071%"},
+                {"col-order", 160, "14.286%"}}) {
             String rule = ".table--cats th." + col[0] + ", .table--cats td." + col[0]
-                    + " { width: " + col[1] + "px; }";
-            assertThat(css).as(col[0] + " の幅指定が無い").contains(rule);
+                    + " { width: " + col[2] + "; }";
+            assertThat(css).as(col[0] + " の幅指定（" + col[2] + "／設計 " + col[1] + "px）が無い")
+                    .contains(rule);
             sum += (int) col[1];
         }
+        // ★ px に戻さないこと（2026-09-22）。iPad で右の列が見切れます
+        assertThat(css).as("★ 列幅が px に戻っている")
+                .doesNotContain(".table--cats th.col-name, .table--cats td.col-name { width: 340px; }");
         assertThat(sum)
                 .as("★ 合計が 1120 でない。fixed なので、狭いと右が余り、"
                         + "広いと設計幅でも横スクロールが出る")

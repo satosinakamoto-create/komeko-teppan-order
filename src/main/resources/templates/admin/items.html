@@ -130,10 +130,22 @@
          「この表はいまこの絞り込みの結果だ」が形で分かる。 */-->
   <div class="tabtable">
 
-    <div class="tabtable__tabs" role="tablist">
+    <!--/* ★ タブの右に並べ替え（2026-09-20・店主の指示
+           「編集中の隣に並び順を原価率の高い低いとか Windows フォルダの
+             並び変えみたいなのを実装仕様と思うんだよね」）。
+
+         ★ これは<b>見え方だけ</b>です。お客さまのメニューに出る順番
+           （MenuItem#sortOrder）には触れません。混ぜると
+           「原価率順に並べたらメニューまで原価率順になった」になります。
+
+         ★ いまのタブ・検索語・カテゴリを持ったまま行き先を作ること。
+           落とすと、絞り込んでから並べ替えた瞬間に全件へ戻ります。 */-->
+    <div class="tabsort">
+
+      <div class="tabtable__tabs" role="tablist">
       <a th:each="t : ${tabs}" class="tab"
          th:classappend="${t.active()} ? 'is-active'"
-<!--/* ★ 選んでいるカテゴリもリンクに持たせること。
+        <!--/* ★ 選んでいるカテゴリもリンクに持たせること。
              落とすと、タブを押した瞬間に絞り込みが解けて全件に戻る。
              検索語（q）を持たせているのと同じ理由。 */-->
          th:href="@{/admin/items(tab=${t.key()}, q=${q}, category=${selectedCategoryId})}"
@@ -143,48 +155,70 @@
           <span class="tab__count" th:text="${t.count()}">94</span><span class="tab__unit">品</span>
         </span>
       </a>
+      </div>
+      <details class="sortpick">
+        <summary class="sortpick__head">
+          <span th:text="'並べ替え：' + ${currentSortLabel}">並べ替え：標準</span>
+          <span class="sortpick__mark" aria-hidden="true">▾</span>
+        </summary>
+        <div class="sortpick__list">
+          <a th:each="o : ${sortOptions}" class="sortpick__item"
+             th:classappend="${o.key() == currentSort} ? 'is-active'"
+             th:href="@{/admin/items(tab=${currentTab}, q=${q}, category=${selectedCategoryId}, sort=${o.key()})}">
+            <span class="sortpick__check" aria-hidden="true" th:text="${o.key() == currentSort} ? '✓' : ''">✓</span>
+            <span th:text="${o.label()}">標準（お客さまに出る順）</span>
+          </a>
+        </div>
+      </details>
     </div>
 
     <div class="table-wrap">
       <table class="table table--items">
         <thead>
         <tr>
-          <th class="col-name">商品名</th>
+          <!--/* ★ 2026-09-20：カテゴリを先に出します（店主の指示
+                 「商品名とカテゴリは逆の方が見やすい」）。
+                 並び順はカテゴリごとに独立しているので、左端がカテゴリだと
+                 どこで区切れているかが目で追えます。 */-->
           <th class="col-cat">カテゴリ</th>
+          <th class="col-name">商品名</th>
           <th class="col-price">価格（税込）</th>
           <!--/* 原価列（設計 ト10・2026-09-14）。レシピ未登録がここで見える。
                  itemCosts は在庫モジュールが有効なときだけコントローラが渡す。
                  切った店では列ごと消える（データの出しようがない） */-->
           <th class="col-cost" th:if="${itemCosts != null}">原価</th>
           <th class="col-state">掲載</th>
-          <th class="col-state">販売</th>
-          <th class="col-order">並び</th>
+          <!--/* 編集の入口（2026-09-20・店主の指示「販売中と並びの間に編集ボタン追加」）。
+                 それまで商品を直す口は商品名のリンクだけで、設計（ト10）にも
+                 行のボタンがありませんでした。名前を黒くするために、先にここを作ります。 */-->
+          <th class="col-act">編集</th>
         </tr>
         </thead>
-        <!--/* data-reorder は items-reorder.js の目印。
-               行が 1 つも無いときだけ付けません（動かしようがないため）。
+        <!--/* ★ 2026-09-20：並べ替えのつまみはこの画面から外しました。
+               店主の判断「ユーザーはドラック＆ドロップで商品は並び変えることない」。
+               置き場はカテゴリ編集（category-edit.html）へ移しています——
+               あちらは 1 カテゴリぶんしか出さないので、表に見えている行が
+               そのまま並び順の全体になり、落とした位置の意味が決まります。
 
-             ★ 2026-09-19：絞り込み中も並べ替えられるようにしました。
-               もとは「見えている隣が本当の隣とは限らない」ので止めていましたが、
-               それは ↑↓ が隣と 1 つ入れ替える操作だったからです。
-               いまは「どの商品の隣に置くか」を指して送るので、
-               隠れている行が何行あっても落とした場所どおりになります。 */-->
-        <!--/* ★ 値を空文字にしないこと。Thymeleaf は値が空だと
-               <b>属性ごと落とします</b>（2026-09-19 に実際そうなり、
-               JavaScript が目印を見つけられずに何も起きませんでした）。 */-->
-        <tbody th:attr="data-reorder=${canReorder} ? 'on' : null">
-        <!--/* 行に「同じ並びの仲間」を持たせる（data-group-id）。
-               商品の並び順はカテゴリごとに独立していて、またぐ移動は
-               「カテゴリを変える」ことになるため、画面側でも境界を越えさせません
-               （サーバ側でも弾いています）。
-               カテゴリと卓は 1 本の並びなので、あちらは全行が同じ値です。 */-->
+               この画面は全カテゴリが混ざるため、隣の行が同じカテゴリとは限らず、
+               2026-09-19 に絞り込み中も並べられるようにした時点でも
+               そこだけは無理がありました。
+
+             ★ data-reorder / data-item-id / data-group-id を戻さないこと。
+               戻すと reorder.js が拾いますが、つまみが無いので
+               表に is-reorderable が付くだけで何も起きません。 */-->
+        <tbody>
         <tr th:each="item : ${rows}"
             th:data-item-id="${item.id}"
             th:data-group-id="${item.category.id}">
-          <td>
-            <a th:href="@{/admin/items/{id}/edit(id=${item.id})}" th:text="${item.name}">肉玉米粉そば</a>
+          <td class="wrap col-cat" th:text="${categoryNames.get(item.category.id)}">広島風お好み焼き</td>
+          <!--/* ★ 名前はただの文字。リンクにしないこと（2026-09-20・店主の指摘）。
+                 設計（ト10）も 16px/Regular の黒 #272727 で、リンクではありません。
+                 緑は「押せる」の合図に使うと決めた色なので、名前まで緑だと
+                 1 行に押せるものが 2 系統できて、どちらから直すのか割れます。 */-->
+          <td class="wrap col-name">
+            <span th:text="${item.name}">肉玉米粉そば</span>
           </td>
-          <td th:text="${categoryNames.get(item.category.id)}">広島風お好み焼き</td>
           <!--/* 価格 0 は「時価」。共通フラグメントと同じ扱いにそろえる。
 
                  ★ ただし書きかけ（編集中）は別。
@@ -208,8 +242,14 @@
                     class="faint" th:if="${c.costRateIncludingTax() != null}"
                     th:text="'（' + ${c.costRateIncludingTax()} + '%）'">（26%）</span>
             </span>
+            <!--/* ★ 2026-09-20：赤いただの文字 → ボタン（店主の指摘
+                   「編集、掲載中、未登録は同じボタンの大きさにしないと押せる感じしなくない？」）。
+                   48×21px の枠も面も無い赤字で、押すとレシピ登録へ飛ぶとは分かりませんでした。
+                 ★ 色は赤の枠（店主の指定「未登録は赤枠赤文字よ」）。
+                   規格の「赤＝消える」に、ここで「赤＝気づかせる」が加わりました。
+                   原価が入っていない品が一覧でひと目で分かるのが狙いです。 */-->
             <a th:if="${c == null or c.costIncludingTax() == null}"
-               style="color: var(--danger)"
+               class="btn btn--danger"
                th:href="@{/inventory/recipes/{id}(id=${item.id})}">未登録</a>
           </td>
           <!--/* ====== 掲載 ／ 販売 ======
@@ -247,75 +287,28 @@
                       title="押すと掲載します">掲載停止</button>
             </form>
           </td>
-          <td class="col-state">
-            <!--/* 掲載していない品の販売状態は意味を持たないので出さない。
-                   メニューに無いものが「販売中」でも「品切れ」でもない。
-                   書きかけも同じ（まだメニューに出ていない） */-->
-            <form th:if="${item.visible and !item.draft}"
-                  th:action="@{/admin/items/{id}/sale(id=${item.id})}" method="post">
-              <input type="hidden" name="tab" th:value="${currentTab}">
-              <input type="hidden" name="q" th:value="${q}">
-              <!--/* ★ この 2 つは長いあいだ、どちらも「品切れ」という同じ字でした（〜2026-09-17）。
-                     片方は押せる button、もう片方は押せない span なのに、
-                     字も色も形も同じだったので見分けられませんでした。
-
-                     「品切れ・残数」の画面はこの 2 つを「品切れ中」「残数ゼロ」と
-                     呼び分けています。同じ状態を画面ごとに違う名前で呼ばないよう、
-                     向こうに合わせました。
-
-                     残数ゼロがここで押せないのは、手で立てたフラグではなく
-                     数の結果だからです。ここで外しても次の注文で 0 に戻ります。
-                     数は「品切れ・残数」の画面で入れ直します。 */-->
-              <button type="submit" class="badge badge--act badge--stop"
-                      th:if="${item.soldOut}" title="押すと販売を再開します">品切れ中</button>
-              <span class="badge badge--info" th:if="${!item.soldOut and item.outOfStock}"
-                    title="残数が 0 です。数は「品切れ・残数」の画面で入れ直します">残数ゼロ</span>
-              <button type="submit" class="badge badge--act badge--gf"
-                      th:unless="${item.soldOut or item.outOfStock}"
-                      title="押すと品切れにします">販売中</button>
-            </form>
-            <span class="faint" th:unless="${item.visible and !item.draft}">—</span>
+                    <!--/* ★ 販売（品切れ）の列は 2026-09-20 に外しました。店主の判断
+                 「販売の品切れは品切れ残数で調整出来るからそれを編集にすればいい」。
+                 同じ切り替えが「品切れ・残数」の画面にあり、そちらが本家です。
+                 空いた 1 列を編集の入口に使っています。
+               ★ 品切れの品を探す手段は残っています——上のタブに「品切れ」があります。 */-->
+          <td class="col-act">
+            <a class="btn btn--edit"
+               th:href="@{/admin/items/{id}/edit(id=${item.id})}"
+               th:aria-label="${item.name} + ' を編集する'">編集</a>
           </td>
-          <!--/* 並び替え。
-                 上下ボタンが動かすのは<b>同じカテゴリの中だけ</b>です。
-                 カテゴリをまたいで動かせてしまうと、並べ替えのつもりで
-                 商品の所属が変わります。
-
-                 絞り込んでいるとき（検索語あり・「すべて」以外のタブ）は出しません。
-                 隣の行が本当の隣とは限らないので、押しても動かないように見える
-                 ことがあり、そのほうが混乱するためです。 */-->
-          <!--/* ====== 並び順（2026-09-19・店主の指示） ======
-                 「並び順はドラック＆ドロップで入れ替えられる仕様にしたいかな、
-                   その方が直感的だし 1 つづつずらして行く必要ないし」。
-
-                 ★ つまみは <button>。ボタンにするとキーボードで選べて、
-                   矢印キーでも動かせます。div にすると tabindex を足す羽目になり、
-                   「押せるもの」だと読み上げにも伝わりません。
-
-                 ★ type="button" にすること。表の中は掲載・販売のフォームの
-                   外なので送信は起きませんが、既定の submit のままだと
-                   将来フォームで包んだ瞬間に勝手に送信されます。
-
-                 ★ 動かす仕掛けは items-reorder.js。
-                   つまみは CSS で隠してあり、JavaScript が表に
-                   is-reorderable を付けたときだけ現れます。
-                   押しても何も起きないものを見せないため。 */-->
-          <td class="num col-order">
-            <button th:if="${canReorder}" type="button"
-                    class="dragdot" data-reorder-handle
-                    th:data-item-id="${item.id}"
-                    th:data-item-name="${item.name}"
-                    th:aria-label="${item.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
-              <span aria-hidden="true">⠿</span>
-            </button>
-            <span class="faint tiny" th:text="${item.sortOrder}">1</span>
-          </td>
+          <!--/* ★ 並びの列（ドラッグのつまみ）は 2026-09-20 に外しました。
+                 店主の判断「ユーザーはドラック＆ドロップで商品は並び変えることない」。
+               ★ もう 1 つ理由があります。並べ替えた表でドラッグさせると、
+                 <b>落とした位置の意味が決まりません</b>。原価率順に並んだ表で
+                 3 番目に落としても、お客さまの順番の何番目なのか対応が付きません。
+               ★ お客さまの順番は、商品の編集画面の「並び」の数字欄から変えます。 */-->
         </tr>
         <!--/* 0 件の理由が「タブ」なのか「検索語」なのかを分けて出す。
                検索して 0 件のときに「このタブに当てはまる商品はありません」と出ると、
                タブのせいに見えて、打った語のほうを疑えない */-->
         <tr th:if="${rows.isEmpty()}">
-          <td colspan="6" class="center faint">
+          <td colspan="7" class="center faint">
             <span th:if="${#strings.isEmpty(q)}">このタブに当てはまる商品はありません。</span>
             <span th:unless="${#strings.isEmpty(q)}"
                   th:text="'「' + ${q} + '」に当てはまる商品はありません。'">「◯◯」に当てはまる商品はありません。</span>
@@ -325,35 +318,10 @@
       </table>
     </div>
 
-    <!--/* ★ 並び順を送るための隠しフォーム（2026-09-19）。
-           items-reorder.js が id と before を詰めて submit します。
-
-           <b>fetch を使わないのはこのためです。</b>th:action で書いてあるので
-           CSRF トークンは Thymeleaf が入れてくれます。JavaScript から
-           fetch で送ると、トークンを自分で拾って付ける仕組みが要り、
-           このアプリにはその仕組み（meta タグなど）がありません。
-
-         ★ 商品の id はパスではなく入力欄で送ります。パスに入れると
-           action を JavaScript で組み立て直すことになり、
-           Thymeleaf が入れた CSRF の入力欄とちぐはぐになります。 */-->
-    <form th:if="${canReorder}" id="reorder-form" method="post"
-          th:action="@{/admin/items/place}" hidden>
-      <input type="hidden" name="id">
-      <!--/* ★ 行き先は「どの商品の隣か」で送ります。
-             before があればその直前、無ければ after の直後。
-             どちらも実在する行を指すので、末尾でも先頭でも迷いません。
-
-             「空なら先頭」という決め方だと、下端に落としたときに
-             送るものが無くなって先頭へ飛びます（実際そうなっていました）。 */-->
-      <input type="hidden" name="before">
-      <input type="hidden" name="after">
-      <!--/* ★ いまの絞り込みを持ち帰る。落とすと、1 つ動かしたとたんに
-             「すべて」の一覧へ飛ばされて続けて並べ替えられません
-             （掲載の切り替えと同じ扱い）。 */-->
-      <input type="hidden" name="tab" th:value="${currentTab}">
-      <input type="hidden" name="q" th:value="${q}">
-      <input type="hidden" name="category" th:value="${selectedCategoryId}">
-    </form>
+    <!--/* ★ 並び順を送るフォームは 2026-09-20 に外しました。
+         つまみをやめたので、この画面から送るものがありません。
+       ★ サーバ側の口（POST /admin/items/place）は<b>残してあります</b>。
+         カテゴリ編集の画面がそのまま使っています。 */-->
   </div>
 
 </main>

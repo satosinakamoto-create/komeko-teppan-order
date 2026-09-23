@@ -109,16 +109,46 @@ class RecipeLinkageTest {
         assertThat(t).contains("th:if=\"${itemCosts != null}\"");
     }
 
+    /**
+     * ★ 列幅は Figma ト10 の比どおり（280/200/140/120/130/130/120 を % に直した値）。
+     *
+     * <p><b>2026-09-20 に px から % へ変えました。</b>
+     * px 固定だと、<b>縦スクロールバーが出た瞬間に</b>使える幅が 1120 → 1105px に減り、
+     * 合計 1120px の表が <b>15px はみ出して横スクロールが生まれて</b>いました（実測）。
+     * 商品は 100 品あって必ず縦に長くなるので、必ず起きます。
+     *
+     * <p>% なら比は設計のまま、幅が変わっても収まります。
+     * 280/1120 = 25%、200/1120 = 17.857%、…という換算です。
+     */
     @Test
-    @DisplayName("★ 列幅は Figma ト10 どおり（280/200/140/120/130/130/120）")
+    @DisplayName("★ 列幅は Figma ト10 の比どおり（25 / 17.857 / 12.5 / 10.714 / 11.607 / 11.607 / 10.714%）")
     void theColumnWidthsMatchTheMock() throws Exception {
-        String css = read(CSS);
-        int[] widths = {280, 200, 140, 120, 130, 130, 120};
-        for (int i = 0; i < widths.length; i++) {
-            assertThat(css)
-                    .as("table--items の %d 列目", i + 1)
-                    .contains(".table--items th:nth-child(" + (i + 1) + "), .table--items td:nth-child(" + (i + 1) + ") { width: " + widths[i] + "px; }");
+        // 空白のゆらぎで落ちないよう、詰めてから見る
+        String css = read(CSS).replaceAll("\s+", "");
+
+        // ★ 2026-09-20：nth-child → クラス指定。
+        //   原価の列は在庫モジュールを切ると列ごと消えるので、nth-child だと
+        //   そこから右が 1 つずつ前にずれて別の列に当たります。
+        // ★ 2026-09-20：並びの列を外して 7 → 6 列。空いた 118px を配り直しました
+        //   （設計は倉庫の試作A）。商品名が 276 → 314px に広がっています。
+        String[][] cols = {
+            {"col-cat",   "20%"},      // 224 / 1120
+            {"col-name",  "28.036%"},  // 314
+            {"col-price", "13.929%"},  // 156
+            {"col-cost",  "11.964%"},  // 134
+            {"col-state", "13.036%"},  // 146（掲載）
+            {"col-act",   "13.036%"},  // 146（編集）
+        };
+        for (String[] c : cols) {
+            assertThat(css).as("table--items の %s の幅", c[0])
+                    .contains(".table--itemsth." + c[0] + ",.table--itemstd." + c[0]
+                            + "{width:" + c[1] + ";}");
         }
+
+        // ★ px に戻さないこと。戻すと縦スクロールバーぶん 15px はみ出します
+        assertThat(css)
+                .as("★ 列幅が px に戻っている")
+                .doesNotContain(".table--itemsth.col-name,.table--itemstd.col-name{width:280px;}");
     }
 
     @Test

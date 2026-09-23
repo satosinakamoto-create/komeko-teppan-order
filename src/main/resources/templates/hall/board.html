@@ -242,8 +242,12 @@
               テーブルチャージ ¥1,800 を含む</span>
           </div>
 
-          <button type="button" class="btn btn--block billcard__action"
-                  th:data-open-modal="'bill-modal-' + ${bill.id}">伝票を見る／お会計</button>
+          <!--/* ★ 2026-09-23：モーダルをやめて伝票ページへ飛ばすようにしました。
+                 伝票（/hall/bills/{id}）は 520px のモーダルより広く、会計メモ・
+                 人数変更・チャージ免除・お会計待ちにする、を最初から持っています。
+                 モーダルはその劣化版でした。詳しくは docs\厨房ボード-設計-20260922.md。 */-->
+          <a class="btn btn--block billcard__action"
+             th:href="@{/hall/bills/{id}(id=${bill.id})}">伝票を見る／お会計</a>
         </article>
       </div>
     </section>
@@ -304,8 +308,8 @@
                  会計を締めるには支払方法が要る（TableService.closeSession は
                  未選択だと弾く）ので、1 回押しただけでは終われない。
                  押しても完了しないボタンを「完了」と書くのがいちばん危ない */-->
-          <button type="button" class="btn btn--block billcard__action"
-                  th:data-open-modal="'bill-modal-' + ${bill.id}">お会計へ進む</button>
+          <a class="btn btn--block billcard__action"
+             th:href="@{/hall/bills/{id}(id=${bill.id})}">お会計へ進む</a>
         </article>
       </div>
     </section>
@@ -350,159 +354,24 @@
 
   </div>
 
-  <!--/* ===== お会計のモーダル（伝票ごと・2 段階。2026-09-12） =====
+  <!--/* ===== お会計のモーダルは 2026-09-23 に外しました =====
 
-         ① ご注文の確認 → ② お会計 の 2 画面。
-         レジで読み上げるときに「何を頼んだか」を確かめてから金額に進みます。
+         伝票ページ（/hall/bills/{id}）へ飛ばすようにしたためです。
+         上の「伝票を見る／お会計」「お会計へ進む」はどちらも同じ行き先で、
+         もともとこのモーダルを開いていました（同じ id を指していました）。
 
-         ★ 伝票ごとに 1 枚ずつ描いています。
-           中身が卓ごとに違うので、1 枚を使い回すと開くたびに中身を
-           取りに行く仕掛け（JS とエンドポイント）が要ります。
-           このプロジェクトは SSE 以外ほぼサーバー描画なので、そちらに寄せました。
+         ★ なぜページに寄せたか
+           このモーダルは 520px で、14 品の明細のうち 8 品しか一度に出せず、
+           読み上げながら指でスクロールすることになっていました。
+           伝票ページは同じ内容をページ幅（1120px）で出せて、しかも
+           会計メモ・人数変更・チャージ免除・お会計待ちにする、を
+           最初から持っています。モーダルはその劣化版でした。
 
-         ★ 確認ダイアログは<b>最後の「お会計（伝票を締める）」だけ</b>に出します。
-           途中のボタンは何も記録しないので、そこで止めると
-           「とりあえず OK を押す」癖がついて、肝心の最後が読まれなくなります。 */-->
-  <th:block sec:authorize="!hasRole('GUEST')" th:each="bill : ${bills}">
-  <dialog class="hallmodal" th:id="'bill-modal-' + ${bill.id}"
-          th:aria-label="${bill.diningTable.name} + ' のお会計'">
-    <form class="hallmodal__box" th:action="@{/hall/bills/{id}/close(id=${bill.id})}"
-          method="post" data-panes>
+           品ごとの取り消し（✕）を足そうとして「モーダルの上にモーダル」に
+           なったのも、伝票がモーダルに入っていたからです。
+           ページなら確認は 1 枚で済みます。
 
-      <!--/* ── ① ご注文の確認 ── */-->
-      <section class="hallmodal__pane" data-pane="1">
-        <div th:replace="~{hall/fragments :: step(1, 'ご注文の確認', 'お会計')}"></div>
-
-        <div class="hallmodal__head">
-          <h2 class="hallmodal__title" th:text="${bill.diningTable.name}">カウンター2</h2>
-          <span class="hallmodal__sup"
-                th:text="${bill.guestCount} + ' 名 ／ 滞在 ' + ${bill.stayMinutes} + ' 分'">2 名 ／ 滞在 96 分</span>
-        </div>
-
-        <div class="hallmodal__field">
-          <div class="hallmodal__row hallmodal__row--label">
-            <span class="hallmodal__label">ご注文</span>
-            <span class="hallmodal__label" th:text="${bill.billableOrders.size()} + ' 件'">3 件</span>
-          </div>
-
-          <!--/* 高さを決めて中だけ動かす。注文が増えてもモーダルの高さは変わらない。
-                 キャンセルした注文は出しません（金額を確かめる画面なので、
-                 請求に乗らないものを並べると読み上げと合わなくなる） */-->
-          <div class="scrollbox scrollbox--lines">
-            <th:block th:each="order : ${bill.billableOrders}">
-              <div class="lineitem" th:each="line : ${order.lines}">
-                <div class="lineitem__row">
-                  <span class="lineitem__name" th:text="${line.menuItemName}">国産砂肝の鉄板塩たれ焼</span>
-                  <span class="lineitem__qty" th:text="'× ' + ${line.quantity}">× 1</span>
-                  <span class="lineitem__gap"></span>
-                  <span class="lineitem__price"
-                        th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥880</span>
-                </div>
-                <p class="lineitem__opt" th:if="${!line.options.isEmpty()}"
-                   th:text="${line.optionSummary}">ソース / ねぎマヨ</p>
-              </div>
-            </th:block>
-          </div>
-        </div>
-
-        <div class="hallmodal__total">
-          <span>ご請求額</span>
-          <b th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥17,280</b>
-        </div>
-
-        <div class="hallmodal__foot">
-          <button type="button" class="btn hallmodal__sub" data-close-modal>やめる</button>
-          <!--/* 文言は「お会計する」（2026-09-18・店主の判断）。
-               設計（ト02d 725:3374）の文字が「お会計する」で、レイヤー名だけ
-               「ボタン／会計する」と食い違っていました。どちらに寄せるか聞いて、
-               お会計するに統一。Figma のレイヤー名も直してあります。 */-->
-          <button type="button" class="btn hallmodal__main" data-pane-next="2">お会計する</button>
-        </div>
-      </section>
-
-      <!--/* ── ② お会計 ── */-->
-      <section class="hallmodal__pane" data-pane="2" hidden>
-        <div th:replace="~{hall/fragments :: step(2, 'ご注文の確認', 'お会計')}"></div>
-
-        <div class="hallmodal__head">
-          <h2 class="hallmodal__title">お会計（伝票を締める）</h2>
-          <span class="hallmodal__sup"
-                th:text="${bill.diningTable.name} + ' ／ ' + ${bill.guestCount} + ' 名 ／ 滞在 ' + ${bill.stayMinutes} + ' 分'">
-            カウンター2 ／ 2 名 ／ 滞在 96 分</span>
-        </div>
-
-        <!--/* 金額はすべて TableSession が計算した値をそのまま出します。
-               画面側で足し算を書くと計算式が 2 箇所に増え、請求額がズレます */-->
-        <div class="sumbox">
-          <div class="sumbox__row">
-            <span>小計</span>
-            <span th:text="'¥' + ${#numbers.formatInteger(bill.subtotalAmount, 1, 'COMMA')}">¥16,380</span>
-          </div>
-          <div class="sumbox__row">
-            <span>テーブルチャージ</span>
-            <span th:text="'¥' + ${#numbers.formatInteger(bill.tableChargeAmount, 1, 'COMMA')}">¥900</span>
-          </div>
-          <div class="sumbox__row" th:if="${bill.lateNightApplied}">
-            <span th:text="'深夜料金 ' + ${bill.lateNightSurchargePercent} + '%'">深夜料金 10%</span>
-            <span th:text="'¥' + ${#numbers.formatInteger(bill.lateNightAmount, 1, 'COMMA')}">¥1,728</span>
-          </div>
-          <div class="sumbox__line"></div>
-          <div class="sumbox__row sumbox__row--total">
-            <span>ご請求額</span>
-            <b th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥17,280</b>
-          </div>
-          <div class="sumbox__row sumbox__row--tax">
-            <span>内消費税</span>
-            <span th:text="'¥' + ${#numbers.formatInteger(bill.taxAmount, 1, 'COMMA')}">¥1,571</span>
-          </div>
-        </div>
-
-        <!--/* 深夜料金。チェックを外すとパラメータ自体が送られず、
-               サーバ側は「送られてこなかった＝適用しない」として受け取ります */-->
-        <div class="hallmodal__field" th:if="${bill.lateNightSurchargePercent > 0}">
-          <label class="checkline">
-            <input type="checkbox" name="applyLateNight" value="true"
-                   th:checked="${checkoutViews[bill.id].lateNightDefault()}">
-            <span th:text="'深夜料金を適用する（' + ${bill.lateNightSurchargePercent} + '%）'">深夜料金を適用する（10%）</span>
-          </label>
-          <p class="hallmodal__note">外すと深夜料金なしで締めます（内訳より安くなります）</p>
-        </div>
-
-        <!--/* お支払い方法。既定で選んでおかないのは、押し忘れたぶんが
-               現金売上に化けるのを防ぐためです。選ぶまで締められません */-->
-        <div class="hallmodal__field">
-          <span class="hallmodal__label">お支払い方法</span>
-          <div class="payrow">
-            <label class="payopt">
-              <input type="radio" name="paymentMethod" value="CASH" required>
-              <span>現金</span>
-            </label>
-            <label class="payopt">
-              <input type="radio" name="paymentMethod" value="CARD" required>
-              <span>カード</span>
-            </label>
-          </div>
-          <p class="hallmodal__note">どちらか選ばないと締められません</p>
-        </div>
-
-        <div class="hallmodal__foot">
-          <button type="button" class="btn hallmodal__sub" data-pane-prev="1">← 戻る</button>
-          <!--/* ★ 確認ダイアログはここだけ。
-                 チェックを外した瞬間に読み上げる金額が変わるよう、
-                 深夜料金あり／なしの両方を持たせて JS 側で選びます
-                 （画面に描いた時点の金額を固定で出すと、外してから押したときに
-                   ダイアログの金額と実際に締まる金額が食い違う） */-->
-          <button type="submit" class="btn hallmodal__main hallmodal__main--danger"
-                  th:data-table="${bill.diningTable.name}"
-                  th:data-total-with="${#numbers.formatInteger(checkoutViews[bill.id].totalIfLateNightApplied(), 1, 'COMMA')}"
-                  th:data-total-without="${#numbers.formatInteger(bill.totalWithoutLateNight, 1, 'COMMA')}"
-                  onclick="return komekoConfirmClose(this);">お会計（伝票を締める）</button>
-        </div>
-      </section>
-
-    </form>
-  </dialog>
-  </th:block>
+         経緯と実測値は docs/厨房ボード-設計-20260922.md に残してあります。 */-->
 
   <!--/* ===== 本日の会計済み =====
          締めたあとの伝票は上の一覧から消えるため、ここに残しておかないと

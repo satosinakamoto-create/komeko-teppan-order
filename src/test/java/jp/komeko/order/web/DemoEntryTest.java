@@ -18,7 +18,6 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -76,14 +75,54 @@ class DemoEntryTest {
         }
 
         @Test
-        @DisplayName("ログイン不要で、卓のお客さま画面へ転送される")
-        void redirectsToATable() throws Exception {
+        @DisplayName("ログイン不要で、お品書きへ直行できるボタンが出る")
+        void showsTheWayIntoATable() throws Exception {
+            // ★ 2026-09-23 に、ここは転送から「入口の画面」に変わりました
+            //   （設計 暗31 1597:16742）。店舗側の /demo/staff と同じく、
+            //   何の画面に入るのかを先に伝えてから進みます。
+            //
+            //   <b>守っているものは変わっていません</b>——ログイン無しで、
+            //   卓の画面へ 1 手で入れること。見る場所が
+            //   「転送先」から「ボタンのリンク先」に移っただけです。
             tableRepository.save(new DiningTable("カウンター1", 2, 10));
 
             mockMvc.perform(get("/demo"))
-                    .andExpect(status().is3xxRedirection())
-                    // 転送先は /t/{36文字のトークン}
-                    .andExpect(redirectedUrlPattern("/t/*"));
+                    .andExpect(status().isOk())
+                    .andExpect(view().name("demo-guest"))
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.containsString("action=\"/t/")));
+        }
+
+        /**
+         * ★ 見学者が最初に読む行は「デモ版です」であること（2026-09-23・店主の指示）。
+         *
+         * <p>もとの 1 行目は「お客さま側の画面です。」でした。
+         * これは<b>誰の画面か</b>しか言っておらず、いちばん先に知りたい
+         * 「これは本物の注文画面ではない」が 3 行目まで出てきません。
+         * 人数を選ぶボタンが目の前にあるので、そこまで読まずに押されます。
+         *
+         * <p>順番まで見ているのは、置き場所が変わると意味が変わるからです。
+         * 題より後ろに落ちた時点で「最初に表示」ではなくなりますが、
+         * <b>文字が画面のどこかにある限り、文言だけの検査は通ってしまいます</b>。
+         */
+        @Test
+        @DisplayName("★★ 卓の画面をひらくと、題より先に「デモ版です」が出る")
+        void theDemoNoticeComesFirst() throws Exception {
+            DiningTable table = tableRepository.save(new DiningTable("カウンター1", 2, 10));
+
+            // ★ /demo は 2026-09-23 から入口の画面になったので、ここでは通りません。
+            //   見たいのは<b>卓の画面</b>に前置きが出るかなので、直にひらきます。
+            String html = mockMvc.perform(get("/t/" + table.getAccessToken()))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+
+            assertThat(html)
+                    .as("★ 公開デモなのに「デモ版です」が出ていない")
+                    .contains("これはデモ版です。");
+
+            assertThat(html.indexOf("これはデモ版です。"))
+                    .as("★★ 題より後ろに出ている。これでは「最初に表示」にならない")
+                    .isLessThan(html.indexOf("ご来店ありがとうございます</h1>"));
         }
 
         @Test
@@ -103,17 +142,17 @@ class DemoEntryTest {
         }
 
         @Test
-        @DisplayName("転送先は、いま実在する卓のトークンである")
-        void redirectsToALiveToken() throws Exception {
+        @DisplayName("リンク先は、いま実在する卓のトークンである")
+        void linksToALiveToken() throws Exception {
             // ★ ここが本題。
-            // 「どこかへ転送された」だけでは、古いトークンを返していても通ってしまう。
+            // 「どこかへのリンクがある」だけでは、古いトークンを返していても通ってしまう。
             // いま DB にある卓のトークンと一致することまで見る。
             DiningTable table = tableRepository.save(new DiningTable("カウンター1", 2, 10));
 
-            MvcResult result = mockMvc.perform(get("/demo")).andReturn();
-            String location = result.getResponse().getRedirectedUrl();
+            String html = mockMvc.perform(get("/demo"))
+                    .andReturn().getResponse().getContentAsString();
 
-            assertThat(location).isEqualTo("/t/" + table.getAccessToken());
+            assertThat(html).contains("action=\"/t/" + table.getAccessToken() + "/start\"");
         }
 
         @Test
@@ -124,12 +163,13 @@ class DemoEntryTest {
             tableRepository.save(new DiningTable("あああ席", 4, 5));
             DiningTable stage = tableRepository.save(new DiningTable("カウンター1", 2, 10));
 
-            MvcResult result = mockMvc.perform(get("/demo")).andReturn();
+            String html = mockMvc.perform(get("/demo"))
+                    .andReturn().getResponse().getContentAsString();
 
-            assertThat(result.getResponse().getRedirectedUrl())
+            assertThat(html)
                     .as("DemoDataSeeder が空けている卓と揃っていないと、"
                             + "見学者がいきなり相席から始まる")
-                    .isEqualTo("/t/" + stage.getAccessToken());
+                    .contains("action=\"/t/" + stage.getAccessToken() + "/start\"");
         }
 
         @Test
@@ -139,10 +179,10 @@ class DemoEntryTest {
             DiningTable other = tableRepository.save(new DiningTable("テーブル1", 4, 20));
             tableService.openSession(stage.getId(), 2);
 
-            MvcResult result = mockMvc.perform(get("/demo")).andReturn();
+            String html = mockMvc.perform(get("/demo"))
+                    .andReturn().getResponse().getContentAsString();
 
-            assertThat(result.getResponse().getRedirectedUrl())
-                    .isEqualTo("/t/" + other.getAccessToken());
+            assertThat(html).contains("action=\"/t/" + other.getAccessToken() + "/start\"");
         }
 
         @Test
@@ -321,8 +361,9 @@ class DemoEntryTest {
             tableService.openSession(stage.getId(), 2);
 
             mockMvc.perform(get("/demo"))
-                    .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrlPattern("/t/*"));
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.containsString("action=\"/t/")));
         }
     }
 

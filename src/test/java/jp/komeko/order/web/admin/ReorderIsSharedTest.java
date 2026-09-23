@@ -114,17 +114,24 @@ class ReorderIsSharedTest {
     }
 
     /**
-     * ★ 3 画面とも、必要な目印がそろっていること。
+     * ★ カテゴリと卓に、必要な目印がそろっていること。
      *
-     * <p>カテゴリと卓は<b>一覧</b>（サイドバーから来る画面）です。
+     * <p>どちらも<b>一覧</b>（サイドバーから来る画面）です。
      * 2026-09-19 に {@code /edit} から差し替えました。
+     *
+     * <p><b>★ 2026-09-20：商品を外しました。</b>店主の判断
+     * 「ユーザーはドラック＆ドロップで商品は並び変えることないと思うし」。
+     * 商品一覧はつまみをやめて「並べ替え」（見え方だけ）に変えています。
+     * お客さまに出る順番は、商品の編集画面の「並び」の数字欄から変えます。
+     *
+     * <p>カテゴリと卓には並べ替えの選択肢が無く、つまみが唯一の手段なので残します。
      */
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("★ 商品・カテゴリ・卓のどれにも仕掛けがある")
+    @DisplayName("★ カテゴリ・卓のどちらにも仕掛けがある（商品は並べ替えに置き換え）")
     void allThreeScreensHaveIt() throws Exception {
         for (String url : new String[]{
-                "/admin/items", "/admin/categories", "/admin/tables"}) {
+                "/admin/categories", "/admin/tables"}) {
             String html = page(url);
             assertThat(html).as(url + " に並べ替えの入れ物が無い").contains("data-reorder=\"on\"");
             assertThat(html).as(url + " につまみが無い").contains("data-reorder-handle");
@@ -206,13 +213,14 @@ class ReorderIsSharedTest {
     @WithMockUser(roles = "ADMIN")
     @DisplayName("★ 直す画面には並べ替えが無い（つまみも数字の欄も）")
     void theEditScreensCannotReorder() throws Exception {
-        // ★ 2026-09-20：カテゴリの編集画面が /{id}/edit になりました。
-        //   setUp が作ったカテゴリの id を使います。
-        Long categoryId = categoryRepository.findAllByOrderBySortOrderAscIdAsc()
-                .get(0).getId();
 
-        for (String url : new String[]{
-                "/admin/categories/" + categoryId + "/edit", "/admin/tables/edit"}) {
+        // ★ 2026-09-20：カテゴリの編集画面を<b>外しました</b>。
+        //   商品一覧のつまみをやめた代わりに、あちらへ並べ替えを置いたためです
+        //   （店主「カテゴリの中の編集で並び変えしてそれをお客に反映させればいんじゃね？」）。
+        //   ここで見張り続けるのは卓の編集画面だけです。
+        //   ★ カテゴリ編集で動かすのは<b>商品</b>の並び順で、
+        //     カテゴリ自身の並び順ではありません。あちらは一覧のつまみのままです。
+        for (String url : new String[]{"/admin/tables/edit"}) {
             String html = page(url);
             String main = html.substring(html.indexOf("<main"), html.lastIndexOf("</main>"));
 

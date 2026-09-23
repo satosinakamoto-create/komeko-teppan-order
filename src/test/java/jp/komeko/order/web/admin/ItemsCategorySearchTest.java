@@ -149,45 +149,34 @@ class ItemsCategorySearchTest {
     }
 
     /**
-     * ★ 絞っているあいだは並べ替えを出さない。
+     * ★ 商品一覧には並べ替えのつまみを置かない（2026-09-20、店主の判断）。
      *
-     * <p>画面に見えている隣の行が、本当の隣とは限りません。
-     */
-    /**
-     * ★ 絞っていても並べ替えられること（2026-09-19・店主の指示）。
+     * <p>「ユーザーはドラック＆ドロップで商品は並び変えることないと思うし」。
+     * 置き場はカテゴリ編集へ移しました——あちらは 1 カテゴリぶんしか出さないので、
+     * <b>表に見えている行がそのまま並び順の全体</b>になり、
+     * 落とした位置の意味が決まります。
      *
-     * <p>「掲載中〜編集中すべてにドラッグ＆ドロップできる仕様にしてほしい」
-     * 「カテゴリー検索とか絞ってもドラッグ＆ドロップ出来るようにもしてほしい」。
+     * <p><b>この画面では最後まで決まりませんでした。</b>
+     * 2026-09-19 に「絞っていても並べ替えられる」へ変えていますが、
+     * 全カテゴリが混ざる表では隣の行が同じカテゴリとは限らず、
+     * さらに 2026-09-20 に並べ替え（原価率順など）を足したことで
+     * 「原価率順に並んだ表で 3 番目に落としたら何番目か」が決まらなくなりました。
      *
-     * <p><b>それまでは逆のことを守っていました。</b>
-     * 「すべて」タブで絞り込みが無いときだけ並べ替えを出していたのは、
-     * ↑↓ が<b>隣と 1 つ入れ替える</b>操作だったからです。
-     * 見えている隣が本当の隣とは限らないので、押すと隠れている品と入れ替わり、
-     * 画面上は何も起きていないように見えました。
-     *
-     * <p>つまんで動かす形に変えたことで、この理由は消えました。
-     * いまは「<b>どの商品の隣に置くか</b>」を指して送るので
-     * （{@code MenuService#placeItemNextTo}）、隠れている行が何行あっても
-     * 落とした場所どおりの並びになります。
+     * <p>代わりにこの画面が持つのは<b>見え方だけの並べ替え</b>です
+     * （{@code ItemSortTest}）。お客さまの順番は動きません。
      */
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("★ 絞っていても並べ替えられる（タブ・カテゴリ・検索のどれでも）")
+    @DisplayName("★ 商品一覧に並べ替えのつまみは無い（カテゴリ編集へ移した）")
     void reorderWorksEvenWhileFiltered() throws Exception {
-        assertThat(page("/admin/items"))
-                .as("絞っていないのに並べ替えが無い").contains("data-reorder");
-
-        assertThat(page("/admin/items?category=" + yakiId))
-                .as("★ カテゴリで絞ると並べ替えが消えている")
-                .contains("data-reorder");
-
-        for (String tab : new String[]{"published", "soldout", "hidden", "draft"}) {
-            String html = page("/admin/items?tab=" + tab);
-            // 行が 1 つも無いタブでは出さない（動かしようがないため）。
-            // 行があるのに出ていないときだけ落とす
-            if (html.contains("data-item-id")) {
-                assertThat(html).as("★ " + tab + " タブで並べ替えが消えている")
-                        .contains("data-reorder");
+        for (String url : new String[]{
+                "/admin/items", "/admin/items?category=" + yakiId,
+                "/admin/items?tab=published", "/admin/items?tab=draft"}) {
+            String html = page(url);
+            String main = html.substring(html.indexOf("<main"), html.lastIndexOf("</main>"));
+            for (String mark : new String[]{"data-reorder", "dragdot", "reorder-form"}) {
+                assertThat(main).as("★ " + url + " に " + mark + " が残っている")
+                        .doesNotContain(mark);
             }
         }
     }

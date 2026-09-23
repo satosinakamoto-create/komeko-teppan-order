@@ -21,77 +21,22 @@
            2 つ縦に並んでいました（文言だけ微妙に違う）。設計（ト15b）は
            帯の中の 1 つだけです。外の 1 つは帯を作る前の名残でした。 */-->
 
-  <!--/* 見出しの帯（設計 ト15b） */-->
+  <!--/* 見出しの帯（設計 ト15b 838:9390）
+
+         ★ 2026-09-20：題を「アカウント一覧」に変え、節見出しを外しました。
+           帯と節見出しが同じ「アカウント一覧」を 2 回言っていたためです
+           （カテゴリ編集で同じ指摘を受けています）。
+           件数は帯の補足に出しているので、外しても分からなくなりません。 */-->
   <div class="page-head">
     <a class="btn" th:href="@{/admin/staff}">← スタッフ一覧へ戻る</a>
-    <h1 class="page-head__title">スタッフ 編集・追加</h1>
-    <span class="page-head__sub" th:text="${#lists.size(staffList)} + ' 人'">3 人</span>
+    <h1 class="page-head__title">アカウント一覧</h1>
+    <span class="page-head__sub"
+          th:text="${#lists.size(staffList)} + ' 人（有効な管理者 ' + ${adminCount} + ' 人）'">3 人（有効な管理者 1 人）</span>
     <span class="page-head__spacer"></span>
   </div>
 
-  <!--/* ==========================================================
-         新規登録
-     ========================================================== */-->
-  <div class="card">
-    <div class="card__head">スタッフを追加する</div>
-    <div class="card__body">
-
-      <form th:action="@{/admin/staff}" th:object="${staffForm}" method="post">
-        <div class="grid grid--2">
-
-          <div class="field">
-            <label class="label" for="username">ユーザー名（ログイン ID）<span class="req">必須</span></label>
-            <input class="input" type="text" id="username" th:field="*{username}"
-                   th:errorclass="is-error" maxlength="40" autocomplete="off"
-                   placeholder="例）kitchen-taro">
-            <p class="error" th:if="${#fields.hasErrors('username')}" th:errors="*{username}">エラー</p>
-            <p class="help">ログイン画面で入力する ID です。半角英数字と . _ - が使えます。あとから変更はできません。</p>
-          </div>
-
-          <div class="field">
-            <label class="label" for="displayName">表示名<span class="req">必須</span></label>
-            <input class="input" type="text" id="displayName" th:field="*{displayName}"
-                   th:errorclass="is-error" maxlength="40" placeholder="例）厨房 たろう">
-            <p class="error" th:if="${#fields.hasErrors('displayName')}" th:errors="*{displayName}">エラー</p>
-            <p class="help">画面に出る名前です。「誰が注文を進めたか」の記録にもこの名前が残ります。</p>
-          </div>
-
-          <div class="field">
-            <label class="label" for="password">パスワード<span class="req">必須</span></label>
-            <input class="input" type="password" id="password" th:field="*{password}"
-                   th:errorclass="is-error" maxlength="72" autocomplete="new-password">
-            <p class="error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}">エラー</p>
-            <p class="help">8 文字以上。保存されるのは暗号化された文字列だけで、入力したパスワードそのものは残りません。</p>
-          </div>
-
-          <div class="field">
-            <label class="label" for="role">権限<span class="req">必須</span></label>
-            <select class="select" id="role" th:field="*{role}" th:errorclass="is-error">
-              <option th:each="r : ${roles}" th:value="${r}" th:text="${r.label}">スタッフ</option>
-            </select>
-            <p class="error" th:if="${#fields.hasErrors('role')}" th:errors="*{role}">エラー</p>
-            <p class="help">
-              スタッフ … 厨房画面（注文の進行）だけ。<br>
-              管理者 … それに加えて、商品・売上・この画面まで操作できます。
-            </p>
-          </div>
-
-        </div>
-
-        <button type="submit" class="btn btn--primary btn--lg">このスタッフを追加する</button>
-      </form>
-
-    </div>
-  </div>
-
-  <!--/* ==========================================================
-         一覧
-     ========================================================== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">アカウント一覧</h2>
-    <span class="section-title__count"
-          th:text="'有効な管理者 ' + ${adminCount} + ' 人'">有効な管理者 1 人</span>
-  </div>
+  <!--/* ★ 新規登録フォームは staff-new.html（/admin/staff/new）へ移しました。
+         ここに戻さないこと。戻すと、直しに来た人が毎回それを読み飛ばすことになります。 */-->
 
   <div class="alert alert--info">
     <p class="mb-0">

@@ -73,14 +73,23 @@ class ListTablesLineUpTest {
                         + "中身任せだと卓名の長さで列幅が毎回変わる")
                 .contains(".table--tables{table-layout:fixed;}");
 
-        int[] widths = {320, 180, 240, 220, 160};
+        // ★★ 2026-09-22：px → 割合。比は設計の 320/180/240/220/160（＝1120）のまま。
+        //   px のままだと table-layout: fixed で表が 1120 から縮まず、
+        //   iPad（本文 912px）で「並び」の列が初期表示から見切れていました。
+        int[] designPx = {320, 180, 240, 220, 160};
+        String[] widths = {"28.571%", "16.071%", "21.429%", "19.643%", "14.286%"};
         for (int i = 0; i < widths.length; i++) {
             assertThat(css)
-                    .as((i + 1) + " 列目の幅が指定されていない")
+                    .as((i + 1) + " 列目の幅（" + widths[i] + "／設計 " + designPx[i] + "px）が無い")
                     .contains(".table--tablesth:nth-child(" + (i + 1) + "),"
                             + ".table--tablestd:nth-child(" + (i + 1) + ")"
-                            + "{width:" + widths[i] + "px;}");
+                            + "{width:" + widths[i] + ";}");
         }
+
+        // ★ px に戻さないこと。戻すと同じはみ出しが戻ります
+        assertThat(css)
+                .as("★ 列幅が px に戻っている")
+                .doesNotContain(".table--tablestd:nth-child(1){width:320px;}");
     }
 
     /** ★ 列幅の合計が設計の 1120 になること。 */
@@ -109,10 +118,12 @@ class ListTablesLineUpTest {
             assertThat(css)
                     .as(t + " の見出しの高さが 64px でない")
                     .contains(".theme-desk.table--" + t + "th{padding:16px;height:64px;}");
+            // ★ 2026-09-20：67 → 68（設計どおり）。罫は collapse で行の中に
+            //   描かれるので、67 と書けば 67 で出ます。実測で確かめました。
             assertThat(css)
-                    .as(t + " の行の高さが 67px でない")
+                    .as(t + " の行の高さが 68px でない")
                     .contains(".theme-desk.table--" + t + "td"
-                            + "{padding:020px;height:67px;vertical-align:middle;}");
+                            + "{padding:020px;height:68px;vertical-align:middle;}");
         }
     }
 

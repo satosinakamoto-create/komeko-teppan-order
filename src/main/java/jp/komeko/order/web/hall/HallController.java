@@ -443,6 +443,17 @@ public class HallController {
      * <p>断られたときは<b>選んだ商品の段に戻します</b>。
      * 商品を選ぶ段まで戻すと、金額の打ち直しのために
      * もう一度カテゴリから辿り直すことになります。
+     *
+     * <p><b>★★ 要望（note）はもう受け取りません（2026-09-22）。</b><br>
+     * 店主の判断「営業中にわざわざテキスト入力するヒマなんてないでしょ」。
+     * 決め手は手間ではなく構造で、要望は注文ぜんぶに 1 つしか持てないため
+     * （{@code Order#note}）、4 品の注文に「レア寄りで」と入れても
+     * <b>どの品への要望か分からない</b>形でしか厨房に出せませんでした。
+     *
+     * <p>焼き加減は<b>商品のオプション</b>として登録してください。
+     * 品に紐づき、選ぶだけで、厨房ボードでは品名の直下に出ます。
+     * 画面から欄を消すだけでは、古い画面から飛んできた文字が保存されるので、
+     * <b>受け口そのもの</b>をここで閉じています。
      */
     @PostMapping("/bills/{id}/orders")
     public String addOrder(@PathVariable Long id,
@@ -450,7 +461,6 @@ public class HallController {
                            @RequestParam(name = "choiceIds", required = false) List<Long> choiceIds,
                            @RequestParam(defaultValue = "1") int quantity,
                            @RequestParam(required = false) Integer price,
-                           @RequestParam(required = false) String note,
                            @RequestParam Map<String, String> allParams,
                            @AuthenticationPrincipal StaffUserDetails user,
                            RedirectAttributes redirectAttributes) {
@@ -460,7 +470,7 @@ public class HallController {
         List<Long> selected = CartController.mergeChoiceIds(choiceIds, allParams);
         try {
             Order order = orderService.placeByStaff(
-                    id, itemId, selected, quantity, price, note, staffNameOf(user));
+                    id, itemId, selected, quantity, price, null, staffNameOf(user));
             redirectAttributes.addFlashAttribute("flashSuccess",
                     "%s に「%s」を入れました（#%d・¥%,d）。厨房に出ています"
                             .formatted(order.getCustomerName(), itemNameOf(order),
@@ -654,6 +664,41 @@ public class HallController {
             redirectAttributes.addFlashAttribute("flashSuccess",
                     exempt ? "この注文を深夜料金の対象外にしました"
                            : "この注文を深夜料金の対象に戻しました");
+        } catch (RuntimeException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+        }
+        return "redirect:/hall/bills/" + id;
+    }
+
+    /**
+     * <b>品を 1 つだけ取り消す（2026-09-22 追加）。</b>
+     *
+     * <p>お会計の確認画面で、明細の ✕ を押したときの行き先です。
+     * 「違うものが来た」「1 品だけ廃棄」に対応するためのもので、
+     * 注文ごとの取り消し（{@code /kitchen/orders/*&#47;cancel}）では
+     * 同じ注文の他の品まで請求から落ちてしまいます。
+     *
+     * <p><b>{@code returnStock} に既定値を置いている理由。</b>
+     * 画面のラジオは「作った・出した（廃棄）」を既定にしてあります
+     * （お会計の場で取り消すのは、出したあとがほとんどだからです）。
+     * ただしラジオは<b>どちらも選ばれていないと送信されない</b>ので、
+     * 届かなかったときは false ＝ 在庫を戻さない、として受けます。
+     * <b>迷ったら戻さないほうが安全</b>です。戻しすぎると、実際には無い残数が
+     * 画面に出て売り越します（足りないぶんは棚卸しで気づけます）。
+     */
+    @PostMapping("/bills/{id}/lines/{lineId}/cancel")
+    public String cancelLine(@PathVariable Long id,
+                             @PathVariable Long lineId,
+                             @RequestParam(required = false) String reason,
+                             @RequestParam(defaultValue = "false") boolean returnStock,
+                             @AuthenticationPrincipal StaffUserDetails user,
+                             RedirectAttributes redirectAttributes) {
+        try {
+            Order order = orderService.cancelLine(lineId, reason, staffNameOf(user), returnStock);
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    returnStock ? "お会計から取り除きました（材料は在庫に戻しました）"
+                                : "お会計から取り除きました（廃棄として原価に残ります）");
+            log.info("伝票 {} の明細 {} を取り消し（注文 #{}）", id, lineId, order.getOrderNumber());
         } catch (RuntimeException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
         }

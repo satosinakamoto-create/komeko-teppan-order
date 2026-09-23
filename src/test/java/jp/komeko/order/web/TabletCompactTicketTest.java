@@ -83,21 +83,33 @@ class TabletCompactTicketTest {
         assertThat(band).contains("padding-right: 40px;");
     }
 
+    /**
+     * ★★ 「キャンセル」の語は消さない——ただし<b>置き場所が変わりました</b>（2026-09-23）。
+     *
+     * <p>設計（ト01 厨房ボード 1548:20793）を実測したところ、
+     * 取り消しボタンの中身は<b>✕ の 1 文字だけ</b>でした（16px Bold #444444・48×48）。
+     * 語を並べていたのは私の判断で、設計にはありません。
+     *
+     * <p><b>守りたかったものは変わっていません</b>——
+     * 読み上げに「✕」としか届かない状態にしないこと。
+     * 画面に語を出すかわりに {@code aria-label} で渡します。
+     * 支援技術には「〇〇をキャンセルする」と品名つきで読まれるので、
+     * 以前より情報は増えています。
+     */
     @Test
-    @DisplayName("★ 「キャンセル」の語は消さない（読み上げと PC 幅のため）")
+    @DisplayName("★ 「キャンセル」の語は読み上げに残す（画面は ✕ だけ＝設計どおり）")
     void theWordCancelSurvives() throws Exception {
         String html = Files.readString(BOARD);
 
-        assertThat(html).contains("class=\"ticket__cancel-mark\"");
-        assertThat(html).contains("class=\"ticket__cancel-label\"");
-        assertThat(html).contains("キャンセル");
-        // ✕ は飾りなので読み上げから外す
-        assertThat(html).contains("aria-hidden=\"true\"");
-
-        String css = css();
-        // 見た目だけ消す。display:none にすると読み上げからも消える
-        assertThat(css).contains(".kitchenboard .ticket__cancel-label {");
-        assertThat(tabletBand()).doesNotContain(".ticket__cancel-label { display: none");
+        assertThat(html)
+                .as("★ 取り消しボタンが無い")
+                .contains("class=\"linex kline__x\"");
+        assertThat(html)
+                .as("★★ 読み上げに「✕」としか届かない。何のボタンか分からなくなる")
+                .contains("をキャンセルする");
+        assertThat(html)
+                .as("★ 画面に語を並べている。設計は ✕ の 1 文字だけ")
+                .doesNotContain("ticket__cancel-label");
     }
 
     @Test

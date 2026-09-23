@@ -45,6 +45,15 @@
   <!--/* 表の並べ替え（商品・カテゴリ・卓）。目印（tbody[data-reorder]）が
          無い画面では何もせずに抜けるので、全画面で読み込んで差し支えありません。 */-->
   <script th:src="@{/js/reorder.js}" defer></script>
+  <!--/* 重ねて出す一覧（カテゴリから検索・並べ替え）の高さを画面の下端まで広げる。
+         読み込みに失敗しても CSS の max-height: 60vh で開いて選べます。 */-->
+  <script th:src="@{/js/picker.js}" defer></script>
+  <!--/* 押して戻ってきたときに、見ていた位置へ戻す。
+         掲載の切り替え・編集・未登録はどれもページを読み込み直すので、
+         100 品の下のほうを触ると毎回いちばん上まで戻されていました。 */-->
+  <script th:src="@{/js/scroll-keep.js}" defer></script>
+  <!--/* 1 回きりの報告を浮かせて出す部品。Toast.show(…) でどこからでも呼べます */-->
+  <script th:src="@{/js/toast.js}" defer></script>
   <noscript><style>.datenav__go { display: inline-flex; }</style></noscript>
 </head>
 <!--/* theme-desk … 店側の画面の寸法とトンマナ（app.css の 30 節）。

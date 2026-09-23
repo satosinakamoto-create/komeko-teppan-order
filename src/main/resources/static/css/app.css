@@ -267,12 +267,22 @@ hr {
   display: grid;
   gap: var(--sp-4);
 }
+/* ★ 1fr ではなく minmax(0, 1fr) と書くこと（2026-09-22）。
+
+     1fr の下限は「中身の最小幅」です。中身が縮まない塊（QR の画像 220px、
+     折り返さない文言、決まった幅のボタン）を抱えた列は<b>そこで止まり</b>、
+     はみ出したぶんだけ画面ごと横に動きます。
+     QR の画面がまさにそれで、札 303px × 3 ＋ 間 48 ＝ 957px が
+     iPad の本文 897px を +35px 超えていました（実測）。
+
+     minmax(0, 1fr) にすると下限が 0 になり、列は入る幅まで素直に縮みます。
+     中身のほうは max-width: 100% を持っているので、一緒に小さくなります。 */
 @media (min-width: 640px) {
-  .grid--2 { grid-template-columns: repeat(2, 1fr); }
+  .grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (min-width: 960px) {
-  .grid--3 { grid-template-columns: repeat(3, 1fr); }
-  .grid--4 { grid-template-columns: repeat(4, 1fr); }
+  .grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 /* --------------------------------------------------------------------------
@@ -361,9 +371,11 @@ hr {
   margin: 0;
 }
 
+/* ★ 2026-09-22：--text-faint（実効 #a9a9a9・白地で 2.35:1）は薄すぎました。
+     補足は --text-muted（#828282）に揃えます。 */
 .section-title__count {
   font-size: .75rem;
-  color: var(--text-faint);
+  color: var(--text-muted);
   letter-spacing: .05em;
 }
 
@@ -438,7 +450,13 @@ hr {
      ボタンの文字は短いので、折り返して収めるより溢れさせて気づくほうがよい。 */
   white-space: nowrap;
   border: 1px solid var(--btn-bd);
-  border-radius: var(--r-sm);
+  /* ★ 角丸は 8px で固定（2026-09-20、店主の決定）。共有の --r-sm は使いません。
+       --r-sm は :root 6px / .theme-snow 12px / .theme-desk 4px と層ごとに
+       書き換わるため、同じ「ボタン」がお客さま側 12px・店側 4px に割れていました。
+       入力・カード・探す欄など 11 か所が同じ --r-sm を見ているので、
+       トークンのほうを動かすとボタン以外まで巻き込みます。ここで直値にします。
+       8px は札とそろえた値（Bootstrap/Tailwind/Primer の 6px より一段柔らかい）。 */
+  border-radius: 8px;
   background: var(--btn-bg);
   color: var(--btn-fg);
   font-family: inherit;
@@ -1014,10 +1032,13 @@ hr {
    -------------------------------------------------------------------------- */
 .field { margin-bottom: var(--sp-4); }
 
+/* ★ 2026-09-22：700 → 500（設計に寄せる）。設計は ト10b が Medium(500)、
+     食材の画面が Regular(400)。700 はどちらより太く、項目名が
+     入力した値より目立っていました。 */
 .label {
   display: block;
   font-size: .8125rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: .06em;
   color: var(--text-muted);
   /* 入力枠との間は 8px（設計の入力欄部品 45:3110 の gap-8）。
@@ -1040,7 +1061,13 @@ hr {
   color: var(--text);
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
+  /* ★ 2026-09-20：var(--r-sm) をやめて直値 8px。ボタン・札と同じ値です。
+       --r-sm は :root 6 / .theme-snow 12 / .theme-desk 4 と層ごとに変わるので、
+       同じ入力欄がお客さま側 12px・店側 4px に割れていました（ボタンと同じ罠）。
+     ★ 設計（Figma）の入力は角 0 ですが、そちらには寄せていません。
+       店主が「ボタンも札も 8px」と決めた直後で、同じ行に並ぶ入力だけ角 0 だと
+       そろえた意味が消えるためです。0 に寄せたいときはここを 0 にしてください。 */
+  border-radius: 8px;
   transition: border-color .12s ease, box-shadow .12s ease;
 }
 .textarea { min-height: 88px; resize: vertical; line-height: 1.7; }
@@ -1138,11 +1165,146 @@ hr {
   font-weight: 500;
 }
 .alert p:last-child, .alert ul:last-child { margin-bottom: 0; }
+
+/* --------------------------------------------------------------------------
+   浮かせて出す報告（toast）— 2026-09-20
+   --------------------------------------------------------------------------
+   店主の指示「固定位置じゃなくて開いてるページトップ 40px からポッと出て来て
+   3 秒したら上にゆっくり消えていく仕様にしたらいちいち上に戻るみたいな動作
+   無くなっていいんじゃない？」。
+
+   それまで報告は本文のいちばん上に<b>場所を取って</b>出ていました。
+   100 品の下のほうで掲載を止めると、何が起きたかを読むために毎回
+   いちばん上まで戻る必要がありました。
+
+   ★ 上からの距離は toast.js が入れます。上の帯（.topbar）は sticky で
+     常に残るので、その高さ＋40px です。帯の無い画面では 40px になります。
+     CSS に 96px と書くと、帯の高さを変えたときにここだけ取り残されます。
+
+   ★ pointer-events: none。浮いているあいだも下のボタンを押せます。
+     3 秒とはいえ、押したい所に蓋をしてはいけません。
+
+   ★ 色は .alert--success / .alert--info が持っています。
+     ここでは<b>形と動きだけ</b>を決めます。 */
+.toast-stack {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;            /* 上の帯（30）より上、モーダルよりは下 */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: max-content;
+  max-width: min(720px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.toast {
+  margin: 0;              /* .alert の上下 margin を消す。浮いているので要らない */
+  padding: 16px 24px;
+  border-left: 0;         /* .alert の左の線は流れの中用。浮く札では枠が主役 */
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .16);
+  font-size: 16px;
+  text-align: center;
+  /* 出る 0.18 秒 → 3 秒待つ → 0.5 秒かけて上へ消える */
+  animation: toast-in .18s ease-out, toast-out .5s ease-in 3s forwards;
+}
+
+/* ★ 浮かせるときは地に色を付けます（設計 試作C 1290:14070）。
+     流れの中の .alert--success は「白地＋緑の左線＋✓」ですが、
+     これは<b>本文の一部として読む</b>ための形です。
+     浮いた札は本文から切り離れて出るので、地が白いと
+     何の上に乗っているのか分からず、ただの四角に見えます。
+   ★ .alert--success は display:flex（✓ を前に置くため）なので、
+     text-align だけでは中央になりません。justify-content が要ります。 */
+/* ★ 色は 2 つだけ（2026-09-20、店主の決定
+     「警告ポップアップは赤、変更とかは緑で良いんじゃない？ポップアップは
+       押せないものでしょ？」）。
+
+     緑 … 変更が成った（掲載を止めた・品切れにした・材料を外した…）
+     赤 … 警告／できなかった（アカウントを消した・選ばれていない・変わらなかった）
+
+   ★ 2026-09-16 に「成功通知の面を緑で塗らない」と決めた件との関係。
+     あのときの理由は「押せるボタン色と似ていて、押せるものに見える」でした。
+     浮かせる札は 560px 幅・影つき・中央で、ボタンとは形がまるで違い、
+     <b>押せるものが 1 つも無い</b>ので混ざりません。
+     そのうえで、押せるボタンの緑（--action #0b7a1a）と --ok-soft は
+     使いません（ActionGreenTokenTest が見張っています）。
+
+   ★ 青（info）は廃止しました。「変更が成った」のに青で出るものと
+     緑で出るものが混ざっていて、色が何も言っていませんでした。 */
+/* ★★ 文字色も必ず書くこと（2026-09-22 に事故を直した）。
+     地を #eef7f2 と<b>決め打ちにしたのに、文字色は var(--text) のまま</b>
+     テーマから取っていた。お客さまの画面は .theme-night（暗い地）で
+     --text が #ffffff なので、<b>薄緑の上に白文字</b>が出ていた。
+     コントラスト 1.09:1 ——「注文リストに追加しました」が読めない。
+
+     地を決め打ちにしたら、文字も決め打ちにする。
+     var() の文字色は var() の地とだけ組ませること。 */
+.toast.alert--success {
+  justify-content: center;
+  background: #eef7f2;
+  border: 1px solid #cfe6d8;
+  color: #1c1c1c;   /* 15.6:1 */
+}
+/* ★ 赤は .alert--error に寄せます。新しい色名を作りません。
+     .alert--warn はきつね色の<b>常設の案内</b>で既に 38 箇所（「カテゴリが
+     ありません」「受付を止めています」）。あれは状態であって報告ではないので、
+     同じ名前に赤を足すと、JS が動かなかったときに<b>同じクラスが
+     画面によって赤ときつね色に割れます</b>。
+     「うまくいかなかった」の赤は .alert--error として既にあるので、それを使います。 */
+.toast.alert--error {
+  justify-content: center;
+  background: #fdebeb;
+  border: 1px solid #f3cccc;
+  /* ★ var(--danger) にしてはいけない（2026-09-22）。緑の札と同じ事故。
+       .theme-night では #e28a80 で 2.23:1、明るいテーマの #d33f3f でも
+       4.01:1 と、<b>どちらのテーマでも AA(4.5:1) に届いていなかった</b>。
+       #9d3a32 は :root の --beni-600（--danger の本体）そのもの。
+       新しい色を足さずに 5.92:1 まで上がる。 */
+  color: #9d3a32;   /* 5.92:1 */
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-16px); }
+}
+
+/* ★ 動きを減らす設定の端末では動かしません（974 行の方針と同じ）。
+     消えること自体は残します——消えないと画面に札が積み上がります。 */
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: toast-out .01s linear 3s forwards; }
+}
 .alert ul { margin: 0; padding-left: 1.2em; }
 
 .alert--info    { color: var(--info);   background: var(--info-soft); }
 .alert--error   { color: var(--danger); background: var(--danger-soft); }
 .alert--warn    { color: var(--accent); background: var(--accent-soft); }
+
+/* ★★ 机で読む画面の常設案内は緑（2026-09-23・店主の判断
+       「茶色のpopアップは緑に統一して」）。
+
+   ★ 経緯。2026-09-22 に、ここを<b>きつね色</b>にしました。
+     .theme-desk は --accent を --action（押せる緑 #0b7a1a）に差し替えているため、
+     押せない帯が<b>押せる緑と同じ見た目</b>になっていたからです
+     （税理士の今月のまとめ・消費税の集計で実測。地 #e6f4e8 / 字 #0b7a1a）。
+     「緑は押せるものだけ」という決まりの、いちばん大きな破れでした。
+
+   ★ それでも緑に戻した理由は、机の画面できつね色が<b>浮いていた</b>ことです。
+     スタッフ側は白と緑で組んであり、茶色はお客さま側（暗い地・和モダン）の色でした。
+     1 枚の画面に系統の違う色が混ざるほうが、規則の破れより目につきます。
+
+   ★ 代わりに<b>形で見分けます</b>。帯は角丸 6px・面だけで、枠も影も持ちません。
+     ボタンは枠か塗りを持ちます（.btn）。色が同じでも、押せるものには縁があります。
+
+   ★ 戻したくなったらこの 1 行を
+       color: var(--kitsune-700); background: var(--kitsune-100);
+     に差し替えてください。お客さま側（.theme-night）は元からきつね色のままです。 */
+.theme-desk .alert--warn { color: var(--action); background: var(--action-soft); }
 
 /* 「追加しました」などの成功通知（2026-09-16・店主の判断）。
    もとは薄い緑の地に緑文字だった。
@@ -1609,32 +1771,55 @@ hr {
 
 /* --------------------------------------------------------------------------
    19. 印刷（QR ポップ）
+
+   設計 ト13b「QR まとめて印刷（印刷シート）」841:10452 に合わせています
+   （2026-09-20）。それまでは 1 卓 = 1 枚で、手順 ①〜④ と「ご請求額は…」まで
+   刷っていました。設計の札は 卓名・QR・一行の案内・URL だけです。
+
+   ★ 単位を mm で書いている理由（px で写すと紙の上で 1.24 倍になる）。
+     設計の A4 は 640x905px で、640px が 210mm。つまり 3.048px/mm です。
+     いっぽう CSS の px は印刷時に 1/96 インチ = 3.78px/mm に固定されます。
+     同じ「220px」でも、設計では 72mm、CSS では 58mm と別物になります。
+     だから設計値は割り算して mm で書きます（QR 220 ÷ 3.048 = 72mm）。
+
+   ★ 1 枚に 2 卓。破線は飾りではなく、切って卓に置くための切り取り線です。
    -------------------------------------------------------------------------- */
+@page { size: A4; margin: 7.9mm 15.7mm; }   /* 設計の紙の余白 24px / 48px */
+
+.print-sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5.3mm;                    /* 設計 16px */
+  height: 135mm;                 /* 設計 412px */
+  padding: 6.6mm 0;              /* 設計 20px */
+  text-align: center;
+  background: #fff;
+  border: 1px dashed #c7c7c7;    /* 切り取り線 */
+  border-radius: 0;
+  /* 札が途中で改ページされると、切り取り線の内側で紙が変わってしまう */
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.print-sheet + .print-sheet { margin-top: 7.9mm; }   /* 設計 札の間 24px */
+
+.print-sheet__shop  { margin: 0; font-size: 4.6mm;  color: #828282; }   /* 設計 14px */
+.print-sheet__table { margin: 0; font-size: 10.5mm; line-height: 1.2;
+                      font-weight: 700; color: #1c1c1c; }               /* 設計 32px Bold */
+.print-sheet__qr    { display: block; width: 72mm; height: 72mm; margin: 0; }  /* 設計 220px */
+.print-sheet__lead  { margin: 0; font-size: 5.3mm; color: #1c1c1c; }    /* 設計 16px */
+.print-sheet__url   { margin: 0; font-size: 3.9mm; color: #828282;
+                      word-break: break-all; }                          /* 設計 12px */
+
 @media print {
   .no-print, .app-header, .cart-bar { display: none !important; }
   body { background: #fff; color: #000; }
-  .print-sheet { page-break-after: always; }
-}
 
-.print-sheet {
-  text-align: center;
-  padding: var(--sp-7) var(--sp-5);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--r-md);
-  background: var(--surface);
-}
-.print-sheet__title {
-  font-family: var(--font-serif);
-  font-size: 1.5rem;
-  letter-spacing: .16em;
-  margin-bottom: var(--sp-2);
-}
-.print-sheet__qr { width: min(300px, 70vw); margin: var(--sp-5) auto; }
-.print-sheet__url {
-  font-family: var(--font-num);
-  font-size: .8125rem;
-  color: var(--text-muted);
-  word-break: break-all;
+  /* 2 卓ごとに改ページ。最後の札に付けると白紙が 1 枚増えるので外す */
+  .print-sheets > .print-sheet:nth-child(2n):not(:last-child) { page-break-after: always; }
+  /* 改ページ直後の札に札間の余白を足さない（紙の上端からずれる） */
+  .print-sheets > .print-sheet:nth-child(2n+1) { margin-top: 0; }
 }
 
 /* --------------------------------------------------------------------------
@@ -1714,7 +1899,10 @@ hr {
   --surface:       #f7f9fb;
   --surface-2:     #eef1f4;
   --text:          #1c1c1c;
-  --text-muted:    rgba(28, 28, 28, .55);
+  /* ★ 2026-09-22・店主の決定「グレーは #828282」。
+       透明度で作るのをやめ、色で書きます。合成後の見た目は同じですが、
+       地が白でないところ（淡い札の上など）で色が変わらなくなります。 */
+  --text-muted:    #828282;
   --text-faint:    rgba(28, 28, 28, .38);
   --border:        rgba(28, 28, 28, .10);
   --border-strong: rgba(28, 28, 28, .20);
@@ -1747,7 +1935,11 @@ hr {
      -------------------------------------------------------------------- */
   --action:        #0b7a1a;   /* 押せる（対白 5.51:1） */
   --action-hover:  #0a6b17;   /* 押している間・hover。--action より一段暗く */
-  --action-soft:   #e6f4e8;   /* 押せるものの薄い面（hover の地・選択の残り香） */
+  /* ★ 2026-09-22：#e6f4e8 → #ddf0e0（設計に寄せる）。
+       サイドバーの現在地・アカウントの丸・未処理札・ご要望メモ・おすすめ札が
+       設計より明るく、実測で 4 画面ぶん同じ差が出ていました。
+       ここ 1 行で 16 箇所が揃います（var(--action-soft) を読んでいる数）。 */
+  --action-soft:   #ddf0e0;   /* 押せるものの薄い面（hover の地・選択の残り香） */
   --on-action:     #ffffff;   /* 草緑の上に載せる文字（対 --action 5.51:1） */
   --action-danger: #c94444;   /* 押したら戻しにくい（対白 4.78:1） */
 
@@ -2092,11 +2284,14 @@ body.theme-night { background-image: none; }
 .theme-snow .section-title__text { letter-spacing: 0; }
 .theme-snow .section-title::after { display: none; }
 
-/* カード: 枠線を消して面の色だけで区切る（SnowUI 流） */
+/* カード: 枠線を消して面の色だけで区切る（SnowUI 流）
+   ★ .print-sheet はここから外しました（2026-09-20）。
+     印刷の札の破線は飾りではなく「ここで切る」という指示なので、
+     消すと紙の上でどこを切ればいいか分からなくなります。
+     この 1 行のせいで、切り取り線は今日までずっと見えていませんでした。 */
 .theme-snow .card,
 .theme-snow .stat,
-.theme-snow .lane,
-.theme-snow .print-sheet {
+.theme-snow .lane {
   border-color: transparent;
   box-shadow: none;
 }
@@ -2112,7 +2307,11 @@ body.theme-night { background-image: none; }
 .theme-snow .select,
 .theme-snow .textarea {
   background: #ffffff;
-  border-color: rgba(28, 28, 28, .14);
+  /* ★ 2026-09-22：rgba(28,28,28,.14)（実効 #dfdfdf）→ #c7c7c7。
+       設計は画面によって #c7c7c7（ト10c/ト11b/ト11c/ト12b/ト04b/ト05f）と
+       #e3e3e3（ト10b/ト14）に割れていたので、数の多いほうに寄せました。
+       角丸は 8px のまま（店主の決定「ボタンも札も 8px」。設計の 0px は追わない）。 */
+  border-color: #c7c7c7;
 }
 
 /* テーブルの見出し行はほぼ気配だけ */
@@ -3463,9 +3662,12 @@ body.is-sending .staff-main {
 
      白い文字を載せるボタンを足すときは、必ずクラス 2 つ以上で書くこと。
      HallModalColourTest がこれを見ています。 */
+/* ★ 2026-09-22：枠 #c7c7c7 → #e8e8e8（設計に寄せる）。
+     6 グループの監査で同じ指摘が出ていた、いちばん広い差です
+     （戻る・印刷・再発行・二次ボタンの全部）。 */
 .theme-desk .btn {
   --btn-bg: #ffffff;
-  --btn-bd: #c7c7c7;
+  --btn-bd: #e8e8e8;
 }
 
 /* カードの面（2026-09-15、店主の指摘から）。
@@ -3528,7 +3730,7 @@ body.is-sending .staff-main {
 .theme-desk h2.section-title__text { font-size: 24px; font-weight: 700; }
 .theme-desk h3,
 .theme-desk .card__head { font-size: 20px; font-weight: 700; }
-.theme-desk .section-title__count { font-size: 16px; }
+.theme-desk .section-title__count { font-size: 14px; }  /* 2026-09-22：設計 14px */
 .theme-desk .lead { font-size: 16px; }
 
 /* 大きくした以上、折り返しを許さないと画面の外へ出る。
@@ -3597,7 +3799,9 @@ body.is-sending .staff-main {
 /* 数字は等幅で桁をそろえ、少しだけ重くする。
    本文まで太字にすると、どこを見ればいいのか分からなくなる。 */
 .theme-desk .table td.num,
-.theme-desk .table td.right { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* ★ 2026-09-22：600 → 400（設計に寄せる）。設計はどの表も数値を Regular で
+     置いています。太らせると、金額だけが見出しより強く見えます。 */
+.theme-desk .table td.right { font-weight: 400; font-variant-numeric: tabular-nums; }
 
 /* ★ 縞（1 行おきの塗り）は 2026-09-13 に外しました。
      見出しを静かにしたのに 1 行おきに緑が入ると、結局そちらが目に付きます。
@@ -3641,7 +3845,12 @@ body.is-sending .staff-main {
 .theme-desk .btn { font-weight: 700; }
 /* 小ボタンの 36px は CLAUDE.md の「タップ領域 48px 以上」に元から反していた。
    表の行に並ぶので 48px までは上げられないが、40px までは戻す。 */
-.theme-desk .btn--sm { font-size: 15px; min-height: 40px; }
+/* ★★ 2026-09-22：40px → 48px。
+     CLAUDE.md の「タップ領域は 48px 以上」に自分で違反していました。
+     税理士の「直す」60 個・「開く」11 個、カテゴリの「編集する」15 個が
+     すべて 40px。設計側も h40 で描かれていますが、
+     <b>店主の決めた 48px が設計より上</b>です（品切れの行高で同じ判断済み）。 */
+.theme-desk .btn--sm { font-size: 15px; min-height: 48px; }
 
 /* --------------------------------------------------------------------------
    塗りボタンは草緑に統一（2026-09-12）
@@ -3685,6 +3894,76 @@ body.is-sending .staff-main {
      .btn--ok のように 3 つまとめて上書きすると塗りボタンになってしまいます。 */
 .theme-desk .btn--danger { --btn-bd: var(--danger); }
 
+/* --------------------------------------------------------------------------
+   30-7b. 札とボタンの統一規格を実装へ（2026-09-20）
+
+   設計（部品「店/札」1065:13127 ／「ボタン」1092:13298）に合わせます。
+   規格じたいは 2026-09-20 に店主が決めていたのに、実装へ届いていませんでした。
+   実測で出た差は次のとおりです（実装 → 設計）。
+
+     札の角丸   999px（丸い薬型） → 4px
+     札の高さ   21.4 / 25.6 / 28.2 / 29.6px とバラバラ → 26px
+     押せない札 緑（#def8ee/#3f8e6d、#e6f4e8/#0b7a1a、白地に緑字）→ #efefef / #444444
+     編集の口   灰色の枠 #c7c7c7 → 緑の枠 #0e9721
+
+   ★ なぜ .theme-desk に絞るか。
+     .badge はお客さん側でも使っています。素の .badge を触ると、
+     注文画面の「おすすめ」「グルテンフリー」まで灰色になります。
+     設計があるのは店側の画面だけなので、そこだけに効かせます。
+
+   ★ なぜ変種クラス単独で書かないか。
+     .theme-desk .btn (0,2,0) が .btn--edit (0,1,0) に勝つためです。
+     すぐ上の .btn--danger で 2026-09-19 に踏んだ罠と同じものです。
+   -------------------------------------------------------------------------- */
+
+/* ★ 札の寸法（13px / 行送り 16 / 上下 4）と角丸 4px は、
+     この下にある既にある指定のほうへ書きました。
+     同じことを 2 か所で言うと、片方だけ直して食い違う原因になります。
+       寸法 … 「札の寸法はここが正」の .theme-desk .badge
+       角丸 … 「札。★ 素の .badge は丸のまま」の .theme-desk .badge
+     ここには色の決まりだけを置きます。 */
+
+/* 押せない札に緑を使わない。
+   赤（品切れ中・注意）は「気づかせる」ための色なので残します
+   ——店主の言葉は「緑を使わない」であって「色を使わない」ではありません。 */
+.theme-desk .badge--gf:not(.badge--act),
+.theme-desk .badge--ok:not(.badge--act),
+.theme-desk .badge--rec:not(.badge--act) {
+  background: #efefef;
+  color: #444444;
+  border-color: transparent;
+}
+
+/* ★ .badge--ok を忘れないこと。--ok(#3f8e6d)/--ok-soft(#def8ee) は
+     .badge--gf と同じ見た目なのに別の変種です。実測で気づくまで、
+     卓の「使用中」10 個だけが緑のまま取り残されていました。 */
+
+/* ★ ホールと品切れの札は、ここに書き足さないこと（2026-09-20 に一度やって戻した）。
+     あちらには既に .hallboard .billcard .badge / .soldoutpage .table .badge--rec が
+     あります。ここに同じ名前で足すと、
+       ・テストが CSS 本文を「最初に見つかった .hallboard .billcard .badge」で
+         切り出すため、中身の薄いこちらを読んでしまう
+       ・読む人も、どちらが効いているか 2 か所見ないと分からない
+     という 2 つが同時に起きます。直すときは元の規則のほうを直します。 */
+
+/* 押せる札は白地に緑の枠（設計の「表示中（押せる）」）。
+   押せるものにだけ緑を使う、という線引きはここで守ります。
+   ★ 地は #fff を直に書きます。var(--surface) は #f7f9fb で、
+     設計の白（#ffffff）より薄く灰色がかっていました（実測）。 */
+.theme-desk .badge--act { background: #fff; }
+.theme-desk .badge--act.badge--gf {
+  color: var(--action);
+  border-color: currentColor;
+}
+
+/* 編集の口は緑の枠。緑＝前に進む（直しに行く）、灰色＝元に戻る。 */
+.theme-desk .btn--edit {
+  /* 地は #fff を直に。var(--surface) は #f7f9fb で、設計の白より灰色がかる */
+  --btn-bg: #fff;
+  --btn-bd: #0e9721;
+  --btn-fg: var(--action);
+}
+
 .theme-desk .label { font-size: 16px; letter-spacing: .02em; }
 /* 入力欄は 16px・48px のまま。16px 未満にすると iOS が勝手に拡大する（11 節） */
 
@@ -3695,7 +3974,15 @@ body.is-sending .staff-main {
 .theme-desk .small,
 .theme-desk .tiny { font-size: 14px; }
 
-.theme-desk .badge { font-size: 14px; line-height: 1.4; }
+/* 札の寸法はここが正（2026-09-20）。設計の部品「店/札」1065:13127 は 26px 固定。
+   4 + 16 + 4 + 枠 2 = 26。それまでは 14px / 行送り 1.4 で 29.6px あり、
+   同じ表の中で 21.4 / 25.6 / 28.2 / 29.6px と 4 種類に割れていました。 */
+.theme-desk .badge {
+  font-size: 13px;
+  line-height: 16px;
+  padding: 4px 8px;
+  letter-spacing: .02em;
+}
 
 /* 薄すぎる字を一段濃くする。
    .faint は不透明度 38%。白地では実効 #9e9e9e で 2.8:1 しかなく、
@@ -3718,7 +4005,15 @@ body.is-sending .staff-main {
 .page-head {
   display: flex;
   align-items: center;
-  gap: 16px;
+  /* ★ 2026-09-20：16 → 12（店主の判断「画面側を正とする」）。
+       設計ファイルの中で食い違っていました——
+         部品の原本「見出し/ページ」 … 900x80・間 16  ← どの画面からも使われていない
+         画面側の帯（1432 の 21 枚）  … 1120x82・間 12 ← 実際に描かれているのはこちら
+       部品は寸法（900x80）からして画面と別物で、古い版でした。
+       ★ 上下の余白 16 はこのままにします。設計は「行送り 36 を高さ 82 の中で
+         縦中央」、実装は「行送り 50 に上下 16」で、どちらも<b>字の中心が
+         帯の上から 41px</b>です。数字だけ見て 0 にすると逆に崩れます。 */
+  gap: 12px;
   padding: 16px 40px;
 
   /* ★ 行の高さを固定する（2026-09-18・店主の指摘
@@ -3849,8 +4144,13 @@ body.is-sending .staff-main {
      枠の #e3e3e3 は表の罫と同じ値（白地で 2 種類の濃さを混ぜない） */
 .theme-desk .searchbox { border-radius: 0; border-color: #e3e3e3; }
 /* 札。★ 素の .badge は丸のまま（お客さま側のメニューのチップで使っている）。
-   CLAUDE.md「管理画面だけ変えたいときは .theme-desk 配下に書く」 */
-.theme-desk .badge { border-radius: 0; }
+   CLAUDE.md「管理画面だけ変えたいときは .theme-desk 配下に書く」
+
+   ★ 2026-09-20：角 0 → 4px。店主の指摘そのものです——
+     「表示中非表示は角丸が無くて統一感ないので 4px のランド付けて」。
+     2026-09-13 に Render のトンマナへ寄せて角を落としましたが、
+     ボタンも入力も 4px の中で札だけ角 0 だったため浮いていました。 */
+.theme-desk .badge { border-radius: 8px; }
 .searchbox__input::placeholder { color: var(--text-muted); }
 .searchbox__input:focus { outline: none; }
 .searchbox:focus-within { border-color: var(--accent); }
@@ -3859,7 +4159,92 @@ body.is-sending .staff-main {
    ★ 列そのものが下線（通し罫）を持つ（2026-09-13、Render の作り）。
      選択中のタブに面が付き、列の罫はそのまま下を走ります。
      gap を 0 にしてあるのは、Render のタブが隙間なしで並ぶため */
-.theme-desk .tabtable__tabs { display: flex; gap: 0; border-bottom: 1px solid #e3e3e3; }
+/* --------------------------------------------------------------------------
+   タブの右の「並べ替え」（2026-09-20・設計は倉庫の試作A／試作B）
+   --------------------------------------------------------------------------
+   店主の指示「編集中の隣に並び順を原価率の高い低いとか
+   Windows フォルダの並び変えみたいなのを実装仕様と思うんだよね」。
+
+   ★ これは<b>見え方だけ</b>の並べ替えです。お客さまのメニューに出る順番
+     （MenuItem#sortOrder）には触れません。
+
+   ★ 下の罫はタブの列が持っています（.tabtable__tabs の border-bottom）。
+     この行に罫を足すと、タブの下で 2 本になります。 */
+/* ★ 入りきらなければ折り返す（2026-09-22）。
+     タブ 5 枚で 712px ＋ 間 16 ＋ 並べ替え 310 ＝ 1038px。
+     iPad の本文は 897px しかなく、<b>画面ごと横に動いて</b>いました
+     （実測 +117px）。タブもボタンも中身が決まった幅なので、
+     どちらも縮みません。押し込めないなら段を変えるのが素直です。
+
+     幅が足りるとき（1432 の本文 1120px）は 1 行のままなので、
+     設計の見た目は変わりません。@media で幅を決め打ちせず、
+     入るか入らないかで自然に切り替わります。 */
+.tabsort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+.tabsort .tabtable__tabs { flex: 1 1 auto; }
+.tabsort .sortpick { flex: none; margin-bottom: 8px; }
+
+/* 開いたら重ねて出す。押し出すと下の表が毎回ずれて、
+   どこを見ていたか分からなくなります（カテゴリの選択と同じ考え方） */
+.sortpick { position: relative; }
+.sortpick__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  white-space: nowrap;
+  list-style: none;
+}
+.sortpick__head::-webkit-details-marker { display: none; }
+.sortpick[open] .sortpick__head { border-color: #0e9721; color: var(--action); }
+.sortpick__mark { color: var(--text-muted); }
+.sortpick[open] .sortpick__mark { color: var(--action); }
+
+.sortpick__list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  padding: 8px 0;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .12);
+  /* 6 個しか無いので普段は効きませんが、増えたときのために。
+     こちらも picker.js が画面の下端まででかけ直します */
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.sortpick:not([open]) .sortpick__list { display: none; }
+.sortpick__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sortpick__item:hover { background: var(--bg-elevated); }
+.sortpick__item.is-active { background: #eef7f2; color: var(--action); font-weight: 700; }
+/* ✓ の幅を空けておく。選んでいない行だけ字が左にずれるのを防ぐ */
+.sortpick__check { flex: none; width: 14px; color: var(--action); }
+
+.theme-desk .tabtable__tabs { display: flex; gap: 8px; border-bottom: 1px solid #e3e3e3; }
 .tabtable__tabs { display: flex; gap: 0; }
 
 /* ★ 必ず .theme-desk で囲うこと（2026-09-05 に事故を直した）。
@@ -3884,10 +4269,12 @@ body.is-sending .staff-main {
   width: 136px;
   height: 56px;
   padding: 0 18px;
-  /* 角は落とす（2026-09-13、Figma 07 のトンマナ）。
-     もとは上だけ 8px の角丸で「表とつながる紙」の形にしていたが、
-     表の見出しも札も角 0 にしたので、ここだけ丸いと浮く */
-  border-radius: 0;
+  /* 角丸 8px（2026-09-20）。
+     2026-09-13 は 0 でした。「表の見出しも札も角 0 にしたので、
+     ここだけ丸いと浮く」という理由でしたが、その前提が変わりました——
+     札もボタンも入力も 8px にそろえたので、いまは<b>タブだけ角 0 だと浮きます</b>。
+     ★ 下は表とつながるので、上の 2 隅だけ丸めます。 */
+  border-radius: 8px 8px 0 0;
   background: var(--surface-sunken, #eef1f4);
   border: 1px solid var(--border);
   border-bottom: 0;
@@ -3943,7 +4330,7 @@ body.is-sending .staff-main {
 
    ★ 67 なのは、区切り線が設計では面の内側にあるため。
      CSS の border は外に足されるので、そのぶんを引いておく（ピルと同じ理由）。 */
-.theme-desk .table--items td { padding: 0 20px; height: 67px; vertical-align: middle; }
+.theme-desk .table--items td { padding: 0 20px; height: 68px; vertical-align: middle; }
 
 /* 列幅は設計どおり（合計 1120）。
    画面が 1432px より広いときは、この比率のまま横に伸びる */
@@ -3953,12 +4340,16 @@ body.is-sending .staff-main {
 .theme-desk .table--purchases th { padding: 16px; height: 64px; }
 .theme-desk .table--purchases td { padding: 20px 20px 19px; height: 68px; }
 .table--purchases { table-layout: fixed; }
-.table--purchases th:nth-child(1), .table--purchases td:nth-child(1) { width: 150px; }
-.table--purchases th:nth-child(2), .table--purchases td:nth-child(2) { width: 300px; }
-.table--purchases th:nth-child(3), .table--purchases td:nth-child(3) { width: 160px; }
-.table--purchases th:nth-child(4), .table--purchases td:nth-child(4) { width: 170px; }
-.table--purchases th:nth-child(5), .table--purchases td:nth-child(5) { width: 220px; }
-.table--purchases th:nth-child(6), .table--purchases td:nth-child(6) { width: 120px; }
+/* ★ 2026-09-22：px → 割合。iPad（幅 1024）で本文は 897px しかなく、
+     px の列が合計 1120 あると table-layout:fixed では width:100% と書いても
+     <b>表が 1120 から縮みません</b>。右の列が初期表示で見切れていました。
+     商品の表を 09-20 に % 化したのと同じ直しです（比は 1120 基準で不変）。 */
+.table--purchases th:nth-child(1), .table--purchases td:nth-child(1) { width: 13.393%; }  /* 150 */
+.table--purchases th:nth-child(2), .table--purchases td:nth-child(2) { width: 26.786%; }  /* 300 */
+.table--purchases th:nth-child(3), .table--purchases td:nth-child(3) { width: 14.286%; }  /* 160 */
+.table--purchases th:nth-child(4), .table--purchases td:nth-child(4) { width: 15.179%; }  /* 170 */
+.table--purchases th:nth-child(5), .table--purchases td:nth-child(5) { width: 19.643%; }  /* 220 */
+.table--purchases th:nth-child(6), .table--purchases td:nth-child(6) { width: 10.714%; }  /* 120 */
 /* 金額も左揃え。設計は数字を含めて全部左でそろえてある
    （右寄せは列の中で数字が離れて、名前と金額を目で結びにくい） */
 .table--purchases td.num, .table--purchases th.num { text-align: left; }
@@ -4003,7 +4394,7 @@ body.is-sending .staff-main {
 .table--items th.col-price, .table--items td.col-price { text-align: left; }
 .table--items th.col-cost,  .table--items td.col-cost,
 .table--items th.col-state, .table--items td.col-state,
-.table--items th.col-order, .table--items td.col-order { text-align: center; }
+.table--items th.col-act,   .table--items td.col-act { text-align: center; }
 /* 中央の列は中身も中央へ。掲載・販売・並びのセルは中がフォームで、
    並びは .row（flex）なので text-align だけでは寄りません */
 .table--items td.col-state > form,
@@ -4027,12 +4418,34 @@ body.is-sending .staff-main {
      いまは詰めるところまで。ボタンの大きさは 1px も変えていません。 */
 .table--items th.col-cost,  .table--items td.col-cost,
 .table--items th.col-state, .table--items td.col-state,
-.table--items th.col-order, .table--items td.col-order { padding-inline: 8px; }
+.table--items th.col-act,   .table--items td.col-act { padding-inline: 8px; }
 
-/* 並び列（商品・カテゴリ・卓で共通）。つまみと数字を中央に置く。
-   中央ぞろえでは左右の余白は位置に効かず、使える幅を削るだけなので詰める。 */
-.table th.col-order,
-.table td.col-order { text-align: center; padding-inline: 8px; }
+/* ★ 掲載の札だけ、商品の表の中では 40px のボタンの大きさにします（2026-09-20）。
+     店主の指摘「編集、掲載中、未登録は同じボタンの大きさにしないと押せる感じしなくない？」。
+
+     同じ行に押せるものが 3 つ並ぶのに、40 / 26 / 21px とバラバラで、
+     いちばん小さい「未登録」は枠も面も無い赤字でした。
+
+   ★ 部品「店/札」の 26px は崩しません。ここは<b>商品の表の中だけ</b>の例外です。
+     ほかの一覧（カテゴリ・卓・スタッフ・仕入れ）の札は 26px のままです。
+     カテゴリの表で同じ手を使っています（.table--cats td.col-state .badge--act）。
+
+   ★ 形だけ大きくして、色は変えていません（白地＋緑の枠＋緑の字）。
+     押すと掲載が止まる「切り替え」なので、塗りにすると
+     100 行ぶんの緑の面が並んで一覧が読めなくなります。 */
+.table--items td.col-state .badge--act {
+  /* ★ 2026-09-20：商品の表の中だけ、掲載の札をボタンの大きさにします。
+       店主の指摘「編集、掲載中、未登録は同じボタンの大きさにしないと
+       押せる感じしなくない？」。同じ行に押せるものが 3 つ並ぶのに、
+       48 / 26 / 21px とバラバラでした（設計は倉庫の試作A で 3 つとも 48px）。
+     ★ 部品「店/札」の 26px は崩しません。ほかの一覧の札は 26px のままです。
+     ★ 色は変えません（白地＋緑の枠＋緑の字）。押すと掲載が止まる「切り替え」なので、
+       塗りにすると 100 行ぶんの緑の面が並んで一覧が読めなくなります。 */
+  min-height: 48px;
+  padding-inline: 16px;
+  font-size: 15px;
+  border-radius: 8px;
+}
 
 /* --------------------------------------------------------------------------
    並び順のつまみ（2026-09-19・店主の指示「ドラック＆ドロップで入れ替え」）
@@ -4110,13 +4523,46 @@ body.is-sending .staff-main {
   .is-reorderable tr.is-dragging { box-shadow: none; }
 }
 
-.table--items th:nth-child(1), .table--items td:nth-child(1) { width: 280px; }
-.table--items th:nth-child(2), .table--items td:nth-child(2) { width: 200px; }
-.table--items th:nth-child(3), .table--items td:nth-child(3) { width: 140px; }
-.table--items th:nth-child(4), .table--items td:nth-child(4) { width: 120px; }
-.table--items th:nth-child(5), .table--items td:nth-child(5) { width: 130px; }
-.table--items th:nth-child(6), .table--items td:nth-child(6) { width: 130px; }
-.table--items th:nth-child(7), .table--items td:nth-child(7) { width: 120px; }
+/* ★ 2026-09-20：px → 割合。設計の 1120px 幅での比をそのまま使います
+     （280/200/140/120/130/130/120 ＝ 25 / 17.857 / 12.5 / 10.714 / 11.607 / 11.607 / 10.714%）。
+     px 固定だと、縦スクロールバーが出た瞬間に使える幅が 1120 → 1105 に減り、
+     表が 15px はみ出して横スクロールが生まれていました（実測）。
+     割合なら、幅が変わっても設計の比のまま収まります。 */
+/* ★ 列はクラスで指定すること（nth-child にしない）。
+     原価の列は在庫モジュールを切ると <b>列ごと消えます</b>。
+     nth-child だと、そこから右が 1 つずつ前にずれて別の列に当たります
+     （カテゴリ一覧で同じ罠を踏みました）。
+
+   ★ 値は割合。px 固定だと、縦スクロールバーが出た瞬間に使える幅が
+     1120 → 1105px に減り、表が 15px はみ出して横スクロールが生まれます。
+
+   ★ 2026-09-20：編集の列を足しました（店主の指示）。
+     はじめは「販売中と並びの間に足して、余っている所から幅を集める」案でしたが、
+     店主が<b>販売（品切れ）の列そのものを編集に置き換える</b>と決めたので、
+     幅はどこも削らずに済みました。設計（ト10）の 280/200/140/120/130/130/120 が
+     そのまま使えています。同じ切り替えは「品切れ・残数」の画面にあります。
+
+     （参考：削る案のときの実測）
+       掲載・販売 … 札の最大は「品切れ中」の 83.3px。左右 8px を足しても 99.3px で、
+                    128.3px の割当に 29px ずつ余っていた（<form> が横いっぱいに
+                    広がるのを「中身の幅」と数えて、余り 0 と読み違えていた）
+       価格       … 24.6px 余り
+       並び       … 41.8px 余り
+     おかげで商品名とカテゴリは削らずに済み、原価はむしろ 118 → 130 に広げられました
+     （¥377（31.9%）が入りきっていなかった）。
+
+     結局どこも削らず、設計どおり 280 / 200 / 140 / 120 / 130 / 130 / 120 ＝ 1120。 */
+/* ★ 2026-09-20：並びの列を外したので 7 → 6 列。空いた 118px を配り直しました
+     （設計は倉庫の試作A）。224 / 314 / 156 / 134 / 146 / 146 ＝ 1120。
+     商品名が 276 → 314px に広がり、長い名前の折り返しが減ります。 */
+.table--items th.col-cat,   .table--items td.col-cat   { width: 20%; }      /* 224 */
+.table--items th.col-name,  .table--items td.col-name  { width: 28.036%; }  /* 314 */
+.table--items th.col-price, .table--items td.col-price { width: 13.929%; }  /* 156 */
+.table--items th.col-cost,  .table--items td.col-cost  { width: 11.964%; }  /* 134 */
+.table--items th.col-state, .table--items td.col-state { width: 13.036%; }  /* 146 掲載 */
+.table--items th.col-act,   .table--items td.col-act   { width: 13.036%; }  /* 146 編集 */
+/* 編集ボタンは中央に置く（カテゴリ一覧と同じ） */
+.table--items th.col-act, .table--items td.col-act { text-align: center; }
 
 /* レシピ・原価表（設計 ト09 731:4147）。見出し 64／行 68 は商品の表と同じ流儀。
 
@@ -4143,12 +4589,16 @@ body.is-sending .staff-main {
      iPad で商品名の列が 92px まで潰れました（実測）。合計が 1120 に
      届かないと、入れ物より狭くなって横スクロールが働かないためです。 */
 .theme-desk .table--recipes th { padding: 16px; height: 64px; }
-.theme-desk .table--recipes td { padding: 0 20px; height: 67px; vertical-align: middle; }
+.theme-desk .table--recipes td { padding: 0 20px; height: 68px; vertical-align: middle; }
 .table--recipes { table-layout: fixed; }
-.table--recipes .col-name  { width: 300px; }
-.table--recipes .col-money { width: 140px; }
-.table--recipes .col-rate  { width: 150px; }
-.table--recipes .col-act   { width: 100px; }
+/* ★ 2026-09-22：px → 割合。iPad（幅 1024）で本文は 897px しかなく、
+     px の列が合計 1120 あると table-layout:fixed では width:100% と書いても
+     <b>表が 1120 から縮みません</b>。右の列が初期表示で見切れていました。
+     商品の表を 09-20 に % 化したのと同じ直しです（比は 1120 基準で不変）。 */
+.table--recipes .col-name  { width: 26.786%; }  /* 300 */
+.table--recipes .col-money { width: 12.5%; }  /* 140 */
+.table--recipes .col-rate  { width: 13.393%; }  /* 150 */
+.table--recipes .col-act   { width: 8.929%; }  /* 100 */
 
 /* ★ 操作の列だけ左右の余白を詰める（2026-09-19、実測で発見）。
 
@@ -4173,7 +4623,7 @@ body.is-sending .staff-main {
      設計の 68px から 8px はみ出していました。上下を 0 にすると 36px が収まり、
      height の 67 が効いて区切り線と合わせてちょうど 68 になります。
      <b>つまみは 1px も小さくしていません。</b>商品・レシピの表と同じ直し方です。 */
-.theme-desk .table--cats td { padding: 0 20px; height: 67px; vertical-align: middle; }
+.theme-desk .table--cats td { padding: 0 20px; height: 68px; vertical-align: middle; }
 
 /* 卓の表（2026-09-19 に追加）。
 
@@ -4191,13 +4641,17 @@ body.is-sending .staff-main {
      設計に無い「並び」を 160（カテゴリと同じ）、残りを状態へ。
      320 + 180 + 240 + 220 + 160 ＝ 1120。 */
 .theme-desk .table--tables th { padding: 16px; height: 64px; }
-.theme-desk .table--tables td { padding: 0 20px; height: 67px; vertical-align: middle; }
+.theme-desk .table--tables td { padding: 0 20px; height: 68px; vertical-align: middle; }
 .table--tables { table-layout: fixed; }
-.table--tables th:nth-child(1), .table--tables td:nth-child(1) { width: 320px; }
-.table--tables th:nth-child(2), .table--tables td:nth-child(2) { width: 180px; }
-.table--tables th:nth-child(3), .table--tables td:nth-child(3) { width: 240px; }
-.table--tables th:nth-child(4), .table--tables td:nth-child(4) { width: 220px; }
-.table--tables th:nth-child(5), .table--tables td:nth-child(5) { width: 160px; }
+/* ★ 2026-09-22：px → 割合。iPad（幅 1024）で本文は 897px しかなく、
+     px の列が合計 1120 あると table-layout:fixed では width:100% と書いても
+     <b>表が 1120 から縮みません</b>。右の列が初期表示で見切れていました。
+     商品の表を 09-20 に % 化したのと同じ直しです（比は 1120 基準で不変）。 */
+.table--tables th:nth-child(1), .table--tables td:nth-child(1) { width: 28.571%; }  /* 320 */
+.table--tables th:nth-child(2), .table--tables td:nth-child(2) { width: 16.071%; }  /* 180 */
+.table--tables th:nth-child(3), .table--tables td:nth-child(3) { width: 21.429%; }  /* 240 */
+.table--tables th:nth-child(4), .table--tables td:nth-child(4) { width: 19.643%; }  /* 220 */
+.table--tables th:nth-child(5), .table--tables td:nth-child(5) { width: 14.286%; }  /* 160 */
 .table--cats { table-layout: fixed; }
 /* ★ 2026-09-20：操作（編集する）列を足して 5 本にしました（設計 ト11）。
 
@@ -4207,11 +4661,15 @@ body.is-sending .staff-main {
      列は th:if で消えることがあり、nth-child だと 1 本減った瞬間に
      別の列へ幅が当たります（.table--recipes が先にこの形に直してあります）。 */
 .table--cats { /* 合計 1120。fixed なので、足りないと .table-wrap の横スクロールが効かない */ }
-.table--cats th.col-name, .table--cats td.col-name { width: 340px; }
-.table--cats th.col-count, .table--cats td.col-count { width: 140px; }
-.table--cats th.col-state, .table--cats td.col-state { width: 300px; }
-.table--cats th.col-act, .table--cats td.col-act { width: 180px; }
-.table--cats th.col-order, .table--cats td.col-order { width: 160px; }
+/* ★ 2026-09-22：px → 割合。iPad（幅 1024）で本文は 897px しかなく、
+     px の列が合計 1120 あると table-layout:fixed では width:100% と書いても
+     <b>表が 1120 から縮みません</b>。右の列が初期表示で見切れていました。
+     商品の表を 09-20 に % 化したのと同じ直しです（比は 1120 基準で不変）。 */
+.table--cats th.col-name, .table--cats td.col-name { width: 30.357%; }  /* 340 */
+.table--cats th.col-count, .table--cats td.col-count { width: 12.5%; }  /* 140 */
+.table--cats th.col-state, .table--cats td.col-state { width: 26.786%; }  /* 300 */
+.table--cats th.col-act, .table--cats td.col-act { width: 16.071%; }  /* 180 */
+.table--cats th.col-order, .table--cats td.col-order { width: 14.286%; }  /* 160 */
 
 /* ★ 状態の札は押せる（2026-09-20）。編集画面からチェックを外したので、
      表示／非表示を切り替えられるのはここだけになりました。
@@ -4234,11 +4692,12 @@ body.is-sending .staff-main {
 .table--cats td.col-state .badge--act {
   font-size: 13px;
   line-height: 16px;
-  /* ★ 上下は 3px。設計の 24px には 1px の枠が含まれています
-       （Figma の線は内側に引かれるので、padding 4 の中に枠が乗っている）。
-       CSS の枠は padding の外に積まれるので、4 のままだと 26px になります。
-       3 + 16 + 3 + 枠 2 = 24。 */
-  padding-block: 3px;
+  /* ★ 2026-09-20 に 3px → 4px へ戻しました。
+       当時この札は設計で 24px でしたが、それは部品「店/札」の
+       インスタンス 81 個が「中身に合わせる」に化けて縮んでいたためでした
+       （原本はずっと 26px 固定）。原本どおりに戻したので、こちらも 26 に合わせます。
+       4 + 16 + 4 + 枠 2 = 26。 */
+  padding-block: 4px;
   /* 設計の文字と ▸ の間は 1px。.badge の gap 4px と
      .badge--act::after の margin-left 1px が足されて 5px になっていました */
   gap: 0;
@@ -4276,11 +4735,20 @@ body.is-sending .staff-main {
    見出し 64 / 行 67（＋区切り線 1 ＝ 68）は、カテゴリ・卓・商品とそろえた値です。 */
 .table--catitems { table-layout: fixed; }
 .theme-desk .table--catitems th { padding: 16px; height: 64px; }
-.theme-desk .table--catitems td { padding: 0 20px; height: 67px; vertical-align: middle; }
-.table--catitems th.col-check, .table--catitems td.col-check { width: 72px; }
-.table--catitems th.col-name,  .table--catitems td.col-name  { width: 468px; }
-.table--catitems th.col-price, .table--catitems td.col-price { width: 180px; }
-.table--catitems th.col-state, .table--catitems td.col-state { width: 400px; }
+.theme-desk .table--catitems td { padding: 0 20px; height: 68px; vertical-align: middle; }
+/* ★ 2026-09-22：px → 割合。iPad（幅 1024）で本文は 897px しかなく、
+     px の列が合計 1120 あると table-layout:fixed では width:100% と書いても
+     <b>表が 1120 から縮みません</b>。右の列が初期表示で見切れていました。
+     商品の表を 09-20 に % 化したのと同じ直しです（比は 1120 基準で不変）。 */
+.table--catitems th.col-check, .table--catitems td.col-check { width: 6.429%; }  /* 72 */
+.table--catitems th.col-name,  .table--catitems td.col-name  { width: 41.786%; }  /* 468 */
+.table--catitems th.col-price, .table--catitems td.col-price { width: 16.071%; }  /* 180 */
+/* ★ 2026-09-20：状態 400 → 240。空いた 160px を並びの列にしました
+     （設計 ト11b 1145:13371）。状態には札が 1 つ入るだけで、
+     実際に要るのは 90px ほどなので、削っても窮屈になりません。
+     72 ＋ 468 ＋ 180 ＋ 240 ＋ 160 ＝ 1120。 */
+.table--catitems th.col-state, .table--catitems td.col-state { width: 21.429%; }  /* 240 */
+.table--catitems th.col-order, .table--catitems td.col-order { width: 14.286%; }  /* 160 */
 .table--catitems th.col-price, .table--catitems td.col-price { text-align: right; }
 .table--catitems th.col-check, .table--catitems td.col-check { text-align: center; padding-inline: 8px; }
 
@@ -4408,8 +4876,8 @@ body.is-sending .staff-main {
      同じ .table--stock を「未学習のレシート品名」の表も使っていて、
      あちらは設計に無い別の表です。絞らずに敷くと、
      関係のない表の行まで 50 → 72px に太ります（下の余白の指定と同じ理由）。 */
-.theme-desk .table--stock:has(.recbtn) th { height: 56px; }
-.theme-desk .table--stock:has(.recbtn) td { height: 71px; }
+.theme-desk .table--stock:has(.recbtn) th { height: 64px; }
+.theme-desk .table--stock:has(.recbtn) td { height: 68px; }
 
 /* 「少ない」「マイナス」の札（設計 ト04 は 11px・49x21）。
    共通の .theme-desk .badge は 14px なので、この表だけ一段小さくする。
@@ -4425,13 +4893,17 @@ body.is-sending .staff-main {
      あちらにはボタンが無いので、9 にすると理由もなく詰まる。 */
 .theme-desk .table--stock:has(.recbtn) td { padding-top: 9px; padding-bottom: 9px; }
 .table--stock { table-layout: fixed; }
-.table--stock th:nth-child(1), .table--stock td:nth-child(1) { width: 240px; }
-.table--stock th:nth-child(2), .table--stock td:nth-child(2) { width: 100px; }
-.table--stock th:nth-child(3), .table--stock td:nth-child(3) { width: 120px; }
-.table--stock th:nth-child(4), .table--stock td:nth-child(4) { width: 130px; }
-.table--stock th:nth-child(5), .table--stock td:nth-child(5) { width: 270px; }
-.table--stock th:nth-child(6), .table--stock td:nth-child(6) { width: 140px; }
-.table--stock th:nth-child(7), .table--stock td:nth-child(7) { width: 120px; }
+/* ★ 2026-09-22：px → 割合。iPad（幅 1024）で本文は 897px しかなく、
+     px の列が合計 1120 あると table-layout:fixed では width:100% と書いても
+     <b>表が 1120 から縮みません</b>。右の列が初期表示で見切れていました。
+     商品の表を 09-20 に % 化したのと同じ直しです（比は 1120 基準で不変）。 */
+.table--stock th:nth-child(1), .table--stock td:nth-child(1) { width: 21.429%; }  /* 240 */
+.table--stock th:nth-child(2), .table--stock td:nth-child(2) { width: 8.929%; }  /* 100 */
+.table--stock th:nth-child(3), .table--stock td:nth-child(3) { width: 10.714%; }  /* 120 */
+.table--stock th:nth-child(4), .table--stock td:nth-child(4) { width: 11.607%; }  /* 130 */
+.table--stock th:nth-child(5), .table--stock td:nth-child(5) { width: 24.107%; }  /* 270 */
+.table--stock th:nth-child(6), .table--stock td:nth-child(6) { width: 12.5%; }  /* 140 */
+.table--stock th:nth-child(7), .table--stock td:nth-child(7) { width: 10.714%; }  /* 120 */
 
 /* 「記録する」（設計 466:6111 / 2026-09-07）。
    文字リンク → 枠付きのボタン。一覧を眺めている段階で「押せる」と分かる必要がある。
@@ -4469,6 +4941,24 @@ body.is-sending .staff-main {
   white-space: nowrap;
 }
 .recbtn:hover { background: var(--action-soft); }
+
+/* ★ 狭い画面では幅の主張をやめる（2026-09-22）。
+
+     列幅を % にして表そのものは iPad（本文 897px）に収まったのに、
+     <b>このボタンだけが縮まず</b>セルから溢れて、箱の横スクロールが
+     残っていました（レシピ 14px・食材 4px）。
+     操作列は設計 100px ＝ 1120 の 8.9% なので、897px では 80px しかなく、
+     min-width 88px のボタンはどうやっても入りません。
+
+     直すのは「幅」だけ。高さ 48px は触らないこと——
+     CLAUDE.md の「タップ領域は 48px 以上」は画面が狭いほど効く約束です。
+
+   ★ 区切りは 1100px。この数字はこのファイルで既に使っている
+     タブレットの境目（.detail2・日付の帯・売上の段組み）に合わせてあります。
+     新しい境目を増やすと、どの幅で何が変わるのかを追えなくなります。 */
+@media (max-width: 1100px) {
+  .recbtn { min-width: 0; padding-inline: 8px; }
+}
 
 /* まだ手を付けていない行（2026-09-19・店主の指摘
    「編集するは緑だけど登録するは赤の方が良いんじゃない？」）。
@@ -4513,7 +5003,10 @@ body.is-sending .staff-main {
 .itemfind {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 42px;
+  /* ★ 2026-09-20：42 → 16。設計（ト10 しぼり込みの列）の間は 16px です。
+     42 は「2 枚並べた残りを埋めた結果」の数で、余白の刻み（8/16/24/32/48）に
+     ありません。設計では 552 ＋ 16 ＋ 552 ＝ 1120 でぴったり合います。 */
+  gap: 16px;
 }
 /* カテゴリが 1 つも無い店では 1 列。2 列のまま片側を空けると壊れて見える */
 .itemfind--single { grid-template-columns: 1fr; }
@@ -4533,6 +5026,11 @@ body.is-sending .staff-main {
    ★ JavaScript は使わない。開閉はブラウザが持っている機能で、
      切られていても「閉じない」だけで中のリンクは押せる。 */
 .catpick {
+  /* ★ 2026-09-20：開いた一覧を重ねて出すための基準（店主の指摘
+       「カテゴリ選択しようとするたびに表が動いて使いづらかった」）。
+       それまでは一覧が場所を取る作りで、開くと下の表が最大 320px 押し下げられ、
+       見ていた行が画面の外へ出ていました。並べ替え（.sortpick）と同じ形にします。 */
+  position: relative;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-elevated);
@@ -4593,7 +5091,11 @@ body.is-sending .staff-main {
    ボタンの大きさが変わり、行ごと動いて次の品を押し間違える。
    6 字が収まる幅で固定する。 */
 .stock-toggle { min-width: 148px; white-space: nowrap; }
-.catpick[open] .catpick__head { border-bottom: 1px solid var(--border); }
+/* ★ 2026-09-20：下線をやめました。一覧を重ねて出すようにしたので、
+     頭の下に線だけ残ると、つながっていないものがつながって見えます。
+     開いていることは枠の色で伝えます（並べ替えと同じ）。 */
+.catpick[open] { border-color: #0e9721; }
+.catpick[open] .catpick__head { color: var(--action); }
 
 /* ★ 閉じているあいだは中身を出さない（2026-09-07 に修正）。
      details の中身はブラウザが隠してくれるが、こちらで display を
@@ -4604,12 +5106,28 @@ body.is-sending .staff-main {
 .catpick:not([open]) .catpick__list { display: none; }
 
 .catpick__list {
+  /* ★ 2026-09-20：場所を取らずに重ねて出します。
+       開いても下の表は 1px も動きません。
+     ★ left/right を 0 にして、閉じているときの欄と同じ幅で出します。
+       中身の幅で決めると、カテゴリ名の長さによって毎回幅が変わります。 */
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
   display: flex;
   flex-direction: column;
   padding: 6px;
-  /* 14 個あるので、長くなったらこの中だけスクロールさせる。
-     ページごと伸びると、下にある表が押し出されて見えなくなる */
-  max-height: 320px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .12);
+  /* ★ 上限は picker.js が開いた瞬間に「画面の下端まで」で入れ直します
+       （店主の指摘「下にスクロールしなくても良い場合はしないぐらい
+         max ま下まで表示して欲しい」）。
+       ここの 60vh は<b>JS が動かないときの受け皿</b>です。320px 固定だと、
+       画面の下に十分な余りがあるのに 14 個中 6 個しか見えませんでした。 */
+  max-height: 60vh;
   overflow-y: auto;
 }
 .catpick__item {
@@ -4678,10 +5196,16 @@ body.is-sending .staff-main {
 .theme-desk .table--staff th { padding: 16px; height: 64px; }
 .theme-desk .table--staff td { padding: 20px 20px 19px; height: 68px; }
 .table--staff { table-layout: fixed; }
-.table--staff th:nth-child(1), .table--staff td:nth-child(1) { width: 330px; }
-.table--staff th:nth-child(2), .table--staff td:nth-child(2) { width: 270px; }
-.table--staff th:nth-child(3), .table--staff td:nth-child(3) { width: 220px; }
-.table--staff th:nth-child(4), .table--staff td:nth-child(4) { width: 300px; }
+/* ★ 2026-09-20：330/270 → 320/280。設計（ト15 732:4888）の実測値です。
+     合計はどちらも 1120 なので、見た目では気づけませんでした。 */
+/* ★ 2026-09-22：px → 割合。iPad（幅 1024）で本文は 897px しかなく、
+     px の列が合計 1120 あると table-layout:fixed では width:100% と書いても
+     <b>表が 1120 から縮みません</b>。右の列が初期表示で見切れていました。
+     商品の表を 09-20 に % 化したのと同じ直しです（比は 1120 基準で不変）。 */
+.table--staff th:nth-child(1), .table--staff td:nth-child(1) { width: 28.571%; }  /* 320 */
+.table--staff th:nth-child(2), .table--staff td:nth-child(2) { width: 25%; }  /* 280 */
+.table--staff th:nth-child(3), .table--staff td:nth-child(3) { width: 19.643%; }  /* 220 */
+.table--staff th:nth-child(4), .table--staff td:nth-child(4) { width: 26.786%; }  /* 300 */
 
 /* --------------------------------------------------------------------------
    30-6-3. 売上・ダッシュボードの面（.sheet）— 2026-09-05
@@ -4782,6 +5306,16 @@ body.is-sending .staff-main {
   flex-wrap: nowrap;
 }
 .datenav .input { width: auto; min-width: 11rem; max-width: 14rem; }
+
+/* ★ 前月・翌月は緑の枠にする（2026-09-22・設計に寄せる）。
+     設計（帯／月 1036:10977 ほか）の枠は #0e9721、文字は #0b7a1a。
+     実装は白ボタンの既定（灰の枠・黒い文字）のままで、
+     売上・注文履歴・税理士 5 枚の 7 画面で同じ差が出ていました。
+
+   ★ ここは<b>緑にするのが正しい</b>数少ない場所です。
+     「緑は押せるものだけ」の決まりのとおり、これは押すものです。
+     逆に押せない帯（.alert--warn）からは緑を外しました（下の 1281 行あたり）。 */
+.theme-desk .datenav .btn { --btn-bd: #0e9721; --btn-fg: var(--action); }
 
 /* ★ iPad 幅では入力欄を少し詰める（2026-09-18）。
      帯を題の行へ入れた結果、いちばん混む画面（仕入れ・経費）が
@@ -5104,7 +5638,7 @@ body.is-sending .staff-main {
 .recgrid .label { font-size: 13px; margin-bottom: 6px; }
 .recgrid .input, .recgrid .select { border-radius: 4px; padding-left: 14px; padding-right: 14px; }
 .recgrid .help { font-size: 12px; }
-.recgrid .btn { border-radius: 4px; align-self: flex-start; }
+.recgrid .btn { align-self: flex-start; }   /* 角丸は .btn の 8px を継ぐ（2026-09-20） */
 
 /* --------------------------------------------------------------------------
    ホール・会計ボード（設計 現02 437:2305。2026-09-07）
@@ -5209,7 +5743,11 @@ body.is-sending .staff-main {
   font-size: 14px;
   font-weight: 700;
   padding: 8px 16px;
-  border-radius: 999px;
+  /* ★ 2026-09-20：999px（丸い薬型）→ 4px。
+       部品「ホール/札」545:3602 も同じ日に角丸 4px へそろえました。
+       この画面だけ丸いと、同じ札が幅を変えるたびに形が変わって見えます。
+       ★ 2026-09-20 夕：4px → 8px。ボタンと札を 8px でそろえる決定に合わせました。 */
+  border-radius: 8px;
   /* ★ 設計の札はちょうど 36px（上下 8 ＋ 文字 20）。
        素の .badge が border:1px solid transparent を持っているため、
        透明でも上下 2px ぶん高くなり 38px になります。この画面では枠を消します
@@ -5222,7 +5760,12 @@ body.is-sending .staff-main {
 }
 /* 調理中あり。.badge--rec は .theme-snow で --accent がほぼ黒になるので、
    この画面だけ設計どおりの緑（面 #ddf0ec ／ 文字 #0b7a78）に差し替える */
-.hallboard .billcard .badge--rec { background: var(--action-soft); color: var(--action); }
+/* ★ 2026-09-20：「調理中あり」は押せない札なので緑をやめました
+   （店主の決定「押せない掲載中などは灰色か黒で緑を使わない」）。
+   設計の部品「ホール/札」も同じ日に 地 #efefef ／ 字 #444444 へ直しています。
+   ★「お会計待ち」の赤（.badge--stop）は残します。あれは気づかせるための色で、
+     店主が禁じたのは緑だけです。 */
+.hallboard .billcard .badge--rec { background: #efefef; color: #444444; }
 /* バッシングは色相を持たせない（ルーチン作業。設計 545:3601）。
    面 #eef1f4 ／ 文字は本文色。薄い文字にしないのは、静かにしたいのは
    色相であって読みやすさではないため */
@@ -5280,7 +5823,7 @@ body.is-sending .staff-main {
      感じたら、ここを消せば 48px に戻る（--tap を継ぐだけになる） */
 .hallboard .billcard .btn {
   font-size: 15px;
-  border-radius: 4px;
+  /* 角丸は .btn の 8px を継ぐ（2026-09-20 に直値 4px をやめた） */
   min-height: 44px;
 }
 
@@ -5553,7 +6096,8 @@ body.is-sending .staff-main {
      （「← 戻る」と「お会計（伝票を締める）」で 139 / 317 になっていました）。
      115 ＋ 12（gap）＋ 345 ＝ 472 で、箱の中身の幅とぴったり合います。
      枠の #d1d1d1 も設計の値（共通の .btn は --border-strong で #c7c7c7）。 */
-.hallmodal__sub  { flex: 0 0 115px; min-height: 48px; font-size: 15px; border-radius: 4px;
+/* 角丸は .btn の 8px を継ぎます（2026-09-20 に直値 4px をやめた） */
+.hallmodal__sub  { flex: 0 0 115px; min-height: 48px; font-size: 15px;
                    border-color: #d1d1d1; }
 /* ★ セレクタを .hallmodal から書くこと（2026-09-17・店主の指摘で判明）。
 
@@ -5574,7 +6118,7 @@ body.is-sending .staff-main {
   flex: 1;
   min-height: 48px;
   font-size: 15px;
-  border-radius: 4px;
+  /* 角丸は .btn の 8px を継ぎます（2026-09-20 に直値 4px をやめた） */
   --btn-bg: var(--action);
   --btn-fg: #fff;
   --btn-bd: var(--action);
@@ -5712,6 +6256,744 @@ body.is-sending .staff-main {
 .lineitem__gap   { flex: 1 1 auto; }
 .lineitem__price { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lineitem__opt   { margin: 2px 0 0; font-size: 14px; color: var(--text-muted); }
+
+/* --- お客さまの見学入口（設計 暗31 1597:16742）-------------------------
+   Figma の全ノードを測って写しています。目測していません。
+
+     画面        390x844・地 #141414・左右 pad 24・上下中央
+     中央ブロック 幅 342・段の間 24・中央寄せ
+     ロゴ        72x72 の円（images/logo.jpg・白地のまま）
+     店名        24px 明朝 600・行高 140%・字間 12%・#ffffff
+     役割        13px・行高 160%・#9e9e9e
+     カード      #232323・r8・pad 24・段の間 20
+       題        20px Bold・行高 140%・#ffffff
+       説明      14px・行高 160%・#9e9e9e
+       ボタン    高さ 56・r8・地 #dd9a4e・字 16 Bold #141414
+       補足      12px・行高 160%・#7a7a7a
+     リンク      13px・#dd9a4e
+
+   ★ 店名が明朝なのは実装（.app-header__title）に合わせたものです。
+     --font-serif・font-weight 600・letter-spacing .12em。
+     ここをゴシックにすると、ヘッダーの店名と別物に見えます。
+
+   ★ 上下中央は margin:auto で取ること。
+     justify-content: center だと、画面が低い端末で中身がはみ出したときに
+     <b>上が切れて二度と読めなくなります</b>（スクロールでも戻れない）。
+     margin:auto なら、入るときは中央・はみ出すときは素直に流れます。 */
+.theme-night .demogate {
+  display: flex;
+  min-height: 100dvh;
+  padding: 24px;
+}
+.theme-night .demogate__inner {
+  margin: auto;            /* 上下中央。切れない中央寄せはこれ */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  max-width: 342px;
+}
+
+.theme-night .demogate__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+/* 白地はそのまま残す。暗い地の上で紋として立たせるため（.brand-logo と同じ扱い） */
+.theme-night .demogate__logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+}
+.theme-night .demogate__name {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  line-height: 1.4;
+  color: var(--text);
+}
+.theme-night .demogate__role {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.theme-night .demogate__card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+.theme-night .demogate__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text);
+}
+.theme-night .demogate__lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+/* 唯一の押せるもの。きつね色はここと下のリンクだけに使う。
+
+   ★ width: 100% を外さないこと。
+     .btn は inline-flex なので、<button> は<b>中身の幅まで縮みます</b>。
+     リンク（<a>）だったときは気づきませんでしたが、
+     伝票を開く操作になった＝フォームにした時点で 294px → 166.5px に縮みました。
+     設計は 294（カードの内側いっぱい）。見た目では「少し小さいかな」程度にしか
+     見えないので、実測しないと分かりません。 */
+.theme-night .demogate__go {
+  --btn-bg: var(--accent);
+  --btn-bd: var(--accent);
+  --btn-fg: var(--on-accent);
+  width: 100%;
+  min-height: 56px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.theme-night .demogate__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+.theme-night .demogate__link {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--accent);
+}
+
+/* --- お客さまの入口（設計 暗00 卓の QR を読んだ直後 91:3739）---------
+   全 36 ノードを Figma から取り出して写しています。目測はしていません。
+
+     本文        VERTICAL pad 32/16/0/16・gap 24（段の間は 6 か所すべて 24）
+     題          24px Bold #ffffff・行高 140%・<b>丸は無し</b>
+     ご案内      #232323・r8・pad 24/16・gap 8
+                   1 行目 16px Regular #ffffff
+                   2 行目 14px Regular #9e9e9e
+     来店人数    14px Regular #9e9e9e
+     人数ボタン  76x52・r8・16px Bold・4 列・gap 12（行間も 12）
+                   選択中   地 #dd9a4e / 字 #141414・枠なし
+                   未選択   地 #232323 / 字 #ffffff・枠 1px #333333
+     9 名以上    入力欄 220x52（地 #232323・枠 1px #333333）＋ 決定 110x52・gap 12
+                   決定は<b>枠なし</b>（地 #232323・16px Bold #ffffff）
+     注意書き    #232323・左 4px #dd9a4e・pad 32/24・16px #ffffff
+
+   ★ 色が付くのは「選んだ人数」と「注意書きの帯」だけ。どちらもきつね色。
+     お客さま側のアクセントはこの 1 色なので、ここに他の色を足さないこと。
+
+   ★ ここは .startpage で囲ってあり、共通部品そのものは変えていません。
+     .section-title の丸・.label の 13px・.card の pad 16 は、伝票・カート・
+     メニューを含む 24 画面が使っている値です。この画面の設計に合わせて
+     共通側を動かすと、丸つきの節見出し（暗04「お席の伝票」＝16px＋丸 10px）が
+     いっしょに崩れます。実際 Figma 側でも、題（24px・丸なし）と
+     節見出し（16px・丸あり）は別の部品として作り分けられています。 */
+
+/* 段組みそのもの。mt-4 / mt-6 をやめて、設計と同じ gap 24 の 1 本にする */
+.theme-night .startpage .container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 32px;
+}
+/* 段ごとに振ってあった上下の余白を無効にする（gap と二重になるため）。
+   .mt-6 は (0,1,0) なので、この (0,3,0) が素直に勝つ */
+.theme-night .startpage .container > * { margin-top: 0; margin-bottom: 0; }
+
+/* ★ 空の入れ物が段を 1 つ食うのを防ぐ。
+     fragments/common の flash は、出すものが無くても <div class="stack-sm"> を
+     必ず 1 つ残します。flex + gap では、中身が空でも 24px のすきまになります。
+     :empty は使えません——Thymeleaf が改行とインデントを残すため、
+     空白テキストがあって一致しません。「要素の子を持たない」で見ます。 */
+.theme-night .startpage .container > .stack-sm:not(:has(*)) { display: none; }
+
+/* 題。24px Bold・丸なし（丸つき 16px は節見出しのほうの部品） */
+.theme-night .startpage .section-title { margin: 0; gap: 0; }
+.theme-night .startpage .section-title::before { display: none; }
+.theme-night .startpage h1.section-title__text { font-size: 24px; line-height: 1.4; }
+
+/* ご案内カード */
+.theme-night .startpage .card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px 16px;
+}
+.theme-night .startpage .card__body > * { margin: 0; }
+.theme-night .startpage .card__body .lead { font-size: 16px; color: var(--text); }
+.theme-night .startpage .card__body .small { font-size: 14px; }
+
+/* 人数のフォーム。ここも設計どおり段の間 24（ラベルと人数の間も 24） */
+.theme-night .startpage form { display: flex; flex-direction: column; gap: 24px; }
+.theme-night .startpage form > * { margin: 0; }
+.theme-night .startpage .label { font-size: 14px; font-weight: 400; margin-bottom: 0; }
+
+/* 人数ボタン 76x52。
+   ★ gap は 12。16px のままだと 76x4 + 16x3 = 352 になり、
+     入れ物の 343 をはみ出します（実測でボタンが枠から出ていた）。
+     12 なら 340 で収まります。 */
+.theme-night .startpage .grid--4 { gap: 12px; }
+.theme-night .startpage .guestpick {
+  min-width: 76px;
+  min-height: 52px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* 選んでいる人数。塗りで示すので枠は持たせない */
+.theme-night .startpage .guestpick.btn--primary {
+  --btn-bg: #dd9a4e;
+  --btn-bd: #dd9a4e;
+  --btn-fg: #141414;
+  border-color: #dd9a4e;
+}
+
+/* 9 名以上の行 */
+.theme-night .startpage .guestother { display: flex; gap: 12px; align-items: center; }
+.theme-night .startpage .guestother__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 52px;
+  /* 設計は面と同じ #232323。--surface-2（#202020）だと一段沈んで見える */
+  background: var(--surface);
+  border-color: var(--border);
+  font-size: 16px;
+}
+.theme-night .startpage .guestother__go {
+  flex: 0 0 auto;
+  min-width: 110px;
+  min-height: 52px;
+  /* 設計は枠なし。地の #232323 だけで面を示す */
+  border: 0;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 注意書き。青い .alert--info ではありません（設計は面＋左の帯） */
+.theme-night .startpage .notice-night {
+  padding: 32px 24px;
+  background: var(--surface);
+  border-left: 4px solid #dd9a4e;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+/* --- 伝票ページ（設計 ト02n 1540:30863 ／ ト02m 1542:20590）-------------
+   実測値：見出し pad 0 40、戻る＋題の間 40、題 32px Bold。
+   帯 1168×120・pad 16 40 16 24。引き出し pad 24 24 24 288・段の間 24。
+
+   ★ 会計をモーダルからページに移しました（2026-09-23）。
+     モーダルは 520px で、14 品の明細のうち 8 品しか一度に出せず、
+     読み上げながら指でスクロールすることになっていました。 */
+.billpage {
+  /* 帯のぶんの余地。入れないと、いちばん下のカードが帯に隠れる */
+  padding-bottom: 140px;
+}
+
+/* --- 見出し（戻る＋題を同じ行に）--------------------------------------- */
+.billhead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 40px;
+}
+/* 見本（トp13b カテゴリを編集）と同じ組み方。かたまりの中を 40px 空ける */
+.billhead__lead  { display: flex; align-items: center; gap: 40px; }
+.billhead__title { margin: 0; font-size: 32px; font-weight: 700; line-height: 1.2; }
+.billhead__sub   { font-size: 14px; color: var(--text-muted); }
+.billhead__gap   { flex: 1 1 auto; }
+.billhead__state { font-size: 14px; color: var(--text-muted); }
+/* 戻るは道案内。枠は持つが、押してほしい操作の顔にはしない */
+.billpage .billhead__back { min-height: var(--tap); font-size: 15px; --btn-bd: #e8e8e8; }
+
+/* --- 足もとの帯（画面の下に貼り付く）------------------------------------ */
+/* ★ position: sticky。ページの下端に固定すると、会計のたびに
+     最下部までスクロールすることになります。 */
+.billbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 48px;
+  padding: 16px 40px 16px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  /* 手前にあることを示す。無いと、浮いた板に見える */
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, .10);
+}
+.billbar__label { font-size: 15px; font-weight: 700; }
+.billbar__total { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.billbar__gap   { flex: 1 1 auto; }
+/* ★ セレクタは .billbar から書くこと（CLAUDE.md の詳細度の罠）。
+     .billbar__go だけ（0,1,0）では .theme-desk .btn（0,2,0）に負けます。 */
+.billbar .billbar__quit,
+.billbar .billbar__go { min-height: var(--tap); padding: 0 24px; font-size: 15px; font-weight: 700; }
+.billbar .billbar__quit { --btn-bd: #e8e8e8; --btn-fg: var(--text); }
+/* まだ締めないので緑。赤は引き出しの「伝票を締める」だけ */
+.billbar .billbar__go { --btn-bg: var(--action); --btn-bd: var(--action); --btn-fg: var(--on-action); }
+
+/* --- お会計の引き出し（下から出る）-------------------------------------- */
+/* ★ 中央のモーダルではありません。明細が上に見えたまま残るので、
+     何に対して払うのかを見ながら支払い方法を選べます。 */
+.billdrawer {
+  width: 100%;
+  max-width: none;
+  margin: auto 0 0;              /* 下端に寄せる */
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  background: var(--surface);
+  color: var(--text);
+}
+.billdrawer::backdrop { background: rgba(28, 28, 28, .4); backdrop-filter: blur(3px); }
+.billdrawer__box  { display: flex; flex-direction: column; gap: 24px; padding: 24px 24px 24px 288px; }
+.billdrawer__head { display: flex; align-items: center; gap: 12px; }
+.billdrawer__title{ margin: 0; font-size: 20px; font-weight: 700; }
+.billdrawer__gap  { flex: 1 1 auto; }
+.billdrawer__body { display: flex; flex-direction: column; gap: 24px; }
+.billdrawer__foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.billdrawer__label { font-size: 15px; font-weight: 700; }
+.billdrawer__total { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.billdrawer .billdrawer__quit,
+.billdrawer .billdrawer__go { min-height: var(--tap); padding: 0 24px; font-size: 15px; font-weight: 700; }
+.billdrawer .billdrawer__quit { --btn-bd: #e8e8e8; --btn-fg: var(--text); }
+/* ★ 赤の塗りに白文字。押してほしいが、戻しにくい一歩でもある。
+     目立たせるのは大きさと塗り、危険を伝えるのは色相、と役割を分けています。 */
+.billdrawer .billdrawer__go {
+  --btn-bg: var(--action-danger);
+  --btn-bd: var(--action-danger);
+  --btn-fg: #ffffff;
+}
+
+/* 狭い画面ではサイドバーぶんの余白をやめる */
+@media (max-width: 1100px) {
+  .billdrawer__box { padding-left: 24px; }
+  .billhead        { padding-inline: 0; }
+  .billbar         { padding-inline: 16px; }
+}
+
+/* --- 厨房ボード（2 レーン・品ごと）-------------------------------------
+   設計 ト01 厨房ボード（1548:20793）を<b>実数値で測って</b>写しています。
+   目測で書いた値が何か所もズレていたので、2026-09-23 に測り直しました。
+
+     本文 1168 / pad 24 / 段の間 16
+     レーン枠 1120・間 24。未調理 736 ／ 調理済み 368
+     レーンの見出し 54 高・pad 12 16・題 20px Bold・件数 20px Bold
+     レーンの中身 pad 12・札の間 12
+     伝票 710・枠 #e3e3e3。帯 38 高・pad 10 16・間 8
+     品目 pad 14 16・行の間 10。品目行 48 高・間 10
+     数の箱 49×30・pad 4 10・字 18px Bold #ffffff（角丸なし）
+     品名 20px Bold #1c1c1c
+     調理済み 200×48・pad 8 12・角丸 8・枠 #0e9721・字 14px Bold #0b7a1a
+     ✕ 48×48・角丸 999・地も枠もなし
+     渡す札 342・pad 14 16・段の間 10・枠 #d7d7d7（角丸なし）
+     卓名 24px Bold。調理済みの品 48 高・間 6・字 14px Medium
+     ← 戻す 58×48・pad 6 8・角丸 8・字 13px Bold #444444（地も枠もなし）
+     あき（押し間違い防止）10。提供済み 308×48・pad 12 0・枠 #0e9721
+
+   ★ 色は 2 つしか意味を持ちません（設計書 3 節）。
+       緑 = 押して進める（調理済み・提供済み）
+       赤 = 10 分を過ぎた（帯の面だけ）
+     灰は「意味を持たせない」ための色です。
+
+   ★ レーンの見出しに色を付けないこと。
+     以前は未調理が緑・調理済みが赤の線でしたが、赤が「遅れ」と
+     「このレーン」の 2 つを指してしまい、レーンごと遅れているように読めました。 */
+/* ページ見出しは共通部品 .page-head を使います（自前のクラスは持ちません）。
+   31 画面で同じ見出しなので、ここだけ別の値にすると画面を行き来したときに
+   題の大きさが変わります。値は 4005 行付近の .page-head を見てください。 */
+
+.kboard { display: flex; gap: 24px; align-items: flex-start; }
+.klane {
+  flex: 0 0 auto;
+  /* ★ 設計の実測は #ffffff。var(--surface) は #f7f9fb（薄い青灰）で別物です。
+       トークンの名前だけで選ばず、値を確かめること（2026-09-23 に踏みました）。
+       レーンも伝票も札も、地はすべて白。違いは枠の色だけです
+       （レーン #e3e3e3 ／ 渡す札 #d7d7d7）。 */
+  background: #ffffff;
+  border: 1px solid #e3e3e3;
+  overflow: hidden;
+}
+/* ★ どちらも<b>縮められる</b>ようにしておくこと。
+     調理済みを flex-shrink: 0 にしていたため、iPad（1024）で
+     736 + 24 + 368 = 1128 が内側 912 に収まらず <b>216px はみ出して</b>いました。
+     基準幅（1432）では設計どおり 736 : 368 で出ます。 */
+.klane--todo { flex: 1 1 736px; min-width: 0; }
+.klane--done { flex: 0 1 368px; min-width: 0; }
+
+.klane__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  /* ★ 実測は 上 3px ／ 下 1px（左右は 0）。レーンの枠（1px）より太い線が
+       頭に乗ることで、レーンの始まりが遠目にも分かります。
+       下 1px だけにしていたので、見出しがただの行に見えていました。 */
+  border-top: 3px solid #e3e3e3;
+  border-bottom: 1px solid #e3e3e3;
+}
+/* ★ 16px。ホール盤面のレーン見出し（在卓／お会計待ち／バッシング）と同じ値です
+     （店主：「未調理、調理済みのフォントが大きすぎる」）。
+     設計の厨房は 20px でしたが、隣り合う 2 つの盤面で見出しの大きさが違うと、
+     画面を行き来したときに<b>どちらが上位の見出しか分からなくなります</b>。
+     レーンの見出しは「その列が何か」を言うだけの札なので、揃えるほうが正しい。
+     Figma（ト01・ト01b・トi01）も 16px に直してあります。 */
+.klane__title { font-size: 16px; font-weight: 700; }
+.klane__count { margin-left: auto; padding: 1px 9px; font-size: 16px; font-weight: 700; }
+.klane__body  { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.klane__empty { margin: 0; padding: 24px 0; text-align: center; color: #828282; }
+
+/* --- 未調理の伝票 ------------------------------------------------------- */
+/* 角丸は付けません（設計の実測は 0）。札を四角にすると、
+   同じ卓のまとまりが紙の伝票らしく見えます */
+.kticket { background: #ffffff; border: 1px solid #e3e3e3; }
+.kticket__band {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+}
+/* ★ 10 分を過ぎた伝票。面を薄赤にするだけで、枠は変えません。
+     枠を赤くすると、押せる ✕ の赤い線と同じ「赤い線」になって見分けがつきません。
+     帯なら面なので種類が違い、しかも卓名のすぐ後ろに乗ります。 */
+.kticket--late .kticket__band { background: #fdebeb; }
+.kticket--late .kticket__table,
+.kticket--late .kticket__no,
+.kticket--late .kticket__time { color: #9d3a32; }
+
+.kticket__table { font-size: 15px; font-weight: 500; }
+.kticket__no    { font-size: 13px; color: #828282; }
+.kticket__gap   { flex: 1 1 auto; }
+/* ★ ふつうの伝票の経過時間は <b>#1c1c1c</b>（本文と同じ濃さ）。
+     薄い灰にしていましたが、設計では卓名と同じ濃さで出ます。
+     遅れた伝票だけ上の --late で #9d3a32 に変わります。 */
+.kticket__time  { font-size: 14px; font-weight: 700; color: #1c1c1c; }
+.kticket__lines { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.kticket__note  { margin: 0; padding: 0 16px 14px; font-size: 14px; color: #828282; }
+
+.kline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 48px;
+}
+/* ★ 数量の箱。黒＝鉄板で焼く品、白＝焼かない品（飲み物など）。
+     角丸は付けません（設計の実測は 0）。
+     一番大事なのは品名なので、数は小さく黒い箱に押し込めます */
+/* 焼かない品（飲み物・ポテサラ）：白地・枠 #828282・字 #828282。
+   実測 51×32 は 49×30 ＋ 枠 1px ずつ。min-width は中身の 49 で指定します */
+.kline__qty {
+  flex: 0 0 auto;
+  min-width: 49px;
+  padding: 4px 10px;
+  background: #ffffff;
+  border: 1px solid #828282;
+  color: #828282;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+/* 焼く品：黒地・白字・<b>枠なし</b>（実測 49×30、枠の色は付いていません） */
+.kline__qty--fire { background: #1c1c1c; border-color: #1c1c1c; color: #ffffff; }
+/* ★ 品名が主役（20px Bold）。卓名 15px より大きいのは意図的です。
+     店主の最初の指摘がここでした——
+     「一番大事な商品名が小さくてカウンター6とか卓情報が大きくて使いずらい」 */
+/* ★ 品名は 20px。太さは鉄板かどうかで変わります（設計の実測）。
+     焼く品 Bold ／ 焼かない品 Regular。数の箱の色と同じ判断です。 */
+.kline__name       { font-size: 20px; font-weight: 400; }
+.kline__name--fire { font-weight: 700; }
+.kline__gap        { flex: 1 1 auto; }
+/* 焼き加減・増し。行の外（品目の直下）に、行と同じ 10px の間隔でぶら下がる */
+.kline__opt { margin: 0; font-size: 14px; color: #828282; }
+
+/* --- 調理済みの札（卓ごと）---------------------------------------------- */
+.kserve {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #d7d7d7;
+}
+.kserve__head  { display: flex; align-items: baseline; gap: 8px; }
+/* こちらは卓名が主役。何を運ぶかより、どこへ運ぶかが先に要る */
+.kserve__table { font-size: 24px; font-weight: 700; }
+.kserve__no    { font-size: 12px; color: #828282; }
+/* 実測：行 48 高・間 6・MIN/CENTER。品名が伸び、ボタン 2 つが右端に並ぶ */
+.kserve__line  { display: flex; align-items: center; gap: 6px; min-height: 48px; }
+.kserve__name  { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 500; color: #1c1c1c; }
+.kserve__rest  { margin: 0; font-size: 12px; color: #828282; }
+/* ★ 「← 戻す」と「提供済み」を離す（店主：「間違って押しそう」）。
+     実測は 仕切り 1px ＋ あき 10px。押し間違いの被害が非対称で、
+     提供済みを誤爆すると札ごと消えて追えません */
+.kserve__foot  { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e8e8e8; }
+
+/* --- 厨房ボードのボタン -------------------------------------------------- */
+/* ★ ボタンは form に包まれています（POST が要るため）。
+     設計ではボタンが行の直接の子なので、包みが幅を持つと位置がずれます。
+     form 自体は大きさを持たず、中のボタンの寸法をそのまま通します。 */
+.kboard .kline form,
+.kboard .kserve__line form { display: flex; flex: 0 0 auto; margin: 0; }
+/* ★ 卓の札の「提供済み」は<b>縦積みの中</b>にあるので、上の横並びの規則とは別。
+     一緒にして margin:0 を当てたせいで、仕切りとの間の 10px が消えていました。
+     設計の実測は「仕切り 1px ＋ あき 10px」。 */
+.kboard .kserve__foot { display: block; width: 100%; }
+
+/* ★ セレクタは .kboard から書くこと（CLAUDE.md の詳細度の罠）。
+     .kbtn だけ（0,1,0）では .theme-desk .btn（0,2,0）に負けて
+     --btn-bd が #e8e8e8 に戻されます。あとに書いても勝てません。 */
+/* ★ 実測：調理済み 200×48・pad 8/12、✕ 48×48・pad 8/10。
+     どちらも<b>高さ 48 で、行（48）の上下に余りゼロ</b>です。
+     行は MIN/CENTER なので、48 のもの同士は自然にぴったり揃います。
+     box-sizing: border-box なので、padding は 48 の内側に入ります
+     （高さに足されません。CLAUDE.md の「床は中身に敷く」と同じ話）。 */
+.kboard .kbtn {
+  height: 48px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  /* ★ 折り返さない。.btn は持っていますが、この画面のボタンは
+       設計の実寸に合わせて幅を決めているので、1px でも足りないと
+       文字が 2 行になって行の高さごと崩れます。 */
+  white-space: nowrap;
+}
+/* 調理済みは 200px 固定（実測）。文字の長さで幅が変わると、
+   行によってボタンの左端がずれて、押す位置を毎回探すことになります。
+   狭い画面では下の帯で縮めます（幅より、品名が読めることを優先） */
+.kboard .kbtn--go { width: 200px; }
+/* ★ 字の緑は必ず var(--action)。実値（#0b7a1a）をベタ書きすると、
+     色を変えたときにここだけ取り残されて誰も気づけません
+     （ActionGreenTokenTest が定義の 1 箇所以外を禁じています）。
+
+   ★ 枠の #0e9721 は直値でよい。これは --action より一段明るい<b>枠専用</b>の値で、
+     トークンになっていません（.btn--edit や .sortpick も直値で書いています）。
+     設計の実測も 枠 #0e9721 / 字 #0b7a1a です。 */
+.kboard .kbtn--go { --btn-bd: #0e9721; --btn-fg: var(--action); }
+/* 卓の札の「提供済み」だけ幅いっぱい・15px（実測 308×48・pad 12 0） */
+/* 卓の札の「提供済み」だけ幅いっぱい・15px（実測 308×48・pad 12 0）。
+   上の 200px 固定を打ち消します */
+/* 実測 308×48・pad 12 0・中央ぞろえ。札の中身幅いっぱい（右の余り 1px）。
+   上の 200px 固定を打ち消します */
+.kboard .kbtn--block { display: flex; width: 100%; padding: 12px 0; font-size: 15px; }
+/* 戻すは「直す」系。✕ と同じ静かさに寄せます（案A・2026-09-23 採用）。
+   実測 58×48・字 13px Bold #444444・地も枠もなし */
+/* ✕（品を取り消す）。実測 48×48・pad 8/10・角丸 999・地も枠もなし。
+   .linex は伝票ページと共通なので、厨房の実測値をここで固定します */
+.kboard .kline__x {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 8px 10px;
+}
+
+/* ← 戻す。実測 58×48・pad 6/8・角丸 8。
+   ★ 文字に使える幅は 58 − 8×2 = <b>42px ちょうど</b>で、
+     設計の「← 戻す」も実測 42px。余裕がゼロなので、
+     白抜きの字送りが 1px でも違うと折り返して行が崩れます。
+     nowrap を必ず付けること（2026-09-23 に踏みました）。
+   ★ 幅は min-width で持ち、width では固定しません。
+     縮まないことだけ保証して、はみ出す側は許します。 */
+.kboard .kback {
+  min-width: 58px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  height: 48px;
+  min-height: 48px;
+  padding: 6px 8px;
+  /* ★ 枠を付けます（2026-09-23・店主の判断
+       「←戻すは枠付けてボタンとして認識できないから」）。
+     設計の実測は枠なしでしたが、実機では押せるものに見えませんでした。
+     ✕ と同じ「静かな灰色」にしていたのが行きすぎで、
+     ✕ は記号そのものが操作を表すのに対し、「← 戻す」はただの文字列です。
+     形（枠）が無いと、隣の品名と区別がつきません。
+     色は足しません——灰の枠なので、緑（進める）とはぶつかりません。 */
+  background: #ffffff;
+  border: 1px solid #c7c7c7;
+  border-radius: 8px;
+  color: #444444;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.kboard .kback:hover { background: #f0f0f0; }
+
+/* --- 厨房ボード：狭い画面（iPad 1024 など）---------------------------
+   ★ 設計は 1432 の 1 枚だけです（iPad 版・PC 版は作っていません）。
+     勝手な寸法を足さず、<b>基準の値を縮める</b>方針にしています。
+
+   ★ 区切りは 1100px。CLAUDE.md の「新しい境目を増やさない」に従い、
+     既にこのファイルで使っているタブレットの境目に合わせます。
+
+   実測（1024）：内側 912 = 1024 − 畳んだサイドバー 64 − 本文の余白 24×2。
+   基準のレーン合計 1128 では 216px はみ出すので、ここで縮めます。 */
+@media (max-width: 1100px) {
+  /* 調理済みは中身（342 の札）が入る幅まで。未調理が残りを取る */
+  .kboard .klane--done { flex: 0 1 320px; }
+  /* 品名が読めることを優先して、ボタンの固定幅をやめる。
+     ★ :not(.kbtn--block) を必ず付けること。
+       卓の札の「提供済み」は同じ .kbtn--go を持っていて、
+       こちらの width:auto が基準の width:100% を打ち消していました
+       （あとに書いた規則が勝つため）。結果、iPad で提供済みの右が空きます。 */
+  .kboard .kbtn--go:not(.kbtn--block) { width: auto; min-width: 110px; padding: 6px 10px; }
+
+  /* ★★ 案C（2026-09-23・店主の判断）。1 画面に載る件数を優先します。
+       「厨房は一度に多くの情報載せたいんだけど、これだと上下の余白が多すぎて
+         iPad 版だと 4 件くらいしか見えない」
+
+     実測で、iPad（1024×768）に見える伝票は 3.6 枚でした。
+     4.7 枚まで増やしています（伝票の平均 155 → 122px）。
+
+     ★ 効くのは<b>ボタンの高さ</b>です。行の高さはボタンで決まるので、
+       48 → 40 が全行に効きます。文字を 2px 落としても 2px しか減りません
+       （案A＝文字そのまま・余白だけ、で 3.9 枚。案B＝44px で 4.1 枚）。
+
+     ★ --tap（48px）をこの帯でだけ割ります。
+       厨房は手が濡れていて急ぐ場所なので、本来は割りたくない決まりです。
+       枚数を取るという判断なので、<b>押し間違いが増えたらここから戻すこと。</b>
+       基準幅（1432）は 48px のままです。 */
+  .kboard .kbtn,
+  .kboard .kback,
+  .kboard .kline__x { height: 40px; min-height: 40px; }
+  .kboard .kline,
+  .kboard .kserve__line { min-height: 40px; }
+  .kboard .kline__name   { font-size: 16px; }
+  .kboard .kticket__table{ font-size: 13px; }
+  .kboard .kticket__band { padding: 6px 12px; }
+  .kboard .kticket__lines{ padding: 8px 12px; gap: 6px; }
+  .kboard .klane__body   { padding: 8px; gap: 6px; }
+  .kboard .kserve        { padding: 10px 12px; gap: 6px; }
+}
+
+/* --- 明細の ✕（お会計から取り除く）------------------------------------
+   設計 1461:17582 まわり。実測した値だけで組んでいます。
+
+   ★ 地も枠も持たせません（店主の判断・2026-09-22）。
+       「×ボタンはそんなに目立たせたいものでも押させたいモノでもないから
+         灰色×だけで枠も要らない気がしてきた」
+     取り消しは<b>見つかる必要はあるが、誘う必要がない</b>操作です。
+     枠を付けると、隣の「お会計する」と同じ重さになります。
+
+   ★ 見た目を静かにするのと、字を薄くするのは別です。
+     一度 #828282 まで落として 3.84:1 で AA を割りました。
+     #444444 なら 9.74:1。静かにするのは枠と地を外すことでやります。
+
+   ★ 当たり判定は 48px（--tap）。見た目が文字ひとつでも、ここは削りません。 */
+.linex {
+  flex: 0 0 auto;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #444444;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.linex:hover { background: #f0f0f0; }
+.linex:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+
+/* --- 品を 1 つ取り消す確認（設計 1461:17582）----------------------------
+   実測値：箱 520 幅・角丸 8・枠 #e3e3e3 1px。
+   題 20/Bold、品名 15/Medium、補足 13/Regular #828282。
+   選択肢 角丸 8・padding 14 16・段の間 12。足もと padding 16 24・gap 12。 */
+.linecancel { width: 520px; }
+.linecancel__box { gap: 0; padding: 0; border-radius: 8px; border: 1px solid #e3e3e3; }
+.linecancel__head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 24px 24px 20px;
+}
+.linecancel__title { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.2; }
+.linecancel__item  { margin: 0; font-size: 15px; font-weight: 500; }
+.linecancel__note  { margin: 0; font-size: 13px; color: #828282; }
+
+.linecancel__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 24px 20px;
+}
+/* 選んだほうだけ枠を緑の 2px に。丸だけ塗って枠を 1px のままにすると、
+   どちらが選ばれているか離れて見て分かりません（Figma 側でも同じ穴に落ちました） */
+.linecancel__choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #e3e3e3;
+  border-radius: 8px;
+  cursor: pointer;
+}
+/* 緑は --action を使うこと。実値をベタ書きすると、色を変えたときに
+   ここだけ取り残されて、誰も気づけません（ActionGreenTokenTest が見張っています） */
+.linecancel__choice:has(input:checked) { border: 2px solid var(--action); padding: 13px 15px; }
+.linecancel__choice input { flex: 0 0 auto; width: 20px; height: 20px; accent-color: var(--action); }
+.linecancel__choice span  { display: flex; flex-direction: column; gap: 2px; }
+.linecancel__choice b     { font-size: 16px; font-weight: 700; }
+.linecancel__choice small { font-size: 13px; color: #828282; }
+
+/* 実測 pad 20/24・間 12・右寄せ。仕切りは 1px #e3e3e3 */
+.linecancel__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid #e3e3e3;
+}
+.linecancel__gap { flex: 1 1 auto; }
+/* 両方とも 48px（--tap）。押し間違えたくないので、主・副のどちらも塗りません。
+   地を塗ると「押してほしいボタン」に見えます。
+
+   ★ セレクタは必ず .linecancel から書くこと（CLAUDE.md の詳細度の罠）。
+     .linecancel__cancel だけ（0,1,0）では 3663 行の .theme-desk .btn（0,2,0）に
+     負けて、--btn-bd が #e8e8e8 に戻されます。あとに書いても勝てません。 */
+.linecancel .linecancel__cancel,
+.linecancel .linecancel__go {
+  min-height: var(--tap);
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.linecancel .linecancel__cancel { --btn-bd: #e3e3e3; --btn-fg: #1c1c1c; }
+.linecancel .linecancel__go     { --btn-bd: #d33f3f; --btn-fg: #9d3a32; }
 
 /* --- 金額の内訳 --------------------------------------------------------- */
 .sumbox {
@@ -5856,6 +7138,17 @@ body.is-sending .staff-main {
 .theme-desk.theme-ledger .tiny { font-size: 16px; }
 
 .theme-desk.theme-ledger .table td.bold { font-size: 20px; font-weight: 700; }
+
+/* ★ 2026-09-20：税理士の表の高さを設計（64 / 68）にそろえました。
+     それまでは高さの指定が無く、.theme-ledger の行間 1.9 に引っ張られて
+     63.3 / 71.4 / 79 / 89 と画面ごとにバラバラでした（実測）。
+     表の height は最低値として効くので、2 行になる欄は自然に伸びます。 */
+.theme-desk.theme-ledger .table th { height: 64px; }
+/* ★ 行の高さは指定しません。設計は 68px ですが、税理士の画面は
+     .theme-ledger で行間 1.9 にしてあり（読みやすさのための上振れ）、
+     中身だけで 71〜89px になります。height は表では最低値としてしか効かないので、
+     68 と書いても何も起きません。縮めるには行間 1.9 をやめることになり、
+     それは「税理士が読む画面は一段大きく」という前の判断を戻すことになります。 */
 .theme-desk.theme-ledger .btn--lg { font-size: 20px; min-height: 56px; }
 
 /* 帳簿の合計行 */
@@ -6994,7 +8287,23 @@ body.is-sending .staff-main {
    ★ 間隔を 32 で通しているのは、この画面が「押す番号を探す」ためだけの
      ものだからです。見出し・札・説明・盤面の 4 つしか無いので、
      詰めるより離したほうが、番号の塊がひとまとまりに見えます。 */
-.staff-order { padding-block: 40px; }
+/* ★ 画面いっぱいまで暗いままにすること（2026-09-23）。
+
+     この 3 画面（番号の盤面・人数・番号の移動）は
+     <body class="theme-snow">（明るい）の中に
+     <main class="theme-night staff-order">（暗い）を置いた作りです。
+     つまり<b>暗いのは main の高さぶんだけ</b>で、
+     中身より画面が高いと、その下に body の白が出ます。
+
+     「人数」の画面は中身が 430px しかありません。
+     店舗端末はタブレットなので縦は 768〜1024px あり、
+     <b>下の半分が白い板になっていました</b>（実測 44%）。
+     薄暗い店内でこれを手渡すことになります。
+
+   ★ 見た目では気づけません。開発中は画面が短いと下まで埋まって見えるうえ、
+     スクロールしないページなので「白い帯」が出るのは実機の高さだけです。
+     ポートフォリオ用に 1372x772 で撮って初めて出ました。 */
+.staff-order { padding-block: 40px; min-height: 100vh; }
 
 /* ★ 間隔を持つのは .container のほう。
      .staff-order（main）の直下は .container 1 つだけなので、
@@ -7557,6 +8866,18 @@ body.is-sending .staff-main {
   border-color: transparent;
 }
 
+/* ★★ ここから下の .ticket__cancel* は<b>旧 3 レーンの厨房ボード</b>のものです
+     （2026-09-23 に 2 レーン・品ごとへ作り替えました）。
+
+   ★ いまの厨房ボードは使っていません。取り消しは .kline__x です。
+     一度この名前を使い回して事故りました——
+     下の「display: none」と @media の「position: absolute」が効いて、
+     <b>✕ が消えたうえに右上へ飛んでいました</b>。
+     設計（ト01 1548:20793）の ✕ は行の中に 48×48 で並びます。
+
+   ★ 消していないのは、ホール盤面の .ticket が同じ部品を使っているためです。
+     厨房から参照が無くなっただけで、規則そのものは生きています。 */
+
 /* 取り消しの「✕」は、設計 1432px の版には出てきません。
    タブレット幅でだけ出す印なので、ここでは隠しておきます。
    ラベルのほうはこの幅では素の文字のまま（.btn が面と枠を持っています）。 */
@@ -7742,7 +9063,7 @@ body.is-sending .staff-main {
 .kitchenboard .ticket__actions .btn {
   min-height: var(--tap);
   padding: 10px 16px;
-  border-radius: 4px;
+  /* 角丸は .btn の 8px を継ぐ（2026-09-20 に直値 4px をやめた） */
   font-size: 14px;
   font-weight: 700;
   letter-spacing: normal;
@@ -7856,9 +9177,21 @@ body.is-sending .staff-main {
 
      下線が #0b7a78（古いティール）で、表の頭に緑の線が 1 本入って見えていました。
      設計は #e3e3e3。字も 13px でしたが設計は 12px です。 */
+/* ★ 2026-09-20：見出しだけ 48px にそろえました（実測 49.5 → 48）。
+     ★ 行は 73px のままにします。設計は 69px ですが、それは
+       <b>ボタンが 38px だった前提</b>の値です。38px は「小さいボタンは
+       PC 48px」という店主のルールに無い寸法なので採りませんでした。
+       いまの行は 48（ボタン）＋ 12＋12（上下）＋ 1（罫）＝ 73 で、
+       中身から決まっています。行だけ 69 に縮めることはできません。 */
 .soldoutpage .table th {
-  padding: 14px 16px;
+  height: 48px;
+  /* ★ 上下 13px・行送り 20px で中身を 46px に収めます。
+       14px＋行送り既定（12px×1.7＝20.4）だと中身が 48.4px になり、
+       height: 48px は表では「最低値」なので効かず 49.5px で出ていました。
+       中身を床より小さくして初めて 48px にそろいます。 */
+  padding: 13px 16px;
   font-size: 12px;
+  line-height: 20px;
   border-bottom-color: #e3e3e3;
 }
 .soldoutpage .table td {
@@ -8406,14 +9739,16 @@ body.is-sending .staff-main {
   color: #1c1c1c;
 }
 .loginpage .input:focus { border-color: var(--action); }
+/* ★ 角丸は共通の 8px を継ぐ（2026-09-20）。ここだけ 4px が残っていました */
+.loginpage .input, .loginpage .select { border-radius: 8px; }
 /* 欄と欄、欄とボタンの間も 20px にそろえる（共通の .field は 16px） */
 .loginpage .field { margin-bottom: 20px; }
 
-/* ボタン。--r-sm が .theme-snow で 12px なので、角丸は直値で戻す。
+/* ボタン。角丸は .btn の 8px を継ぎます
+   （2026-09-20 に .btn を直値 8px へ固定したので、ここで戻す必要がなくなった）。
    主ボタンは盤面と同じ「押せる緑」。.theme-snow の --accent は黒なので指定する */
 .loginpage .btn {
   min-height: 48px;
-  border-radius: 4px;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: normal;
@@ -8658,7 +9993,8 @@ body.is-sending .staff-main {
      という共通側の既定が設計そのものです（ダッシュボードだけ 38-5 で全緑）。 */
 .salespage { background: #ffffff; }
 
-/* 題と月ナビの間はトi18（737:7983）の 24px（共通の .page-head は 16px）。
+/* 題と月ナビの間はトi18（737:7983）の 24px（共通の .page-head は 12px）。
+   ★ ここは設計に根拠があるので、2026-09-20 に共通を 12px へそろえたときも残しました。
    月ナビは題のすぐ隣に置く（配置はトi18、デザインは 17:1038 のまま） */
 .salespage .page-head { gap: 24px; }
 
@@ -9022,8 +10358,13 @@ dialog[open] { margin: auto; }
    ★ 売上は 20px（14 売上 17:1038）。カードとパネルが多く、48 だと 1 画面に入らない */
 .theme-desk .staff-main > main.kitchenboard,
 .theme-desk .staff-main > main.hallboard,
+/* ★ 品切れの 24px は残します（2026-09-20 に 48 へ広げかけて戻した）。
+     立って使う画面で、店主の「2 つしか見えなくて視認性が悪い」を受けて
+     2026-09-12 に詰めた経緯があります。広げると 1 画面に入る行が減るので、
+     設計ページ 07 が 48 でも、ここは前の判断を優先します。
+   ★ 売上の 20px は外しました。8/16/24/32/48 の刻みに無い値で、
+     ページ内でも売上 3 画面にしか無い外れ値だったためです（既定の 48／32 に）。 */
 .theme-desk .staff-main > main.soldoutpage { --block-gap: 24px; }
-.theme-desk .staff-main > main.salespage { --block-gap: 20px; }
 
 /* 節の見出し（h2）も Figma に部品がある（見出し/節 24:1397）。
    中見出し 24px ＋ 補足 14px を 16/40 の中に置いた 68px の帯。
@@ -9041,8 +10382,8 @@ dialog[open] { margin: auto; }
   .theme-desk .staff-main > main { --block-gap: 32px; }
   .theme-desk .staff-main > main.kitchenboard,
   .theme-desk .staff-main > main.hallboard,
+  /* 売上の上書きは 2026-09-20 に撤去（既定の 32px に任せる）。品切れは据え置き */
   .theme-desk .staff-main > main.soldoutpage { --block-gap: 24px; }
-  .theme-desk .staff-main > main.salespage { --block-gap: 20px; }
 
   /* 節の見出しも帯なので、B案の「帯 16/40 → 12/24」に乗せる。
      ★ ここを書き忘れると、ページの見出しだけ 24px に寄って

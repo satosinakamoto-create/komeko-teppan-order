@@ -327,7 +327,7 @@ public class AdminCategoryController {
                         @RequestParam(required = false) Long after,
                         RedirectAttributes redirectAttributes) {
         if (!menuService.placeCategoryNextTo(id, before, after)) {
-            redirectAttributes.addFlashAttribute("flashInfo", "並び順は変わりませんでした");
+            redirectAttributes.addFlashAttribute("flashWarn", "並び順は変わりませんでした");
         }
         // ★ 戻り先は一覧（2026-09-19 に /edit から変更）。
         //   つまみが両方の画面にあった頃の名残で編集画面へ戻していましたが、
@@ -391,7 +391,7 @@ public class AdminCategoryController {
                             RedirectAttributes redirectAttributes) {
         String back = "redirect:/admin/categories/" + id + "/edit";
         if (itemIds == null || itemIds.isEmpty()) {
-            redirectAttributes.addFlashAttribute("flashInfo",
+            redirectAttributes.addFlashAttribute("flashWarn",
                     "移す商品が選ばれていません。左のチェックを入れてから押してください");
             return back;
         }

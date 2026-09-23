@@ -2,9 +2,17 @@
 <!--/*
    卓ごとの卓上ポップ（印刷用）。
 
-   卓の数だけ .print-sheet を並べます。app.css の @media print に
-   「.print-sheet { page-break-after: always; }」が入っているので、
-   ブラウザの印刷（Ctrl+P）でそのまま 1 卓 = 1 枚に分かれます。
+   卓の数だけ .print-sheet を並べます。app.css の @media print で
+   2 枚ごとに改ページするので、ブラウザの印刷（Ctrl+P）で
+   1 枚 = 2 卓 に分かれます（設計 ト13b・841:10452／2026-09-20）。
+
+   ★ 札は破線で囲ってあります。これは飾りではなく切り取り線です。
+     印刷したら線で切って、1 枚ずつ卓に置いてください。
+
+   ★ 手順（①スマホのカメラで…）と「ご請求額は…」の段落は、
+     2026-09-20 に設計へ寄せたときに落としました。
+     人数の選択はお客さまが注文を始める画面で必ず聞かれるので、
+     紙から案内が消えてもテーブルチャージの計算には影響しません。
 
    ヘッダーやナビゲーションが紙に写り込まないよう、
    最小レイアウト（layout/plain）を使っています。
@@ -29,7 +37,7 @@
     <div class="row row--wrap no-print" style="padding-top:16px">
       <a class="btn" th:href="@{/admin/qr}">← QR の画面に戻る</a>
       <span class="spacer"></span>
-      <span class="help mb-0">ブラウザの印刷（Ctrl+P）で、卓ごとに 1 枚ずつ印刷されます。</span>
+      <span class="help mb-0">ブラウザの印刷（Ctrl+P）で、1 枚に 2 卓ずつ印刷されます。破線で切ってお使いください。</span>
     </div>
 
     <div class="alert alert--warn no-print mt-4">
@@ -44,38 +52,29 @@
       <div th:replace="~{fragments/common :: empty('席', '印刷できる卓がありません。「卓」の画面で席を登録し、「使う」にチェックを入れてください')}"></div>
     </div>
 
-    <!--/* ===== ここから 1 卓 = 1 枚 ===== */-->
-    <div class="print-sheet mt-4" th:each="t : ${tables}">
+    <!--/* ===== ここから 1 枚 = 2 卓 =====
+           並び順は設計 ト13b の札どおり：
+             店名（小さく・灰）／ 卓名（大きく・太字）／ QR ／ 一行の案内 ／ URL
+           改ページは app.css が .print-sheets の 2 枚目ごとに入れます。
+           囲む div を外すと、nth-child が他の要素まで数えてしまって
+           改ページの位置がずれるので、この入れ物は消さないこと。 */-->
+    <div class="print-sheets mt-4">
+      <div class="print-sheet" th:each="t : ${tables}">
 
-      <p class="print-sheet__title" th:text="${shop.shopName}">米粉と鉄板</p>
-      <p class="mb-0" th:text="${shop.tagline}">グルテンフリーの焼きたてを、鉄板から。</p>
+        <p class="print-sheet__shop" th:text="${shop.shopName}">米粉と鉄板</p>
 
-      <!--/* 卓名はいちばん大きく。貼り間違いを防ぐための、いちばん大事な情報です */-->
-      <p class="serif mt-6 mb-0"
-         style="font-size:3rem;line-height:1.2;letter-spacing:.08em"
-         th:text="${t.name}">3番テーブル</p>
+        <!--/* 卓名はいちばん大きく。貼り間違いを防ぐための、いちばん大事な情報です */-->
+        <p class="print-sheet__table" th:text="${t.name}">カウンター1</p>
 
-      <img class="print-sheet__qr"
-           th:src="@{/admin/qr/image(tableId=${t.id},size=${size})}"
-           th:alt="${t.name} + ' の注文用QRコード'">
+        <img class="print-sheet__qr"
+             th:src="@{/admin/qr/image(tableId=${t.id},size=${size})}"
+             th:alt="${t.name} + ' の注文用QRコード'">
 
-      <p class="mb-0 bold" style="font-size:1.25rem">QR コードを読み取ってご注文ください</p>
+        <p class="print-sheet__lead">スマホで読み取ってご注文ください</p>
 
-      <ol class="mt-4" style="display:inline-block;text-align:left;max-width:32em">
-        <li>スマートフォンのカメラで、上の QR コードを読み取ります</li>
-        <li>人数をお選びください（テーブルチャージの計算に使います）</li>
-        <li>メニューを選んでご注文ください。アプリのインストールは不要です</li>
-        <li>追加のご注文も、同じ QR からいつでも承ります</li>
-      </ol>
+        <p class="print-sheet__url" th:text="${tableUrls.get(t.id)}">http://localhost:8080/t/xxxx</p>
 
-      <p class="mt-4 mb-0">
-        ご請求額は、お手元のスマホからいつでもご確認いただけます。
-        お会計はスタッフまでお声がけください。
-      </p>
-
-      <p class="print-sheet__url mt-6" th:text="${tableUrls.get(t.id)}">http://localhost:8080/t/xxxx</p>
-      <p class="tiny faint mb-0">QR が読み取れないときは、上の URL をブラウザに直接入力してください。</p>
-
+      </div>
     </div>
 
     <p class="help no-print">

@@ -126,13 +126,33 @@ class StaffOrderEntryPageTest {
 
     // ========================================================================
 
+    /**
+     * ★★ 伝票の画面から入口を外しました（2026-09-23・店主の指示
+     * 「ご注文 3 回とか ＋注文に入れるとかのボタンは要らない」）。
+     * 設計（ト02n 1540:30863）にどちらもありません。
+     * 伝票は「読み上げて締める」場所で、注文を足す場所ではない、という整理です。
+     *
+     * <p><b>いま この画面（/hall/bills/{id}/orders/new）へ行く導線はありません。</b>
+     * 画面も口も残っていて、URL を直接叩けば動きます。
+     * このテストは<b>その事実を記録するため</b>に残してあります。
+     * 導線を作ったら、下の assertion を「入口がある」に書き換えてください。
+     *
+     * <p><b>これは未解決の宿題です。</b>
+     * 時価の品（国産牛ステーキなど）は、その日の仕入れを見ないと金額が決まらないので
+     * お客さまの画面からは注文できません。スタッフが金額を聞いて入れる、
+     * という経路がこの画面しかない以上、どこかに入口が要ります。
+     * 盤面の卓カードに置くのが自然ですが、あちらの設計にも描かれていないため、
+     * 置き場所は店主に決めてもらう必要があります。
+     */
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("★ 伝票の画面に入口がある（無ければ辿り着けない）")
-    void offersAnEntryPointOnTheBill() throws Exception {
+    @DisplayName("★★ 伝票の画面には入口が無い（設計どおり。ただし別の導線が要る＝宿題）")
+    void theBillNoLongerOffersAnEntryPoint() throws Exception {
         String page = html("/hall/bills/" + bill.getId());
 
-        assertThat(page).contains("/hall/bills/" + bill.getId() + "/orders/new");
+        assertThat(page)
+                .as("★ 伝票に「＋ 注文を入れる」が戻っている。設計（ト02n）には無い")
+                .doesNotContain("/hall/bills/" + bill.getId() + "/orders/new");
     }
 
     @Test
@@ -197,23 +217,38 @@ class StaffOrderEntryPageTest {
         assertThat(page).contains("/kitchen/stock");
     }
 
+    /**
+     * ★ 送信すると伝票に入り、伝票の画面へ戻る。
+     *
+     * <p>★★ 2026-09-22：要望（note）を送っても<b>保存されない</b>ことも一緒に見ます。
+     * 店主の判断「営業中にわざわざテキスト入力するヒマなんてないでしょ」で
+     * 自由入力を廃止しました（理由は {@code CustomerNoteRemovedTest} に詳しく）。
+     *
+     * <p>ここでわざと {@code note} を付けて送っているのは、
+     * <b>古い画面を開いたままのタブレット</b>を真似るためです。
+     * 画面から欄を消しても、開きっぱなしの端末はしばらく送ってきます。
+     * 「画面に無いから来ない」は Web では成り立たないので、
+     * 受け取らないことをここで確かめます。
+     */
     @Test
     @WithMockUser(roles = "STAFF", username = "やまだ")
-    @DisplayName("★ 送信すると伝票に入り、伝票の画面へ戻る")
+    @DisplayName("★ 送信すると伝票に入り、伝票の画面へ戻る（要望は受け取らない）")
     void placesTheOrderAndReturnsToTheBill() throws Exception {
         mockMvc.perform(post("/hall/bills/" + bill.getId() + "/orders")
                         .with(csrf())
                         .param("itemId", String.valueOf(steak.getId()))
                         .param("quantity", "1")
                         .param("price", "6800")
-                        .param("note", "ミディアムレアで"))
+                        .param("note", "ミディアムレアで"))   // 古い画面から飛んできた想定
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/hall/bills/" + bill.getId()));
 
         List<Order> orders = orderRepository.findAll();
         assertThat(orders).hasSize(1);
         assertThat(orders.get(0).getTotalAmount()).isEqualTo(6800);
-        assertThat(orders.get(0).getNote()).isEqualTo("ミディアムレアで");
+        assertThat(orders.get(0).getNote())
+                .as("★ 廃止した要望が保存されている。受け口を閉じ切れていない")
+                .isNull();
         // 誰が入れたかが残る（時価は人が金額を決めているため）
         assertThat(orders.get(0).getPlacedBy()).isNotBlank();
     }

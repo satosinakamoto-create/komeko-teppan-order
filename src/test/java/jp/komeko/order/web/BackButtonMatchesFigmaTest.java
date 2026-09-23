@@ -79,7 +79,7 @@ class BackButtonMatchesFigmaTest {
      * ボタンだけ灰色が残って浮きます。
      */
     @Test
-    @DisplayName("★ 枠線ボタンの地は白・枠は #c7c7c7")
+    @DisplayName("★ 枠線ボタンの地は白・枠は #e8e8e8")
     void theOutlinedButtonIsWhite() throws Exception {
         String css = Files.readString(CSS).replace("\r\n", "\n")
                 .replaceAll("(?s)/\\*.*?\\*/", "");
@@ -87,6 +87,9 @@ class BackButtonMatchesFigmaTest {
         assertThat(at).as(".theme-desk .btn が app.css に無い").isGreaterThan(0);
         String rule = css.substring(at, css.indexOf("}", at));
         assertThat(rule).contains("--btn-bg: #ffffff;");
-        assertThat(rule).contains("--btn-bd: #c7c7c7;");
+        // ★ 2026-09-22：#c7c7c7 → #e8e8e8。
+        //   9 月の画面監査で 6 グループから同じ指摘（設計の stroke は #e8e8e8）。
+        //   店主の判断「大体はフィグマ通りに作って欲しい」で設計に寄せました。
+        assertThat(rule).contains("--btn-bd: #e8e8e8;");
     }
 }
