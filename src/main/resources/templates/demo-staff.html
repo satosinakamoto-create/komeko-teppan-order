@@ -33,10 +33,32 @@
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body class="theme-snow">
-<main>
-  <div class="container" style="max-width:560px;padding-top:10vh">
-    <div class="card">
-      <div class="card__body">
+<!--/* ★ ログイン画面（設計 ト08 725:5301）と同じ骨格を使います
+       （2026-09-23・店主の指示「お店側はログインのやつにして」）。
+
+       .page / .loginpage / .loginpage__body / .loginpage__card は
+       ログイン画面が使っているものをそのまま借りています。
+       <b>同じ値を 2 か所に書かない</b>ためです。
+       設計を測り直してログイン側を直せば、この画面もいっしょに直ります。
+
+     ★ これでお客さま側の入口（設計 暗31）と左右対称になります。
+       どちらも「ロゴ → 店名 → カード → 反対側へのリンク」の 3 段で、
+       違うのは暗い／明るいだけです。 */-->
+<main class="page loginpage">
+  <div class="container page__body loginpage__body">
+
+    <div class="loginpage__brand">
+      <img class="loginpage__logo" th:src="@{/images/logo.jpg}"
+           th:alt="${shop.shopName} + ' ロゴ'">
+      <!--/* ★ ここは <p>。この画面の主題は下のカードの「お店側の画面です」で、
+             店名は名乗りです。h1 が 2 つあると、読み上げで章立てが崩れます。
+             ログイン画面は店名が主題なので、あちらは h1 のままで正しい。 */-->
+      <p class="loginpage__name" th:text="${shop.shopName}">米粉と鉄板</p>
+      <p class="loginpage__role">店舗管理</p>
+    </div>
+
+    <div class="card loginpage__card">
+      <div class="card__body stack">
 
         <h1 class="mb-0" style="font-size:1.25rem">お店側の画面です</h1>
 
@@ -93,10 +115,14 @@
           </button>
         </form>
 
-        <p class="tiny faint mt-4 mb-0 center">ID・パスワードは要りません</p>
+        <p class="loginpage__note">ID・パスワードは要りません</p>
 
       </div>
     </div>
+
+    <!--/* 反対側への出口。お客さま側の入口（暗31）にも同じ段があります。 */-->
+    <p class="loginpage__link"><a th:href="@{/demo}">お客さま側の画面を見る</a></p>
+
   </div>
 </main>
 </body>

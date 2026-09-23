@@ -9691,7 +9691,27 @@ body.is-sending .staff-main {
 
 /* 店名。字間を .22em（≒5px）から 2px に詰める。
    広い字間は、お客さま側の「のれん」の意匠として入れていたもの */
-.loginpage__brand { text-align: center; }
+/* ★ 縦積みにしたのは、見学入口（/demo/staff）がここにロゴを置くためです。
+     ログイン画面にはロゴが無いので、<img> が無ければ今までどおり
+     店名と役割が 2 行で中央に並ぶだけで、見た目は変わりません。
+     設計 ト08 の店名の段は gap 4。 */
+.loginpage__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+/* 見学入口のロゴ。白地はそのまま残す（.brand-logo と同じ扱い）。
+   72px はお客さま側の入口（.demogate__logo）とそろえてある */
+.loginpage__logo {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+}
 .loginpage__name {
   margin: 0;
   font-family: var(--font-sans);
