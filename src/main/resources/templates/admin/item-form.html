@@ -22,7 +22,11 @@
   <!--/* 見出しの帯までの間は 28px（設計 315:2105 の本文 gap-28）。
          p の既定の下余白（12px）のままだと、戻るリンクだけ帯に張り付いて見える。
          .small の共通定義は触らず、この画面用の目印で持つ。 */-->
-  <p class="small formback"><a th:href="@{/admin/items}">← 商品の一覧にもどる</a></p>
+  <!--/* ★ 2026-09-17 にボタンの形へ。素のテキストリンクだったので、
+         カテゴリ・スタッフ・仕入れ（どれも帯の中のボタン）と見た目が違いました。
+         同じ役の見た目が画面ごとに違うと、探し方が毎回変わります。
+         下の「やめる」を外したので、ここが唯一の戻り口でもあります。 */-->
+  <p class="formback"><a class="btn btn--sm" th:href="@{/admin/items}">← 商品の一覧にもどる</a></p>
 
   <!--/*
     ・enctype="multipart/form-data" … ファイルを送るために必須。付け忘れると画像が届きません
@@ -30,7 +34,13 @@
     ・th:object                     … 以下の *{...} がこのオブジェクトの項目を指すようになる
     送信先は新規と編集で変わるので、条件式で切り替えています。
   */-->
+  <!--/* data-draft … 下書き保存（/js/form-draft.js）の目印。新規だけに付ける。
+         編集はサーバに保存済みの値が正で、古い下書きで上書きすると
+         保存済みの内容を壊す事故になる（2026-09-14、店主の指示で追加）。
+         きっかけ：初期設定で品名・価格・写真まで入れたあと
+         「先にカテゴリを作ってください」を踏むと、入力が全部消えていた */-->
   <form method="post" enctype="multipart/form-data" th:object="${itemForm}"
+        th:attr="data-draft=${itemForm.id == null} ? 'admin-item-new' : null"
         th:action="${itemForm.id == null} ? @{/admin/items} : @{/admin/items/{id}(id=${itemForm.id})}">
 
     <!--/* ====== 見出しと保存のボタン ====== 設計 08-2 商品を追加（315:1983）
@@ -101,7 +111,7 @@
             <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}">米粉ガレット</option>
           </select>
           <p class="help" th:if="${categories.isEmpty()}">
-            カテゴリがありません。先に <a th:href="@{/admin/categories/edit}">カテゴリ</a> を作ってください。
+            カテゴリがありません。先に <a th:href="@{/admin/categories/new}">カテゴリ</a> を作ってください。
           </p>
           <p class="error" th:if="${#fields.hasErrors('categoryId')}" th:errors="*{categoryId}">エラー内容</p>
         </div>
@@ -141,8 +151,16 @@
       <div class="field">
         <span class="label">写真</span>
         <div class="photopick">
+          <!--/* ★ @{} で包むこと（2026-09-13 に直した）。
+                 素の ${…} だと Spring の URL 書き換えを通らないので、
+                 /images/menu/xxx.jpg が<b>ハッシュの付かない URL</b>のまま出ます。
+                 静的ファイルは Cache-Control: max-age=365日 で返るため、
+                 一度その URL を掴んだブラウザは写真を差し替えても
+                 最大 1 年ふるいままになります（URL が変わらないので届けようがない）。
+                 アップロード写真（/uploads/）は別のハンドラでハッシュ対象外なので、
+                 @{} を通しても値は変わりません。害はありません。 */-->
           <img class="photopick__preview" th:if="${itemForm.currentImagePath != null}"
-               th:src="${itemForm.currentImagePath}" alt="いまの商品写真">
+               th:src="@{${itemForm.currentImagePath}}" alt="いまの商品写真">
           <span class="photopick__empty" th:if="${itemForm.currentImagePath == null}">写真なし</span>
 
           <div class="photopick__side">
@@ -180,6 +198,17 @@
            ★ 中身がそろうまで「掲載中」は選べません（設計の但し書きどおり）。
              押せない選択肢は消さずに灰色で出します。
              消すと、何をすれば出てくるのかが分かりません。 */-->
+      <!--/* ★ 掲載と販売は 1 つの塊にする（2026-09-19、設計 ト10b 745:7822）。
+             店主の指摘「販売と掲載の間に余計な余白が合ったから消した」。
+
+             実測すると 44px ありました（.field の下マージン 16 ＋ .formcard の gap 28）。
+             設計は「あき 24」です。ほかの段（28px）は動かしたくないので、
+             この 2 つだけを包んで、中の間隔を 24px にしています。
+
+             ★ 2 つは「この品をいまどう扱うか」という同じ問いの前半・後半です。
+               近づけるほど 1 組として読めます。 */-->
+      <div class="statefields">
+
       <div class="field"
            th:with="notReady=${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}">
         <span class="label">掲載</span>
@@ -227,6 +256,8 @@
           メニューに載せてから、品切れにできます
         </p>
       </div>
+
+      </div><!--/* .statefields ここまで */-->
 
     </div>
 
@@ -344,16 +375,15 @@
     </details>
 
     <!--/* ====== 送信 ======
-           上の見出しにも同じ 2 つを置いてあります。
-           長いフォームを下まで送ったところで、もう一度押せるようにするため。 */-->
-    <div class="row row--wrap mt-6">
-      <button class="btn btn--primary btn--lg" type="submit" name="action" value="publish"
-              th:disabled="${#strings.isEmpty(itemForm.name) or itemForm.categoryId == null or itemForm.price == null}">
-        掲載する
-      </button>
-      <button class="btn btn--lg" type="submit" name="action" value="draft">下書きのまま保存</button>
-      <a class="btn btn--lg" th:href="@{/admin/items}">やめる</a>
-    </div>
+           ★ 2026-09-17 に下の 1 組を外しました（設計 ト10b にありません）。
+
+             それまでは「掲載する／下書きのまま保存」が帯の右上と画面の下の
+             2 か所にありました。長いフォームを下まで送ったときのために置いた
+             ものですが、「詳しい設定」を畳んだいまは 1 画面に収まるので、
+             下まで送る必要がありません。同じボタンが 2 組あると、
+             押す前にどちらを押すか考えることになります。
+
+             「やめる」は上の「← 商品の一覧にもどる」が同じ役です。 */-->
 
   </form>
 
@@ -367,6 +397,9 @@
       <a class="btn" th:href="@{/admin/items/{id}/options(id=${itemForm.id})}">オプションを編集</a>
     </div>
   </div>
+
+  <!--/* 下書き保存（新規だけ。form の data-draft が目印） */-->
+  <script th:src="@{/js/form-draft.js}" defer></script>
 
 </main>
 </body>

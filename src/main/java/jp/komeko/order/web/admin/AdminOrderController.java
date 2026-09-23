@@ -45,6 +45,20 @@ public class AdminOrderController {
     private static final DateTimeFormatter TITLE_FORMAT =
             DateTimeFormatter.ofPattern("yyyy年M月d日(E)", Locale.JAPAN);
 
+    /**
+     * 補足用「日曜日」。
+     *
+     * <p>2026-09-18 に足しました。日付の入力欄が題の行に入ったので、補足にも
+     * 日付を書くと<b>同じ日付が 2 か所</b>に出ます（入力欄「2026/08/16」と
+     * 補足「2026年8月16日(日)」）。
+     *
+     * <p>ただし曜日は捨てられません。入力欄はブラウザが描くもので
+     * 「2026/08/16」までしか出せず、<b>居酒屋では日曜だったかどうかが
+     * 売れ行きの読みに効く</b>ためです。そこで補足は曜日だけにしています。
+     */
+    private static final DateTimeFormatter WEEKDAY_FORMAT =
+            DateTimeFormatter.ofPattern("EEEE", Locale.JAPAN);
+
     /** {@code Order.canceledReason} の列の長さ。これを超える入力は切り詰める。 */
     private static final int REASON_MAX_LENGTH = 100;
 
@@ -137,6 +151,7 @@ public class AdminOrderController {
         // "2026/08/16" のような形に変換され、リンク先で 400 エラーになるため。
         model.addAttribute("dateIso", target.toString());
         model.addAttribute("dateLabel", target.format(TITLE_FORMAT));
+        model.addAttribute("weekdayLabel", target.format(WEEKDAY_FORMAT));
         model.addAttribute("prevDateIso", target.minusDays(1).toString());
         model.addAttribute("nextDateIso", target.plusDays(1).toString());
 

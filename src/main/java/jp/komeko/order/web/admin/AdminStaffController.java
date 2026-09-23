@@ -75,12 +75,36 @@ public class AdminStaffController {
         return "admin/staff-list";
     }
 
-    /** スタッフを編集・追加する画面（もとの一覧そのもの）。 */
+    /**
+     * アカウント一覧（直す画面）。設計 ト15b（838:9390）。
+     *
+     * <p><b>2026-09-20 に追加フォームを外しました。</b>店主の指示
+     * 「スタッフ追加とアカウント一覧を分けて表示して欲しい。情報量が多くて
+     * ユーザーに負荷がかかるからさ」。追加は {@link #newForm} へ移しています。
+     */
     @GetMapping("/edit")
     public String edit(@AuthenticationPrincipal StaffUserDetails me, Model model) {
         prepare(model, me);
-        model.addAttribute("staffForm", new StaffForm());
         return "admin/staff";
+    }
+
+    /**
+     * スタッフを追加する画面（足す画面）。設計 ト15c（1249:13925）。
+     *
+     * <p>一覧は要りません。要るのは入力欄と権限の選択肢だけです。
+     * {@code prepare} を呼ぶと全員ぶんを読みに行くので、ここでは呼びません。
+     *
+     * <p>★ {@code /new} を {@code @GetMapping("/{id}")} より前に書く必要はありません
+     * （こちらは GET、あちらは POST なので衝突しない）。ただし
+     * <b>この口が無いと GET /admin/staff/new は 404 ではなく 405 で落ちます</b> —
+     * {@code POST /{id}} が {@code new} を id として拾うためです。
+     * カテゴリを分けたときと同じで、テストは 4xx ではなく 200 で見ます。
+     */
+    @GetMapping("/new")
+    public String newForm(Model model) {
+        model.addAttribute("staffForm", new StaffForm());
+        model.addAttribute("roles", StaffRole.values());
+        return "admin/staff-new";
     }
 
     /**
@@ -98,13 +122,14 @@ public class AdminStaffController {
     @PostMapping
     public String create(@Valid @ModelAttribute("staffForm") StaffForm staffForm,
                          BindingResult bindingResult,
-                         @AuthenticationPrincipal StaffUserDetails me,
                          Model model,
                          RedirectAttributes redirectAttributes) {
 
+        // 入力エラーは「足す画面」を描き直す。入力値とエラー箇所を残すため
+        // リダイレクトはしない。権限の選択肢はモデルから消えているので詰め直す。
         if (bindingResult.hasErrors()) {
-            prepare(model, me);
-            return "admin/staff";
+            model.addAttribute("roles", StaffRole.values());
+            return "admin/staff-new";
         }
 
         try {
@@ -115,11 +140,14 @@ public class AdminStaffController {
                     staffForm.getRole());
             redirectAttributes.addFlashAttribute("flashSuccess",
                     "スタッフ「%s」を追加しました".formatted(created.getDisplayName()));
+            // 足し終わったら一覧へ。増えたことがその場で見える
+            return "redirect:/admin/staff";
         } catch (IllegalArgumentException | IllegalStateException e) {
-            // 「そのユーザー名は既に使われています」などはサービスが日本語で投げてくれる
+            // 「そのユーザー名は既に使われています」などはサービスが日本語で投げてくれる。
+            // 直し直せるよう、戻すのは一覧ではなく足す画面。
             redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
+            return "redirect:/admin/staff/new";
         }
-        return "redirect:/admin/staff/edit";
     }
 
     // ========================================================================
@@ -133,11 +161,28 @@ public class AdminStaffController {
      * {@code defaultValue = "false"} を付けておかないと 400 エラーになります。
      * よくある落とし穴なので覚えておいてください。
      */
+    /**
+     * 1 枚のカードをまとめて保存する。
+     *
+     * <p><b>パスワードもここで受けます（2026-09-17）。</b>
+     * 設計（ト15b 838:9390）では、表示名・権限・新しいパスワードが 1 枚のカードに並び、
+     * 「この内容で更新する」1 つで保存します。それまではパスワードだけ別の
+     * アコーディオン・別のフォーム・別のエンドポイントでした。
+     *
+     * <p><b>空なら変えません。</b>「変えないなら空のまま」と画面に書いてあるとおりで、
+     * 空文字を「空のパスワードにしたい」と解釈しません。
+     *
+     * <p><b>表示名の更新とパスワードの変更は別々に結果を見ます。</b>
+     * ひとまとめの try に入れると、パスワードが短かっただけで表示名の更新まで
+     * 巻き添えで失敗したのか成功したのか、画面から分からなくなるためです。
+     * 先に表示名・権限を保存し、そのあとでパスワードを扱います。
+     */
     @PostMapping("/{id}")
     public String update(@PathVariable Long id,
                          @RequestParam(required = false) String displayName,
                          @RequestParam StaffRole role,
                          @RequestParam(defaultValue = "false") boolean enabled,
+                         @RequestParam(required = false) String password,
                          RedirectAttributes redirectAttributes) {
 
         List<String> errors = new ArrayList<>();
@@ -152,8 +197,16 @@ public class AdminStaffController {
             try {
                 ensureAdminRemains(id, role, enabled);
                 staffUserService.update(id, name, role, enabled);
-                redirectAttributes.addFlashAttribute("flashSuccess",
-                        "スタッフ「%s」を更新しました".formatted(name));
+
+                // 空欄は「変えない」。ここを通らなければパスワードはそのまま。
+                if (password != null && !password.isBlank()) {
+                    staffUserService.changePassword(id, password);
+                    redirectAttributes.addFlashAttribute("flashSuccess",
+                            "スタッフ「%s」を更新し、パスワードを変更しました".formatted(name));
+                } else {
+                    redirectAttributes.addFlashAttribute("flashSuccess",
+                            "スタッフ「%s」を更新しました".formatted(name));
+                }
             } catch (IllegalArgumentException | IllegalStateException e) {
                 errors.add(e.getMessage());
             }
@@ -204,7 +257,7 @@ public class AdminStaffController {
                     "スタッフ「%s」を削除しました".formatted(target.getDisplayName()));
 
             if (me != null && id.equals(me.getId())) {
-                redirectAttributes.addFlashAttribute("flashInfo",
+                redirectAttributes.addFlashAttribute("flashWarn",
                         "いま使っているアカウントを削除しました。ログアウトすると、二度とこのアカウントでは入れません。");
             }
         } catch (IllegalArgumentException | IllegalStateException e) {

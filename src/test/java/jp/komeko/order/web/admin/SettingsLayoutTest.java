@@ -89,14 +89,43 @@ class SettingsLayoutTest {
         }
     }
 
+    /**
+     * ★ 営業中に急いで押すものが、上に出ていること。
+     *
+     * <p><b>2026-09-19 に見張る相手を変えました。</b>それまでは
+     * チェックボックス（{@code acceptingOrders}）が畳まれていないことを見ていました。
+     *
+     * <p>設計（ト14 732:4677）に合わせて 8 項目だけを上に出したとき、
+     * このチェックボックスは「詳しい設定」へ移りました。
+     * <b>ただし非常ブレーキそのものは上に残っています。</b>
+     *
+     * <pre>
+     *   上   赤いボタン「受付を一時停止する」   ← 営業中に押すのはこれ
+     *   畳む チェック「注文を受け付ける」       ← 同じ意味。保存を押すまで効かない
+     * </pre>
+     *
+     * <p>チェックのほうは画面の説明にも「上の赤いボタンと同じ意味です」と書いてあり、
+     * <b>保存を押すまで反映されません</b>。急いで止めたいときに使うものではないので、
+     * 畳んで差し支えありません。守りたいのは「1 タップで止められること」です。
+     *
+     * <p><b>入力欄そのものを消してはいけません。</b>保存処理はフォームの値を
+     * そのまま設定に写すので、欄が無いと初期値 true が書き込まれ、
+     * 止めたはずの受付が保存のたびに再開します。
+     * {@code <details>} の中身は畳んでいても送信されるので、移すのは安全です。
+     */
     @Test
-    @DisplayName("★ 「注文を受け付ける」は畳まない（営業中に急いで押すのはこれだけ）")
+    @DisplayName("★ 非常ブレーキは上に出ている（1 タップで止められる）")
     void theBrakeStaysVisible() throws Exception {
         String html = Files.readString(HTML);
         int at = html.indexOf("<details class=\"foldout");
-        assertThat(html.substring(at)).as("非常ブレーキが畳まれている")
-                .doesNotContain("*{acceptingOrders}");
-        assertThat(html.substring(0, at)).as("非常ブレーキが画面から消えている")
+
+        assertThat(html.substring(0, at))
+                .as("赤い非常ブレーキが上から消えている。営業中に 1 タップで止められなくなる")
+                .contains("toggle-accepting");
+
+        assertThat(html)
+                .as("acceptingOrders の入力欄がフォームから消えている。"
+                        + "欄が無いと保存のたびに初期値 true が書き込まれ、受付が勝手に再開する")
                 .contains("*{acceptingOrders}");
     }
 

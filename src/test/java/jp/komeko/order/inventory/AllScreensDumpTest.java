@@ -70,6 +70,9 @@ class AllScreensDumpTest {
     @Autowired
     private MenuItemRepository menuItems;
 
+    @Autowired
+    private jp.komeko.order.repository.CategoryRepository categories;
+
     /** 会計後の画面（c04b）を撮るために、伝票を一時的に締める。 */
     @Autowired
     private jp.komeko.order.repository.TableSessionRepository tableSessions;
@@ -77,13 +80,55 @@ class AllScreensDumpTest {
     @Autowired
     private jp.komeko.order.service.TableService tableService;
 
+    @Autowired
+    private jp.komeko.order.repository.ShopSettingRepository shopSettings;
+
     @Test
     @DisplayName("店舗側とお客側の画面を全部 HTML に落とす")
     void dumpAll() throws Exception {
         Files.createDirectories(OUT);
         Files.createDirectories(OUT.resolve("css"));
+
+        // ★★ 前回の画面を消してから撮ること（2026-09-22 に足しました）。
+        //
+        //    消さないと、名前を変えた画面や撮らなくなった画面が<b>古いまま残り</b>、
+        //    次に見る人はそれを今の画面だと思って読みます。
+        //    実際 s06b-categories-edit.html が 0 バイトで居座っていて、
+        //    9 月の画面監査がそれを「中身が無い」と報告してきました。
+        //    書いた本人しか、それが過去の名残だと分かりません。
+        //
+        //  ★ 先頭が _ のものは残します。_measure.html のような<b>測るための道具</b>で、
+        //    ここが撮る画面ではありません。消すと道具ごと無くなります。
+        try (var files = Files.list(OUT)) {
+            for (Path p : files.toList()) {
+                String n = p.getFileName().toString();
+                if (n.endsWith(".html") && !n.startsWith("_")) {
+                    Files.delete(p);
+                }
+            }
+        }
         Files.copy(Path.of("src/main/resources/static/css/app.css"),
                 OUT.resolve("css/app.css"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        copyImages();
+
+        // ★★ 撮っているあいだは 24 時間受付にする（2026-09-22 に足しました）。
+        //
+        //    この店の受付時間は 17:30〜翌 2:00 です。撮影をそれ以外の時刻に回すと
+        //    /checkout が「ただいま注文を受け付けていません」で弾かれ、
+        //    「ご注文を承りました」（設計 暗07）の代わりに<b>カート画面</b>が
+        //    c03b-order-placed.html という名前で保存されます。
+        //    ファイルはちゃんと出来ているので、開くまで誰も間違いに気づきません
+        //    （9 月の画面監査が「中身が暗07 ではなくカート」と報告してきた）。
+        //
+        //  ★ 時計を止めるのではなく、店の設定を変えていることに注意。
+        //    受付の判定は ShopSetting が持っており、
+        //    ここを 24 時間受付にするのがいちばん副作用が少ない道です。
+        //    テスト用の DB なので、営業中の店には影響しません。
+        shopSettings.findAll().forEach(s -> {
+            s.setAlwaysOpen(true);
+            s.setAcceptingOrders(true);
+            shopSettings.save(s);
+        });
 
         // ── 店舗側（ログインが要る画面） ──
         Map<String, String> staff = new LinkedHashMap<>();
@@ -94,8 +139,19 @@ class AllScreensDumpTest {
         // 下でお客側の注文を作り終えてから撮る。
         staff.put("s04-stock", "/kitchen/stock");
         staff.put("s05-items", "/admin/items");
+        // 商品を追加（設計 ト10b）。2026-09-19 に追加。
+        // それまで撮っていなかったので、余白を実測できなかった
+        staff.put("s05b-item-new", "/admin/items/new");
         staff.put("s06-categories", "/admin/categories");
         staff.put("s07-tables", "/admin/tables");
+        // 直す画面。★ つまみはこちらには無い（2026-09-19 夕に外した。店主の指示
+        // 「卓は編集する画面で並び替えは出来ない仕様にして」。カテゴリも同じ扱い）。
+        // 並べ替えは上の一覧（s06-categories / s07-tables）だけにある
+        //
+        // ★ 2026-09-20：カテゴリは 3 枚に分かれました。
+        //   編集画面は id が要るので、このマップでは撮れません（下でまとめて撮ります）。
+        staff.put("s06b-category-new", "/admin/categories/new");
+        staff.put("s07b-tables-edit", "/admin/tables/edit");
         staff.put("s08-qr", "/admin/qr");
         staff.put("s09-settings", "/admin/settings");
         staff.put("s10-staff", "/admin/staff");
@@ -115,8 +171,37 @@ class AllScreensDumpTest {
             write(page.getKey(), html);
         }
 
+        // ── カテゴリの編集画面（id が要るので個別に撮る。2026-09-20） ──
+        //
+        // ★ 2 つの状態を撮ること。片方だけだと測れないものがあります。
+        //     品が入っている … 商品の表・移す欄・押せない削除の 3 つが同時に写る
+        //     品が 0 件      … 削除が押せる姿は、これでしか写らない
+        dumpCategoryEdit("s06c-category-edit", true);
+        dumpCategoryEdit("s06d-category-edit-empty", false);
+
         // ── お客側（卓の QR から入る。セッションに卓が紐づく） ──
-        DiningTable table = tables.findAll().stream().findFirst().orElse(null);
+        //
+        // ★★ 伝票が開いていない卓を選ぶこと（2026-09-22 に直しました）。
+        //    もとは findFirst() で先頭の卓を取っていました。その卓に伝票が
+        //    開いていると /t/{token} は<b>人数の画面を出さずに redirect:/ を返す</b>ので、
+        //    本文が空になり c01-table-entry.html が <b>0 バイト</b>で書かれます。
+        //    例外も警告も出ないため、9 月の画面監査まで誰も気づきませんでした
+        //    （監査は「入店画面が 1 要素も無い」と報告してきた）。
+        //    下の s11（ご案内）が既に同じ絞り込みをしています。同じ流儀に揃えます。
+        //    ★ 「伝票が無い」だけでは足りません（2026-09-22 に踏みました）。
+        //      会計が済んだ卓は needsCleanup＝片付け待ちになり、
+        //      伝票は無いのに /start が TableNotReadyException で弾かれます。
+        //      その結果、伝票が開かないままカートだけ積まれ、
+        //      最後の /checkout が「お席の伝票が見つかりませんでした」で落ちます。
+        //      ご案内できる卓の条件は 3 つ全部です。
+        DiningTable table = tables.findAll().stream()
+                .filter(DiningTable::isActive)
+                .filter(t -> !t.isNeedsCleanup())
+                .filter(t -> tableSessions.findOpenSessionIds(t.getId()).isEmpty())
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "ご案内できる卓が 1 つもありません（使える・片付け済み・伝票なし）。"
+                        + "お客さま側の画面を 1 枚も撮れません"));
         if (table != null) {
             MockHttpSession session = new MockHttpSession();
             // /t/{token} を通すとセッションに卓が結びつく（QR を読んだのと同じ状態）
@@ -126,8 +211,15 @@ class AllScreensDumpTest {
 
             //   人数を決めるまで伝票（TableSession）は開かない。
             //   開いていないと注文が作れず、伝票の画面が「お会計は完了しております」になる。
-            mockMvc.perform(post("/t/" + table.getAccessToken() + "/start")
-                    .session(session).with(csrf()).param("guestCount", "2"));
+            var startResult = mockMvc.perform(post("/t/" + table.getAccessToken() + "/start")
+                    .session(session).with(csrf()).param("guestCount", "2")).andReturn();
+            // ★ 開けたことをここで確かめる（2026-09-22）。
+            //   開かないまま進むと、カートは積めるのに /checkout だけが落ち、
+            //   原因が 100 行先で分かることになります。
+            if (tableSessions.findOpenSessionIds(table.getId()).isEmpty()) {
+                throw new IllegalStateException("卓「" + table.getName() + "」の伝票を開けませんでした。"
+                        + "理由=" + startResult.getResolvedException());
+            }
 
             write("c02-menu", mockMvc.perform(get("/menu").session(session))
                     .andReturn().getResponse().getContentAsString());
@@ -163,8 +255,20 @@ class AllScreensDumpTest {
             // 注文すると「ご注文を承りました」（設計 暗07）へ飛ぶ。
             // リダイレクト先をそのまま辿って撮る。行き先を決め打ちで書くと、
             // 遷移先を変えたときに古い画面を撮り続けることになる。
-            String placedUrl = mockMvc.perform(post("/checkout").session(session).with(csrf()))
-                    .andReturn().getResponse().getRedirectedUrl();
+            var checkoutResult = mockMvc.perform(post("/checkout").session(session).with(csrf()))
+                    .andReturn();
+            String placedUrl = checkoutResult.getResponse().getRedirectedUrl();
+            Object why = checkoutResult.getFlashMap().get("flashErrors");
+            // ★★ 行き先を確かめてから撮ること（2026-09-22）。
+            //    注文が弾かれると /cart へ戻されます。そのまま撮ると
+            //    <b>カート画面が c03b-order-placed という名前で保存され</b>、
+            //    開くまで誰も気づけません（実際その状態で 9 月の監査を迎えた）。
+            //    ここで止めれば、撮れなかったことが撮った本人に分かります。
+            if (placedUrl == null || !placedUrl.startsWith("/ordered/")) {
+                throw new IllegalStateException(
+                        "注文が通らず「ご注文を承りました」を撮れませんでした。行き先=" + placedUrl
+                        + " / 理由=" + why);
+            }
             write("c03b-order-placed", mockMvc.perform(get(placedUrl).session(session))
                     .andReturn().getResponse().getContentAsString());
 
@@ -294,6 +398,39 @@ class AllScreensDumpTest {
      * ブラウザが前回の中身を使い回す。<b>app.css を直したのに古い見た目のまま撮れてしまい、
      * 「効いていない」と誤って判断した</b>ので、名前を変わるようにしてある。
      */
+    /**
+     * カテゴリの編集画面を撮る（2026-09-20）。
+     *
+     * <p>id が要るので、条件に合うカテゴリを DB から選んで撮ります。
+     *
+     * <p>★ 空のファイルを黙って書き出さないこと。
+     * 上のループは {@code andExpect} を 1 つも付けていないので、
+     * URL が死んでも 0 バイトのファイルが静かにできます。
+     * ここでは中身があることを確かめてから書きます。
+     *
+     * @param withItems 商品が入っているカテゴリを選ぶか
+     */
+    private void dumpCategoryEdit(String name, boolean withItems) throws Exception {
+        Long id = categories.findAllByOrderBySortOrderAscIdAsc().stream()
+                .filter(c -> (menuItems.countByCategoryId(c.getId()) > 0) == withItems)
+                .map(jp.komeko.order.domain.Category::getId)
+                .findFirst().orElse(null);
+        if (id == null) {
+            System.out.println("  " + name + " は撮れず（"
+                    + (withItems ? "品の入ったカテゴリ" : "空のカテゴリ") + "が無い）");
+            return;
+        }
+        String html = mockMvc.perform(get("/admin/categories/" + id + "/edit")
+                        .with(user("店長").roles("ADMIN")))
+                .andReturn().getResponse().getContentAsString();
+        if (html.isBlank() || !html.contains("</main>")) {
+            throw new IllegalStateException(
+                    name + " が空で返ってきた（URL が死んでいる可能性）: /admin/categories/"
+                            + id + "/edit");
+        }
+        write(name, html);
+    }
+
     private void write(String name, String html) throws Exception {
         String cssUrl = "css/app.css?v=" + Files.getLastModifiedTime(
                 Path.of("src/main/resources/static/css/app.css")).toMillis();
@@ -301,9 +438,51 @@ class AllScreensDumpTest {
                 .replace("href=\"/css/app.css\"", "href=\"" + cssUrl + "\"")
                 .replaceAll("src=\"/js/([^\"]*?)-[0-9a-f]{32}\\.js\"", "src=\"js/$1.js\"")
                 .replace("src=\"/js/", "src=\"js/")
+                // ★ 画像もハッシュを外すこと（2026-09-23 に足しました）。
+                //
+                //   ここは長いあいだ先頭の / を取るだけでした。ところが画面に出る名前は
+                //   Spring のリソースチェーンが付けた logo-23e880ad….jpg のほうで、
+                //   写した実体は logo.jpg です。つまり<b>全ページで参照が外れていました</b>。
+                //   JS は 1 行上で同じ処理をしているのに、画像だけ抜けていました。
+                //
+                //   <b>これも目では気づけません。</b>HTML は出来ているし、開いても
+                //   崩れるのは画像だけ。実測すると 43 個すべてが 404 でした。
+                .replaceAll("src=\"/images/(.*?)-[0-9a-f]{32}\\.(\\w+)\"", "src=\"images/$1.$2\"")
+                .replaceAll("href=\"/images/(.*?)-[0-9a-f]{32}\\.(\\w+)\"", "href=\"images/$1.$2\"")
                 .replace("href=\"/images/", "href=\"images/")
                 .replace("src=\"/images/", "src=\"images/");
         Files.writeString(OUT.resolve(name + ".html"), html, StandardCharsets.UTF_8);
         System.out.println("  " + name + " (" + html.length() + " 文字)");
+    }
+
+    /**
+     * 画像を書き出し先へ丸ごと写す。
+     *
+     * <p><b>なぜ要るのか</b><br>
+     * この書き出しは CSS と JS だけを写していて、<b>画像を 1 つも写していませんでした</b>。
+     * ロゴはすべての画面のヘッダーに出るので、41 画面ぜんぶで割れていたことになります。
+     * お品書き（{@code c02-menu}）は写真が主役なので、いちばん見せたい画面が
+     * いちばん壊れて見えます。
+     *
+     * <p>それでも <b>test は緑のまま</b>でした。HTML は正しく出来ているからです。
+     * 「ファイルがある」と「開いて成立する」は別だ、という
+     * CLAUDE.md の「画面ダンプは黙って嘘をつく」がそのまま当てはまります。
+     */
+    private void copyImages() throws Exception {
+        Path from = Path.of("src/main/resources/static/images");
+        if (!Files.isDirectory(from)) {
+            return;
+        }
+        try (var walk = Files.walk(from)) {
+            for (Path src : walk.toList()) {
+                Path to = OUT.resolve("images").resolve(from.relativize(src).toString());
+                if (Files.isDirectory(src)) {
+                    Files.createDirectories(to);
+                } else {
+                    Files.createDirectories(to.getParent());
+                    Files.copy(src, to, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
 }

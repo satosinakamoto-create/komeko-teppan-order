@@ -207,6 +207,25 @@ public class Purchase {
         this.storedAt = storedAt;
     }
 
+    /**
+     * 受領から、システムに保存するまでにかかった日数。
+     *
+     * <p>設計（ト05e 840:9735）の「受領から N 日（期限内）」に出す数です。
+     * それまで画面は、期限を<b>過ぎたとき</b>だけ赤い警告を出していました。
+     * 期限内のときは何も言わないので、「まだ大丈夫」なのか「判定していない」のか
+     * 見分けが付きません。数を常に出せば、あと何日あるかまで分かります。
+     *
+     * <p><b>利用者の端末の時計ではなく {@code storedAt} を使います。</b>
+     * こちらはサーバが打った時刻で、あとから手入力で動かせません
+     * （入力期限は電子帳簿保存法の要件なので、ごまかせる値で判定しない）。
+     */
+    public long daysFromReceipt() {
+        if (receivedOn == null || storedAt == null) {
+            return 0;
+        }
+        return java.time.temporal.ChronoUnit.DAYS.between(receivedOn, storedAt.toLocalDate());
+    }
+
     /** 明細行を足す。双方向の関連はここで張るので、呼び出し側で setPurchase しない。 */
     public void addLine(PurchaseLine line) {
         line.setPurchase(this);

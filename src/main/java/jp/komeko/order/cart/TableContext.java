@@ -28,9 +28,20 @@ public class TableContext implements Serializable {
      * ★ 明示すること。書かないと、項目を 1 つ足しただけで
      *   お客さま全員の卓の紐づけが切れます（2026-09-06 に実際に起こしました）。
      *
-     *   Tomcat は再起動をまたいでセッションをファイルに保存し、起動時に読み戻します。
+     *   ★ ただし「セッションが再起動をまたぐ」のは開発中だけです（2026-09-11 訂正）。
+     *
+     *   セッションをファイルに保存して読み戻すかどうかは
+     *   {@code server.servlet.session.persistent} が決めます。
+     *   この設定はどの yml にも書いていないので、既定の false です。
+     *   それでも開発中に読み戻しが起きるのは、<b>DevTools が起動時に
+     *   この値を true へ上書きする</b>ためです（DevTools の既定値の 1 つ）。
+     *
+     *     dev  … devtools あり → persistent=true → 再起動をまたいで読み戻す
+     *     prod … jar には devtools が入らない  → persistent=false → またがない
+     *     demo … devtools.restart.enabled=false → persistent=false → またがない
+     *
      *   serialVersionUID を書いていないとコンパイラが中身から自動生成するので、
-     *   フィールドを 1 つ足すだけで値が変わり、読み戻しに失敗します。
+     *   フィールドを 1 つ足すだけで値が変わり、その読み戻しに失敗します。
      *
      *     InvalidClassException: local class incompatible:
      *       stream classdesc serialVersionUID = 7968869593580997768,
@@ -38,7 +49,14 @@ public class TableContext implements Serializable {
      *
      *   こうなると保存されていたセッションが<b>まるごと捨てられ</b>、
      *   お客さまの画面は「お席の QR をお読みください」に戻ります。
-     *   店の営業中にアプリを入れ替えたら、その瞬間に全卓が飛ぶということです。
+     *   2026-09-06 に踏んだのは、この dev での読み戻し失敗です。
+     *
+     *   <b>本番で「アプリを入れ替えたら全卓が飛ぶ」のは、この UID とは無関係に必ず起きます。</b>
+     *   persistent=false なので、そもそも保存されていないからです。
+     *   停電で PC が落ちたときも同じで、卓の紐づけとカートは消えます。
+     *   消えるのは画面の紐づけだけで、伝票・注文・会計は DB に残るので、
+     *   お客さまに QR を読み直してもらえば同じ伝票に戻れます。
+     *   （営業中の入れ替えは避ける、という運用は変わりません）
      *
      *   固定しておけば、あとから足した項目は既定値（null / 0）で読み戻せます。
      *   逆に「型を変える」「意味を変える」ときは、古い値が入ってくることを

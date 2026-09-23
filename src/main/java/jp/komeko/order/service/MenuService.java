@@ -43,12 +43,15 @@ public class MenuService {
      * 存在しなかった環境には、消すべきレシピ行も存在しないからです。
      */
     private final org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeLineRepository> recipeLineRepositoryProvider;
+    private final org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeOtherCostRepository> recipeOtherCostRepositoryProvider;
 
     public MenuService(CategoryRepository categoryRepository, MenuItemRepository menuItemRepository,
-                       org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeLineRepository> recipeLineRepositoryProvider) {
+                       org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeLineRepository> recipeLineRepositoryProvider,
+                       org.springframework.beans.factory.ObjectProvider<jp.komeko.order.inventory.repository.RecipeOtherCostRepository> recipeOtherCostRepositoryProvider) {
         this.categoryRepository = categoryRepository;
         this.menuItemRepository = menuItemRepository;
         this.recipeLineRepositoryProvider = recipeLineRepositoryProvider;
+        this.recipeOtherCostRepositoryProvider = recipeOtherCostRepositoryProvider;
     }
 
     // ========================================================================
@@ -93,6 +96,14 @@ public class MenuService {
             if (recipeLines > 0) {
                 recipes.deleteByMenuItemId(id);
             }
+        }
+
+        // ★ その他材料費も先に消す。外部キーに ON DELETE CASCADE を付けていないので、
+        //   残したまま商品を消すと外部キー違反で削除そのものが失敗する
+        //   （「その他材料費を入れた商品だけ消せない」という形で跳ね返る）。
+        var otherCosts = recipeOtherCostRepositoryProvider.getIfAvailable();
+        if (otherCosts != null) {
+            otherCosts.deleteByMenuItemId(id);
         }
 
         String name = item.getName();
@@ -226,6 +237,158 @@ public class MenuService {
                 .stream().map(MenuItem::getSortOrder).toList());
     }
 
+    // ========================================================================
+    //  カテゴリの編集画面から商品を出し入れする（2026-09-20）
+    //
+    //  店主の指示「カテゴリーで編集するボタン追加で商品名を追加、削除出来るように」
+    //  → 話し合って「削除」ではなく「別のカテゴリへ移す」になりました。
+    //    商品は必ずどこか 1 つのカテゴリに属するので（category_id は NOT NULL）、
+    //    「ここに足す」＝「よそから移す」です。消す操作は商品の画面に任せます。
+    // ========================================================================
+
+    /**
+     * 大分類（メニューのタブ名）を、重複を落として並べる。
+     *
+     * <p>カテゴリの追加・編集で {@code <select>} に出す選択肢です。
+     * <b>専用のテーブルは作っていません。</b>{@code Category.groupName} を舐めるだけです。
+     * 十数件しかないので、これで足ります。
+     *
+     * <p>★ {@code getTabName()} ではなく {@code getGroupName()} を使うこと。
+     * 前者は大分類が未設定のときカテゴリ名を返すので、
+     * 「広島風お好み焼き」がタブの候補として並んでしまいます。
+     *
+     * <p>並び順はカテゴリの並び順のまま（{@code LinkedHashSet}）。
+     * 名前順に並べ替えると、お客さまのメニューのタブの並びと食い違います。
+     */
+    @Transactional(readOnly = true)
+    public List<String> groupNames() {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        for (Category c : allCategories()) {
+            String g = c.getGroupName();
+            if (g != null && !g.isBlank()) {
+                names.add(g);
+            }
+        }
+        return List.copyOf(names);
+    }
+
+    /**
+     * 名前だけの「書きかけ」を 1 件作る。
+     *
+     * <p>価格はあとから商品の画面で入れます。
+     *
+     * <h2>★ draft と visible を両方落とすこと</h2>
+     *
+     * <p>{@link MenuItem} の初期値は {@code visible=true} / {@code draft=false} です。
+     * <b>どちらか片方だけでは、お客さまの画面に出ます。</b>
+     *
+     * <pre>
+     *   draft しか見ていない門  … findVisibleForCustomer の where、isOrderable()
+     *   visible しか見ていない門 … MenuController.item、itemsForSoldOutPanel
+     * </pre>
+     *
+     * <p>2026-09-07 に「書きかけ」を実際にお客さまのメニューへ出しました。
+     * {@code isOrderable()} に {@code !draft} を足しただけで安心し、
+     * お客さまのメニューの問い合わせがそこを通っていないことを見落としたためです。
+     *
+     * <p>★ 並び順も必ず付けること。0 のままだと、
+     * 名前を打っただけの品が看板メニューの上に割り込みます。
+     */
+    @Transactional
+    public MenuItem createDraftItem(Long categoryId, String name) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new IllegalArgumentException("カテゴリが見つかりません: " + categoryId));
+        MenuItem item = new MenuItem(category, name.trim(), 0);
+        item.setDraft(true);
+        item.setVisible(false);
+        item.setSortOrder(nextItemSortOrder(categoryId));
+        return menuItemRepository.save(item);
+    }
+
+    /**
+     * 選んだ商品を、まとめて別のカテゴリへ移す。
+     *
+     * <h2>★ 並び番号は 1 回だけ読んで、自分で進めること</h2>
+     *
+     * <p>{@code nextItemSortOrder} をループの中で呼び直すと、
+     * 商品の数だけ {@code @EntityGraph} 付きの SELECT が飛びます。
+     * かといって 1 回取った値を全員に使うと<b>全員が同じ番号</b>になり、
+     * 行き先でドラッグしても上下ボタンを押しても順番が決まりません
+     * （押しても何も起きないだけで、例外は出ません）。
+     * 1 回取って {@code +10} ずつ自分で進めるのが正解です。
+     *
+     * <p>★ すでに行き先にいる商品は飛ばします。飛ばさないと
+     * {@code nextItemSortOrder} がその商品自身を含んだ最大値を返し、
+     * 「移していないのに自分のカテゴリの末尾へ黙って飛ぶ」ことになります。
+     *
+     * <p>元のカテゴリに空いた番号は詰め直しません（10, 40 のように飛んで構いません）。
+     * 順番は数字の大小で決まるので、詰める必要がないためです。
+     *
+     * @return 実際に移した件数
+     */
+    @Transactional
+    public int moveItemsToCategory(List<Long> itemIds, Long targetCategoryId) {
+        if (itemIds == null || itemIds.isEmpty() || targetCategoryId == null) {
+            return 0;
+        }
+        Category target = categoryRepository.findById(targetCategoryId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "移す先のカテゴリが見つかりません: " + targetCategoryId));
+
+        int next = nextItemSortOrder(targetCategoryId);
+        int moved = 0;
+        for (Long id : itemIds) {
+            MenuItem item = menuItemRepository.findById(id).orElse(null);
+            if (item == null || targetCategoryId.equals(item.getCategory().getId())) {
+                continue;                       // すでに行き先にいるものは触らない
+            }
+            item.setCategory(target);
+            item.setSortOrder(next);
+            next += 10;
+            moved++;
+        }
+        return moved;
+    }
+
+    /**
+     * 同じ名前の商品を探す（見つからなければ null）。
+     *
+     * <p>カテゴリの編集画面で名前を打ったとき、
+     * 別のカテゴリに同じ品がないかを確かめるために使います。
+     *
+     * <h2>なぜ {@code findFirstByNameIgnoreCase} を使わないか</h2>
+     *
+     * <p>Spring Data が吐くのは {@code upper(name) = upper(?)} で、日本語には効きません。
+     * さらに dev（H2）と本番（PostgreSQL）で照合順序が違うので、
+     * 手元で通ったものが本番で通らない形の食い違いを抱えます。
+     *
+     * <h2>なぜ {@code AliasText.normalize} を使わないか</h2>
+     *
+     * <p>あちらはレシートの品名を食材へ名寄せするための正規化で、
+     * {@code ()（）・-} などの記号を落とします。ここに使うと
+     * <b>「生ビール（中）」と「生ビール中」が同名扱い</b>になり、正しい商品を作れません。
+     * 名寄せは「寄せたい」、重複判定は「区別したい」で、目的が逆です。
+     *
+     * <p>ここでは全角半角（NFKC）・大文字小文字・前後の空白だけを吸収します。
+     */
+    @Transactional(readOnly = true)
+    public MenuItem findSameNameItem(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        String want = normalizeItemName(name);
+        for (MenuItem item : menuItemRepository.findAllForAdmin()) {
+            if (want.equalsIgnoreCase(normalizeItemName(item.getName()))) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private static String normalizeItemName(String s) {
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC).trim();
+    }
+
     /**
      * カテゴリをひとつ上（または下）へ動かす。
      *
@@ -280,6 +443,86 @@ public class MenuService {
                 a::setSortOrder, b::setSortOrder);
         return true;
     }
+
+    /**
+     * 商品を、同じカテゴリの中の好きな位置へ動かす（2026-09-19）。
+     *
+     * <p>店主の指示「並び順はドラック＆ドロップで入れ替えられる仕様にしたいかな、
+     * その方が直感的だし 1 つづつずらして行く必要ないし」。
+     * {@link #moveItem(Long, boolean)} が隣と 1 つ入れ替えるのに対し、
+     * こちらは<b>離れた場所へ一度に</b>動かします。
+     *
+     * <p><b>カテゴリはまたげません。</b>並び順の値はカテゴリごとに独立していて、
+     * 一覧も「カテゴリ順 → 並び順」で並んでいます。別のカテゴリの位置へ動かすのは
+     * 「カテゴリを変える」ことなので、それは編集フォームの仕事です。
+     * 相手が別のカテゴリなら何もせずに {@code false} を返します。
+     *
+     * <p><b>並び順は 10 きざみで振り直します。</b>入れ替えのたびに 1 ずつ
+     * ずらしていくと、いつか隣同士の数字が同じになって順番が決まらなくなります
+     * （{@code swapSortOrder} の注意書きと同じ話）。
+     * 動かした列だけ通しで振り直すほうが、あとから読んでも分かります。
+     *
+     * <p><b>行き先は「どの商品の隣か」で指します。</b>
+     * {@code beforeId} があればその直前、無ければ {@code afterId} の直後。
+     *
+     * <p>2026-09-19 に「相手が {@code null} なら先頭」という決め方をやめました。
+     * 理由は 2 つあります。
+     *
+     * <ol>
+     *   <li><b>下端に落としたときに送るものが無くなる。</b>その行の次が無いので
+     *       画面は {@code null} を送り、先頭へ飛んでいました。</li>
+     *   <li><b>絞り込んでいると「いちばん下」が曖昧になる。</b>タブやカテゴリで
+     *       隠れている同じカテゴリの商品が、見えている最後の行のさらに下にいる
+     *       ことがあります。「いちばん下」と言われても、<b>見えている下</b>なのか
+     *       <b>本当の下</b>なのか決められません。</li>
+     * </ol>
+     *
+     * <p>隣の商品を指せば、隠れている行が何行あっても<b>落とした場所どおり</b>になります。
+     * これが、絞り込み中でも並べ替えを許せる理由です。
+     *
+     * @param menuItemId 動かす商品
+     * @param beforeId   この商品の<b>直前</b>に入れる
+     * @param afterId    {@code beforeId} が無いとき、この商品の<b>直後</b>に入れる
+     * @return 動かせたら true。相手が見つからない・別カテゴリ・動かす必要が無いときは false
+     */
+    @Transactional
+    public boolean placeItemNextTo(Long menuItemId, Long beforeId, Long afterId) {
+        MenuItem item = menuItemRepository.findById(menuItemId)
+                .orElseThrow(() -> new MenuItemNotFoundException(menuItemId));
+        Long categoryId = item.getCategory().getId();
+
+        List<MenuItem> siblings = new java.util.ArrayList<>(
+                menuItemRepository.findByCategoryIdOrderBySortOrderAscIdAsc(categoryId));
+
+        // ★ 並べ替えそのものは SortOrderPlacer にまとめてあります（カテゴリ・卓と共通）。
+        //   ここでやるのは「同じカテゴリの中だけ」という境界の見張りだけです。
+        return SortOrderPlacer.place(siblings, menuItemId,
+                MenuItem::getId, MenuItem::setSortOrder, beforeId, afterId);
+    }
+
+    /**
+     * カテゴリを、好きな位置へ動かす（2026-09-19、店主の指示
+     * 「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
+     *
+     * <p>商品の {@link #placeItemNextTo} と同じ考え方です。行き先は
+     * 「どの並びの隣か」で指します——{@code beforeId} があればその直前、
+     * 無ければ {@code afterId} の直後。
+     *
+     * <p><b>カテゴリは 1 本の並びです。</b>商品のような「またげない境界」はありません。
+     *
+     * <p>並び順は 10 きざみで振り直します。1 ずつずらしていくと、
+     * いつか隣同士の数字が同じになって順番が決まらなくなります。
+     *
+     * @return 動かせたら true。相手が見つからない・動かす必要が無いときは false
+     */
+    @Transactional
+    public boolean placeCategoryNextTo(Long categoryId, Long beforeId, Long afterId) {
+        List<Category> all =
+                new java.util.ArrayList<>(categoryRepository.findAllByOrderBySortOrderAscIdAsc());
+        return SortOrderPlacer.place(all, categoryId,
+                Category::getId, Category::setSortOrder, beforeId, afterId);
+    }
+
 
     private static <T> int indexOf(List<T> list, java.util.function.Predicate<T> match) {
         for (int i = 0; i < list.size(); i++) {

@@ -126,12 +126,13 @@ class HallBoardDesignTest {
         // 混ざると 1 列だけ枠と余白が違って見える。
         // ★ 引用符ごと比べる。"card__head" だけで探すと billcard__head に
         //   部分一致して、必ず失敗する（.label / .btn でも同じ罠を踏んでいる）
-        // 区切りの終端は「空席」の見出し
-        // （2026-09-09 に「卓ごとの注文」を削除したので、そこを目印にできない）
-        // ★ 検索の開始位置を from にすること。「空席」は上の数字カードにも
-        //   出てくるので、頭から探すと在席の伝票より前を指してしまう
-        int from = html.indexOf("在席の伝票");
-        int to = html.indexOf("空席", from);
+        // 区切りは「在席の列のはじまり」から「本日の会計済み」まで。
+        // 2026-09-09 に「卓ごとの注文」、09-11 に「空席」の枠、
+        // 09-12 に「在席の伝票」の見出しごと 3 列へ組み替えたので、
+        // 文字ではなく列のクラス名を目印にする。
+        // 会計済みの一覧は会計取消の入口なので残り続ける
+        int from = html.indexOf("lane--seated");
+        int to = html.indexOf("本日の会計済み", from);
         assertThat(from).isGreaterThan(0);
         assertThat(to).isGreaterThan(from);
         assertThat(html.substring(from, to)).doesNotContain("\"card__head\"");
@@ -154,44 +155,125 @@ class HallBoardDesignTest {
         String block = html.substring(at, html.indexOf("</div>", at));
         assertThat(block).contains("billcard__yen");
         assertThat(block).contains("billcard__note");
-        assertThat(Files.readString(CSS).replace("\r\n", "\n"))
-                .contains(".hallboard .billcard__amount { display: flex; align-items: center; gap: 24px;");
+
+        // ★ 2026-09-19：書き方ではなく中身を見るようにしました。
+        //   それまでは 1 行に書いてある前提で
+        //   ".hallboard .billcard__amount { display: flex; align-items: center; gap: 24px;"
+        //   という文字列をそのまま探していたので、規則を複数行に書き直しただけで落ちました。
+        //   守りたいのは「横並びであること」で、改行の位置ではありません。
+        //
+        //   このとき同時に flex-wrap: wrap → nowrap にしています。
+        //   wrap のままだと注記が長いカードだけ行が 39.2px → 80px に伸び、
+        //   そのカードのボタンだけ 42.8px 下がっていました（実測）。
+        //   「横並び」を守るなら折り返さないほうが筋が通ります。
+        //   詳しくは HallCardRowsLineUpTest。
+        String css = Files.readString(CSS).replace("\r\n", "\n")
+                .replaceAll("(?s)/\\*.*?\\*/", "");
+        int rule = css.indexOf(".hallboard .billcard__amount");
+        assertThat(rule).as(".hallboard .billcard__amount が無い").isGreaterThan(0);
+        String decl = css.substring(css.indexOf('{', rule) + 1, css.indexOf('}', rule))
+                .replaceAll("\\s+", "");
+        assertThat(decl).as("金額と注記が横並びでない").contains("display:flex");
+        assertThat(decl).as("金額と注記の間が 24px でない").contains("gap:24px");
+        assertThat(decl).as("金額の行が折り返す。注記の長さでボタンの高さが変わる")
+                .contains("flex-wrap:nowrap");
     }
 
+    /**
+     * ★ 調理中の札は残す（会計を切る前に気づくため）。
+     *
+     * <p><b>2026-09-19：「お会計待ち」の札は見張るのをやめました。</b>
+     * 店主の判断で外しています
+     * （「お会計待ちってカテゴリーに入ってるんだから要らないでしょ」）。
+     * その卓がお会計待ちであることは、列の見出し・赤い線・赤いボタンが言っています。
+     *
+     * <p><b>「調理中あり」だけは消してはいけません。</b>
+     * まだ厨房に残っている品がある卓を締めると、
+     * 出していない料理の代金を頂くことになります。これは色の話ではなく金額の話です。
+     */
     @Test
-    @DisplayName("★ お会計待ち・調理中の札は残す（会計を切る前に気づくため）")
-    void badgesSurvivedTheRedesign() throws Exception {
+    @DisplayName("★ 調理中の札は残す（会計を切る前に気づくため）")
+    void theCookingWarningSurvivedTheRedesign() throws Exception {
         String html = Files.readString(BOARD);
-        assertThat(html).contains("badge--stop");
-        assertThat(html).contains("badge--rec");
-        assertThat(html).contains("bill.hasPendingOrders()");
+        assertThat(html).as("調理中ありの札が消えている").contains("badge--rec");
+        assertThat(html).as("調理中かどうかの判定が消えている").contains("bill.hasPendingOrders()");
+
+        // お会計待ちの列のカードにも「調理中あり」が付いていること。
+        // 在卓の列にだけ残して会計待ちから消すと、締める直前がいちばん危ない
+        String body = html.replaceAll("(?s)<!--.*?-->", "");
+        int from = body.indexOf("lane--closing");
+        int to = body.indexOf("lane--cleanup", from);
+        assertThat(from).as("お会計待ちの列が無い").isGreaterThan(0);
+        assertThat(body.substring(from, to))
+                .as("★ お会計待ちの列のカードに「調理中あり」が無い。"
+                        + "締める直前こそ、料理が残っていることに気づく必要がある")
+                .contains("badge--rec");
     }
 
     @Test
-    @DisplayName("★ 設計の寸法（見出し28／節20+字間2／数字28／カード上下24左右16）")
+    @DisplayName("★ 設計の寸法（見出し32／節20+字間2／カード余白24全周）")
     void designMetrics() throws Exception {
         String css = Files.readString(CSS).replace("\r\n", "\n");
 
-        assertThat(css).contains(".hallboard h1.section-title__text { font-size: 28px; }");
+        // ★ 2026-09-17 に 28px → 32px（店主の指摘）。
+        //   設計（ト02 725:2103）は 28px だが、設計側の取りこぼしと判断した。
+        //   この画面は帯の上下を 20px に厚くしてあり、その理由は
+        //   「立って見る画面だけ帯を厚くする」。立って見る画面で題だけ小さいのは
+        //   筋が通らない。Figma の他の画面（ダッシュボード・品切れ・残数・
+        //   商品・売上）はすべて 32px で、ここだけ 28px だった。
+        assertThat(css).contains(".hallboard h1.section-title__text { font-size: 32px; }");
         // .theme-snow が字間を 0 に落とすので、節見出しだけ開け直している
         assertThat(css).contains(".hallboard h2.section-title__text { font-size: 20px; letter-spacing: 2px; }");
-        assertThat(css).contains(".theme-desk .hallboard .stat__value { font-size: 28px; }");
-        assertThat(css).contains("padding: 24px 16px;");
-        // 列の間 16・行の間 24（設計の伝票の列どうしの空き）
-        assertThat(css).contains(".hallboard .grid--3 { gap: 24px 16px; }");
+        // ★ 数字カード（.stat 28px）はここで見ていたが、2026-09-14 に
+        //   カードの段ごと畳んだ（HallStatMergeTest）。規則も消してある
+
+        // カードの内側は 24 全周（2026-09-12 に 24/16 から変更。設計 540:3509）。
+        // ★ 素の "padding: 24px;" で探さないこと。他の部品にも同じ値があるので、
+        //   .hallboard .billcard の宣言ブロックを切り出してから確かめる
+        int at = css.indexOf(".hallboard .billcard {");
+        assertThat(at).as(".hallboard .billcard の指定が無い").isGreaterThan(0);
+        String cardBlock = css.substring(at, css.indexOf("}", at));
+        assertThat(cardBlock).contains("padding: 24px;");
+        assertThat(cardBlock).contains("border-radius: 6px;");
+        // 卓名は設計どおり 24px（18px から上げた）
+        assertThat(css).contains(".hallboard .billcard__table { font-size: 24px;");
+        // ★ .grid--3 の gap もカードの段と一緒に消えた（2026-09-14）
         // 本文の縦余白 64→32。共通の変数は触らず、この画面だけ絞る
-        assertThat(css).contains(".theme-desk .staff-main:has(.hallboard) { --main-pad-y: 32px; }");
+        assertThat(css).contains("--main-pad-y: 32px; --main-pad-x: 24px;");
         assertThat(Files.readString(BOARD)).contains("class=\"hallboard\"");
     }
 
     @Test
-    @DisplayName("ボタンの高さは 48 のまま（設計の 44 より規約を優先する）")
-    void tapTargetWinsOverTheDesign() throws Exception {
-        // CLAUDE.md「タップ領域は 48px 以上」。チップ・検索欄と同じ判断で、
-        // ここだけ設計に従わない。従うと 44px になる
+    @DisplayName("★ カードのボタンは設計どおり 44px（2026-09-12 に 48px から変更）")
+    void cardButtonFollowsTheDesignHeight() throws Exception {
+        // このテストは 2026-09-11 まで逆のこと（48px を守る）を書いていた。
+        // 2026-09-12 に「Figma を正とする」とユーザーが決めたので、設計に合わせた。
+        //
+        // ★ CLAUDE.md の「タップ領域は 48px 以上」は廃止していない。
+        //   例外はこのカードのボタン 1 か所だけ。ほかは var(--tap) のまま。
+        //   もし店のタブレットで押しにくければ、min-height の行を消せば 48px に戻る
         String css = Files.readString(CSS).replace("\r\n", "\n");
-        assertThat(css).contains(".hallboard .billcard .btn { font-size: 14px; border-radius: 4px; }");
-        assertThat(css).doesNotContain(".hallboard .billcard .btn { height: 44px");
+
+        int at = css.indexOf(".hallboard .billcard .btn {");
+        assertThat(at).as(".hallboard .billcard .btn の指定が無い").isGreaterThan(0);
+        String block = css.substring(at, css.indexOf("}", at));
+        assertThat(block).contains("min-height: 44px;");
+        // 文字は 15px（＝基底の .btn と同じ .9375rem）。2026-09-12 に 14px から戻した。
+        // 値を 2 か所に持たないなら、この上書き自体を消して .btn に任せてもよい
+        assertThat(block).contains("font-size: 15px;");
+
+        // ★ 角丸の上書きは 2026-09-20 に外しました。
+        //   すぐ上のコメントに「値を 2 か所に持たないなら、この上書き自体を消して
+        //   .btn に任せてもよい」と書いてあったとおりにしたものです。
+        //   ボタンの角は 8px で全画面そろえる決定になり、ここだけ 4px に
+        //   固定し続ける理由が無くなりました（基底 .btn が直値 8px を持ちます）。
+        assertThat(block)
+                .as("角丸をここで持ち直している。値は .btn の 1 か所に置く")
+                .doesNotContain("border-radius:");
+
+        // 例外はここだけ。共通の .btn は 48px（--tap）のまま
+        assertThat(css).as("共通のボタンまで小さくしている")
+                .contains("min-height: var(--tap);");
     }
 
     @Test

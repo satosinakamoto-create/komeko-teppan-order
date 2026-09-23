@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.LinkedHashMap;
@@ -52,18 +53,68 @@ public class AdminTableController {
     private final TableService tableService;
     private final MessageSource messageSource;
 
-    public AdminTableController(TableService tableService, MessageSource messageSource) {
+    /**
+     * QR の飛び先の先頭（app.base-url）。2026-09-16 に QR 画面を畳んだとき、
+     * 「localhost のままだとお客さまのスマホから開けない」という警告を
+     * この画面へ移すために足しました。<b>唯一気づける場所</b>なので落とさないこと
+     * （スタッフの PC からは localhost でも正常に動いてしまいます）。
+     */
+    private final jp.komeko.order.config.AppProperties appProperties;
+
+    public AdminTableController(TableService tableService, MessageSource messageSource,
+                                jp.komeko.order.config.AppProperties appProperties) {
         this.tableService = tableService;
         this.messageSource = messageSource;
+        this.appProperties = appProperties;
     }
 
     // ========================================================================
     //  一覧＋新規フォーム
     // ========================================================================
 
-    /** 卓の一覧。画面上部に新規追加フォーム、各行に更新・再発行・削除のフォームを出す。 */
+    /**
+     * 卓の一覧（読むだけ）。設計 ト12 卓。
+     *
+     * <p><b>なぜ「読む」と「直す」を分けたか（2026-09-14）。</b>
+     * もとはここを開いた瞬間に新規追加フォームが出て、
+     * その下に 1 行ずつ入力欄の付いた表が続いていました。
+     * ところがこの画面を開く理由のほとんどは
+     * 「いま何卓あって、どこが稼働中か」を見ることで、直すのはたまにです。
+     * 見るために開いたのに書き換えられる画面が出るのは、
+     * <b>押し間違いの的を常に置いてある</b>のと同じでした。
+     * カテゴリ（2026-09-07）・スタッフと同じ判断です。
+     *
+     * <p>直すほうは {@link #edit} に分けました。
+     */
     @GetMapping
     public String index(Model model) {
+        prepareList(model);
+        return "admin/table-list";
+    }
+
+    /**
+     * 卓を足す画面（設計 912:13548・2026-09-15）。一覧の「＋新規追加」から来ます。
+     *
+     * <p>もとは 1 つの画面に追加フォームと登録済みの一覧が同居していました。
+     * 卓を 1 つ足しに来ただけでも 12 卓ぶんの入力欄が下に並び、
+     * 逆に席数を直しに来た人は追加フォームを読み飛ばしてから目的の行を探す——
+     * やることが 2 つ混ざっていたので、店主の判断で割りました。
+     *
+     * <p>{@code tables} と {@code totalSeats} も渡すのは、
+     * 見出しの「12 卓 / 30 席」に使うためです（入力欄には使いません）。
+     */
+    @GetMapping("/new")
+    public String newTable(Model model) {
+        prepareList(model);
+        if (!model.containsAttribute("tableForm")) {
+            model.addAttribute("tableForm", new TableForm());
+        }
+        return "admin/table-new";
+    }
+
+    /** 卓を直す画面。一覧の「編集」から来ます。追加フォームは {@link #newTable} へ分けました。 */
+    @GetMapping("/edit")
+    public String edit(Model model) {
         prepareList(model);
         model.addAttribute("tableForm", new TableForm());
         return "admin/tables";
@@ -122,10 +173,10 @@ public class AdminTableController {
         // PRG（Post → Redirect → Get）。ここでリダイレクトしておかないと、
         // 保存後の画面で再読み込みされたときに同じ POST が飛んで二重登録になる。
         redirectAttributes.addFlashAttribute("flashSuccess", form.isActive()
-                ? "卓「%s」を追加しました。QR は「QRコード」の画面から印刷してください".formatted(name)
+                ? "卓「%s」を追加しました。QR は「編集」の画面から印刷できます".formatted(name)
                 : "卓「%s」を利用停止の状態で追加しました。使うときは「使う」にチェックを入れて更新してください"
                         .formatted(name));
-        return "redirect:/admin/tables";
+        return "redirect:/admin/tables/edit";
     }
 
     // ========================================================================
@@ -159,20 +210,25 @@ public class AdminTableController {
 
         String name = form.getName().trim();
         try {
-            tableService.updateTable(id, name, form.getCapacity(), form.getSortOrder(),
+            // ★ 並び順はここでは触りません（2026-09-19、店主の指示
+            //   「卓は編集する画面で並び替えは出来ない仕様にして」）。
+            //   並べ替えは一覧のドラッグ＆ドロップ（POST /place）だけが行います。
+            //   form.getSortOrder() を渡すと、画面に入力欄が無いぶん初期値 0 が
+            //   そのまま書かれ、更新した卓が黙って一覧の先頭へ飛びます。
+            tableService.updateTableKeepingOrder(id, name, form.getCapacity(),
                     form.isActive(), form.getArea());
         } catch (TableService.TableNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors",
                     List.of("卓が見つかりませんでした（すでに削除された可能性があります）"));
-            return "redirect:/admin/tables";
+            return "redirect:/admin/tables/edit";
         } catch (IllegalArgumentException e) {
             // 卓名の重複。行ごとのフォームなので、ここは画面上部のエラー表示に回す。
             redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
-            return "redirect:/admin/tables";
+            return "redirect:/admin/tables/edit";
         }
 
         redirectAttributes.addFlashAttribute("flashSuccess", "卓「%s」を更新しました".formatted(name));
-        return "redirect:/admin/tables";
+        return "redirect:/admin/tables/edit";
     }
 
     // ========================================================================
@@ -191,6 +247,32 @@ public class AdminTableController {
      * 「削除できない理由を一覧画面で読ませて、そのまま利用停止に切り替えてもらう」ほうが
      * 店の人にとっては親切なので、ここで受け止めてフラッシュメッセージに変換します。
      */
+    /**
+     * つまんで動かした結果を保存する（2026-09-19、店主の指示
+     * 「商品、カテゴリー、卓にもドラッグ＆ドロップ実装してほしい」）。
+     *
+     * <p>行き先は「どの卓の隣か」で指します。{@code before} があればその直前、
+     * 無ければ {@code after} の直後。商品・カテゴリと同じ形です。
+     *
+     * <p>画面は JavaScript から呼びますが<b>ふつうのフォーム送信</b>です。
+     * テンプレートに隠しフォームを置いてあり（{@code th:action} なので
+     * CSRF は Thymeleaf が入れる）、値を詰めて送るだけ。
+     */
+    @PostMapping("/place")
+    public String place(@RequestParam Long id,
+                        @RequestParam(required = false) Long before,
+                        @RequestParam(required = false) Long after,
+                        RedirectAttributes redirectAttributes) {
+        if (!tableService.placeTableNextTo(id, before, after)) {
+            redirectAttributes.addFlashAttribute("flashWarn", "並び順は変わりませんでした");
+        }
+        // ★ 戻り先は一覧（2026-09-19 に /edit から変更）。
+        //   つまみが両方の画面にあった頃の名残で編集画面へ戻していましたが、
+        //   並べ替えが一覧だけになった今、つまんだ瞬間に別の画面へ飛ばされます。
+        //   動かした結果をその場で見せるのが正しい戻り先です。
+        return "redirect:/admin/tables";
+    }
+
     @PostMapping("/{id}/delete")
     public String delete(@PathVariable("id") Long id, RedirectAttributes redirectAttributes) {
         String name;
@@ -199,7 +281,7 @@ public class AdminTableController {
         } catch (TableService.TableNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors",
                     List.of("卓が見つかりませんでした（すでに削除された可能性があります）"));
-            return "redirect:/admin/tables";
+            return "redirect:/admin/tables/edit";
         }
 
         try {
@@ -208,11 +290,11 @@ public class AdminTableController {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(
                     e.getMessage(),
                     "売上や注文履歴から「どの席の会計だったか」が消えてしまうため、削除はできません"));
-            return "redirect:/admin/tables";
+            return "redirect:/admin/tables/edit";
         }
 
         redirectAttributes.addFlashAttribute("flashSuccess", "卓「%s」を削除しました".formatted(name));
-        return "redirect:/admin/tables";
+        return "redirect:/admin/tables/edit";
     }
 
     // ========================================================================
@@ -241,13 +323,13 @@ public class AdminTableController {
         } catch (TableService.TableNotFoundException e) {
             redirectAttributes.addFlashAttribute("flashErrors",
                     List.of("卓が見つかりませんでした（すでに削除された可能性があります）"));
-            return "redirect:/admin/tables";
+            return "redirect:/admin/tables/edit";
         }
 
-        redirectAttributes.addFlashAttribute("flashInfo",
-                "卓「%s」の QR を再発行しました。古い QR はもう使えません。「QRコード」の画面から印刷して貼り替えてください"
+        redirectAttributes.addFlashAttribute("flashWarn",
+                "卓「%s」の QR を再発行しました。古い QR はもう使えません。この画面の「印刷」から刷り直して貼り替えてください"
                         .formatted(name));
-        return "redirect:/admin/tables";
+        return "redirect:/admin/tables/edit";
     }
 
     // ========================================================================
@@ -262,6 +344,8 @@ public class AdminTableController {
         // 席数の合計。「店全体で何席あるか」がひと目で分かると、卓の作り忘れに気付きやすい。
         model.addAttribute("totalSeats", tables.stream().mapToInt(DiningTable::getCapacity).sum());
         model.addAttribute("activeCount", tables.stream().filter(DiningTable::isActive).count());
+        // QR の飛び先。印刷する前に気づけるよう、編集画面で出し分けに使う
+        model.addAttribute("baseUrl", appProperties.normalizedBaseUrl());
     }
 
     /**

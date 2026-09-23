@@ -2,7 +2,6 @@ package jp.komeko.order.inventory.service;
 
 import jp.komeko.order.inventory.domain.AliasText;
 import jp.komeko.order.inventory.domain.Ingredient;
-import jp.komeko.order.inventory.domain.IngredientCategory;
 import jp.komeko.order.inventory.domain.IngredientUnit;
 import jp.komeko.order.inventory.domain.ItemAlias;
 import jp.komeko.order.inventory.repository.IngredientRepository;
@@ -77,6 +76,34 @@ public class IngredientService {
         return ingredients.findById(id).orElse(null);
     }
 
+    /**
+     * 名前から食材を探す（取り込みの自動照合用）。
+     *
+     * <p>照合は {@link AliasText#normalize} を通します。生の文字列で引くと
+     * 「ｷｬﾍﾞﾂ」と「キャベツ」が別物になり、ノートの書き方ひとつで照合が外れます。
+     *
+     * <p><b>複数一致したら null を返します。</b>どれか 1 つを勝手に選ぶと、
+     * 人は「一致した」と思ったまま別の食材でレシピを組んでしまいます。
+     * 決められないときは決めずに、画面で選ばせるのが正しい。
+     */
+    @Transactional(readOnly = true)
+    public Ingredient findByNameForImport(String rawName) {
+        String needle = AliasText.normalize(rawName);
+        if (needle == null) {
+            return null;
+        }
+        Ingredient found = null;
+        for (Ingredient candidate : activeIngredients()) {
+            if (needle.equals(AliasText.normalize(candidate.getName()))) {
+                if (found != null) {
+                    return null;   // 複数一致。勝手に選ばない
+                }
+                found = candidate;
+            }
+        }
+        return found;
+    }
+
     /** 同じ名前の食材がすでにあるか。登録前の重複チェック。 */
     @Transactional(readOnly = true)
     public boolean nameTaken(String name, Long excludeId) {
@@ -84,16 +111,11 @@ public class IngredientService {
         return found.isPresent() && !found.get().getId().equals(excludeId);
     }
 
-    /**
-     * 食材を登録する。
-     *
-     * @param category 探すときの分類。null は「まだ決めていない」（未分類）
-     */
+    /** 食材を登録する。 */
     @Transactional
-    public Ingredient create(String name, IngredientUnit unit, IngredientCategory category,
+    public Ingredient create(String name, IngredientUnit unit,
                              BigDecimal lowThreshold, BigDecimal costOverride, String memo) {
         Ingredient ingredient = new Ingredient(name, unit);
-        ingredient.setCategory(category);
         ingredient.setLowThresholdQty(lowThreshold);
         ingredient.setCostOverride(normalizeCostOverride(costOverride));
         ingredient.setMemo(memo);
@@ -111,13 +133,12 @@ public class IngredientService {
      * どの記録が換算済みか分からなくなって傷が深くなります。
      */
     @Transactional
-    public void update(Long id, String name, IngredientUnit unit, IngredientCategory category,
+    public void update(Long id, String name, IngredientUnit unit,
                        BigDecimal lowThreshold, BigDecimal costOverride,
                        int sortOrder, boolean active, String memo) {
         ingredients.findById(id).ifPresent(ingredient -> {
             ingredient.setName(name);
             ingredient.setUnit(unit);
-            ingredient.setCategory(category);
             ingredient.setLowThresholdQty(lowThreshold);
             ingredient.setCostOverride(normalizeCostOverride(costOverride));
             ingredient.setSortOrder(sortOrder);
@@ -125,39 +146,6 @@ public class IngredientService {
             ingredient.setMemo(memo);
             log.info("食材を更新しました: id={} {}", id, name);
         });
-    }
-
-    /** 分類がまだ決まっていない食材（一括分類の画面用）。 */
-    @Transactional(readOnly = true)
-    public List<Ingredient> unclassifiedIngredients() {
-        return ingredients.findByActiveTrueAndCategoryIsNullOrderBySortOrderAscNameAsc();
-    }
-
-    /**
-     * 分類をまとめて付ける（一括分類の画面から）。
-     *
-     * <p>選ばれた行だけを更新する。<b>null（あとで決める）で上書きはしない</b>——
-     * この画面の仕事は「付ける」だけで、外すのは個別の編集画面の仕事。
-     *
-     * @return 実際に付けた件数（存在しない id は数えない）
-     */
-    @Transactional
-    public int assignCategories(Map<Long, IngredientCategory> assignments) {
-        int updated = 0;
-        for (Map.Entry<Long, IngredientCategory> entry : assignments.entrySet()) {
-            if (entry.getValue() == null) {
-                continue;
-            }
-            Ingredient ingredient = ingredients.findById(entry.getKey()).orElse(null);
-            if (ingredient != null) {
-                ingredient.setCategory(entry.getValue());
-                updated++;
-            }
-        }
-        if (updated > 0) {
-            log.info("食材の分類をまとめて付けました: {} 件", updated);
-        }
-        return updated;
     }
 
     /**

@@ -23,12 +23,46 @@
          月を移る操作は下の月ナビにある（見る場所と変える場所を分ける）。 */-->
   <div class="page-head">
     <h1 class="page-head__title">仕入れ・経費</h1>
-    <span class="page-head__sub"
-          th:text="${#temporals.format(month, 'yyyy年MM月')}">2026年08月</span>
+
+    <!--/* 月の帯を題の行に入れました（2026-09-18・店主の指示）。
+
+           「← 前月 2026年08月 翌月 → の配置場所は見出しの右側、
+             売り上げの場所を参考に統一させてほしい」
+
+           もとは下に別のブロックとして置いていました。
+
+           ★ 補足の「2026年08月」は外しました。入力欄に同じ月が出ていて、
+             同じことを 2 か所で言うことになるためです。注文履歴の補足は
+             曜日と件数を足しているので残していますが、こちらは足すものが
+             ありませんでした。 */-->
+    <form th:action="@{/inventory/purchases}" method="get" class="datenav">
+      <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${prevMonth})}">← 前月</a>
+      <input class="input" type="month" name="month" th:value="${month}" aria-label="月を選ぶ">
+      <!--/* 既定では隠れています（app.css の .datenav__go）。詳しくは datenav.js の冒頭。 */-->
+      <button type="submit" class="btn btn--sm datenav__go">この月を表示</button>
+      <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${nextMonth})}">翌月 →</a>
+    </form>
+    <!--/* ボタンは のばす で右端へ送る（2026-09-16・店主の判断。左端は戻るの居場所）。
+           ここは 2 つ並ぶので、のばす は前に 1 つだけ置いて 2 つまとめて送る。
+           設計 05 仕入れ・経費 にあるのは「レシートを登録」の 1 つだけで、
+           税率マスタはこの画面から入る道を残すために足したもの */-->
     <span class="page-head__spacer"></span>
-    <a class="btn btn--ghost" sec:authorize="hasRole('ADMIN')"
-       th:href="@{/inventory/tax-rates}">税率マスタ</a>
-    <a class="btn btn--primary" th:href="@{/inventory/purchases/new}">レシートを登録</a>
+
+    <!--/* ★ 2 つをひと組にしてあります（2026-09-18）。
+
+           この画面は題・月の帯・税率マスタ・レシートを登録が並ぶ唯一の画面で、
+           iPad 幅（1024px）ではもともと余裕がありません。ばらばらに置くと、
+           文字が数 px 増えただけで<b>片方だけが次の行へ落ちます</b>。
+           実際「レシートを登録」に ＋ を足した 16px で落ちました。
+
+           ひと組にしておけば、入らないときは 2 つそろって次の行へ行きます。
+           「行が増える」のは読めますが、「ボタンが 1 つだけ離れる」のは
+           壊れて見えます。 */-->
+    <span class="page-head__actions">
+      <a class="btn btn--ghost" sec:authorize="hasRole('ADMIN')"
+         th:href="@{/inventory/tax-rates}">税率マスタ</a>
+      <a class="btn btn--primary" th:href="@{/inventory/purchases/new}">＋レシートを登録</a>
+    </span>
   </div>
 
   <!--/* ===== 税率マスタの終端警告 =====
@@ -46,12 +80,7 @@
   </div>
 
   <!--/* ===== ① 月次のまとめ ===== */-->
-  <form th:action="@{/inventory/purchases}" method="get" class="row row--wrap">
-    <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${prevMonth})}">← 前月</a>
-    <input class="input input--narrow" type="month" name="month" th:value="${month}">
-    <button type="submit" class="btn btn--sm">この月を表示</button>
-    <a class="btn btn--sm" th:href="@{/inventory/purchases(month=${nextMonth})}">翌月 →</a>
-  </form>
+  <!--/* 月の帯は題の行へ移しました（2026-09-18）。上の .page-head を見てください。 */-->
 
   <!--/* ====== 今月の数字 ====== 設計（Figma）はカード 3 枚。
 

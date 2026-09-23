@@ -12,11 +12,14 @@
 <body>
 <main>
 
-  <div class="section-title">
-    <h1 class="section-title__text" th:text="${purchase.storeName}">業務スーパー</h1>
-    <span class="section-title__count" th:text="${purchase.purchasedOn}">2026-09-01</span>
-    <a class="btn btn--sm btn--ghost"
-       th:href="@{/accountant/evidence(month=${month})}">← 一覧へ</a>
+  <!--/* 見出しの帯（設計 トt19b） */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/accountant/evidence(month=${month})}">← 証憑の確認へ戻る</a>
+    <h1 class="page-head__title" th:text="${purchase.storeName}">業務スーパー 学芸大学店</h1>
+    <span class="page-head__sub"
+          th:text="${purchase.purchasedOn} + ' ／ ¥'
+                   + ${#numbers.formatInteger(purchase.totalAmount, 1, 'COMMA')} + '（税込）'">2026-09-13 ／ ¥4,755（税込）</span>
+    <span class="page-head__spacer"></span>
   </div>
 
   <div th:if="${purchase.deleted}" class="alert alert--warn">

@@ -24,12 +24,33 @@
          なぜうまくいかなかったのかが分からなくなります。
 */-->
 <div th:fragment="flash" class="stack-sm">
-  <div class="alert alert--success is-transient" th:if="${flashSuccess}" role="status">
+  <!--/* ★ data-toast は「浮かせてよい」という印（2026-09-20）。
+         toast.js が拾って、本文から取り出し画面の上へ浮かせます。
+         取り出すので<b>場所を取らなくなり、下の表が押し下がりません</b>。
+         JS が動かなければ、今までどおりここに出ます（消えないだけ）。 */-->
+  <div class="alert alert--success is-transient" data-toast="ok"
+       th:if="${flashSuccess}" role="status">
     <p class="mb-0" th:text="${flashSuccess}">保存しました</p>
   </div>
-  <div class="alert alert--info is-transient" th:if="${flashInfo}" role="status">
+  <!--/* ★ flashInfo は「変更が成った」報告なので、成功と同じ緑で出します
+         （2026-09-20・店主の決定「変更とかは緑で良いんじゃない？」）。
+         それまで青で出していましたが、「掲載を止めました」が青で
+         「掲載しました」が緑と、同じ種類の報告で色が割れていました。 */-->
+  <div class="alert alert--success is-transient" data-toast="ok"
+       th:if="${flashInfo}" role="status">
     <p class="mb-0" th:text="${flashInfo}">お知らせ</p>
   </div>
+  <!--/* ★ 警告は赤（2026-09-20・店主の決定「警告ポップアップは赤」）。
+         「できなかった」「気をつけて」を伝えるもので、エラーほど重くないもの。
+         浮かせますが、色で目を引きます。 */-->
+  <div class="alert alert--error is-transient" data-toast="warn"
+       th:if="${flashWarn}" role="status">
+    <p class="mb-0" th:text="${flashWarn}">注意</p>
+  </div>
+  <!--/* ★ エラーには data-toast を付けません。
+         複数行の箇条書きになることがあり、3 秒で消えると
+         なぜうまくいかなかったのかが分からなくなります。
+         このファイルの冒頭にある方針そのままです。 */-->
   <div class="alert alert--error" th:if="${flashErrors != null and !flashErrors.isEmpty()}" role="alert">
     <ul>
       <li th:each="msg : ${flashErrors}" th:text="${msg}">エラー内容</li>
@@ -103,6 +124,41 @@
   <div class="empty-state__mark" th:text="${mark}">—</div>
   <p class="mb-0" th:text="${message}">データがありません</p>
 </div>
+
+<!--/* ====== 月を移る帯（税理士の 5 画面で共通） ======
+
+       もとは layout/accountant.html が持っていて、本文の上に独立した行として
+       置いていました。2026-09-18 に店主の指示で題の行へ移しています。
+
+         「← 前月 2026年08月 翌月 → の配置場所は見出しの右側、
+           売り上げの場所を参考に統一させてほしい」
+
+       題は各画面の中（.section-title）にあり、レイアウトからは触れません。
+       そこで帯のほうをここへ出して、5 画面それぞれが題の行から呼ぶ形にしました。
+       5 か所に同じものを書くと必ずずれるので、実体はこの 1 つだけにします。
+
+       ★ 引数を取りません。month / prevMonth / nextMonth / currentPath は
+         GlobalModelAttributes が全画面に渡しているので、呼ぶ側は
+         <div th:replace="~{fragments/common :: monthband}"></div> だけで済みます。
+
+       ★ 行き先はいまの画面のまま、月だけ変える。
+         （#httpServletRequest は Thymeleaf 3.1 で使えないので currentPath を使う）
+
+       ★ GET にするのは、月を見るのが読むだけの操作だからです。
+         URL に残るので戻る・進むが効き、ブックマークもできます。
+
+       ★「この月を表示」は既定で隠れています（app.css の .datenav__go）。
+         datenav.js が、カレンダーで選んだ瞬間に送信します。
+         消していないのは、JavaScript が動かない環境では
+         それが唯一の送信手段になるためです。 */-->
+<form th:fragment="monthband" th:if="${month != null}"
+      method="get" th:action="@{__${currentPath}__}" class="datenav">
+  <a class="btn btn--sm" th:href="@{__${currentPath}__(month=${prevMonth})}">← 前月</a>
+  <input class="input" type="month" name="month"
+         th:value="${month}" aria-label="月を選ぶ">
+  <button type="submit" class="btn btn--sm datenav__go">この月を表示</button>
+  <a class="btn btn--sm" th:href="@{__${currentPath}__(month=${nextMonth})}">翌月 →</a>
+</form>
 
 </body>
 </html>

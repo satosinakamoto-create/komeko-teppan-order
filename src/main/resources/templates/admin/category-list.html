@@ -11,7 +11,8 @@
    直すのはたまにです。見るために開いたのに、いきなり書き換えられる画面が出るのは、
    押し間違いの的を常に置いてあるのと同じでした。
 
-   直すほうは「カテゴリを 編集・追加」から /admin/categories/edit へ。
+   2026-09-20 に 3 枚へ分けました。
+   足すのは /admin/categories/new、直すのは /admin/categories/{id}/edit へ。
 
    使えるモデルの値：
      ${categories} … List<Category>（並び順）
@@ -28,8 +29,9 @@
   <div class="page-head">
     <h1 class="page-head__title">カテゴリ</h1>
     <span class="page-head__sub" th:text="${categories.size()} + ' 件'">5 件</span>
+    <!--/* ボタンは のばす で右端へ送る（2026-09-16・店主の判断。左端は戻るの居場所） */-->
     <span class="page-head__spacer"></span>
-    <a class="btn btn--primary" th:href="@{/admin/categories/edit}">カテゴリを 編集・追加</a>
+    <a class="btn btn--primary" th:href="@{/admin/categories/new}">＋新規追加</a>
   </div>
 
   <!--/* カテゴリが 1 つも無いと商品を登録できない（商品は所属カテゴリが必須）。
@@ -37,43 +39,90 @@
   <div class="alert alert--warn" th:if="${categories.isEmpty()}" role="alert">
     <p class="mb-0">
       カテゴリがまだありません。商品はかならずどれかのカテゴリに属するので、
-      先に <a th:href="@{/admin/categories/edit}">カテゴリを追加</a> してください。
+      先に <a th:href="@{/admin/categories/new}">カテゴリを追加</a> してください。
     </p>
   </div>
 
-  <!--/* 列幅は設計どおり 400 / 200 / 160 / 360（合計 1120）。
-         .table--cats が table-layout: fixed で受けている */-->
+  <!--/* 列幅は設計 ト11 どおり 340 / 140 / 300 / 180 / 160（合計 1120）。
+         .table--cats が table-layout: fixed で受けている。
+         ★ 幅はクラスで当てること（nth-child は列が 1 本減った瞬間に別の列へ効く） */-->
   <div class="table-wrap" th:unless="${categories.isEmpty()}">
     <table class="table table--cats">
       <thead>
       <tr>
-        <th>カテゴリ名</th>
-        <th>品数</th>
-        <th>並び</th>
-        <th>状態</th>
+        <th class="col-name">カテゴリ名</th>
+        <th class="col-count">品数</th>
+        <th class="col-state">状態</th>
+        <th class="col-act">操作</th>
+        <th class="col-order">並び</th>
       </tr>
       </thead>
-      <tbody>
-      <tr th:each="c : ${categories}">
+      <!--/* data-reorder は reorder.js の目印。カテゴリは 1 本の並びなので、
+             行の group はすべて同じ値（"all"）です。 */-->
+      <tbody th:attr="data-reorder=${!categories.isEmpty()} ? 'on' : null">
+      <tr th:each="c : ${categories}"
+          th:data-item-id="${c.id}" data-group-id="all">
         <!--/* 名前を押すと直す画面へ。行そのものを押せるようにはしていない。
                読む画面で行全体が押せると、目で追っているだけのつもりが
                画面ごと切り替わることがある */-->
-        <td class="wrap">
-          <a th:href="@{/admin/categories/edit}" th:text="${c.name}">広島風お好み焼き</a>
+        <td class="wrap col-name">
+          <!--/* ★ 名前はただの文字。リンクにしないこと（2026-09-20・店主の指摘）。
+                 設計（ト11／ト12／ト15）はどれも黒の Regular で、リンクではありません。
+                 緑の下線リンクだと「押せるもの」がこの画面に 2 系統できてしまい、
+                 どこから直すのかが名前と編集ボタンに割れます。入口は編集ボタン 1 本に。 */-->
+          <span th:text="${c.name}">広島風お好み焼き</span>
         </td>
-        <td th:text="${itemCounts.get(c.id)} + ' 品'">5 品</td>
-        <td th:text="${c.sortOrder}">1</td>
+        <td class="col-count" th:text="${itemCounts.get(c.id)} + ' 品'">5 品</td>
         <!--/* 「表示中」「非表示」はお客さまのメニューに出るかどうか。
                商品の「掲載」と同じ言い方にしていないのは、
-               カテゴリを隠すと中の商品ごと消えるためで、意味の重さが違う */-->
-        <td>
-          <span class="badge badge--gf" th:if="${c.visible}">表示中</span>
-          <span class="badge" th:unless="${c.visible}">非表示</span>
+               カテゴリを隠すと中の商品ごと消えるためで、意味の重さが違う。
+
+               ★ 2026-09-20：ここが切り替えの唯一の口になりました（編集画面から外したため）。
+                 押せることは「枠と ▸」で伝えます（2026-09-17 に決めた見分け方）。
+                 色だけでは伝わりません。触るまで出ないカーソルも当てになりません。 */-->
+        <td class="col-state">
+          <form method="post" th:action="@{/admin/categories/{id}/visibility(id=${c.id})}">
+            <button type="submit" class="badge badge--act badge--gf" th:if="${c.visible}"
+                    title="押すとお客さまのメニューから隠します">表示中</button>
+            <button type="submit" class="badge badge--act" th:unless="${c.visible}"
+                    title="押すとお客さまのメニューに出します">非表示</button>
+          </form>
+        </td>
+        <td class="col-act">
+          <a class="btn btn--sm" th:href="@{/admin/categories/{id}/edit(id=${c.id})}">編集する</a>
+        </td>
+        <td class="num col-order">
+          <!--/* ★ 並べ替えのつまみ（2026-09-19・店主の指示）。
+                 つまんで動かすか、選んで ↑ ↓ を押すと動きます。
+
+               ★ <button type="button">。div だと tabindex を足す羽目になり、
+                 「押せるもの」だと読み上げにも伝わりません。
+               ★ CSS で既定は隠してあり、reorder.js が表に is-reorderable を
+                 付けたときだけ現れます（押しても何も起きないものを見せない）。 */-->
+          <button type="button" class="dragdot" data-reorder-handle
+                  th:aria-label="${c.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
+            <span aria-hidden="true">⠿</span>
+          </button>
+          <span class="faint tiny" th:text="${c.sortOrder}">1</span>
         </td>
       </tr>
       </tbody>
     </table>
   </div>
+
+  <!--/* ★ 並び順を送るための隠しフォーム（2026-09-19）。
+         reorder.js が id と before / after を詰めて submit します。
+
+       ★ この画面は「読むだけ」が決まりですが、<b>並べ替えだけは例外</b>にしました
+         （店主の指示。サイドバーから来るのはこの画面で、ここで並べたいため）。
+         読む画面に置かないのは<b>入力欄</b>——見ているだけのつもりが
+         押し間違いで書き換わるもの——で、つまみは掴んで動かす 2 段階の操作です。
+         入力欄は 1 つも増やしていません（この form の中身は hidden だけ）。 */-->
+  <form id="reorder-form" method="post" th:action="@{/admin/categories/place}" hidden>
+    <input type="hidden" name="id">
+    <input type="hidden" name="before">
+    <input type="hidden" name="after">
+  </form>
 
 </main>
 </body>

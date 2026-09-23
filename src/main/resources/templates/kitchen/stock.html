@@ -37,30 +37,37 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('品切れ管理', ~{::main})}">
 <body>
-<main>
+<!--/* soldoutpage は CSS の目印。この画面だけ見出し・しぼり込み・表の寸法を
+       設計 現03（439:2496）の値にする（app.css 34 節）。共通クラスは触らない。
+       食材・在庫の .stockpage と同じやり方です。 */-->
+<main class="soldoutpage">
 
   <!--/* 直前の操作結果（成功・お知らせ・エラー）を 1 回だけ表示する共通部品 */-->
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <!--/* ===== 見出しと件数 ===== */-->
-  <section class="card mt-4">
-    <div class="card__body row row--between row--wrap">
-      <div>
-        <h1 class="mb-0">品切れ・残数管理</h1>
-        <p class="small muted mb-0">
-          品切れにすると、卓の QR から開くメニューで注文できなくなります。
-          数量限定の品は「残数」に今日の数を入れると、自動で減って 0 で売り切れになります。
-          <strong>数を数えるのをやめるときは、欄を空にして「設定」を押してください</strong>
-        </p>
-      </div>
-      <div class="row row--wrap">
-        <span class="status-chip" style="color: var(--danger)" th:if="${soldOutCount > 0}"
-              th:text="'品切れ中 ' + ${soldOutCount} + ' 品'">品切れ中 2 品</span>
-        <span class="status-chip" style="color: var(--ok)" th:if="${soldOutCount == 0}">すべて販売中</span>
-        <span class="tiny faint" th:text="'掲載中 ' + ${itemCount} + ' 品'">掲載中 12 品</span>
-      </div>
-    </div>
-  </section>
+  <!--/* ===== 見出しと件数 ===== 設計 現03 の「見出し／ページ」
+         カードではなく 1 行の帯です（食材・在庫と同じ形）。
+         左右 40・上下 16 の内側に、題・状態・掲載数を横一列に並べます。
+
+         ★ ここにあった操作の説明文は、ページ末尾の注意書きへ移しました
+           （2026-09-12 / 設計 現03 に説明文が無いため）。消してはいません。
+           見出しは「いまどういう状態か」を一目で見る場所で、
+           3 行の手順書が同居していると、肝心の品切れ件数が沈みます。 */-->
+  <div class="section-title soldout-head">
+    <h1 class="section-title__text">品切れ・残数管理</h1>
+
+    <!--/* 品切れが出ているときは薄い赤の地を敷く（設計 現03）。
+           色をインラインで書いているのは、この画面の 2 つの状態を
+           クラスを増やさずに出し分けるためです（CLAUDE.md「新しいクラスを勝手に増やさない」）。
+           --danger-soft は .theme-snow で #fdebeb ＝設計の値そのもの。 */-->
+    <span class="status-chip" th:if="${soldOutCount > 0}"
+          style="color: var(--danger); background: var(--danger-soft)"
+          th:text="'品切れ中 ' + ${soldOutCount} + ' 品'">品切れ中 2 品</span>
+    <span class="status-chip" style="color: var(--ok)" th:if="${soldOutCount == 0}">すべて販売中</span>
+
+    <span class="section-title__count"
+          th:text="'／ 掲載中 ' + ${itemCount} + ' 品'">／ 掲載中 12 品</span>
+  </div>
 
   <!--/* ===== 商品が 1 件も無いとき =====
          th:if と th:replace を同じタグに書くと th:replace が先に評価され、
@@ -100,7 +107,11 @@
     <details class="catpick" th:attr="open=${#strings.isEmpty(q)} ? null : null">
       <summary class="catpick__head">
         <span class="catpick__mark" aria-hidden="true"></span>
-        <span th:text="${selectedName} ?: 'カテゴリを選ぶ'">広島風お好み焼き</span>
+        <!--/* 選んでいないときの文言は設計どおり「カテゴリーから検索」
+               （ト03 725:4186・食材・在庫のト07 とも同じ）。
+               選んだあとはそのカテゴリ名に変わる——いま何で絞っているかが
+               閉じた状態でも読めるようにするため。 */-->
+        <span th:text="${selectedName} ?: 'カテゴリーから検索'">広島風お好み焼き</span>
       </summary>
       <div class="catpick__list">
         <a th:each="g : ${categoryGroups}" class="catpick__item"
@@ -128,7 +139,10 @@
          上の選択肢を作るためだけに使い、表には出しません。 */-->
   <th:block th:unless="${rows.isEmpty()}">
 
-    <div class="section-title">
+    <!--/* 節見出し（設計 現03「節見出し／広島風お好み焼き」）。
+           題 20px・件数 12px で、ページの見出し（32px）より一段弱い。
+           .soldout-sec はこの画面だけの寸法を掛けるための目印です。 */-->
+    <div class="section-title soldout-sec">
       <h2 class="section-title__text" th:text="${heading}">広島風お好み焼き</h2>
       <span class="section-title__count" th:text="${rows.size()} + ' 品'">5 品</span>
     </div>
@@ -159,8 +173,11 @@
                    表示領域からはみ出します。この画面でいちばん押す列が
                    横スクロールしないと届かない、という状態でした。
                    名前は 2 行になってもよい情報なので、ここだけ折り返します。 */-->
+            <!--/* 品名は太字にしません（設計 現03 は 15px の標準の太さ）。
+                   1 列目が全部太字だと、右の「品切れ中」「残数ゼロ」より
+                   品名のほうが強く見えて、状態を探しに来た目が止まりません。 */-->
             <td class="wrap">
-              <span class="bold" th:classappend="${!item.orderable} ? 'muted'"
+              <span th:classappend="${!item.orderable} ? 'muted'"
                     th:text="${item.name}">ハムチーズガレット</span>
               <span class="badge badge--rec" th:if="${item.recommended}">おすすめ</span>
             </td>
@@ -171,7 +188,11 @@
             <td>
               <span class="status-chip" style="color: var(--danger)"
                     th:if="${item.soldOut}">品切れ中</span>
-              <span class="status-chip" style="color: var(--danger)"
+              <!--/* 残数ゼロだけ水色にしています（2026-09-17）。
+                     これは手で立てた印ではなく数の結果で、この列からは動かせません
+                     （直すなら右の「残数」に数を入れ直す）。商品一覧でも同じ水色なので、
+                     2 つの画面で同じ状態が同じ色になります。 */-->
+              <span class="status-chip" style="color: var(--info)"
                     th:if="${!item.soldOut and item.outOfStock}">残数ゼロ</span>
               <span class="status-chip" style="color: var(--ok)"
                     th:if="${item.orderable}">販売中</span>
@@ -199,7 +220,7 @@
                 <input type="hidden" name="q" th:value="${q}">
                 <input class="input" type="number" name="stockCount"
                        min="0" max="999" inputmode="numeric"
-                       style="width: 90px"
+                       style="width: 84px"
                        th:value="${item.stockRemaining}"
                        th:placeholder="${item.stockTracked} ? '' : '—'"
                        th:aria-label="${item.name} + ' の残数（空にして設定を押すと数を数えなくなります）'">
@@ -235,7 +256,13 @@
     <a class="btn" th:href="@{/kitchen}">厨房ボードへ戻る</a>
   </div>
 
+  <!--/* 見出しにあった操作の説明は、2026-09-12 にここへ移しました。
+         この画面の使い方と反映のタイミングは、どちらも「読むのは 1 回だけ」の
+         情報なので、毎回目に入る見出しではなく末尾にまとめています。 */-->
   <p class="tiny faint mt-4">
+    品切れにすると、卓の QR から開くメニューで注文できなくなります。
+    数量限定の品は「残数」に今日の数を入れると、自動で減って 0 で売り切れになります。
+    <strong>数を数えるのをやめるときは、欄を空にして「設定」を押してください。</strong>
     ここでの変更は、すぐに各卓のメニューへ反映されます。
     すでに注文リストに入っている品は、注文確定のタイミングで自動的に取り除かれます。
     すでに受け付けた注文は自動では消えません。焼けない場合は厨房ボードからキャンセルしてください。
@@ -262,27 +289,52 @@
           「なぜか途中から始まる」画面になります。 */-->
   <script>
     (function () {
-      var KEY = 'kitchen-stock-scroll';
+      var KEY = 'kitchen-stock-anchor';
 
-      document.addEventListener('submit', function () {
-        sessionStorage.setItem(KEY, String(window.scrollY));
+      // ★ ピクセルではなく「押した行」を覚える（2026-09-14）。
+      //
+      //   もとは window.scrollY だけを覚えていたが、それでも画面が動いていた。
+      //   戻り先ではフラッシュ通知（「◯◯を品切れにしました」）が本文の先頭に
+      //   増えるので、上に要素が増えたぶん中身が下へずれる。
+      //   同じピクセル位置へ戻しても、押した行は通知の高さぶん下に来る。
+      //
+      //   行そのものを基準にすれば、上に何が増えても
+      //   押した行は指の下から動かない。
+      document.addEventListener('submit', function (e) {
+        var row = e.target && e.target.closest ? e.target.closest('tr') : null;
+        if (!row || !row.id) { return; }
+        sessionStorage.setItem(KEY, JSON.stringify({
+          id: row.id,
+          // その行が画面の上端から何 px のところにあったか
+          top: Math.round(row.getBoundingClientRect().top)
+        }));
       });
 
       function restore() {
-        var y = sessionStorage.getItem(KEY);
-        if (y === null) { return; }
+        var raw = sessionStorage.getItem(KEY);
+        if (raw === null) { return; }
+        // 復元したら必ず消す。残すと、サイドバーから入り直したときにも
+        // 前の位置へ飛び、「なぜか途中から始まる」画面になる
         sessionStorage.removeItem(KEY);
-        // アンカー（#item-◯）による移動より後に効かせる必要があるので、
-        // 読み込み完了のあと 1 回だけ上書きする。
-        //
+
+        var saved;
+        try { saved = JSON.parse(raw); } catch (err) { return; }
+        var row = document.getElementById(saved.id);
+        if (!row) { return; }   // その行が消えた（検索の条件が変わった等）
+
+        // いまの位置から、覚えていた高さに来るまでの差だけ動かす
+        var diff = row.getBoundingClientRect().top - saved.top;
+        if (Math.abs(diff) < 1) { return; }
+
         // ★ behavior:'instant' を外さないこと。
         //   app.css は html に scroll-behavior:smooth を掛けているので、
-        //   既定のままだとアンカーの位置から保存位置まで画面が滑って動く。
-        //   「その場にとどまる」ためにやっているのに、
-        //   かえって長い移動を見せることになる。
-        window.scrollTo({ top: parseInt(y, 10), left: 0, behavior: 'instant' });
+        //   既定のままだと「その場にとどまる」ための処理が、
+        //   かえって画面を滑らせて見せることになる。
+        window.scrollTo({ top: window.scrollY + diff, left: 0, behavior: 'instant' });
       }
 
+      // 通信が速いとブラウザのアンカー移動は load より前に終わっていて、
+      // 遅いと後になる。どちらでも効くよう、読み込み完了のあとに 1 回上書きする
       if (document.readyState === 'complete') { restore(); }
       else { window.addEventListener('load', restore); }
     })();

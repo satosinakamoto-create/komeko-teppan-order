@@ -94,36 +94,44 @@ class TableCleanupFlowTest {
 
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("★ 会計 → 盤面で片付け待ち → 片付け完了 → 空席、が一周する")
+    @DisplayName("★ 会計 → 片付け待ち → ご案内したら片付け完了も記録、が一周する")
     void checkoutThenCleanupThenVacant() throws Exception {
         setToggle(true);
         DiningTable table = table();
         try {
             openAndClose(table);
 
-            // 会計で旗が立つ
+            // 会計で旗が立つ（ここは 2026-09-11 の変更後も同じ）
             assertThat(diningTableRepository.findById(table.getId()).orElseThrow()
                     .isNeedsCleanup()).as("会計したのに片付け待ちになっていない").isTrue();
 
-            // 盤面では「片付け待ち」の枠に出て、空席（ご案内フォーム）には出ない。
-            // 空席に見えた瞬間、二重案内の事故に戻る
+            // 盤面からは卓の一覧そのものが無くなった（2026-09-11）。
+            // 「空席」の枠が戻っていないことだけ見る
             String board = mockMvc.perform(get("/hall"))
                     .andExpect(status().isOk())
                     .andReturn().getResponse().getContentAsString();
-            assertThat(board).contains("片付け待ち");
-            assertThat(board).contains("billcard--cleanup");
-            assertThat(board).as("片付け待ちの卓にご案内フォームが出ている")
-                    .doesNotContain("/hall/tables/" + table.getId() + "/open");
-            assertThat(board).contains("/hall/tables/" + table.getId() + "/cleaned");
+            assertThat(board).as("盤面に空席の枠が戻っている").doesNotContain(">空席</h2>");
 
-            // 片付け完了 → 旗が下り、ご案内フォームが戻る
-            mockMvc.perform(post("/hall/tables/" + table.getId() + "/cleaned").with(csrf()))
-                    .andExpect(status().is3xxRedirection());
-            assertThat(diningTableRepository.findById(table.getId()).orElseThrow()
-                    .isNeedsCleanup()).isFalse();
-            String after = mockMvc.perform(get("/hall"))
+            // 片付け待ちが分かるのは、ご案内の入力画面のほう。
+            // 隠さずに並べて状態を出す、という判断（seat-new.html の説明を参照）
+            String form = mockMvc.perform(get("/hall/seat/new"))
+                    .andExpect(status().isOk())
                     .andReturn().getResponse().getContentAsString();
-            assertThat(after).contains("/hall/tables/" + table.getId() + "/open");
+            assertThat(form).contains(table.getName());
+            assertThat(form).as("片付け待ちだと画面から分からない").contains("片付け待ち");
+
+            // ご案内する → 旗が下り、伝票が開く。
+            // 以前は「片付け完了」→「ご案内」の 2 手だった。1 手になっても
+            // <b>片付け完了が記録されること</b>は変わらない（人の判断なので）
+            mockMvc.perform(post("/hall/seat").with(csrf())
+                            .param("tableId", String.valueOf(table.getId()))
+                            .param("guestCount", "2"))
+                    .andExpect(status().is3xxRedirection());
+
+            assertThat(diningTableRepository.findById(table.getId()).orElseThrow()
+                    .isNeedsCleanup()).as("ご案内したのに片付け完了が記録されていない").isFalse();
+            assertThat(tableService.currentSession(table.getId()))
+                    .as("伝票が開いていない").isPresent();
         } finally {
             cleanUp(table);
         }

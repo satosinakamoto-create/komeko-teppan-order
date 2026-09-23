@@ -17,7 +17,10 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -41,6 +44,13 @@ public class OrderService {
     /** まだ厨房で作業が残っている状態の集合。 */
     private static final List<OrderStatus> ACTIVE_STATUSES =
             List.of(OrderStatus.RECEIVED, OrderStatus.COOKING);
+
+    /**
+     * 取り消し理由の列の長さ（{@code Order.canceledReason} / {@code OrderLine.canceledReason}）。
+     * これを超える入力は切り詰める。長すぎる理由で保存に失敗して、
+     * 取り消しそのものが通らないほうが現場では困る。
+     */
+    private static final int CANCEL_REASON_MAX_LENGTH = 100;
 
     /**
      * 営業日が変わったあとも、未提供の注文を厨房ボードに残しておく時間。
@@ -479,6 +489,129 @@ public class OrderService {
     }
 
     /**
+     * <b>厨房ボードに出す品を、レーンごとに組み立てる（2026-09-23 追加）。</b>
+     *
+     * <p>注文単位の {@link #kitchenBoard()} とは別物です。
+     * あちらは 受付／調理中／提供待ち の 3 レーンに<b>注文</b>を振り分けますが、
+     * こちらは 未調理／調理済み の 2 レーンに<b>品</b>を振り分けます。
+     *
+     * <pre>
+     *   未調理レーン … 注文（伝票）ごとにまとめる。一度に入った注文は一緒に焼くため
+     *   調理済みレーン … 卓ごとにまとめる。同じ卓の分は一緒に運ぶため
+     * </pre>
+     *
+     * <p>母集合は {@link #kitchenBoard()} と同じです（営業日をまたいだ卓の品が
+     * 消えないように、会計済みの伝票の品も拾います）。
+     * そこから<b>品の段階</b>で振り分け直します。
+     */
+    @Transactional(readOnly = true)
+    public LineBoard lineBoard() {
+        List<Order> orders = orderRepository.findKitchenBoardOrders(
+                shopSettingService.currentBusinessDate(),
+                carryOverSince(),
+                List.of(OrderStatus.RECEIVED, OrderStatus.COOKING, OrderStatus.READY));
+        orders.forEach(this::hydrate);
+
+        List<CookTicket> uncooked = new ArrayList<>();
+        // 卓ごとにまとめるので、出てきた順（＝最初に焼けた順）を保つ LinkedHashMap
+        Map<Long, ServeCard> serving = new LinkedHashMap<>();
+
+        for (Order order : orders) {
+            List<OrderLine> mine = order.getLines().stream()
+                    .filter(l -> !l.isCanceled())
+                    .toList();
+
+            List<OrderLine> todo = mine.stream()
+                    .filter(l -> l.getStage() == LineStage.UNCOOKED).toList();
+            if (!todo.isEmpty()) {
+                uncooked.add(new CookTicket(order, todo));
+            }
+
+            List<OrderLine> done = mine.stream()
+                    .filter(l -> l.getStage() == LineStage.COOKED).toList();
+            if (done.isEmpty()) {
+                continue;
+            }
+            TableSession session = order.getSession();
+            // 伝票が無い注文（テイクアウトの名残など）は卓でまとめられないので、
+            // 注文 ID をそのまま鍵にして 1 枚の札にする
+            Long key = session != null ? session.getId() : -order.getId();
+            serving.computeIfAbsent(key,
+                    k -> new ServeCard(key, order.getTableName())).add(order, done);
+        }
+        // 卓の札は「その卓の最初の 1 品が調理済みになった時刻」で並べる。
+        // 追加の品が来ても札が動かないので、指を伸ばしている最中に並びが変わらない
+        List<ServeCard> cards = new ArrayList<>(serving.values());
+        cards.sort(Comparator.comparing(ServeCard::sortKey));
+
+        return new LineBoard(uncooked, cards);
+    }
+
+    /** 厨房ボードの 2 レーン。 */
+    public record LineBoard(List<CookTicket> uncooked, List<ServeCard> cooked) {
+        public int uncookedCount() {
+            return uncooked.stream().mapToInt(t -> t.lines().size()).sum();
+        }
+
+        public int cookedCount() {
+            return cooked.stream().mapToInt(c -> c.lines().size()).sum();
+        }
+    }
+
+    /** 未調理レーンの伝票 1 枚。 */
+    public record CookTicket(Order order, List<OrderLine> lines) {
+        public long elapsedMinutes() {
+            return java.time.Duration.between(order.getCreatedAt(), LocalDateTime.now()).toMinutes();
+        }
+
+        /** 10 分を過ぎたか。帯を薄赤にする判断（段は作らない。1 つだけ）。 */
+        public boolean isLate() {
+            return elapsedMinutes() >= 10;
+        }
+    }
+
+    /** 調理済みレーンの札 1 枚（卓ごと）。 */
+    public static final class ServeCard {
+        private final Long sessionId;
+        private final String tableName;
+        private final List<OrderLine> lines = new ArrayList<>();
+        /** まだ焼けていない品の名前。「未調理に残り …」に出す */
+        private final List<String> remaining = new ArrayList<>();
+        private final List<Integer> orderNumbers = new ArrayList<>();
+
+        ServeCard(Long sessionId, String tableName) {
+            this.sessionId = sessionId;
+            this.tableName = tableName;
+        }
+
+        void add(Order order, List<OrderLine> cooked) {
+            lines.addAll(cooked);
+            orderNumbers.add(order.getOrderNumber());
+            for (OrderLine l : order.getLines()) {
+                if (!l.isCanceled() && l.getStage() == LineStage.UNCOOKED) {
+                    remaining.add("×" + l.getQuantity() + " " + l.getMenuItemName());
+                }
+            }
+        }
+
+        /** 並び順。最初に焼けた時刻が古い札ほど上（＝置かれっぱなしの順）。 */
+        LocalDateTime sortKey() {
+            return lines.stream()
+                    .map(OrderLine::getCookedAt)
+                    .filter(java.util.Objects::nonNull)
+                    .min(LocalDateTime::compareTo)
+                    .orElse(LocalDateTime.MIN);
+        }
+
+        public Long getSessionId() { return sessionId; }
+        public String getTableName() { return tableName; }
+        public List<OrderLine> getLines() { return lines; }
+        public List<OrderLine> lines() { return lines; }
+        public List<String> getRemaining() { return remaining; }
+        public List<Integer> getOrderNumbers() { return orderNumbers; }
+    }
+
+    /**
      * まだ提供していない注文の件数（店舗ヘッダーの「未提供 N 件」）。
      *
      * <p>数えるのは {@link #kitchenBoard()} と<b>同じ母集合</b>——
@@ -577,6 +710,164 @@ public class OrderService {
     // ========================================================================
 
     /**
+     * <b>品 1 つの段階を進める／戻す（2026-09-23 追加）。</b>
+     *
+     * <p>厨房ボードの「調理済み」「← 戻す」がここへ来ます。
+     * 注文まるごとの {@link #changeStatus} と違い、明細 1 行だけを動かします。
+     * 一度に 4 品頼まれても調理は 1 つずつだからです。
+     *
+     * <p><b>注文の状態（{@code Order.status}）は、品の段階から導き直します。</b>
+     * 2 つを別々に人が動かすと、必ず食い違います。
+     * 厨房ボードは品の段階で並べますが、ホールの伝票や注文履歴は
+     * いまも注文の状態を見ているので、そちらへ橋を架けておきます。
+     *
+     * @throws IllegalStateException 許されていない移り先のとき
+     */
+    @Transactional
+    public Order moveLine(Long lineId, LineStage next, String staffName) {
+        lockBillOf(orderRepository.findSessionIdByLineId(lineId));
+        Order order = orderRepository.findWithLinesByLineId(lineId)
+                .orElseThrow(() -> new OrderNotFoundException(lineId));
+        OrderLine line = order.getLines().stream()
+                .filter(l -> lineId.equals(l.getId()))
+                .findFirst()
+                .orElseThrow(() -> new OrderNotFoundException(lineId));
+
+        line.moveTo(next);
+        syncStatusFromLines(order, staffName);
+        hydrate(order);
+
+        log.info("注文 #{} の「{}」を {} に（{}）",
+                order.getOrderNumber(), line.getMenuItemName(), next.getLabel(), staffName);
+        eventPublisher.publishOrderChanged(
+                OrderEvent.statusChanged(order.getId(), order.getOrderNumber(), order.getStatus().name()));
+        return order;
+    }
+
+    /**
+     * <b>その卓の「調理済み」を、まとめて提供済みにする。</b>
+     *
+     * <p>厨房ボードの調理済みレーンにある札 1 枚ぶんです。
+     * 運ぶ単位が卓なので、ボタンも卓ごとにしてあります
+     * （品ごとに分ける案は、ホールの押す回数が増えるため不採用）。
+     *
+     * <p><b>未調理の品は動かしません。</b>まだ焼けていないので当然ですが、
+     * 「出せる分だけ持っていく」が自然にできる形でもあります。
+     */
+    @Transactional
+    public int serveCookedLines(Long tableSessionId, String staffName) {
+        tableService.lockSession(tableSessionId);
+        int moved = 0;
+        for (Order order : orderRepository.findWithLinesBySessionId(tableSessionId)) {
+            boolean touched = false;
+            for (OrderLine line : order.getLines()) {
+                if (!line.isCanceled() && line.getStage() == LineStage.COOKED) {
+                    line.moveTo(LineStage.SERVED);
+                    moved++;
+                    touched = true;
+                }
+            }
+            if (touched) {
+                syncStatusFromLines(order, staffName);
+                hydrate(order);
+                eventPublisher.publishOrderChanged(OrderEvent.statusChanged(
+                        order.getId(), order.getOrderNumber(), order.getStatus().name()));
+            }
+        }
+        log.info("伝票 {} の調理済み {} 品を提供済みに（{}）", tableSessionId, moved, staffName);
+        return moved;
+    }
+
+    /**
+     * 注文の状態から、品の段階を合わせる（{@link #syncStatusFromLines} の逆向き）。
+     *
+     * <p><b>ふだん人が触るのは品の段階だけ</b>ですが、注文ごと動かす口も残っています
+     * （厨房の {@code /kitchen/orders/*&#47;status}、デモ投入、過去データの移行）。
+     * そちらを通ったときに品が置き去りになると、
+     * <b>READY の注文の品が未調理レーンに並ぶ</b>という食い違いになります。
+     *
+     * <pre>
+     *   READY / COMPLETED → まだ焼けていない品を、そこまで進める
+     *   RECEIVED / COOKING → 何もしない
+     * </pre>
+     *
+     * <p>RECEIVED・COOKING で何もしないのは、<b>戻す向きに使わない</b>ためです。
+     * 「調理中に戻す」で焼き上がった品まで未調理に戻ると、
+     * 厨房の手元の実態（もう皿に乗っている）と合わなくなります。
+     * 戻すのは品ごとの「← 戻す」の仕事です。
+     */
+    private void syncLinesFromStatus(Order order) {
+        LineStage want = switch (order.getStatus()) {
+            case READY -> LineStage.COOKED;
+            case COMPLETED -> LineStage.SERVED;
+            default -> null;
+        };
+        if (want == null) {
+            return;
+        }
+        for (OrderLine line : order.getLines()) {
+            if (line.isCanceled()) {
+                continue;
+            }
+            // 未調理 → 提供済み は一足飛びに行けないので、1 段ずつ進める
+            while (line.getStage() != want && !line.getStage().allowedNext().isEmpty()
+                    && line.getStage().canMoveTo(nextTowards(line.getStage(), want))) {
+                line.moveTo(nextTowards(line.getStage(), want));
+            }
+        }
+    }
+
+    /** {@code from} から {@code goal} へ向かう、次の 1 段。 */
+    private static LineStage nextTowards(LineStage from, LineStage goal) {
+        if (from == LineStage.UNCOOKED) {
+            return LineStage.COOKED;
+        }
+        return goal == LineStage.SERVED ? LineStage.SERVED : goal;
+    }
+
+    /**
+     * 品の段階から、注文の状態を導き直す。
+     *
+     * <p><b>人が両方を動かすのではなく、片方から決めます。</b>
+     * 厨房ボードが触るのは品の段階だけで、注文の状態はその結果です。
+     * 2 つを独立に持つと「全部提供済みなのに注文は調理中」が起きます。
+     *
+     * <pre>
+     *   生きている品が 0        → 変えない（取り消しの仕事）
+     *   全部 SERVED            → COMPLETED
+     *   1 つでも COOKED があり、
+     *   かつ UNCOOKED が無い    → READY
+     *   それ以外                → COOKING（1 つでも焼けていれば）／RECEIVED
+     * </pre>
+     */
+    private void syncStatusFromLines(Order order, String staffName) {
+        List<OrderLine> alive = order.getActiveLines();
+        if (alive.isEmpty()) {
+            return;
+        }
+        boolean anyUncooked = alive.stream().anyMatch(l -> l.getStage() == LineStage.UNCOOKED);
+        boolean anyCooked = alive.stream().anyMatch(l -> l.getStage() == LineStage.COOKED);
+        boolean allServed = alive.stream().allMatch(l -> l.getStage() == LineStage.SERVED);
+
+        OrderStatus want;
+        if (allServed) {
+            want = OrderStatus.COMPLETED;
+        } else if (!anyUncooked && anyCooked) {
+            want = OrderStatus.READY;
+        } else if (anyCooked || alive.stream().anyMatch(l -> l.getStage() == LineStage.SERVED)) {
+            want = OrderStatus.COOKING;   // 一部だけ焼けている
+        } else {
+            want = OrderStatus.RECEIVED;
+        }
+        if (order.getStatus() == want || order.getStatus() == OrderStatus.CANCELED) {
+            return;
+        }
+        // 進む向きだけでなく戻る向き（← 戻す）もあるので、遷移規則は通さずに書き込む。
+        // 人が選んだのは品の段階で、注文の状態はその写しにすぎない
+        order.forceStatus(want, staffName);
+    }
+
+    /**
      * 注文の状態を変更する（厨房画面から呼ばれる）。
      *
      * @param orderId   注文 ID
@@ -597,6 +888,11 @@ public class OrderService {
             requireBillStillOpenForCancel(order);
         }
         order.changeStatus(next, staffName);
+        // ★ 品の段階も合わせる（2026-09-23）。
+        //   注文ごとに動かす口（この口・デモ投入・移行）を通ったときに、
+        //   品の段階が置き去りになると、READY の注文の品が
+        //   <b>未調理レーンに並ぶ</b>という食い違いが起きます。
+        syncLinesFromStatus(order);
         hydrate(order);
         refreshSessionOf(order);
         // キャンセル経路はどこを通っても在庫を戻す（cancelByStaff / cancelByCustomer /
@@ -672,6 +968,70 @@ public class OrderService {
 
         eventPublisher.publishOrderChanged(
                 OrderEvent.statusChanged(order.getId(), order.getOrderNumber(), OrderStatus.CANCELED.name()));
+        return order;
+    }
+
+    /**
+     * <b>品を 1 つだけ取り消す（2026-09-22 追加）。</b>
+     *
+     * <p>注文まるごとの {@link #cancelByStaff} と違い、明細 1 行だけを請求から外します。
+     * 店主の指摘がそのまま理由です——
+     * 「取り消すボタンが卓ごとだから、一個の商品だけ破棄の場合とかだとムリじゃん」。
+     * カートを一度に確定すると 4 品で 1 注文になるので、
+     * 注文ごと消すと関係のない 3 品まで請求から落ちていました。
+     *
+     * <p><b>行は消しません。</b>「取り消した」と印を付けるだけです。
+     * 注文履歴と提供時間の集計は事実の記録なので、
+     * 消すと「厨房は作ったのに伝票に無い」を後から説明できなくなります。
+     *
+     * <p><b>処理の順番は変えないこと。</b>
+     * 取り消す → 注文を計算し直す → 伝票を計算し直す → <b>最後に</b>在庫を戻す。
+     * {@code restoreStock} はバルク UPDATE で永続化コンテキストを空にするので、
+     * そのあとに遅延読み込みを挟むと全体がロールバックします
+     * （{@link #restoreStockOf} の説明を参照）。
+     *
+     * @param returnStock 「まだ作っていない」なら true（残数を戻す）。
+     *                    「作った・出した（廃棄）」なら false（材料は減ったまま）
+     */
+    @Transactional
+    public Order cancelLine(Long lineId, String reason, String staffName, boolean returnStock) {
+        lockBillOf(orderRepository.findSessionIdByLineId(lineId));
+        Order order = orderRepository.findWithLinesByLineId(lineId)
+                .orElseThrow(() -> new OrderNotFoundException(lineId));
+        requireBillStillOpenForCancel(order);
+
+        OrderLine line = order.getLines().stream()
+                .filter(l -> lineId.equals(l.getId()))
+                .findFirst()
+                .orElseThrow(() -> new OrderNotFoundException(lineId));
+
+        // 二度押し（古いタブからの再送信を含む）では何もしない。
+        // ここを通すと在庫を二重に戻し、実際には無い残数が画面に出る
+        if (!line.cancel(trimToNull(reason, CANCEL_REASON_MAX_LENGTH), returnStock)) {
+            return hydrate(order);
+        }
+
+        order.recalculate();
+        // 品が 1 つも残らなかった注文は、厨房ボードに出しても焼くものがない。
+        // 注文そのものも閉じる。在庫はこのあと行ごとに戻すので、
+        // 在庫まで面倒を見る cancelByStaff ではなく order.cancel を直接呼ぶ
+        // （あちらを通すと、戻さないと決めた廃棄ぶんまで戻ってしまう）
+        if (order.isFullyCanceled() && order.getStatus() != OrderStatus.CANCELED) {
+            order.cancel(trimToNull(reason, CANCEL_REASON_MAX_LENGTH), staffName);
+        }
+        hydrate(order);
+        refreshSessionOf(order);
+
+        // ★ 必ず最後。ここから下に遅延読み込みを足さないこと
+        if (returnStock && line.getMenuItemId() != null) {
+            menuService.restoreStock(line.getMenuItemId(), line.getQuantity());
+        }
+
+        log.info("注文 #{} の「{}」×{} を取り消し（在庫を戻す: {}, {}）",
+                order.getOrderNumber(), line.getMenuItemName(), line.getQuantity(),
+                returnStock ? "はい" : "いいえ", staffName);
+        eventPublisher.publishOrderChanged(
+                OrderEvent.statusChanged(order.getId(), order.getOrderNumber(), order.getStatus().name()));
         return order;
     }
 

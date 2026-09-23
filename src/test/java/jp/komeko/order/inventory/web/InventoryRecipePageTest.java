@@ -73,11 +73,20 @@ class InventoryRecipePageTest {
     @DisplayName("原価表が描ける（レシピ未登録の商品も行として出る）")
     void renders_cost_table() throws Exception {
         // 一覧から消してしまうと、登録し忘れていることに気づけない
+        //
+        // ★ 2026-09-19：見張る相手を「未登録」の文字からボタンの文言に変えました。
+        //   店主の指摘で材料の列を消したときに（設計 ト09 731:4147 にも無い列）、
+        //   そこに出ていた「未登録」も一緒に消えました。
+        //
+        //   このテストが守っているのは<b>レシピ未登録の商品も行として出ること</b>で、
+        //   「未登録」という語そのものではありません。
+        //   登録が要ることは、右のボタンが「編集」ではなく
+        //   「登録する」になっていることで分かります。
         mockMvc.perform(get("/inventory/recipes"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("inventory/recipes"))
                 .andExpect(content().string(containsString(menuItem.getName())))
-                .andExpect(content().string(containsString("未登録")));
+                .andExpect(content().string(containsString("登録する")));
     }
 
     @Test

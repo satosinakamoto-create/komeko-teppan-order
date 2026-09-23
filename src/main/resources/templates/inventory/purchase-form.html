@@ -11,54 +11,75 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('レシートを登録', ~{::main})}">
 <body>
-<main>
+<!--/* receiptpage … この画面だけの見た目（要対応の行の色）を絞るための目印。
+       CLAUDE.md「新しいクラスを勝手に増やさない」に沿って、
+       増やすのは画面を特定する 1 つだけにしてある */-->
+<main class="receiptpage">
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">レシートを登録</h1>
-    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/purchases}">← 一覧へ戻る</a>
+  <!--/* 見出しは段階で言い換える（設計 ト05c / ト05d）。
+         「撮る前」と「読んだ結果を確かめる」は別の仕事なので、
+         同じ題のままだと自分がどちらにいるのか分からなくなる */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/inventory/purchases}">← 仕入れ・経費へ戻る</a>
+    <h1 class="page-head__title"
+        th:text="${stage == 'confirm'} ? 'レシートの読み取り確認' : 'レシートを登録'">レシートを登録</h1>
+    <span class="page-head__sub"
+          th:text="${stage == 'confirm'}
+                   ? 'AI が読んだ結果です。無い食材はこの画面で作れます'
+                   : '撮るだけで、品目・金額・税率まで読み取ります'">説明</span>
+    <span class="page-head__spacer"></span>
   </div>
 
   <!--/* ==========================================================
          段階 1 : 写真を選ぶか、手入力にするか
      ========================================================== */-->
-  <div th:if="${stage == 'start'}">
+  <!--/* 設計 ト05c。入口は 2 枚を横に並べる。
+         撮るほうが主役なので幅を伸ばし（flex: 1）、手入力は 360px の脇役。
+         縦に積むと「手で入力する」が画面の外に出て、
+         読み取りが使えない日に行き止まりに見える。 */-->
+  <div class="receiptstart" th:if="${stage == 'start'}">
 
     <div class="card">
-      <div class="card__head">レシートを撮る</div>
       <div class="card__body">
+        <h2 class="receiptstart__title">レシートを撮る</h2>
         <form th:action="@{/inventory/purchases/read}" method="post" enctype="multipart/form-data">
-          <div class="field">
-            <label class="label" for="image">レシートの写真</label>
-            <!--/* capture="environment" を付けると、スマホでは外側カメラが直接開きます。
-                   PC では普通のファイル選択になるので、両方で同じ画面が使えます。 */-->
-            <input class="input" type="file" id="image" name="image"
+          <!--/* 写真の受け口。点線の枠ごとラベルにして、枠のどこを押しても
+                 カメラ（PC ではファイル選択）が開くようにする。
+                 capture="environment" はスマホで外側カメラを直接開く指定 */-->
+          <label class="receiptdrop" for="image">
+            <span class="receiptdrop__icon" aria-hidden="true">📷</span>
+            <span class="receiptdrop__lead">タップしてレシートを撮る（先に撮ってから、食材をしまう）</span>
+            <span class="receiptdrop__note">JPEG / PNG / WebP</span>
+            <input class="visually-hidden" type="file" id="image" name="image"
                    accept="image/jpeg,image/png,image/webp" capture="environment" required>
-            <p class="help">
-              しまう前に、明るいところで真上から撮ってください。
-              紙のレシートを破棄する場合は、文字がはっきり読める大きさで撮る必要があります。
-            </p>
-          </div>
-          <button type="submit" class="btn btn--primary btn--lg btn--block"
+          </label>
+          <p class="help">
+            しまう前に、明るいところで真上から撮ってください。
+            紙のレシートを破棄する場合は、文字がはっきり読める大きさで撮る必要があります。
+          </p>
+          <button type="submit" class="btn btn--primary btn--block"
                   th:disabled="${!ocrAvailable}">
             写真を読み取る
           </button>
         </form>
 
+        <p class="help">読み取った結果は、次の画面で必ず確かめてから保存します。読んだまま保存はしません。</p>
+
         <p class="help" th:unless="${ocrAvailable}">
           AI 読み取りは設定されていません（API キーが未設定です）。
-          下の「手で入力する」からは今すぐ記録できます。
+          右の「手で入力する」からは今すぐ記録できます。
         </p>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card__head">手で入力する</div>
+    <div class="card receiptstart__manual">
       <div class="card__body">
+        <h2 class="receiptstart__title">手で入力する</h2>
         <p class="help">
-          写真を撮らない場合や、読み取りがうまくいかない場合はこちら。
-          レシート画像なしでも記録は残せます（ただし紙の原本は保管してください）。
+          写真がうまく撮れないとき・レシートが無いとき（自販機・割り勘など）はこちら。
+          同じ確認画面を空のまま開きます（紙の原本は保管してください）。
         </p>
         <form th:action="@{/inventory/purchases/manual}" method="post">
           <button type="submit" class="btn btn--block">手で入力する</button>
@@ -157,16 +178,20 @@
             <th style="min-width:6rem">税率%</th>
             <th style="min-width:6rem">税額<br><span class="tiny faint">印字があれば</span></th>
             <th style="min-width:9rem">費目</th>
-            <th style="min-width:10rem">食材</th>
+            <th style="min-width:10rem">食材との紐付け</th>
             <th style="min-width:7rem">在庫に入れる量</th>
+            <th style="min-width:9rem" class="right">操作</th>
           </tr>
           </thead>
           <tbody>
-          <!--/* 食材を選んだのに量が空欄の行を黄色くする。
-                 食材を選んでいない行（洗剤など）は光らせない。
-                 直すべきものだけを光らせないと、警告は無視されるようになる。 */-->
+          <!--/* 直すべき行だけ色を付ける（2 種類）。
+                 is-unlinked   … 食材の行なのに紐付いていない（薄い赤）
+                 is-missing-qty … 紐付いているのに量が空（薄い黄）
+                 洗剤のような「紐付けないのが正しい行」は光らせない。
+                 全部光らせると、警告そのものが無視されるようになる。 */-->
           <tr th:each="line, iter : *{lines}"
-              th:style="${line.missingStockQty} ? 'background:rgba(245,158,11,.12)' : ''">
+              th:classappend="${line.unlinkedFood} ? 'is-unlinked'
+                              : (${line.missingStockQty} ? 'is-missing-qty' : '')">
             <td>
               <input class="input" type="text"
                      th:field="*{lines[__${iter.index}__].itemText}" placeholder="（空欄なら保存されません）">
@@ -209,24 +234,55 @@
               </select>
             </td>
             <td>
-              <input class="input" type="number" step="0.001" min="0"
+              <!--/* 紐付いていない食材の行は、量ではなく「単位」を聞く。
+                     品名はレシートから入るので、人が決めるのはここだけ。
+                     「キャベツ 3」の 3 は 3 玉だが、レシピはグラムで使う——
+                     この換算は人しか決められないので AI に推測させない */-->
+              <select class="select" th:if="${line.unlinkedFood}"
+                      th:field="*{lines[__${iter.index}__].newUnit}">
+                <option th:each="u : ${T(jp.komeko.order.inventory.domain.IngredientUnit).values()}"
+                        th:value="${u}" th:text="'単位：' + ${u.symbol}">単位：g</option>
+              </select>
+              <input class="input" type="number" step="0.001" min="0" th:unless="${line.unlinkedFood}"
                      th:field="*{lines[__${iter.index}__].stockQty}" placeholder="100">
-              <label class="tiny faint">
-                <input type="checkbox" th:field="*{lines[__${iter.index}__].learnAlias}"> 次から自動
-              </label>
+              <!--/* 品名と食材の対応は常に覚える（2026-09-14 に選択をやめた）。
+                     毎行チェックを見せても、外す理由がある場面がほとんど無い。
+                     解除したいときは食材の設定から */-->
+              <input type="hidden" th:field="*{lines[__${iter.index}__].learnAlias}">
+            </td>
+            <td class="right receiptline__ops">
+              <!--/* 紐付いていない食材の行にだけ出す。
+                     押すとフォーム全部が送られ、食材を作ってこの画面を描き直す。
+                     入力済みの他の行は消えない（JavaScript を使わない理由） */-->
+              <button type="submit" class="btn btn--sm btn--primary" th:if="${line.unlinkedFood}"
+                      name="createIngredientRow" th:value="${iter.index}">食材登録</button>
+              <button type="submit" class="btn btn--sm btn--ghost receiptline__remove"
+                      name="removeRow" th:value="${iter.index}"
+                      th:attr="aria-label='この行を消す'">✕</button>
             </td>
           </tr>
           </tbody>
         </table>
       </div>
       <div class="card__foot">
+        <!--/* 行を足すのもフォーム送信。JavaScript なしで増やせる */-->
+        <p class="mb-0">
+          <button type="submit" class="btn btn--sm btn--ghost" name="addLine" value="1">
+            ＋ 行を足す（レシートに無いが一緒に買ったもの）
+          </button>
+        </p>
         <p class="tiny faint mb-0">
-          空欄の行は保存されません。行が足りないときは、いったん保存してから詳細画面で足してください。
+          空欄の行は保存されません。
+        </p>
+        <p class="tiny faint mb-0">
+          <strong>薄い赤の行</strong>は、費目が食材なのにまだどの食材にも紐付いていない行です。
+          「食材登録」を押すと、品名はレシートから入るので<strong>単位だけ選べばこの画面のまま食材ができます</strong>
+          （別画面へ行く必要はありません）。
         </p>
         <p class="tiny faint mb-0">
           <strong>黄色い行</strong>は、食材は選ばれているのに量が分からない行です。空欄のままでも保存できます
-          （金額の記録としては完全です）。量を入れると在庫にも積まれ、
-          「次から自動」にチェックが入っていれば<strong>次回以降は自動で入ります</strong>。
+          （金額の記録としては完全です）。量を入れると在庫にも積まれます。
+          品名と食材の対応は保存のたびに覚えるので、<strong>次回以降は自動で紐付きます</strong>。
         </p>
         <p class="tiny mb-0" th:if="*{lineTotalMismatch()} != 0">
           <strong th:text="'レシートの合計と明細の合計が ¥'

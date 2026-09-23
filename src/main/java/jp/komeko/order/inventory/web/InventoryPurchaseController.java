@@ -84,6 +84,44 @@ public class InventoryPurchaseController {
         this.properties = properties;
     }
 
+    /**
+     * 確認画面の 1 行から、その場で食材を作って紐付ける（2026-09-14、店主）。
+     *
+     * <p>それまでは<b>既にある食材にしか紐付けられませんでした</b>。
+     * 新しい食材を仕入れた回は、食材・在庫へ行って登録し、
+     * レシートを最初から入れ直すしかない。毎週の作業でこれが起きます。
+     *
+     * <p><b>同じ名前が既にあれば作らない。</b>ここを素通しにすると
+     * 「エリンギ」が 2 つ並び、在庫も原価も割れます。
+     * 品名の掃除（包装表記を落とす）は {@link PurchaseLineForm#suggestedIngredientName()}。
+     *
+     * <p>失敗しても保存済みの入力は壊しません。名前が空なら何もせず描き直します。
+     */
+    private void createIngredientFor(PurchaseForm form, int index, Model model) {
+        if (index < 0 || index >= form.getLines().size()) {
+            return;
+        }
+        PurchaseLineForm line = form.getLines().get(index);
+        String name = line.suggestedIngredientName();
+        if (name.isBlank()) {
+            model.addAttribute("flashErrors",
+                    List.of("品名が空の行からは食材を作れません。先に品名を入れてください"));
+            return;
+        }
+        Ingredient ingredient = ingredientService.activeIngredients().stream()
+                .filter(i -> i.getName().equals(name))
+                .findFirst()
+                .orElseGet(() -> ingredientService.create(
+                        name, line.getNewUnit(), null, null, null));
+        line.setIngredientId(ingredient.getId());
+        // 作った直後の食材は単価が分かりません。原価に乗るのは
+        // このレシートが保存されて仕入れ実績になってからです
+        model.addAttribute("flashSuccess",
+                "食材「" + ingredient.getName() + "」を登録して、この行に紐付けました");
+        // 一覧を読み直さないと、下の選択肢に新しい食材が出ない
+        model.addAttribute("ingredients", ingredientService.activeIngredients());
+    }
+
     /** どの画面でも使う選択肢を、まとめてモデルに載せる。 */
     @ModelAttribute
     public void commonAttributes(Model model) {
@@ -276,9 +314,41 @@ public class InventoryPurchaseController {
     @PostMapping
     public String create(@Valid @ModelAttribute("purchaseForm") PurchaseForm form,
                          BindingResult bindingResult,
+                         @RequestParam(required = false) Integer createIngredientRow,
+                         @RequestParam(required = false) Integer removeRow,
+                         @RequestParam(required = false) String addLine,
                          @AuthenticationPrincipal StaffUserDetails user,
                          Model model,
                          RedirectAttributes redirect) {
+
+        // ── 保存ではなく「確認画面での操作」だったときは、ここで折り返す ──
+        //
+        // 行を足す・行を消す・その場で食材を作る。どれもフォーム全部を POST して
+        // 描き直すので、<b>入力済みの他の行は一切消えません</b>。
+        // 入力エラーで描き直す下の道（bindingResult.hasErrors()）と同じ形です。
+        // JavaScript を使わないのは、この画面が「記録の責任は人が持つ」場所だから。
+        // 画面の状態がサーバの form と必ず一致していてほしい。
+        if (addLine != null) {
+            form.getLines().add(new PurchaseLineForm());
+            model.addAttribute("stage", "confirm");
+            return "inventory/purchase-form";
+        }
+        if (removeRow != null) {
+            if (removeRow >= 0 && removeRow < form.getLines().size()) {
+                form.getLines().remove(removeRow.intValue());
+            }
+            // 全部消すと入力欄が 1 つも無い画面になるので、空行を 1 本残す
+            if (form.getLines().isEmpty()) {
+                form.getLines().add(new PurchaseLineForm());
+            }
+            model.addAttribute("stage", "confirm");
+            return "inventory/purchase-form";
+        }
+        if (createIngredientRow != null) {
+            createIngredientFor(form, createIngredientRow, model);
+            model.addAttribute("stage", "confirm");
+            return "inventory/purchase-form";
+        }
 
         List<PurchaseLineForm> filled = form.filledLines();
         if (filled.isEmpty()) {

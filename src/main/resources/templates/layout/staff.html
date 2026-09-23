@@ -30,6 +30,31 @@
   <title th:text="${pageTitle} + ' | ' + ${shop.shopName} + ' 店舗管理'">店舗管理</title>
   <link rel="icon" type="image/jpeg" th:href="@{/images/logo.jpg}">
   <link rel="stylesheet" th:href="@{/css/app.css}">
+
+  <!--/* 日付・月の帯（.datenav）を「選んだら表示」にします（2026-09-18）。
+         使うのは注文履歴と仕入れ・経費の 2 画面だけですが、帯のある画面が
+         増えたときに読み込み忘れないよう、レイアウト側に置いています。
+         帯が無い画面では何もしません（document で拾って範囲を絞っているだけ）。
+
+         ・datenav.js … 選んだ瞬間に送信し、キーボードでは打たせない
+         ・app.css    … 送信ボタン（.datenav__go）を既定で隠す
+         ・下の noscript … JavaScript が動かないときだけボタンを出す
+         ボタンを HTML から消していないのは、動かない環境では
+         それが唯一の送信手段になるためです。 */-->
+  <script th:src="@{/js/datenav.js}" defer></script>
+  <!--/* 表の並べ替え（商品・カテゴリ・卓）。目印（tbody[data-reorder]）が
+         無い画面では何もせずに抜けるので、全画面で読み込んで差し支えありません。 */-->
+  <script th:src="@{/js/reorder.js}" defer></script>
+  <!--/* 重ねて出す一覧（カテゴリから検索・並べ替え）の高さを画面の下端まで広げる。
+         読み込みに失敗しても CSS の max-height: 60vh で開いて選べます。 */-->
+  <script th:src="@{/js/picker.js}" defer></script>
+  <!--/* 押して戻ってきたときに、見ていた位置へ戻す。
+         掲載の切り替え・編集・未登録はどれもページを読み込み直すので、
+         100 品の下のほうを触ると毎回いちばん上まで戻されていました。 */-->
+  <script th:src="@{/js/scroll-keep.js}" defer></script>
+  <!--/* 1 回きりの報告を浮かせて出す部品。Toast.show(…) でどこからでも呼べます */-->
+  <script th:src="@{/js/toast.js}" defer></script>
+  <noscript><style>.datenav__go { display: inline-flex; }</style></noscript>
 </head>
 <!--/* theme-desk … 店側の画面の寸法とトンマナ（app.css の 30 節）。
        文字を大きくし、余白を広げ、表の見出しを緑でベタ塗りにする。
@@ -170,7 +195,10 @@
       </a>
       <a class="sb__item" th:href="@{/kitchen/stock}"
          th:classappend="${#strings.startsWith(p, '/kitchen/stock')} ? 'is-active'">
-        <th:block th:replace="~{fragments/icons :: ic_package}"/><span>品切れ・残数</span>
+        <!--/* ★ 食材・在庫と同じ箱にしないこと（2026-09-17・店主の指摘）。
+               iPad ではラベルが消えてアイコンだけになるので、
+               同じ絵だと 2 つを見分けられません。箱は食材・在庫に残しています。 */-->
+        <th:block th:replace="~{fragments/icons :: ic_prohibit}"/><span>品切れ・残数</span>
       </a>
 
       <!--/* ── 原価と仕入れ ── 2026-09-05 に見出しを足した
@@ -202,10 +230,6 @@
          th:classappend="${#strings.startsWith(p, '/inventory/ingredients')} ? 'is-active'">
         <th:block th:replace="~{fragments/icons :: ic_package}"/><span>食材・在庫</span>
       </a>
-      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/recipes}"
-         th:classappend="${#strings.startsWith(p, '/inventory/recipes')} ? 'is-active'">
-        <th:block th:replace="~{fragments/icons :: ic_notebook}"/><span>レシピ・原価表</span>
-      </a>
 
       <!--/* ── ここから下は店長（ADMIN）のみ ── */-->
       <th:block sec:authorize="hasRole('ADMIN')">
@@ -219,16 +243,36 @@
            th:classappend="${#strings.startsWith(p, '/admin/categories')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_squares_four}"/><span>カテゴリ</span>
         </a>
+      </th:block>
+
+      <!--/* レシピ・原価表はメニュー管理の並びへ（2026-09-14、店主
+             「レシピ・原価表は商品の中にあった方が良いんじゃない？」）。
+             レシピは商品ごとの持ち物なので、住所も商品の隣にする。
+
+             ★ ADMIN の塊の外に置いてあるのはわざと。権限は変えない。
+               この項目はスタッフにも見えていた（原価の数字は画面側で隠す作り）。
+               塊の中に入れるとスタッフのサイドバーから消えてしまう。
+               スタッフには メニュー管理 の見出しが出ないので、
+               食材・在庫のすぐ下に並んで、いままでと同じ見え方になる */-->
+      <a th:if="${inventoryEnabled}" class="sb__item" th:href="@{/inventory/recipes}"
+         th:classappend="${#strings.startsWith(p, '/inventory/recipes')} ? 'is-active'">
+        <th:block th:replace="~{fragments/icons :: ic_notebook}"/><span>レシピ・原価表</span>
+      </a>
+
+      <th:block sec:authorize="hasRole('ADMIN')">
 
         <p class="sb__label">店舗</p>
         <a class="sb__item" th:href="@{/admin/tables}"
            th:classappend="${#strings.startsWith(p, '/admin/tables')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_armchair}"/><span>卓</span>
         </a>
-        <a class="sb__item" th:href="@{/admin/qr}"
-           th:classappend="${#strings.startsWith(p, '/admin/qr')} ? 'is-active'">
-          <th:block th:replace="~{fragments/icons :: ic_qr_code}"/><span>QRコード</span>
-        </a>
+        <!--/* ★ ここにあった「QRコード」は 2026-09-16 に畳みました（店主の判断）。
+               QR の中身（accessToken）はもともと卓が持っていて、再発行の送信先も
+               /admin/tables/{id}/regenerate でした。データの持ち主は最初から卓で、
+               画面だけが分かれていた形です。1 卓ぶんの印刷も 2026-09-15 に
+               卓の編集画面へ足したので、QR 画面に残る用事がなくなりました。
+               画面自体は残してあります（/admin/qr・/admin/qr/print）。
+               ブックマークしている人を 404 で突き放さないためです。 */-->
         <a class="sb__item" th:href="@{/admin/settings}"
            th:classappend="${#strings.startsWith(p, '/admin/settings')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_gear_six}"/><span>店舗設定</span>
@@ -299,10 +343,13 @@
            th:classappend="${#strings.startsWith(p, '/admin/tables')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_armchair}"/><span>卓</span>
         </a>
-        <a class="sb__item" th:href="@{/admin/qr}"
-           th:classappend="${#strings.startsWith(p, '/admin/qr')} ? 'is-active'">
-          <th:block th:replace="~{fragments/icons :: ic_qr_code}"/><span>QRコード</span>
-        </a>
+        <!--/* ★ ここにあった「QRコード」は 2026-09-16 に畳みました（店主の判断）。
+               QR の中身（accessToken）はもともと卓が持っていて、再発行の送信先も
+               /admin/tables/{id}/regenerate でした。データの持ち主は最初から卓で、
+               画面だけが分かれていた形です。1 卓ぶんの印刷も 2026-09-15 に
+               卓の編集画面へ足したので、QR 画面に残る用事がなくなりました。
+               画面自体は残してあります（/admin/qr・/admin/qr/print）。
+               ブックマークしている人を 404 で突き放さないためです。 */-->
         <a class="sb__item" th:href="@{/admin/settings}"
            th:classappend="${#strings.startsWith(p, '/admin/settings')} ? 'is-active'">
           <th:block th:replace="~{fragments/icons :: ic_gear_six}"/><span>店舗設定</span>

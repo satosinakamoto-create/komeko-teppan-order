@@ -114,23 +114,60 @@ class HallClosingBadgeTest {
                 .andReturn().getResponse().getContentAsString();
     }
 
+    /**
+     * 盤面の「お会計待ち」の列だけを切り出す。
+     *
+     * <p><b>3 列にしてから（2026-09-12）、「お会計待ち」という文字は
+     * 列の見出しとして常に出ています。</b>
+     * HTML 全体に {@code doesNotContain("お会計待ち")} と書くと、
+     * 卓が 1 つも無くても必ず失敗します。列で切ってから中身を見ること。
+     */
+    private String closingLane(String board) {
+        int from = board.indexOf("lane--closing");
+        assertThat(from).as("お会計待ちの列が無い").isGreaterThan(0);
+        int to = board.indexOf("lane--cleanup", from);
+        return to > from ? board.substring(from, to) : board.substring(from);
+    }
+
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("★ お会計待ちにすると、一覧にバッジが出る")
+    @DisplayName("★ お会計待ちにすると、その列へ移ってバッジが出る")
     void boardShowsClosingBadge() throws Exception {
-        // ご案内中のあいだは出ていないこと。
-        // 最初から出ていたら、このテストは何も守っていない
-        assertThat(html("/hall"))
-                .as("ご案内中の卓にバッジが出てしまっている")
-                .doesNotContain("お会計待ち");
+        // ご案内中のあいだは、お会計待ちの列に入っていないこと。
+        // 最初から入っていたら、このテストは何も守っていない
+        assertThat(closingLane(html("/hall")))
+                .as("ご案内中の卓がお会計待ちの列に出てしまっている")
+                .doesNotContain("3番テーブル");
 
         tableService.startCheckout(bill.getId());
 
         String board = html("/hall");
         assertThat(board).as("卓名").contains("3番テーブル");
-        assertThat(board).as("★ バッジの文字").contains("お会計待ち");
-        // 「止まっている」を表す既存のしるし（品切れと同じ）を使っている
-        assertThat(board).as("バッジの見た目の指定").contains("badge badge--stop");
+
+        String lane = closingLane(board);
+        assertThat(lane).as("★ お会計待ちの列に移っていない").contains("3番テーブル");
+
+        // ★ 2026-09-19：「badge badge--stop が出ていること」を見るのをやめました。
+        //
+        //   店主の判断で赤い札を外しました
+        //   （「お会計待ちってカテゴリーに入ってるんだから要らないでしょ」）。
+        //
+        //   このテストが守りたいのは Javadoc のとおり
+        //   「その卓が注文できない状態だと、見ただけで分かること」です。
+        //   3 列にしてからは、しるしは札ではなく<b>どの列にいるか</b>になりました。
+        //   上の 1 行（お会計待ちの列に居ること）がそれを見ています。
+        //   札を見る行は、同じことを二度確かめているだけになっていました。
+        //
+        //   赤い札を戻したくなったら、まず幅を測ってください。
+        //   卓名 158 ＋ 札 106 ＋ 札 106 ＋ すきま 16 ＝ 386px で、入る幅は 281px です。
+        //   2 枚並べると「調理中あり」が 2 行目に落ち、このカードだけ 44px 下がります。
+        //   詳しくは HallCardRowsLineUpTest。
+        //   代わりに、その列のカードが「お会計へ進む」を持っていることを見ます。
+        //   在卓のカードは「伝票を見る／お会計」なので、文言で区別が付きます。
+        assertThat(lane)
+                .as("★ お会計待ちのカードに「お会計へ進む」が無い。"
+                        + "列に移っただけで、会計に進む入口が消えている")
+                .contains("お会計へ進む");
     }
 
     @Test
@@ -184,15 +221,18 @@ class HallClosingBadgeTest {
 
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("再開すると、バッジも消える")
+    @DisplayName("再開すると、在席の列へ戻る")
     void badgeDisappearsAfterResume() throws Exception {
         tableService.startCheckout(bill.getId());
         tableService.resumeOrdering(bill.getId());
 
         assertThat(tableService.getSession(bill.getId()).getStatus())
                 .isEqualTo(SessionStatus.OPEN);
-        assertThat(html("/hall"))
-                .as("再開したのにバッジが残っている")
-                .doesNotContain("お会計待ち");
+
+        String board = html("/hall");
+        assertThat(closingLane(board))
+                .as("再開したのにお会計待ちの列に残っている")
+                .doesNotContain("3番テーブル");
+        assertThat(board).as("在席の列にも居ない（どこからも消えた）").contains("3番テーブル");
     }
 }

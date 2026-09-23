@@ -67,8 +67,16 @@ class StockRecordPageTest {
         // 生きているように見える（同じフォームが 2 か所で違う動きをする）
         assertThat(main).as("一覧に棚卸しフォームが残っている")
                 .doesNotContain("/inventory/ingredients/stocktake");
-        assertThat(main).as("記録ページへの口が無い")
-                .contains("/inventory/ingredients/record?ingredient=" + i.getId());
+        // ★ 2026-09-18 に行き先を変えました（店主の判断）。
+        //   行の「記録する」は、その食材の画面（棚卸し・廃棄のフォームがある）へ。
+        //   それまでは record?ingredient={id} へ飛ばしていましたが、食材を選んだ
+        //   状態で開くので、行から見ると食材名のリンクと同じ食材・同じ操作でした。
+        //   1 行から道が 2 本出ている形だったので 1 本にしています。
+        assertThat(main).as("その食材の画面への口が無い")
+                .contains("/inventory/ingredients/" + i.getId());
+        // 食材を選び直しながら続けて入力する画面は、帯から入る
+        assertThat(main).as("まとめて棚卸しの入口が無い")
+                .contains("/inventory/ingredients/record");
 
         ingredients.deleteById(i.getId());
     }
@@ -117,9 +125,16 @@ class StockRecordPageTest {
         // 列の名前。空のままだとボタンだけが並んで、何の列か読み取れない
         assertThat(html).contains(">棚卸・廃棄</th>");
 
+        // ★ 2026-09-17 に色と寸法を直しました（店主の指摘「編集ボタンが昔のまま」）。
+        //   --accent は :root では黒だが .theme-desk がティールに上書きするため、
+        //   スタッフ側のこのボタンだけ旧色で残っていた。設計（ト09 731:4147）は
+        //   枠も文字も #0b7a1a＝--action。
+        //   高さ 54 → 48（設計は 34px だが CLAUDE.md の 48px 床を優先）。
+        //   幅は 100% をやめた。設計は列幅いっぱいの帯ではなく 60px の小さなボタン。
         String css = Files.readString(CSS).replace("\r\n", "\n");
-        assertThat(css).contains("  height: 54px;\n  border: 1px solid var(--accent);");
-        assertThat(css).contains(".recbtn:hover { background: var(--accent-soft); }");
+        assertThat(css).contains("  height: 48px;");
+        assertThat(css).contains("  border: 1px solid var(--action);");
+        assertThat(css).contains(".recbtn:hover { background: var(--action-soft); }");
 
         ingredients.deleteById(i.getId());
     }
@@ -183,22 +198,35 @@ class StockRecordPageTest {
     void designMetrics() throws Exception {
         String css = Files.readString(CSS);
 
-        // この画面だけ縦の余白 32（設計で 64→32 に編集された）。
-        // 共通の --main-pad-y は触らず :has で絞る
-        assertThat(css).contains(".theme-desk .staff-main:has(.inv-ingredients) { --main-pad-y: 32px; }");
+        // ★ 2026-09-17：縦の余白を画面ごとに変えるのをやめました（店主の指摘）。
+        //   ここは 2026-09-13 に「Figma 01 ページでこの画面は 64px だった」を根拠に
+        //   :has で 64px にしていましたが、01 ページは古い版です。
+        //   いま正としている 07 ページで測り直すと、食材 32／レシピ 64／
+        //   バックアップ 64／商品 64／品切れ 32／売上 64 と設計自体がばらついていて
+        //   根拠になりませんでした。基準の 32px に統一しています
+        //   （TopGapIsConsistentTest が全画面ぶんを見ています）。
+        //
+        //   見出しの目印（.inv-ingredients）は、帯の寸法に今も使うので残します。
         assertThat(Files.readString(LIST)).contains("section-title inv-ingredients");
+        assertThat(css).contains(".stockpage .inv-ingredients {");
 
-        // 探す欄は素の .searchbox（64px）。設計 466:5915 が 64 だったので、
-        // 48 に落としていた --slim を外した。この画面だけの版は持たない
+        // 探す欄は素の .searchbox。この画面だけの版（--slim）は持たない。
         // 規則そのものを見る。裸の ".searchbox--slim" だと、外した経緯を書いた
         // コメントに一致して必ず落ちる（card__head の件と同じ罠）
+        // ★ 高さは 64 → 48（2026-09-13、店主指示で統一）。
+        //   設計 466:5915 は 64 でしたが、品切れだけ 48 で 2 種類あったのを
+        //   ボタン・タップの床と同じ 48 に一本化した（SearchBoxHeightTest が正）
         assertThat(css).doesNotContain(".searchbox--slim {");
         assertThat(Files.readString(LIST)).doesNotContain("searchbox--slim");
-        assertThat(css).contains("  height: 64px;");
         // しぼり込みは 2 つ並び、間は 42（設計 466:5915）
         assertThat(css).contains(".stockpage .stockfind { gap: 42px; margin-top: 0; }");
-        // 見出しは左右 40・上下 16、ボタンは右端
-        assertThat(css).contains(".stockpage .inv-ingredients .btn { margin-left: auto; }");
+        // 見出しは左右 40・上下 16、ボタンは右端。
+        // ★ :first-of-type を付けること（2026-09-18・店主の指摘）。
+        //   flex の margin:auto は余白を吸収するので、全部の .btn に付けると
+        //   ボタンが 2 つ並んだとき余白が半分ずつ分配されて間が開く。
+        //   「まとめて棚卸し」を足した時点で実際そうなった。
+        assertThat(css).contains(
+                ".stockpage .inv-ingredients .btn:first-of-type { margin-left: auto; }");
 
         // 行の上下 9（2026-09-07 に 16 から変更）。
         // 「記録する」がボタン（高さ 54）になり、行の高さはボタンで決まるようになった。
@@ -211,13 +239,36 @@ class StockRecordPageTest {
     }
 
     @Test
-    @DisplayName("厨房ボードの見出し（現01）：上下 20・題 28・説明 13")
+    @DisplayName("厨房ボードの見出し：上下 16・左右 40・題 32・説明 13")
     void kitchenHeadingMetrics() throws Exception {
-        // 実測との差はこの 3 つだけだった（他は全て一致）。
-        // .griddle は厨房ボードにしか付いていないので、他画面は動かない
+        // 2026-09-12 に .griddle 単体から .kitchenboard 配下（app.css 33 節）へ移した。
+        // 厨房ボードの値をひとところに集めるため。同じ値が 2 箇所にあると
+        // 必ず片方だけ古くなる（食材・在庫の card__head で実際に踏んでいる）
+        //
+        // ★ 題は 28px → 32px（2026-09-13）。設計は 28px でしたが、
+        //   他のページの題（.page-head__title）は 32px で、この画面だけ一段
+        //   小さいままでした。店主の指示で Render にそろえる際に統一しています
+        //   （RenderAlignedTypeTest）。
+        //
+        // ★ 余白は 20/24 → 16/40（2026-09-19）。店主の指摘
+        //   「厨房の見出しだけ余白がズレてみえる」。測ったら本当にズレていました。
+        //
+        //     画面          題の x   題の y
+        //     厨房ボード     312      108     ← ここだけ
+        //     ほかの 7 画面  328      104
+        //
+        //   16px 左・4px 下。実装は設計（ト01）のとおりでしたが、
+        //   設計のほうが同じ幅の他の画面（ト02 ホール 20/40・ト03 品切れ 16/40）と
+        //   ちがっていました。Figma の ト01 / トp01 も 16/40 に直してあります。
+        //   詳しくは KitchenHeadLinesUpTest。
         String css = Files.readString(CSS);
-        assertThat(css).contains(".griddle .card__body { padding: 20px 24px; }");
-        assertThat(css).contains(".griddle h1 { font-size: 28px; }");
-        assertThat(css).contains(".griddle .small { font-size: 13px; }");
+        assertThat(css).contains(".kitchenboard .griddle .card__body { padding: 16px 40px; }");
+        assertThat(css).contains(".kitchenboard .griddle h1 { font-size: 32px; line-height: 36px; }");
+        assertThat(css).contains(".kitchenboard .griddle .small { font-size: 13px; color: #828282; }");
+
+        // 移す前の定義が残っていないこと。
+        // 残っていると「どちらが効いているのか」を読む人が追えなくなる
+        assertThat(css).as("移動前の .griddle 単体の定義が残っている")
+                .doesNotContain("\n.griddle h1 {");
     }
 }

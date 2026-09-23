@@ -200,11 +200,24 @@ public class Order {
         line.setOrder(this);
     }
 
-    /** 明細から合計金額・税額・調理見込みを再計算する。 */
+    /**
+     * 明細から合計金額・税額・調理見込みを再計算する。
+     *
+     * <p><b>取り消した品は数えません（2026-09-22）。</b>
+     * 伝票の合計はここで出た {@code totalAmount} を
+     * {@code TableSession#recalculate} が足し上げるので、
+     * <b>品を 1 つ取り消すと、ここを通ってご請求額まで下がります。</b>
+     * 逆に言うと、ここで取り消しを無視すると
+     * 「明細は取り消し済みなのに金額は元のまま」という、
+     * 誰にも説明できない伝票ができます。
+     */
     public void recalculate() {
         int total = 0;
         int cook = 0;
         for (OrderLine line : lines) {
+            if (line.isCanceled()) {
+                continue;   // 請求からも、厨房の見込み時間からも外す
+            }
             total += line.getLineTotal();
             // 同じ商品を n 個頼んでも鉄板には一緒に乗るので、調理時間は「最大値」ではなく
             // 「品目ごとの調理時間 × 個数」の合計を上限とみなす（実運用に合わせて調整可）
@@ -214,6 +227,27 @@ public class Order {
         this.taxAmount = TaxCalculator.includedTax(total, taxRatePercent);
         this.estimatedCookMinutes = cook;
         touch();
+    }
+
+    /**
+     * まだ生きている明細（取り消していない品）。
+     *
+     * <p>画面はこちらを並べます。取り消した品まで出すと、
+     * 読み上げる金額と並んでいる品が合わなくなります。
+     */
+    public List<OrderLine> getActiveLines() {
+        return lines.stream().filter(l -> !l.isCanceled()).toList();
+    }
+
+    /**
+     * 品を全部取り消したか。
+     *
+     * <p>空の注文は厨房ボードに出しても焼くものがありません。
+     * 呼び出し側（{@code OrderService#cancelLine}）が、これを見て
+     * 注文そのものも CANCELED にします。
+     */
+    public boolean isFullyCanceled() {
+        return !lines.isEmpty() && lines.stream().allMatch(OrderLine::isCanceled);
     }
 
     /**
@@ -239,6 +273,41 @@ public class Order {
             case READY -> this.readyAt = now;
             case COMPLETED -> this.completedAt = now;
             case CANCELED -> this.canceledAt = now;
+            default -> { }
+        }
+        this.updatedAt = now;
+    }
+
+    /**
+     * <b>品の段階から導いた状態を、そのまま書き込む（2026-09-23 追加）。</b>
+     *
+     * <p>{@link #changeStatus} と違い、遷移の規則を通しません。
+     * <b>人がこれを選ぶことはないからです。</b>
+     * 厨房ボードで人が触るのは品の段階（{@link LineStage}）だけで、
+     * 注文の状態はその<b>写し</b>です（{@code OrderService#syncStatusFromLines}）。
+     *
+     * <p>規則を通せない理由は「← 戻す」があることです。
+     * 調理済みを未調理に戻すと注文は READY → COOKING と<b>戻り</b>ますが、
+     * {@code OrderStatus} の遷移表は前に進む向きしか許していません。
+     * 品の段階のほうで既に規則を当てているので、ここで二重に当てると、
+     * <b>画面では戻せたのに保存で弾かれる</b>という食い違いになります。
+     *
+     * <p>キャンセルには使いません。あちらは金額と在庫が動くので、
+     * {@link #cancel} を通してください。
+     */
+    public void forceStatus(OrderStatus next, String handledBy) {
+        if (this.status == next || next == OrderStatus.CANCELED) {
+            return;
+        }
+        this.status = next;
+        this.lastHandledBy = handledBy;
+        LocalDateTime now = LocalDateTime.now();
+        // 時刻は「はじめてそこへ行った」ときだけ。戻して進め直したときに
+        // 上書きすると、提供時間の集計が実態より短く出る
+        switch (next) {
+            case COOKING -> { if (cookingStartedAt == null) this.cookingStartedAt = now; }
+            case READY -> { if (readyAt == null) this.readyAt = now; }
+            case COMPLETED -> { if (completedAt == null) this.completedAt = now; }
             default -> { }
         }
         this.updatedAt = now;

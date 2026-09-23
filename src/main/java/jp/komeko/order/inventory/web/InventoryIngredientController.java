@@ -2,7 +2,6 @@ package jp.komeko.order.inventory.web;
 
 import jakarta.validation.Valid;
 import jp.komeko.order.inventory.domain.Ingredient;
-import jp.komeko.order.inventory.domain.IngredientCategory;
 import jp.komeko.order.inventory.domain.IngredientUnit;
 import jp.komeko.order.inventory.domain.ItemAlias;
 import jp.komeko.order.inventory.domain.StocktakeReason;
@@ -52,11 +51,16 @@ public class InventoryIngredientController {
     private final RecipeService recipeService;
     private final jp.komeko.order.service.ShopSettingService shopSettingService;
 
+    /** 商品カテゴリ（お品書きの分類）。食材の分類ではない。 */
+    private final jp.komeko.order.repository.CategoryRepository categoryRepository;
+
     public InventoryIngredientController(IngredientService ingredientService,
                                          StockService stockService,
                                          PurchaseService purchaseService,
                                          RecipeService recipeService,
-                                         jp.komeko.order.service.ShopSettingService shopSettingService) {
+                                         jp.komeko.order.service.ShopSettingService shopSettingService,
+                                         jp.komeko.order.repository.CategoryRepository categoryRepository) {
+        this.categoryRepository = categoryRepository;
         this.ingredientService = ingredientService;
         this.stockService = stockService;
         this.purchaseService = purchaseService;
@@ -81,7 +85,6 @@ public class InventoryIngredientController {
     public void commonAttributes(Model model) {
         model.addAttribute("units", IngredientUnit.values());
         model.addAttribute("reasons", StocktakeReason.values());
-        model.addAttribute("categories", IngredientCategory.values());
     }
 
     // ========================================================================
@@ -96,15 +99,43 @@ public class InventoryIngredientController {
      * 注意が要るものはバッジで目立たせ、上部に件数を出します。
      */
     /**
-     * 食材・在庫の一覧（設計 現04 441:2715）。
+     * 食材・在庫の一覧（設計 ト04 725:4457）。
+     *
+     * <p><b>「カテゴリーから検索」は商品カテゴリです</b>（2026-09-19。
+     * 店主の言葉「商品カテゴリのこと言ってる」）。お品書きの分類を選ぶと、
+     * <b>その分類の商品に使われている食材</b>だけが残ります。
+     *
+     * <p><b>食材そのものの分類ではありません。</b>あれは 2026-09-16 に消した機能で
+     * （{@code IngredientCategoryRemovedTest}・CLAUDE.md「やらないと決めたこと」）、
+     * {@code Ingredient} に分類の項目はもうありません。
+     * ここはレシピを辿るだけなので、<b>新しく入力してもらうものはありません</b>。
+     *
+     * <p>裏を返すと、<b>レシピが登録されていない商品の食材は出てきません</b>。
+     * レシピが増えるほど、この絞り込みの網も広がります。
+     *
+     * <p><b>{@code category} は文字列で受け取ること。</b>
+     * ブックマークや履歴に古い {@code ?category=VEGETABLE}（消した分類の名前）が
+     * 残っている人がいます。{@code Long} で受けると数字でない値が
+     * <b>400 で突き返され</b>、一覧そのものが開けません。
+     * 知らない値は黙って無視して一覧を出すのが正しい振る舞いです
+     * （{@code IngredientCategoryRemovedTest} が見張っています）。
      *
      * @param q        食材名の一部。入っていれば名前で絞り込む（2026-09-07 に追加）
-     * @param category 分類。入っていればその分類だけに絞る（2026-09-07 に追加）
+     * @param category 商品カテゴリの ID。数字でなければ無視する
      */
     @GetMapping
     public String index(@RequestParam(required = false) String q,
                         @RequestParam(required = false) String category,
                         Model model) {
+        Long categoryId = null;
+        if (category != null && !category.isBlank()) {
+            try {
+                categoryId = Long.valueOf(category.trim());
+            } catch (NumberFormatException ignored) {
+                // 古い分類の名前（VEGETABLE など）。絞り込まずに全件を出す
+                categoryId = null;
+            }
+        }
         List<StockLevel> all = stockService.currentLevels();
         List<StockLevel> levels = all;
 
@@ -117,23 +148,38 @@ public class InventoryIngredientController {
                     .toList();
         }
 
-        // 分類で絞る。"NONE" は「未分類」（分類を決めていない食材）を集める。
-        // 読めない値が来たら黙って全件に倒す。URL を手で打ち替えられても
-        // 400 にせず、必ず何かが表示される側に寄せる（月の指定と同じ考え）
-        CategoryPick pick = CategoryPick.of(category);
-        if (pick != null) {
-            levels = levels.stream().filter(l -> pick.matches(l.ingredient().getCategory())).toList();
+        // ── カテゴリーから検索（商品カテゴリ）──
+        //
+        // ★ 探すときはカテゴリを無視する。商品・品切れ・残数と同じ考え方。
+        //   「キャベツ」と打った人は、それがどの商品に使われているかを覚えていない。
+        java.util.Map<Long, java.util.Set<Long>> byCategory =
+                recipeService.ingredientIdsByMenuCategory();
+        Long selectedCategoryId = keyword.isEmpty() ? categoryId : null;
+        if (selectedCategoryId != null) {
+            java.util.Set<Long> allowed =
+                    byCategory.getOrDefault(selectedCategoryId, java.util.Set.of());
+            levels = levels.stream()
+                    .filter(l -> allowed.contains(l.ingredient().getId()))
+                    .toList();
         }
 
-        // 選択肢は「その分類の食材が 1 つ以上あるもの」だけ出す。
-        // 空の分類まで並べると、押しても 0 件の行き止まりが増える
-        model.addAttribute("categoryGroups", CategoryGroup.from(all));
-        // 一括分類への入口。未分類が 0 件なら出さない
-        //（片付いた店の画面に案内が居座らないように）
-        model.addAttribute("unclassifiedCount",
-                all.stream().filter(l -> l.ingredient().getCategory() == null).count());
-        model.addAttribute("selectedCategory", pick == null ? null : pick.key());
-        model.addAttribute("selectedCategoryName", pick == null ? null : pick.label());
+        // 件数はレシピから数えた「その分類の商品が使う食材の数」。
+        // 押す前に何品あるか読めるようにする（商品の一覧と同じ理由）
+        List<CategoryPick> categoryPicks = categoryRepository
+                .findAllByOrderBySortOrderAscIdAsc().stream()
+                .map(c -> new CategoryPick(c.getId(), c.getName(),
+                        byCategory.getOrDefault(c.getId(), java.util.Set.of()).size()))
+                .toList();
+        String selectedCategoryName = selectedCategoryId == null ? null
+                : categoryPicks.stream()
+                        .filter(p -> selectedCategoryId.equals(p.id()))
+                        .map(CategoryPick::name)
+                        .findFirst()
+                        .orElse(null);
+
+        model.addAttribute("categoryPicks", categoryPicks);
+        model.addAttribute("selectedCategoryId", selectedCategoryId);
+        model.addAttribute("selectedCategoryName", selectedCategoryName);
 
         int attention = 0;
         for (StockLevel level : levels) {
@@ -161,140 +207,6 @@ public class InventoryIngredientController {
     }
 
     /**
-     * 選ばれている分類。{@code NONE} は「未分類」を表す特別な値。
-     *
-     * <p>enum に UNCLASSIFIED を足さなかったのは、DB に入れたくないためです。
-     * 未分類は「値が無い（null）」であって、分類の 1 種類ではありません。
-     * 画面の絞り込みでだけ必要な概念なので、ここに閉じ込めています。
-     */
-    private record CategoryPick(IngredientCategory category, boolean unclassified) {
-
-        /** 未分類を表す URL の値。 */
-        static final String NONE = "NONE";
-
-        static CategoryPick of(String raw) {
-            if (raw == null || raw.isBlank()) {
-                return null;
-            }
-            if (NONE.equals(raw)) {
-                return new CategoryPick(null, true);
-            }
-            try {
-                return new CategoryPick(IngredientCategory.valueOf(raw), false);
-            } catch (IllegalArgumentException ignored) {
-                // 読めない分類は「絞り込みなし」に倒す。404 にすると
-                // 古いブックマークを踏んだだけで行き止まりになる
-                return null;
-            }
-        }
-
-        boolean matches(IngredientCategory value) {
-            return unclassified ? value == null : category == value;
-        }
-
-        String key() {
-            return unclassified ? NONE : category.name();
-        }
-
-        String label() {
-            return unclassified ? "未分類" : category.getLabel();
-        }
-    }
-
-    /**
-     * 絞り込みに出す分類 1 つぶん（名前と件数）。
-     *
-     * @param key   URL に載せる値
-     * @param name  画面に出す名前
-     * @param count その分類の食材の数
-     */
-    public record CategoryGroup(String key, String name, int count) {
-
-        /**
-         * 食材のある分類だけを、enum の並び順で作る。最後に「未分類」。
-         *
-         * <p>空の分類を出さないのは、押しても 0 件の行き止まりが増えるからです。
-         * 未分類だけは 0 件でも出しません（片付いた状態で行を残す意味がない）。
-         */
-        static List<CategoryGroup> from(List<StockLevel> levels) {
-            Map<IngredientCategory, Integer> counts = new EnumMap<>(IngredientCategory.class);
-            int none = 0;
-            for (StockLevel level : levels) {
-                IngredientCategory c = level.ingredient().getCategory();
-                if (c == null) {
-                    none++;
-                } else {
-                    counts.merge(c, 1, Integer::sum);
-                }
-            }
-            List<CategoryGroup> groups = new ArrayList<>();
-            for (IngredientCategory c : IngredientCategory.values()) {
-                Integer n = counts.get(c);
-                if (n != null && n > 0) {
-                    groups.add(new CategoryGroup(c.name(), c.getLabel(), n));
-                }
-            }
-            if (none > 0) {
-                groups.add(new CategoryGroup(CategoryPick.NONE, "未分類", none));
-            }
-            return groups;
-        }
-    }
-
-    // ========================================================================
-    //  未分類の食材にまとめて分類を付ける（2026-09-07）
-    // ========================================================================
-
-    /**
-     * 一括分類の画面。未分類（category が null）の食材だけを並べる。
-     *
-     * <p>分類（V14）を後から足したので、既存の食材は全部未分類で始まる。
-     * 1 件ずつ編集画面を開くと 12 往復になるところを、保存 1 回で片付ける。
-     */
-    @GetMapping("/categorize")
-    public String categorizeForm(Model model) {
-        model.addAttribute("unclassified", ingredientService.unclassifiedIngredients());
-        return "inventory/ingredient-categorize";
-    }
-
-    /**
-     * まとめて保存する。
-     *
-     * <p>行ごとの select は {@code cat-<食材id>} という名前で届く。
-     * 空のまま（あとで決める）の行は触らない——勝手に OTHER で埋めると、
-     * 「分類し忘れ」と「本当にその他」が混ざる（IngredientCategory の約束）。
-     * 読めない値（改ざん・古い画面）は黙って飛ばす。エラーにしても
-     * 直せるものが無い。
-     */
-    @PostMapping("/categorize")
-    public String categorize(@RequestParam Map<String, String> params,
-                             RedirectAttributes redirect) {
-        Map<Long, IngredientCategory> assignments = new java.util.HashMap<>();
-        for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (!entry.getKey().startsWith("cat-") || entry.getValue() == null
-                    || entry.getValue().isBlank()) {
-                continue;
-            }
-            try {
-                assignments.put(Long.valueOf(entry.getKey().substring("cat-".length())),
-                        IngredientCategory.valueOf(entry.getValue()));
-            } catch (IllegalArgumentException ignored) {
-                // id が数字でない・知らない分類。直せるものが無いので飛ばす
-            }
-        }
-
-        int updated = ingredientService.assignCategories(assignments);
-        if (updated > 0) {
-            redirect.addFlashAttribute("flashSuccess",
-                    updated + " 件に分類を付けました");
-        } else {
-            redirect.addFlashAttribute("flashInfo",
-                    "分類を選んだ行がありませんでした（空のままの行は変更しません）");
-        }
-        return "redirect:/inventory/ingredients/categorize";
-    }
-
-    /**
      * 棚卸し・廃棄を記録する（設計 現05 443:2940 / 2026-09-07）。
      *
      * <p>もとは一覧のいちばん下に置いていた 2 つのフォームを、専用ページに分けました。
@@ -315,8 +227,25 @@ public class InventoryIngredientController {
         return "inventory/ingredient-record";
     }
 
-    /** 1 つの食材の詳細と、記録の履歴。 */
-    @GetMapping("/{id}")
+    /**
+     * 1 つの食材の詳細と、記録の履歴。
+     *
+     * <p><b>{@code id} は数字だけに絞っています（{@code \d+}）。</b>
+     * 絞らないと、この配置が {@code /inventory/ingredients/なんとか} を
+     * <b>全部拾ってしまいます</b>。文字列は {@code Long} に変換できないので
+     * 400（不正なリクエスト）になり、見つからないことを伝えるはずの場面で
+     * 「あなたの送り方が悪い」という画面が出ます。
+     *
+     * <p>2026-09-16 に分類をやめたとき、消したはずの
+     * {@code /inventory/ingredients/categorize} が 404 ではなく 400 になって
+     * 見つかりました（{@code IngredientCategoryRemovedTest}）。
+     * 数字に絞れば、知らない道は素直に 404 になります。
+     *
+     * <p>存在しない id（数字だが該当なし）は 404 にせず一覧へ返します。
+     * こちらは「あった食材が使用停止・削除された」場合で、
+     * 行き止まりより一覧に戻すほうが親切だからです。
+     */
+    @GetMapping("/{id:\\d+}")
     public String detail(@PathVariable Long id, Model model) {
         Ingredient ingredient = ingredientService.find(id);
         if (ingredient == null) {
@@ -340,34 +269,92 @@ public class InventoryIngredientController {
     //  食材マスタの編集
     // ========================================================================
 
-    /** 新規登録のフォーム。 */
+    /**
+     * 新規登録のフォーム。
+     *
+     * <p>{@code returnTo} は「来た道」（2026-09-14、店主の指摘から）。
+     * レシピ編集の途中で足りない食材に気づいてここへ来た人は、
+     * 保存したらレシピ編集に戻りたい。もとは食材の詳細へ飛ばしていたので、
+     * レシピ → 食材・在庫 → 登録 → 一覧 → レシピ・原価表 → 該当商品、
+     * と往復 5 画面になっていた。
+     */
     @GetMapping("/new")
-    public String newIngredient(Model model) {
+    public String newIngredient(@RequestParam(required = false) String returnTo, Model model) {
         if (!model.containsAttribute("ingredientForm")) {
             model.addAttribute("ingredientForm", new IngredientForm());
         }
+        String safe = safeReturnTo(returnTo);
+        model.addAttribute("returnTo", safe);
+        // どのレシピから来たのかを画面で名指しする（設計 ト04b・2026-09-14）。
+        // 名前の取り出しは Service 側（LAZY 対策）。null なら案内そのものを出さない
+        model.addAttribute("returnToName", recipeService.menuItemNameOf(recipeIdIn(safe)));
         return "inventory/ingredient-form";
+    }
+
+    /**
+     * 検査済みの戻り先から、レシピ（商品）の id を取り出す。
+     *
+     * <p>引数は必ず {@link #safeReturnTo(String)} を通した値を渡すこと。
+     * 生のリクエスト値をここへ入れると、形の検査を飛ばして
+     * 任意の id を引かせる道ができてしまいます。
+     */
+    private Long recipeIdIn(String safeReturnTo) {
+        if (safeReturnTo == null) {
+            return null;
+        }
+        return Long.valueOf(safeReturnTo.substring("/inventory/recipes/".length()));
+    }
+
+    /**
+     * 戻り先として信じてよい形だけを通す。
+     *
+     * <p>リダイレクト先をリクエストから受け取る作りは、放っておくと
+     * {@code returnTo=https://偽サイト} のようなオープンリダイレクトの
+     * 入り口になる。いま戻り道が要るのはレシピ編集だけなので、
+     * {@code /inventory/recipes/数字} の形しか許さない。増やすときも
+     * 「先頭一致」ではなく形そのものを足すこと。
+     */
+    private String safeReturnTo(String returnTo) {
+        if (returnTo != null && returnTo.matches("/inventory/recipes/\\d+")) {
+            return returnTo;
+        }
+        return null;
     }
 
     @PostMapping
     public String create(@Valid @ModelAttribute("ingredientForm") IngredientForm form,
                          BindingResult bindingResult,
+                         @RequestParam(required = false) String returnTo,
                          Model model,
                          RedirectAttributes redirect) {
         if (form.getName() != null && ingredientService.nameTaken(form.getName().trim(), null)) {
             bindingResult.rejectValue("name", "duplicate", "同じ名前の食材がすでにあります");
         }
         if (bindingResult.hasErrors()) {
+            // 入力エラーでも来た道は失くさない（直して保存すればちゃんと戻れる）
+            model.addAttribute("returnTo", safeReturnTo(returnTo));
             return "inventory/ingredient-form";
         }
         Ingredient saved = ingredientService.create(form.getName().trim(), form.getUnit(),
-                form.getCategory(), form.getLowThresholdQty(), form.getCostOverride(), form.getMemo());
+                form.getLowThresholdQty(), form.getCostOverride(), form.getMemo());
+        String back = safeReturnTo(returnTo);
+        if (back != null) {
+            // レシピ編集から来た人は、そのレシピへ返す。
+            // 新しい食材はまだ単価 0 円なので、原価が正しくなるのはレシートを
+            // 登録するか単価を手で入れてから（レシピ画面の注意書きがその案内をする）
+            redirect.addFlashAttribute("flashSuccess",
+                    "食材「" + saved.getName() + "」を登録しました。材料の列から選べます");
+            return "redirect:" + back;
+        }
         redirect.addFlashAttribute("flashSuccess",
                 "食材「" + saved.getName() + "」を登録しました。棚卸しをすると在庫の計算が始まります");
         return "redirect:/inventory/ingredients/" + saved.getId();
     }
 
-    @PostMapping("/{id}")
+    // GET 側（detail）と同じ理由で数字に絞る。こちらを絞り忘れると、
+    // 知らない道が 404 ではなく 405（このパスに GET は許されていない）になる。
+    // 「パス自体は存在する」と言っていることになり、消したはずの URL が生きて見える。
+    @PostMapping("/{id:\\d+}")
     public String update(@PathVariable Long id,
                          @Valid @ModelAttribute("ingredientForm") IngredientForm form,
                          BindingResult bindingResult,
@@ -379,7 +366,7 @@ public class InventoryIngredientController {
         if (bindingResult.hasErrors()) {
             return detail(id, model);
         }
-        ingredientService.update(id, form.getName().trim(), form.getUnit(), form.getCategory(),
+        ingredientService.update(id, form.getName().trim(), form.getUnit(),
                 form.getLowThresholdQty(), form.getCostOverride(),
                 form.getSortOrder(), form.isActive(), form.getMemo());
         redirect.addFlashAttribute("flashSuccess", "食材を更新しました");
@@ -535,5 +522,17 @@ public class InventoryIngredientController {
         return bindingResult.getAllErrors().stream()
                 .map(e -> e.getDefaultMessage() != null ? e.getDefaultMessage() : "入力を確認してください")
                 .toList();
+    }
+
+    /**
+     * 「カテゴリーから検索」の 1 行（2026-09-19、設計 ト04 725:4457）。
+     *
+     * <p><b>商品カテゴリです。</b>お品書きの分類で、食材そのものの分類ではありません。
+     *
+     * @param id    商品カテゴリの ID。押すと {@code ?category=id} で絞り込む
+     * @param name  画面に出す名前
+     * @param count その分類の商品が使っている食材の数（レシピから数える）
+     */
+    public record CategoryPick(Long id, String name, int count) {
     }
 }

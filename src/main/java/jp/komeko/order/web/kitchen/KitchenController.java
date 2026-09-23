@@ -1,6 +1,7 @@
 package jp.komeko.order.web.kitchen;
 
 import jp.komeko.order.domain.Category;
+import jp.komeko.order.domain.LineStage;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.domain.Order;
 import jp.komeko.order.domain.OrderStatus;
@@ -70,8 +71,16 @@ public class KitchenController {
 
     private static final Logger log = LoggerFactory.getLogger(KitchenController.class);
 
-    /** この分数以上たった注文は「遅れぎみ」として画面で赤くする。 */
-    private static final long LATE_MINUTES = 15;
+    /**
+     * この分数以上たった注文は「遅れぎみ」として帯を薄赤にする。
+     *
+     * <p><b>15 → 10 に変えました（2026-09-23）。</b>
+     * 厨房ボードを作り直したときの決定です（店主：「カウンター札の色を
+     * 10 分経ったら赤に変化するだけで良い気がするんだけどな」）。
+     * 段は作りません。5 分・10 分・15 分と 3 段にすると、
+     * どの色が何分か覚える仕事が増えます。<b>10 分でひとつだけ。</b>
+     */
+    private static final long LATE_MINUTES = 10;
 
     /**
      * <b>公開デモでだけ</b>「この経過時間はもう実態を表していない」とみなす分数。
@@ -211,6 +220,10 @@ public class KitchenController {
 
         model.addAttribute("board", board);
         model.addAttribute("accepting", setting.isOrderAcceptable(LocalDateTime.now()));
+        // ★ 2026-09-23：品ごとの 2 レーン（未調理／調理済み）。
+        //   上の board（注文ごとの 3 レーン）はヘッダーの件数など他の画面がまだ見ているので残します。
+        //   画面に出すのはこちらです。
+        model.addAttribute("lineBoard", orderService.lineBoard());
         // 3 レーンを「見出し・CSS 修飾クラス・注文リスト」の組にして渡す。
         // テンプレート側で同じチケットの HTML を 3 回コピペしなくて済む。
         //
@@ -266,6 +279,73 @@ public class KitchenController {
      * セキュリティ設定で {@code /kitchen/**} はログイン必須なので基本 null になりませんが、
      * 念のため {@link #staffNameOf(StaffUserDetails)} で null 安全に扱います。
      */
+    /**
+     * <b>品 1 つを進める／戻す（2026-09-23 追加）。</b>
+     *
+     * <p>厨房ボードの「調理済み」と「← 戻す」がここへ来ます。
+     * 一度に 4 品頼まれても調理は 1 つずつなので、注文まるごとではなく
+     * 明細 1 行だけを動かします。
+     *
+     * <p><b>SERVED はこの口では受け付けません。</b>
+     * 提供は卓ごとにまとめて記録します（{@link #serveTable}）。
+     * 運ぶ単位が卓だからで、品ごとにすると運ぶ人の押す回数が増えます
+     * （店主：「品ごとに提供にするとホールスタッフが提供済みボタン押す回数増えるからなし」）。
+     * 画面にボタンはありませんが、古いタブや直接 POST からは届くので閉じておきます。
+     */
+    @PostMapping("/lines/{lineId}/stage")
+    public String moveLine(@PathVariable Long lineId,
+                           @RequestParam String stage,
+                           @AuthenticationPrincipal StaffUserDetails user,
+                           RedirectAttributes redirectAttributes) {
+        try {
+            LineStage next = LineStage.valueOf(stage);
+            if (next == LineStage.SERVED) {
+                throw new IllegalArgumentException("提供は卓ごとにまとめて記録します: " + stage);
+            }
+            Order order = orderService.moveLine(lineId, next, staffNameOf(user));
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    "%s（#%d）の品を「%s」にしました"
+                            .formatted(order.getTableName(), order.getOrderNumber(), next.getLabel()));
+
+        } catch (IllegalArgumentException e) {
+            log.warn("この画面では扱えない段階が指定されました: {}", stage);
+            redirectAttributes.addFlashAttribute("flashErrors",
+                    List.of("その状態には変更できません（%s）".formatted(stage)));
+        } catch (IllegalStateException e) {
+            // 段階の違反（取り消した品を動かそうとした等）。
+            // ここでエラーページに飛ばすと厨房ボードから離脱してしまうので、
+            // メッセージだけ出してボードに戻します（changeStatus と同じ考え方）
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
+        } catch (OrderService.OrderNotFoundException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of("その品は見つかりませんでした"));
+        }
+        return "redirect:/kitchen";
+    }
+
+    /**
+     * <b>その卓の調理済みを、まとめて提供済みにする（2026-09-23 追加）。</b>
+     *
+     * <p>調理済みレーンの札 1 枚ぶんです。押すと札ごとボードから消えます。
+     * まだ焼けていない品は動かないので、「出せる分だけ持っていく」が自然にできます。
+     */
+    @PostMapping("/bills/{sessionId}/serve")
+    public String serveTable(@PathVariable Long sessionId,
+                             @AuthenticationPrincipal StaffUserDetails user,
+                             RedirectAttributes redirectAttributes) {
+        try {
+            int moved = orderService.serveCookedLines(sessionId, staffNameOf(user));
+            if (moved == 0) {
+                // 二度押しや、他の端末が先に押したとき。失敗ではないので赤くしない
+                redirectAttributes.addFlashAttribute("flashSuccess", "出せる品はもうありませんでした");
+            } else {
+                redirectAttributes.addFlashAttribute("flashSuccess", moved + " 品を提供済みにしました");
+            }
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(e.getMessage()));
+        }
+        return "redirect:/kitchen";
+    }
+
     @PostMapping("/orders/{id}/status")
     public String changeStatus(@PathVariable Long id,
                                @RequestParam String status,

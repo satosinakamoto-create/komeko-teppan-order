@@ -89,8 +89,10 @@ class GuestRealLoginRestrictionTest {
     }
 
     @ParameterizedTest(name = "{0} は実ログインしたゲストにも拒否される")
+    // /hall/seat は「＋新規お客様」からのご案内（2026-09-11 に
+    // /hall/tables/{id}/open と /cleaned を 1 本にまとめた口）
     @ValueSource(strings = {"/hall/bills/1/close", "/hall/bills/1/reopen",
-                            "/hall/bills/1/guests", "/hall/tables/1/open",
+                            "/hall/bills/1/guests", "/hall/seat",
                             "/hall/bills/1/orders/1/late-night",
                             "/kitchen/orders/1/cancel"})
     @DisplayName("会計まわりの書き込みと注文キャンセルは、実ログインしたゲストでもできない")

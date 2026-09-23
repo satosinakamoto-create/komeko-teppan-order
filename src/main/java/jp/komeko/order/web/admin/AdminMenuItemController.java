@@ -5,9 +5,12 @@ import jp.komeko.order.domain.Category;
 import jp.komeko.order.domain.MenuItem;
 import jp.komeko.order.repository.CategoryRepository;
 import jp.komeko.order.repository.MenuItemRepository;
+import jp.komeko.order.inventory.service.RecipeCost;
+import jp.komeko.order.inventory.service.RecipeService;
 import jp.komeko.order.service.ImageStorageService;
 import jp.komeko.order.service.MenuService;
 import jp.komeko.order.web.admin.form.MenuItemForm;
+import org.springframework.beans.factory.ObjectProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -63,6 +66,16 @@ public class AdminMenuItemController {
     private final CategoryRepository categoryRepository;
     private final MenuService menuService;
     private final ImageStorageService imageStorageService;
+
+    /**
+     * レシピの原価（在庫モジュール）。<b>ObjectProvider なのはわざと</b>（2026-09-14）。
+     *
+     * <p>在庫まわりは {@code app.inventory.enabled=false} で丸ごと切れる作りで、
+     * 切った店では {@link RecipeService} の Bean が存在しない。
+     * 直接 {@code @Autowired} すると、そのとき<b>この画面ごと起動に失敗する</b>。
+     * 商品管理は本体で、在庫はおまけ。おまけの都合で本体を落とさない。
+     */
+    private final ObjectProvider<RecipeService> recipeServiceProvider;
     /** 「掲載する」のときだけ足す決まり（MenuItemForm.Publish）を走らせるのに使う。 */
     private final SmartValidator validator;
 
@@ -70,12 +83,14 @@ public class AdminMenuItemController {
                                    CategoryRepository categoryRepository,
                                    MenuService menuService,
                                    ImageStorageService imageStorageService,
-                                   SmartValidator validator) {
+                                   SmartValidator validator,
+                                   ObjectProvider<RecipeService> recipeServiceProvider) {
         this.menuItemRepository = menuItemRepository;
         this.categoryRepository = categoryRepository;
         this.menuService = menuService;
         this.imageStorageService = imageStorageService;
         this.validator = validator;
+        this.recipeServiceProvider = recipeServiceProvider;
     }
 
     // ========================================================================
@@ -114,8 +129,99 @@ public class AdminMenuItemController {
             new ItemTab("draft", "編集中", MenuItem::isDraft));
 
     /** 画面に渡すタブ 1 つぶん。 */
+    /**
+     * 「カテゴリーから検索」の 1 行（2026-09-19、設計 ト10 731:4408）。
+     *
+     * <p>件数は<b>そのカテゴリの全品数</b>です。タブや検索語では減らしません。
+     * ここは行き先を示す看板で、押す前に「そこに何品あるか」が分かることが大事です
+     * （タブの件数を all から数えているのと同じ理由）。
+     *
+     * @param id    カテゴリの ID。押すと {@code ?category=id} で絞り込む
+     * @param name  画面に出す名前
+     * @param count そのカテゴリの品数
+     */
+    public record CategoryPick(Long id, String name, int count) {
+    }
+
     public record TabView(String key, String label, int count, boolean active) {
     }
+
+    /**
+     * 表の並べ替え（2026-09-20、設計は倉庫の試作A／試作B）。
+     *
+     * <p><b>★ 「並び順」と混ぜないこと。</b>
+     * <pre>
+     *   並び順（MenuItem#sortOrder）… DB に保存される値。<b>お客さまのメニューに出る順番</b>
+     *   並べ替え（これ）            … 見え方だけ。DB は 1 バイトも変わらない
+     * </pre>
+     * Windows のフォルダの並べ替えと同じ考え方です。店主の言葉
+     * 「Windows フォルダの並び変えみたいなの」がそのまま設計になっています。
+     *
+     * <p>原価率は DB の列ではなく {@link RecipeCost} から計算する値なので、
+     * SQL では並べられません。ここで Java 側で並べています。
+     *
+     * @param key   URL に出る値（?sort=）
+     * @param label 画面に出す名前
+     */
+    public record SortChoice(String key, String label) {
+
+        /**
+         * 並べ替える。<b>渡された {@code rows} は変更しません</b>（新しい List を返す）。
+         *
+         * <p>★ 値が無い品（レシピ未登録＝原価 null）は<b>必ず末尾</b>へ送ります。
+         *   高い順でも安い順でも末尾です。「分からないもの」を
+         *   0 円として先頭に並べると、安い順のときだけ未登録が上に来て、
+         *   見ている人は「原価 0 円の品がある」と読み違えます。
+         */
+        public List<MenuItem> arrange(List<MenuItem> rows, Map<Long, RecipeCost> costs) {
+            java.util.Comparator<MenuItem> c = switch (key) {
+                case "cost-desc" -> byRate(costs, true);
+                case "cost-asc"  -> byRate(costs, false);
+                case "price-desc" -> java.util.Comparator.comparingInt(MenuItem::getPrice).reversed();
+                case "price-asc"  -> java.util.Comparator.comparingInt(MenuItem::getPrice);
+                case "name" -> java.util.Comparator.comparing(
+                        MenuItem::getName, java.util.Comparator.nullsLast(String::compareTo));
+                // "default" は並べ替えない。リポジトリが
+                // 「カテゴリの並び順 → 商品の並び順 → id」で返した順のまま
+                default -> null;
+            };
+            if (c == null) {
+                return rows;
+            }
+            // 同じ値のときは名前でそろえる。そうしないと読み込むたびに
+            // 同率の品どうしの順番が入れ替わって見え、直したのかと疑うことになる
+            return rows.stream()
+                    .sorted(c.thenComparing(MenuItem::getName,
+                            java.util.Comparator.nullsLast(String::compareTo)))
+                    .toList();
+        }
+
+        private static java.util.Comparator<MenuItem> byRate(Map<Long, RecipeCost> costs,
+                                                             boolean descending) {
+            java.util.function.Function<MenuItem, java.math.BigDecimal> rate = item -> {
+                RecipeCost rc = costs.get(item.getId());
+                return (rc == null) ? null : rc.costRateIncludingTax();
+            };
+            java.util.Comparator<MenuItem> base = java.util.Comparator.comparing(
+                    rate, java.util.Comparator.nullsLast(java.math.BigDecimal::compareTo));
+            // ★ reversed() をそのまま使わないこと。nullsLast ごと反転して、
+            //   高い順のときだけ未登録が先頭に来てしまいます。
+            return descending
+                    ? java.util.Comparator.comparing(rate,
+                            java.util.Comparator.nullsLast(
+                                    java.util.Comparator.<java.math.BigDecimal>reverseOrder()))
+                    : base;
+        }
+    }
+
+    /** 並べ替えの選択肢。先頭が既定（標準＝お客さまに出る順）。 */
+    private static final List<SortChoice> SORTS = List.of(
+            new SortChoice("default", "標準（お客さまに出る順）"),
+            new SortChoice("cost-desc", "原価率が高い順"),
+            new SortChoice("cost-asc", "原価率が低い順"),
+            new SortChoice("price-desc", "価格が高い順"),
+            new SortChoice("price-asc", "価格が安い順"),
+            new SortChoice("name", "商品名（あいうえお順）"));
 
     /**
      * 商品一覧。状態でタブを分けた 1 枚の表で出す。
@@ -144,6 +250,13 @@ public class AdminMenuItemController {
     @Transactional(readOnly = true)
     public String list(@RequestParam(required = false, defaultValue = "all") String tab,
                        @RequestParam(required = false) String q,
+                       // ★ 変数名は categoryId。下の categoryNames のループが
+                       //   「category」を使っていて、同じ名前にすると衝突する。
+                       //   URL の名前（?category=）は name で保つ
+                       @RequestParam(name = "category", required = false) Long categoryId,
+                       // 表の並べ替え（2026-09-20）。<b>見え方だけ</b>で、
+                       // お客さまの順番（sortOrder）には一切触れません。
+                       @RequestParam(required = false, defaultValue = "default") String sort,
                        Model model) {
         List<Category> categories = categoryRepository.findAllByOrderBySortOrderAscIdAsc();
         List<MenuItem> all = menuItemRepository.findAllForAdmin();
@@ -159,6 +272,39 @@ public class AdminMenuItemController {
                         .filter(item -> item.getName() != null
                                 && item.getName().toLowerCase().contains(needle))
                         .toList();
+
+        // ── カテゴリーから検索（2026-09-19、設計 ト10 731:4408）──
+        //
+        // ★ 探すときはカテゴリを無視します（品切れ・残数と同じ考え方）。
+        //   「たこ焼」と打った人は、それがどのカテゴリにあるかを覚えていません。
+        //   覚えていたらカテゴリのほうから辿ります。
+        //   なので語が入っているあいだは category を効かせません。
+        //
+        // ★ ここでいう「カテゴリ」は商品カテゴリ（お品書きの分類）です。
+        //   CLAUDE.md の注意どおり、ほかのまとまりにこの語を使っていません。
+        Long selectedCategoryId = keyword.isEmpty() ? categoryId : null;
+        if (selectedCategoryId != null) {
+            items = items.stream()
+                    .filter(item -> item.getCategory() != null
+                            && selectedCategoryId.equals(item.getCategory().getId()))
+                    .toList();
+        }
+
+        // 件数は all（絞り込む前）から数える。タブの件数と同じ理由で、
+        // 押す前に「そこに何品あるか」が読めることを優先する
+        List<CategoryPick> categoryPicks = categories.stream()
+                .map(c -> new CategoryPick(c.getId(), c.getName(),
+                        (int) all.stream()
+                                .filter(i -> i.getCategory() != null
+                                        && c.getId().equals(i.getCategory().getId()))
+                                .count()))
+                .toList();
+        String selectedCategoryName = selectedCategoryId == null ? null
+                : categoryPicks.stream()
+                        .filter(p -> selectedCategoryId.equals(p.id()))
+                        .map(CategoryPick::name)
+                        .findFirst()
+                        .orElse(null);
 
         ItemTab selected = TABS.stream()
                 .filter(t -> t.key().equals(tab))
@@ -194,8 +340,32 @@ public class AdminMenuItemController {
             categoryNames.put(category.getId(), category.getName());
         }
 
+        // 原価の列（2026-09-14、店主の指摘「レシピ・原価表は商品の中に
+        // あった方が良いんじゃない？」）。レシピ未登録がこの一覧で見える。
+        // 在庫モジュールを切った店では Bean が無い → itemCosts を渡さない →
+        // 画面は列ごと出さない（th:if="${itemCosts != null}"）
+        RecipeService recipeService = recipeServiceProvider.getIfAvailable();
+        Map<Long, RecipeCost> itemCosts = new LinkedHashMap<>();
+        if (recipeService != null) {
+            for (RecipeCost cost : recipeService.costTable()) {
+                itemCosts.put(cost.menuItem().getId(), cost);
+            }
+            model.addAttribute("itemCosts", itemCosts);
+        }
+
         model.addAttribute("categories", categories);
-        model.addAttribute("rows", items.stream().filter(selected.条件()).toList());
+        // ★ 並べ替えは<b>いちばん最後</b>に掛けます。
+        //   絞り込み（検索語・カテゴリ・タブ）を通したあとの行だけを並べ直すので、
+        //   「絞ってから並べ替える」が素直に効きます。
+        SortChoice chosen = SORTS.stream()
+                .filter(x -> x.key().equals(sort))
+                .findFirst()
+                .orElse(SORTS.get(0));
+        List<MenuItem> rows = items.stream().filter(selected.条件()).toList();
+        model.addAttribute("rows", chosen.arrange(rows, itemCosts));
+        model.addAttribute("currentSort", chosen.key());
+        model.addAttribute("currentSortLabel", chosen.label());
+        model.addAttribute("sortOptions", SORTS);
         model.addAttribute("categoryNames", categoryNames);
         model.addAttribute("optionCounts", optionCounts);
         model.addAttribute("tabs", tabs);
@@ -207,13 +377,30 @@ public class AdminMenuItemController {
         // 入力した語を画面に返す。返さないと、検索したあとに入力欄が空に戻り、
         // 何で絞った結果を見ているのか分からなくなる
         model.addAttribute("q", keyword);
+        // カテゴリーから検索（設計 ト10）。選んだ名前も返す——閉じた状態でも
+        // 「いま何で絞っているか」が読めるようにするため（品切れ・残数と同じ）
+        model.addAttribute("categoryPicks", categoryPicks);
+        model.addAttribute("selectedCategoryId", selectedCategoryId);
+        model.addAttribute("selectedCategoryName", selectedCategoryName);
         // 並び替えのボタンを出してよいか。
         //
-        // 絞り込んでいる最中は出しません。画面に見えている隣の行が、
-        // 本当の隣とは限らないからです。「上へ」を押すと隠れている品と
-        // 入れ替わり、画面上は何も起きていないように見えます。
-        // 並べ替えは全体が見えているときの作業なので、そのときだけ出します。
-        model.addAttribute("canReorder", keyword.isEmpty() && "all".equals(selected.key()));
+        // ★ 2026-09-19：絞り込んでいても並べ替えられるようにしました。
+        //   店主の指示「掲載中〜編集中すべてにドラッグ＆ドロップできる仕様に
+        //   してほしい」「カテゴリー検索とか絞ってもドラッグ＆ドロップ
+        //   出来るようにもしてほしい」。
+        //
+        //   それまでは「すべて」タブで絞り込みが無いときだけ出していました。
+        //   理由は<b>↑↓ が隣と 1 つ入れ替える操作だった</b>ことです。
+        //   見えている隣が本当の隣とは限らないので、押すと隠れている品と
+        //   入れ替わり、画面上は何も起きていないように見えました。
+        //
+        //   つまんで動かす形に変えたことで、この理由は消えました。
+        //   いまは「<b>どの商品の隣に置くか</b>」を指して送ります
+        //   （MenuService#placeItemNextTo）。隠れている行が何行あっても、
+        //   落とした場所どおりの並びになります。
+        //
+        // ★ 行が 1 つも無いときは出しません。動かしようがないので。
+        model.addAttribute("canReorder", !items.stream().filter(selected.条件()).toList().isEmpty());
         return "admin/items";
     }
 
@@ -321,8 +508,17 @@ public class AdminMenuItemController {
 
         log.info("商品を登録しました: {}（{}）", item.getName(), publish ? "掲載" : "下書き");
         if (publish) {
-            redirectAttributes.addFlashAttribute("flashSuccess",
-                    "商品「%s」を掲載しました。お客さまのメニューに並びます".formatted(item.getName()));
+            // 掲載した直後が、レシピ登録の一番の好機（材料を覚えているうち）。
+            // 在庫モジュールが生きているときは、通常のフラッシュの代わりに
+            // 「レシピを登録する →」付きの案内を出す（items.html の帯・設計 ト10）。
+            // 両方出すと「掲載しました」が二重になるので、どちらか片方だけ
+            if (recipeServiceProvider.getIfAvailable() != null) {
+                redirectAttributes.addFlashAttribute("flashNewItemId", item.getId());
+                redirectAttributes.addFlashAttribute("flashNewItemName", item.getName());
+            } else {
+                redirectAttributes.addFlashAttribute("flashSuccess",
+                        "商品「%s」を掲載しました。お客さまのメニューに並びます".formatted(item.getName()));
+            }
             return "redirect:/admin/items";
         }
         // 下書きは「編集中」タブへ戻す。素の一覧に戻すと、
@@ -438,13 +634,87 @@ public class AdminMenuItemController {
      * 押せると、隠れた品と入れ替わって「押しても動かない」ように見えるためです。
      * だから戻り先にタブや検索語を持ち帰る必要もありません。
      */
+    /**
+     * 並び順を、つまんだ位置へ一度に動かす（2026-09-19）。
+     *
+     * <p>店主の指示「並び順はドラック＆ドロップで入れ替えられる仕様にしたいかな、
+     * その方が直感的だし 1 つづつずらして行く必要ないし」。
+     *
+     * <p>{@code before} は<b>その商品の直前に入れる</b>という意味で、
+     * 空なら先頭へ。末尾へ落としたときは空ではなく「最後の商品の次」になるので、
+     * 画面側が末尾の 1 つ後ろを表す値を送ります（{@code before=} 無しは先頭）。
+     *
+     * <p><b>カテゴリはまたげません。</b>別のカテゴリの行へ落としたときは
+     * 何も起きずに戻ります（{@link MenuService#placeItemNextTo}）。
+     * カテゴリを変えるのは編集フォームの仕事です。
+     *
+     * <p>画面は JavaScript から呼びますが、<b>ふつうのフォーム送信</b>です。
+     * テンプレートに隠しフォームを 1 つ置いてあり（{@code th:action} なので
+     * CSRF トークンは Thymeleaf が入れる）、JavaScript は値を詰めて
+     * {@code submit()} するだけ。{@code fetch} は使っていません。
+     * CSRF も PRG も、ほかの画面とまったく同じ扱いになります。
+     *
+     * <p><b>商品の id はパスではなく問い合わせ文字で受けます。</b>
+     * パスに入れると隠しフォームの {@code action} を JavaScript で
+     * 組み立て直すことになり、そのとき Thymeleaf が入れた CSRF の入力欄と
+     * ちぐはぐになります。{@code th:action="@{/admin/items/{id}/place}"} の
+     * {@code {id}} を後から差し替える手も、Thymeleaf の前処理記号
+     * （{@code __...__}）と紛らわしく、CLAUDE.md が禁じている書き方に近づきます。
+     */
+    @PostMapping("/place")
+    public String place(@RequestParam Long id,
+                        @RequestParam(required = false) Long before,
+                        @RequestParam(required = false) Long after,
+                        @RequestParam(required = false) String tab,
+                        @RequestParam(required = false) String q,
+                        @RequestParam(required = false) Long category,
+                        RedirectAttributes redirectAttributes) {
+        if (!menuService.placeItemNextTo(id, before, after)) {
+            // 別カテゴリへ落とした、または動かす必要が無かった。
+            // 黙って戻すと「効かなかった」のか「そこで正しい」のか分からない
+            redirectAttributes.addFlashAttribute("flashWarn",
+                    "並び順は変わりませんでした（カテゴリをまたぐ移動はできません）");
+        }
+        // ★ 押した場所へ戻す（2026-09-19）。
+        //   絞り込み中でも並べ替えられるようにしたので、素の一覧へ戻すと
+        //   「掲載停止」タブで 1 つ動かしたとたんに全件へ飛ばされ、
+        //   続けて並べ替えられません（掲載の切り替えと同じ扱い）。
+        return "redirect:" + jp.komeko.order.web.admin.AdminMenuItemController
+                .itemsUrlWith(tab, q, category);
+    }
+
+    /**
+     * 一覧へ戻る URL に、いまの絞り込みを持ち帰る。
+     *
+     * <p>値が無いものは付けません。{@code ?tab=&q=} のような空の問い合わせ文字が
+     * 残ると、ブラウザの履歴に意味の無い URL が積み上がります。
+     */
+    static String itemsUrlWith(String tab, String q, Long category) {
+        StringBuilder url = new StringBuilder("/admin/items");
+        char sep = '?';
+        if (tab != null && !tab.isBlank()) {
+            url.append(sep).append("tab=").append(
+                    java.net.URLEncoder.encode(tab, java.nio.charset.StandardCharsets.UTF_8));
+            sep = '&';
+        }
+        if (q != null && !q.isBlank()) {
+            url.append(sep).append("q=").append(
+                    java.net.URLEncoder.encode(q, java.nio.charset.StandardCharsets.UTF_8));
+            sep = '&';
+        }
+        if (category != null) {
+            url.append(sep).append("category=").append(category);
+        }
+        return url.toString();
+    }
+
     @PostMapping("/{id}/move")
     public String move(@PathVariable("id") Long id,
                        @RequestParam boolean up,
                        RedirectAttributes redirectAttributes) {
         // 端まで来ていたら何も起きない。無反応に見えるのは不親切なので一言伝える。
         if (!menuService.moveItem(id, up)) {
-            redirectAttributes.addFlashAttribute("flashInfo",
+            redirectAttributes.addFlashAttribute("flashWarn",
                     up ? "このカテゴリの中では、すでにいちばん上です"
                        : "このカテゴリの中では、すでにいちばん下です");
         }
@@ -483,18 +753,32 @@ public class AdminMenuItemController {
     }
 
     /**
-     * 販売（品切れ）を切り替える（一覧の「販売」の列を押したとき）。
+     * 販売（品切れ）を切り替える。
      *
-     * <p><b>2026-08-27 に消した口を、2026-09-07 に戻したものです。</b>
-     * 当時消した理由は 2 つで、いまはどちらも解けています。
-     * <ul>
-     *   <li>同じ値を切り替える口が 3 つあり、ここだけ他の部分集合だった
-     *       → 一覧に「掲載」「販売」の列ができ、<b>状態を見ている場所と
-     *       変える場所が同じ</b>になった。別の画面へ移動しなくてよい</li>
-     *   <li>価格 0 円（時価）の品を再開すると ¥0 で注文できた
-     *       → 危険そのものを {@code MenuService#toggleSoldOut} で閉じた。
-     *       厨房の品切れパネルからも同じように守られる</li>
-     * </ul>
+     * <p><b>★ 2026-09-20 現在、この口を呼ぶ画面はありません。</b>
+     * 商品一覧の「販売」の列を編集の列に置き換えたためです（店主の判断
+     * 「販売の品切れは品切れ残数で調整出来るからそれを編集にすればいい」）。
+     *
+     * <p><b>処理そのものは生きています。</b>中身は
+     * {@code MenuService#toggleSoldOut} を呼ぶだけで、これは
+     * 「品切れ・残数」の画面（{@code POST /kitchen/stock/{itemId}/toggle}）が
+     * 毎日呼んでいます。<b>同じ 1 つの処理に入口が 2 つある</b>状態で、
+     * 出すメッセージの文言まで同じです。処理が二重にあるわけではありません。
+     *
+     * <p><b>なぜ消さずに残すか。</b>この口は
+     * <b>2026-08-27 に一度消され、2026-09-07 に戻されています</b>。
+     * 戻した理由は「一覧に『掲載』『販売』の列ができ、状態を見ている場所と
+     * 変える場所が同じになった」でした。その列を今日また外したので、
+     * <b>同じ判断が 1 か月で 3 回動いている</b>ことになります。
+     * また一覧から切り替えたくなる目は十分あり、そのときは
+     * {@code items.html} に 1 行戻すだけで済みます。
+     * 残しても呼ぶ先が同じなので、片方だけ直して食い違うことはありません。
+     *
+     * <p>消してよいのは「二度と一覧からは切り替えない」と決まったときです。
+     *
+     * <p>価格 0 円（時価）の品を再開すると ¥0 で注文できてしまう件は、
+     * 危険そのものを {@code MenuService#toggleSoldOut} で閉じてあります。
+     * 厨房の品切れパネルから来ても同じように守られます。
      */
     @PostMapping("/{id}/sale")
     public String toggleSale(@PathVariable("id") Long id,
@@ -551,6 +835,10 @@ public class AdminMenuItemController {
     //
     // 切り替えのルール自体（MenuService#toggleSoldOut）は KitchenController が
     // 使い続けているので、そちらは消していません。
+    //
+    // ★ 紛らわしいので念のため。ここで消したのは /{id}/soldout です。
+    //   すぐ上の /{id}/sale は<b>残してあります</b>（2026-09-07 に別名で作り直したもの）。
+    //   いまはどの画面からも呼ばれていませんが、理由は /{id}/sale の説明に書きました。
 
     // ========================================================================
     //  内部ヘルパー

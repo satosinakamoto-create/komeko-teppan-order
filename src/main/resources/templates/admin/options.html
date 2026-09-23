@@ -22,13 +22,18 @@
 
   <p class="small"><a th:href="@{/admin/items}">← 商品一覧に戻る</a></p>
 
-  <div class="section-title">
-    <h1 class="section-title__text" th:text="${item.name}">コンプレット</h1>
-    <span class="section-title__count">のオプション</span>
+  <!--/* 見出しの帯（設計 ト10d）。補足はグループ数＝この画面の中身の量 */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/admin/items/{id}/edit(id=${item.id})}">← 商品を編集へ戻る</a>
+    <h1 class="page-head__title" th:text="${item.name} + ' のオプション'">肉玉米粉そば のオプション</h1>
+    <!--/* itemWithOptions が optionGroups を読み終えて渡している（LAZY の実体化済み）。
+           素の item を使う画面で同じ書き方をすると、描画時に落ちる */-->
+    <span class="page-head__sub"
+          th:text="${#lists.size(item.optionGroups)} + ' グループ'">2 グループ</span>
+    <span class="page-head__spacer"></span>
   </div>
 
   <div class="row row--wrap">
-    <a class="btn" th:href="@{/admin/items/{id}/edit(id=${item.id})}">商品の内容を編集</a>
   </div>
 
   <!--/* ====== minSelect / maxSelect の意味の説明 ======

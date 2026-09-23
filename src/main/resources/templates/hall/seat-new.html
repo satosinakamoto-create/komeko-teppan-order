@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<!--/*
+  ============================================================================
+   新規お客様のご案内（人数と卓を選ぶ）— 2026-09-11
+  ============================================================================
+   ・盤面（/hall）の「＋ 新規お客様」から来ます。
+   ・もとは盤面に「空席」の枠があり、卓カードごとに人数の選択とご案内ボタンが
+     並んでいました。卓の数だけ同じ部品が増えるうえ、片付け待ちの卓は
+     別の枠にいるので「片付け完了 → ご案内」の 2 手が要る作りでした。
+
+   ・ここには<b>伝票の無い卓を全部</b>出します。片付け待ちも混ぜます。
+     隠すと「なぜあの卓が出てこないのか」が画面から分からなくなり、
+     片付け完了を押す場所を別に用意することになるからです。
+     選ばれた卓が片付け待ちなら、TableService.seat が片付け完了も一緒に記録します。
+
+   ・卓は初期選択なし（required）にしています。どれかを既定で選んでおくと、
+     人数だけ変えて押したときに<b>意図しない卓へ案内</b>してしまうためです。
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout/staff :: layout('新規お客様', ~{::main})}">
+<body>
+<main class="hallboard">
+
+  <!--/* 直前の操作結果（成功・お知らせ・エラー）を 1 回だけ表示する共通部品 */-->
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <div class="section-title">
+    <h1 class="section-title__text">新規お客様</h1>
+    <span class="section-title__count">人数と卓を選んでご案内します</span>
+  </div>
+
+  <div th:if="${seatTables.isEmpty()}">
+    <div th:replace="~{fragments/common :: empty('満', 'ご案内できる卓がありません')}"></div>
+  </div>
+
+  <!--/* th:action で書くと CSRF トークンの hidden 項目が自動で入ります。
+         素の action="..." にすると 403 になるので注意してください。 */-->
+  <form th:unless="${seatTables.isEmpty()}" th:action="@{/hall/seat}" method="post">
+
+    <div class="section-title">
+      <h2 class="section-title__text">何名さま</h2>
+    </div>
+
+    <!--/* 人数の初期値は 2 名です。卓の席数を初期値にすると、
+           2 名で 4 人掛けに座ったときにテーブルチャージを 2 名分多く
+           頂いてしまうためです（あとから伝票画面で直せます）。 */-->
+    <label class="visually-hidden" for="guestCount">人数</label>
+    <select class="select" id="guestCount" name="guestCount" style="max-width:10rem">
+      <option th:each="n : ${guestOptions}"
+              th:value="${n}"
+              th:text="${n} + ' 名'"
+              th:selected="${n == defaultGuestCount}">2 名</option>
+    </select>
+
+    <div class="section-title mt-4">
+      <h2 class="section-title__text">どの卓</h2>
+      <span class="section-title__count" th:text="${seatTables.size()} + ' 卓'">5 卓</span>
+    </div>
+
+    <!--/* エリアごとの区切りは盤面と同じ仕組み（HallController#groupByArea）。
+           全卓が未設定なら name=null の 1 グループが来て、見出しは描かれない */-->
+    <th:block th:each="g : ${seatGroups}">
+      <h3 class="areahead" th:if="${g.name() != null}" th:text="${g.name()}">カウンター</h3>
+
+      <label class="choice" th:each="table : ${g.items()}">
+        <input type="radio" name="tableId" th:value="${table.id}" required>
+        <span class="choice__name" th:text="${table.name}">3番テーブル</span>
+        <!--/* 「止まっている」赤（お会計待ち）とも「進行中」緑（調理中）とも
+               別の色。会計は済んでいる＝お金の話は終わっている卓なので、
+               案内系の紺で出す（盤面にあった枠から引き継いだしるし） */-->
+        <span class="badge badge--cleanup" th:if="${table.needsCleanup}">片付け待ち</span>
+        <span class="choice__price" th:text="'定員 ' + ${table.capacity} + ' 名'">定員 4 名</span>
+      </label>
+    </th:block>
+
+    <!--/* 何が記録されるかを押す前に書いておく。
+           「いつのまにか片付け完了になっていた」と思われないようにするため */-->
+    <p class="help">「片付け待ち」の卓を選ぶと、片付け完了も同時に記録します</p>
+
+    <div class="seatbar">
+      <a class="btn" th:href="@{/hall}">やめる</a>
+      <button type="submit" class="btn btn--ok btn--lg">ご案内する</button>
+    </div>
+  </form>
+
+</main>
+</body>
+</html>

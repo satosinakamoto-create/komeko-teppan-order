@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<!--/*
+   卓の一覧（読むだけ）。設計 ト12 卓。
+
+   ── なぜ「読む画面」と「直す画面」を分けたか（2026-09-14）──
+   もとは /admin/tables を開いた瞬間に新規追加フォームが出て、
+   その下に 1 行ずつ入力欄の付いた表が続いていました。
+
+   ところがこの画面を開く理由のほとんどは
+   「いま何卓あって、どこが稼働中か」を見ることで、直すのはたまにです。
+   見るために開いたのに、いきなり書き換えられる画面が出るのは、
+   押し間違いの的を常に置いてあるのと同じでした。
+   カテゴリ（2026-09-07）・スタッフと同じ判断です。
+
+   直すほうは「卓を 編集・追加」から /admin/tables/edit へ。
+
+   使えるモデルの値：
+     ${tables}      … List<DiningTable>（並び順 → id の順）
+     ${totalSeats}  … 席数の合計（int）
+     ${activeCount} … 稼働中の卓の数（long）
+*/-->
+<html lang="ja" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/staff :: layout('卓', ~{::main})}">
+<body>
+<main>
+
+  <div th:replace="~{fragments/common :: flash}"></div>
+
+  <!--/* 見出し・件数・ボタンで 1 行（設計 見出し/ページ 24:1392） */-->
+  <div class="page-head">
+    <h1 class="page-head__title">卓</h1>
+    <span class="page-head__sub"
+          th:text="${tables.size()} + ' 卓 / ' + ${totalSeats} + ' 席'">12 卓 / 30 席</span>
+    <span class="page-head__spacer"></span>
+    <!--/* 「足す」と「直す」で入口を分ける（2026-09-15・設計 ト12）。
+           編集は枠ボタン、新規追加は塗り——この画面でいちばんよくやるのは
+           「卓を増やす」なので、そちらを主にする */-->
+    <!--/* 編集の口は緑の枠（btn--edit）。灰色は「戻る」に使う色（2026-09-20） */-->
+    <a class="btn btn--edit" th:href="@{/admin/tables/edit}">編集</a>
+    <a class="btn btn--primary" th:href="@{/admin/tables/new}">＋新規追加</a>
+  </div>
+
+  <!--/* 卓が 1 つも無いと QR が 1 枚も作れない。
+         空のときは表を出さず、次にやることだけを出す。
+         ★ これは「条件付きの注意書き」です（2026-09-14 に店主と決めた方針）。
+           ふだんは Figma どおり「見出し＋表」の 2 ブロックで、
+           問題があるときだけ帯が増えます。 */-->
+  <div class="alert alert--warn" th:if="${tables.isEmpty()}" role="alert">
+    <p class="mb-0">
+      卓がまだありません。お客さんは卓の QR からしか注文できないので、
+      先に <a th:href="@{/admin/tables/new}">卓を追加</a> してください。
+    </p>
+  </div>
+
+  <div class="table-wrap" th:unless="${tables.isEmpty()}">
+    <table class="table table--tables">
+      <thead>
+      <tr>
+        <th>卓名</th>
+        <th>席数</th>
+        <th>エリア</th>
+        <th>状態</th>
+        <th class="col-order">並び</th>
+      </tr>
+      </thead>
+      <!--/* data-reorder は reorder.js の目印。卓は 1 本の並びなので、
+             行の group はすべて同じ値（"all"）です。
+             エリア（1F・2F など）で分けていますが、並び順は全体で 1 つです。 */-->
+      <tbody th:attr="data-reorder=${!tables.isEmpty()} ? 'on' : null">
+      <tr th:each="t : ${tables}"
+          th:data-item-id="${t.id}" data-group-id="all">
+        <td>
+          <!--/* ★ 名前はただの文字。リンクにしないこと（2026-09-20・店主の指摘）。
+                 設計（ト11／ト12／ト15）はどれも黒の Regular で、リンクではありません。
+                 緑の下線リンクだと「押せるもの」がこの画面に 2 系統できてしまい、
+                 どこから直すのかが名前と編集ボタンに割れます。入口は編集ボタン 1 本に。 */-->
+          <span th:text="${t.name}">3番テーブル</span>
+        </td>
+        <!--/* ★ 2026-09-19：num（右ぞろえ）を外しました。
+
+               隣のカテゴリ画面の「品数」（5 品）は左ぞろえなのに、
+               こちらの「席数」（4 席）だけ右に寄っていました。同じ性質の値です。
+               設計（ト12・トi14・トp14）もどちらも左です。
+
+               num は桁をそろえて読む金額のための目印なので、
+               1 桁で単位が付くこの列には要りません。 */-->
+        <td th:text="${t.capacity} + ' 席'">4 席</td>
+        <td th:text="${#strings.isEmpty(t.area)} ? '—' : ${t.area}">カウンター</td>
+        <td>
+          <span class="badge badge--ok" th:if="${t.active}">使用中</span>
+          <span class="badge badge--stop" th:unless="${t.active}">利用停止中</span>
+        </td>
+        <td class="num col-order">
+          <!--/* ★ 並べ替えのつまみ（2026-09-19・店主の指示）。
+                 つまんで動かすか、選んで ↑ ↓ を押すと動きます。
+
+               ★ <button type="button">。div だと tabindex を足す羽目になり、
+                 「押せるもの」だと読み上げにも伝わりません。
+               ★ CSS で既定は隠してあり、reorder.js が表に is-reorderable を
+                 付けたときだけ現れます（押しても何も起きないものを見せない）。 */-->
+          <button type="button" class="dragdot" data-reorder-handle
+                  th:aria-label="${t.name} + ' の並び順を変える。つまんで動かすか、上下の矢印キーを押してください'">
+            <span aria-hidden="true">⠿</span>
+          </button>
+          <span class="faint tiny" th:text="${t.sortOrder}">10</span>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!--/* ★ 並び順を送るための隠しフォーム（2026-09-19）。
+         reorder.js が id と before / after を詰めて submit します。
+
+       ★ この画面は「読むだけ」が決まりですが、<b>並べ替えだけは例外</b>にしました
+         （店主の指示。サイドバーから来るのはこの画面で、ここで並べたいため）。
+         読む画面に置かないのは<b>入力欄</b>——見ているだけのつもりが
+         押し間違いで書き換わるもの——で、つまみは掴んで動かす 2 段階の操作です。
+         入力欄は 1 つも増やしていません（この form の中身は hidden だけ）。 */-->
+  <form id="reorder-form" method="post" th:action="@{/admin/tables/place}" hidden>
+    <input type="hidden" name="id">
+    <input type="hidden" name="before">
+    <input type="hidden" name="after">
+  </form>
+
+</main>
+</body>
+</html>

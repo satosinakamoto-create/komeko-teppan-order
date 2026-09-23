@@ -18,9 +18,12 @@
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text">税率・控除率マスタ</h1>
-    <a class="btn btn--sm btn--ghost" th:href="@{/inventory/purchases}">← 仕入れ・経費へ</a>
+  <!--/* 見出しの帯（設計 ト05f） */-->
+  <div class="page-head">
+    <a class="btn" th:href="@{/inventory/purchases}">← 仕入れ・経費へ戻る</a>
+    <h1 class="page-head__title">税率・控除率マスタ</h1>
+    <span class="page-head__sub">制度が変わったらここを直します</span>
+    <span class="page-head__spacer"></span>
   </div>
 
   <div th:if="${!warnings.isEmpty()}" class="alert alert--warn">
@@ -82,37 +85,40 @@
         <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
       </div>
 
-      <div class="grid grid--3">
-        <div class="field">
+      <!--/* 1 行に組みます（設計 ト05f・2026-09-17）。
+             もとは 3 列グリッドの下にメモ・説明文・ボタンが縦に積まれていました。 */-->
+      <div class="row row--wrap">
+        <div class="field mb-0 row__grow">
           <label class="label" for="rateClass">区分</label>
           <select class="select" id="rateClass" th:field="*{rateClass}">
             <option th:each="c : ${rateClasses}" th:value="${c}" th:text="${c}">軽減_飲食料品</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field mb-0 row__grow">
           <label class="label" for="ratePercent">新しい税率（%）</label>
           <input class="input" type="number" id="ratePercent" th:field="*{ratePercent}" min="0" max="100">
         </div>
-        <div class="field">
+        <div class="field mb-0 row__grow">
           <label class="label" for="validFrom">施行日</label>
           <input class="input" type="date" id="validFrom" th:field="*{validFrom}">
-          <p class="help">この日から新しい率になります</p>
         </div>
+        <div class="field mb-0 row__grow">
+          <label class="label" for="note">メモ（何の改正か）</label>
+          <input class="input" type="text" id="note" th:field="*{note}"
+                 placeholder="令和9年度改正 など">
+        </div>
+        <button type="submit" class="btn btn--primary">この内容で登録する</button>
       </div>
 
-      <div class="field">
-        <label class="label" for="note">メモ（何の改正か）</label>
-        <input class="input" type="text" id="note" th:field="*{note}"
-               placeholder="令和9年度改正 / 飲食料品の時限的な引き下げ など">
-      </div>
-
-      <p class="help">
-        登録すると、<strong>同じ区分でいま有効な行に自動で終了日（施行日の前日）が入ります</strong>。
+      <!--/* ★ この説明は行の中に入れず、行の下に残します。
+             古い行が勝手に閉じられる理由をここで黙ると、
+             「登録したら前の行が変わった」と見えます。 */-->
+      <p class="help mt-4">
+        施行日から新しい率になります。登録すると、
+        <strong>同じ区分でいま有効な行に自動で終了日（施行日の前日）が入ります</strong>。
         古い行は消えません。過去の仕入れはその行を根拠に計算されているので、
         消すと去年の帳簿の答えが変わってしまうからです。
       </p>
-
-      <button type="submit" class="btn btn--primary">この内容で登録する</button>
     </div>
   </form>
 
@@ -164,22 +170,27 @@
         <p class="mb-0" th:each="e : ${#fields.allErrors()}" th:text="${e}">エラー</p>
       </div>
 
-      <div class="grid grid--3">
-        <div class="field">
+      <!--/* 税率の改定と同じ 1 行の形（設計 ト05f） */-->
+      <div class="row row--wrap">
+        <div class="field mb-0 row__grow">
           <label class="label" for="dRatePercent">新しい控除率（%）</label>
           <input class="input" type="number" id="dRatePercent" th:field="*{ratePercent}" min="0" max="100">
         </div>
-        <div class="field">
+        <div class="field mb-0 row__grow">
           <label class="label" for="dValidFrom">施行日</label>
           <input class="input" type="date" id="dValidFrom" th:field="*{validFrom}">
         </div>
-        <div class="field">
+        <div class="field mb-0 row__grow">
           <label class="label" for="dNote">メモ</label>
           <input class="input" type="text" id="dNote" th:field="*{note}" placeholder="令和◯年度改正">
         </div>
+        <button type="submit" class="btn btn--primary">この内容で登録する</button>
       </div>
 
-      <button type="submit" class="btn btn--primary">この内容で登録する</button>
+      <p class="help mt-4">
+        登録すると、<strong>いま有効な控除率の行に自動で終了日（施行日の前日）が入ります</strong>。
+        古い行は消えません。
+      </p>
     </div>
   </form>
 

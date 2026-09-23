@@ -46,16 +46,31 @@ public class CheckoutController {
      *
      * <p>失敗したらカート画面に理由を出して戻します
      * （値上げや品切れがあった場合、カートの中身は最新に洗い替えられています）。
+     *
+     * <p><b>★★ お客さまからの要望（note）はここでは受け取りません（2026-09-22）。</b><br>
+     * 店主の判断「お客がわざわざ文字入力するわけない。めんどくさがって店員に直接言うでしょ」。
+     * 加えて、要望は注文ぜんぶに 1 つしか持てないため（{@code Order#note}）、
+     * 複数の品を頼んだお客さまが「ソース多めで」と書いても、
+     * 厨房には<b>どの品への要望か分からない形</b>でしか出せませんでした。
+     *
+     * <p><b>画面から欄を消すだけでは足りません。</b>
+     * この口は認証なし（{@code SecurityConfig} で permitAll）で、
+     * <b>古い画面を開いたままのスマホ</b>からも届きます。
+     * 欄を消した後も {@code note=ソース多めで} を送ってくる端末が残るので、
+     * 受け取らないことをここで決めておきます。
+     * 「画面に無いから来ない」は、Web では成り立ちません。
+     *
+     * <p>口で伺った要望は店員がホール側（{@code /hall/...}）から入れられます。
+     * そちらは<b>入れた本人が品を知っている</b>ので取り違えが起きません。
      */
     @PostMapping("/checkout")
-    public String placeOrder(@RequestParam(required = false) String note,
-                             RedirectAttributes redirectAttributes) {
+    public String placeOrder(RedirectAttributes redirectAttributes) {
         if (!tableContext.isBound()) {
             return "redirect:/";
         }
         try {
             TableSession session = tableService.requireOpenSession(tableContext.getTableId());
-            OrderService.Placed placed = orderService.place(cart, session.getId(), note);
+            OrderService.Placed placed = orderService.place(cart, session.getId(), null);
             cart.clear();
 
             // 売り切れで落ちた品があっても、注文そのものは通っている。

@@ -166,7 +166,10 @@ class ItemFormDesignTest {
 
         // もどる → 見出しの帯は 28（本文 gap-28）。この画面専用の目印で持つ
         assertThat(rule(".formback {")).contains("margin-bottom: 28px;");
-        assertThat(Files.readString(HTML)).contains("class=\"small formback\"");
+        // ★ 2026-09-17 に .small を外しました。戻り口を素のテキストから
+        //   ボタン（.btn btn--sm）へ変えたためで、.small を残すとボタンの字だけ縮みます。
+        //   ここで見たいのは「28px の間が空いていること」なので、目印の .formback は残っています。
+        assertThat(Files.readString(HTML)).contains("class=\"formback\"");
 
         // ラベル → 入力枠は 8（入力欄部品 45:3110 の gap-8）。全フォーム共通
         assertThat(topRule(".label {")).contains("margin-bottom: 8px;");

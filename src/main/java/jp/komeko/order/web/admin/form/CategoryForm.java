@@ -1,9 +1,6 @@
 package jp.komeko.order.web.admin.form;
 
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import jp.komeko.order.domain.Category;
@@ -43,14 +40,41 @@ public class CategoryForm {
     @Size(max = 40, message = "カテゴリ名は40文字以内で入力してください")
     private String name;
 
+    /**
+     * 大分類の {@code <select>} で「＋ 新しい大分類を作る」を選んだときの合図（2026-09-20）。
+     *
+     * <p>★ これがそのまま {@code Category.setGroupName} に渡ると、
+     * {@code @Size(max=20)} を通るので<b>例外も検証エラーも出ません</b>。
+     * お客さまのメニューに {@code __new__} というタブが出るまで誰も気づけません。
+     * コントローラの {@code create} で必ず実際の名前に直すこと。
+     */
+    public static final String NEW_GROUP = "__new__";
+
     /** 大カテゴリ（メニュー画面のタブ名）。空なら、このカテゴリ名がそのままタブになる。 */
     @Size(max = 20, message = "大カテゴリは20文字以内で入力してください")
     private String groupName;
 
-    @NotNull(message = "並び順を入力してください")
-    @Min(value = 0, message = "並び順は0以上で入力してください")
-    @Max(value = 9999, message = "並び順は9999以下で入力してください")
-    private Integer sortOrder = 0;
+    /**
+     * 「＋ 新しい大分類を作る」を選んだときに打ち込む名前（2026-09-20）。
+     *
+     * <p>大分類は自由入力をやめました。{@code Category.getTabName()} を通って
+     * お客さまのメニューのタブ名そのものになり、しかも
+     * {@code MenuController.DRINK_SECTION} との完全一致で見た目が変わるためです。
+     * 打ち間違えると、タブが 2 つに割れたり、飲み物用の並べ方が黙って効かなくなります。
+     */
+    @Size(max = 20, message = "大カテゴリは20文字以内で入力してください")
+    private String newGroupName;
+
+    // ★ 並び順（sortOrder）は 2026-09-19 に消しました。
+    //   店主の指示「卓は編集する画面で並び替えは出来ない仕様にして」（カテゴリも同じ扱い）。
+    //   並べ替えは一覧のドラッグ＆ドロップ（POST /admin/categories/place）だけが行い、
+    //   新規追加は MenuService.nextCategorySortOrder() が自動で採番します。
+    //
+    //   ★ 戻すときは「フィールド・注釈・初期値・画面の入力欄」を必ず同時に動かすこと。
+    //     初期値 0 のままフィールドだけ戻すと、画面に欄が無いぶん 0 が書かれ、
+    //     更新したカテゴリが黙って一覧の先頭へ飛びます（@NotNull も @Min(0) も 0 は通す）。
+    //     逆に初期値を外して @NotNull を残すと、毎回「並び順を入力してください」が出て
+    //     どのカテゴリも二度と更新できなくなります。
 
     /** お客さんのメニューに出すかどうか。新規追加では「出す」を初期値にする。 */
     private boolean visible = true;
@@ -69,7 +93,6 @@ public class CategoryForm {
         form.setId(category.getId());
         form.setName(category.getName());
         form.setGroupName(category.getGroupName());
-        form.setSortOrder(category.getSortOrder());
         form.setVisible(category.isVisible());
         return form;
     }
@@ -103,12 +126,12 @@ public class CategoryForm {
         this.name = name;
     }
 
-    public Integer getSortOrder() {
-        return sortOrder;
+    public String getNewGroupName() {
+        return newGroupName;
     }
 
-    public void setSortOrder(Integer sortOrder) {
-        this.sortOrder = sortOrder;
+    public void setNewGroupName(String newGroupName) {
+        this.newGroupName = newGroupName;
     }
 
     public boolean isVisible() {

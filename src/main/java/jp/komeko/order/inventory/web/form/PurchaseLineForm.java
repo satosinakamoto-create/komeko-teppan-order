@@ -164,4 +164,59 @@ public class PurchaseLineForm {
     public boolean isMissingStockQty() {
         return ingredientId != null && (stockQty == null || stockQty.signum() == 0);
     }
+
+    /**
+     * 食材の行なのに、まだどの食材にも紐付いていないか（2026-09-14）。
+     *
+     * <p>この行だけ画面で薄い赤にして、「食材登録」のボタンを出します。
+     * 費目が食材でない行（洗剤・ゴミ袋）は対象外。あちらは紐付けないのが正しい姿で、
+     * 光らせると「直すべきもの」の意味が薄れます（{@link #isMissingStockQty()} と同じ考え）。
+     */
+    public boolean isUnlinkedFood() {
+        return category == PurchaseCategory.FOOD && ingredientId == null && !isBlank();
+    }
+
+    /**
+     * 品名から、食材の名前の候補を作る。
+     *
+     * <p>レシートの品名には包装の都合が混ざります。
+     * <pre>
+     *   エリンギ 2P   → エリンギ
+     *   米粉 10kg     → 米粉
+     *   大葉 3枚      → 大葉
+     * </pre>
+     * ここを素通しにすると、食材マスタに「エリンギ 2P」と「エリンギ 3P」が
+     * 別々に並びます。<b>同じ食材が分裂すると在庫も原価も割れる</b>ので、
+     * 数量・単位・包装の表記は落としてから渡します。
+     *
+     * <p>あくまで候補です。おかしければ画面で直せます。
+     */
+    public String suggestedIngredientName() {
+        if (itemText == null) {
+            return "";
+        }
+        String s = itemText.trim();
+        // 「2P」「10kg」「3枚」のような、数字で始まる塊を末尾から削る。
+        // 全角スペースも区切りに数える（レシートの読み取りでよく混ざる）
+        s = s.replaceAll("[\\s\\u3000]*\\d+(\\.\\d+)?\\s*(P|p|パック|袋|入|本|枚|個|玉|束|g|ｇ|kg|ｋｇ|ml|L|cc)?$", "");
+        return s.trim();
+    }
+
+    /**
+     * その場で食材を作るときに選ぶ単位。<b>保存はしません</b>（画面の一時的な入力）。
+     *
+     * <p>品名はレシートから入るので、人が決めるのはここだけ。
+     * 「キャベツ 3」の 3 は 3 玉ですが、レシピはグラムで使う——
+     * この換算は人しか決められないので、AI に推測させません。
+     */
+    private jp.komeko.order.inventory.domain.IngredientUnit newUnit
+            = jp.komeko.order.inventory.domain.IngredientUnit.GRAM;
+
+    public jp.komeko.order.inventory.domain.IngredientUnit getNewUnit() {
+        return newUnit;
+    }
+
+    public void setNewUnit(jp.komeko.order.inventory.domain.IngredientUnit newUnit) {
+        this.newUnit = newUnit;
+    }
 }

@@ -40,7 +40,8 @@ public record RecipeCost(
         BigDecimal costNet,
         int priceIncludingTax,
         int priceNet,
-        int unknownCostCount
+        int unknownCostCount,
+        Integer otherCostIncludingTax
 ) {
 
     /**
@@ -61,9 +62,27 @@ public record RecipeCost(
         }
     }
 
-    /** レシピが 1 行も登録されていないか。 */
+    /** レシピが 1 行も登録されていないか。<b>その他材料費は数えません。</b> */
     public boolean isEmpty() {
         return lines.isEmpty();
+    }
+
+    /**
+     * 原価の手がかりが 1 つも無いか（レシピ行も その他材料費も無い）。
+     *
+     * <p><b>{@link #isEmpty()} と使い分けてください。</b>
+     * あちらは「レシピ行が 0 件か」で、その他材料費だけ入れた商品では true になります。
+     * 一覧で「原価 ¥180」の隣に「未登録」と出すと、どちらが本当なのか読む人に分かりません。
+     *
+     * <p>「未登録」と言ってよいのは、金額の手がかりが本当に何も無いときだけです。
+     */
+    public boolean isNothingRegistered() {
+        return lines.isEmpty() && otherCostIncludingTax == null;
+    }
+
+    /** レシピ行は無いが、その他材料費だけで原価が出ている状態か。一覧の表示を分けるため。 */
+    public boolean isOtherCostOnly() {
+        return lines.isEmpty() && otherCostIncludingTax != null;
     }
 
     /**

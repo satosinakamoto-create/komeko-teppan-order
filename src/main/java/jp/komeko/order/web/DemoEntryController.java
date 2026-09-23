@@ -99,9 +99,30 @@ public class DemoEntryController {
             return "demo-preparing";
         }
 
+        // ── 押してから進む（2026-09-23・設計 暗31 1597:16742）──────────
+        //
+        // ここは長いあいだ、卓の画面へそのまま転送していました。
+        // すぐ下の staffEntry の注釈に「客側は /demo を開けばそのまま
+        // 注文画面に入れますが」と書いてあるとおりです。
+        //
+        // ですが飛ばされた人は、人数を選ぶボタンが目の前にある状態から始まります。
+        // そこには「これは本物の注文ではない」と書いてありません。
+        // 店舗側ではわざわざ 1 クリック足してまで伝えていることを、
+        // お客さま側では伝えていませんでした。手数ではなく、非対称のほうが問題です。
+        //
+        // ★ 転送をやめても「実在する空いている卓を選ぶ」ところは変えていません。
+        //   選んだ卓のトークンを画面に渡し、ボタンのリンク先にします。
+        //   DemoEntryTest はそこを見ています（撮影用の卓を優先する・
+        //   埋まっていたら別の卓へ、という判断は前のまま）。
         DiningTable table = pickTable();
-        log.info("見学用の入口から入りました: 卓={}", table.getName());
-        return "redirect:/t/" + table.getAccessToken();
+        log.info("見学用の入口を出しました: 卓={}", table.getName());
+        model.addAttribute("tableToken", table.getAccessToken());
+        // ★ 人数は卓の定員で埋める。見学者に「何名さまですか」と尋ねても
+        //   答えようがないので、デモでは聞かない（店主の指示）。
+        //   送り先は実店舗と同じ /t/{token}/start なので、
+        //   伝票の開き方もテーブルチャージの計算も本番と同じ経路を通る。
+        model.addAttribute("guestCount", table.getCapacity());
+        return "demo-guest";
     }
 
     /**

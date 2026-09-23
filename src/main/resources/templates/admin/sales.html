@@ -29,20 +29,47 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('売上', ~{::main})}">
 <body>
-<main class="sheet">
+<main class="sheet salespage">
 
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <!--/* ====== 月を移る ====== */-->
-  <nav class="monthnav" aria-label="月の切り替え">
-    <span class="monthnav__label">対象の月</span>
-    <a class="monthnav__go" th:href="@{/admin/sales(month=${prevMonthIso}, span=${span})}">← 前月</a>
-    <span class="monthnav__value" th:text="${monthLabel}">2026-08</span>
-    <a class="monthnav__go" th:href="@{/admin/sales(month=${nextMonthIso}, span=${span})}">翌月 →</a>
-  </nav>
+  <!--/* ====== 見出しの帯 ======
+         設計 14 売上（17:1038）は、題「売上」と月ナビが 1 本の帯（16/40）に
+         同居します。2026-09-13 までは「対象の月」のバーと bare の題で
+         2 段に分かれていました。帯 1 本にすると縦が 100px で済み、
+         「どの月を見ているか」が題の行から目を離さずに読めます。 */-->
+  <!--/* 月の帯の置き場所は題のすぐ隣（2026-09-13 店主指示）。
+         「どの月を見ているか」は題とひと続きで読む情報なので、
+         題の隣のほうが視線が往復しない。設計 17:1038 は右端置きだが採らない。
 
-  <div class="page-head page-head--bare">
+         ★ 見た目を他の画面にそろえました（2026-09-18・店主の指示）。
+
+             「売り上げの ← 前月 2026年08月 翌月 → のデザインは
+               昔のものだから新しいものに統一させて」
+
+           ここだけ文字リンク式（.monthnav）で、月はただの文字でした。
+           設計 14 売上（17:1038）をそのまま実装したもので、その後
+           他の画面が入力欄つきに変わったのに取り残されていました。
+
+           入力欄にすると月を直接選べます。文字リンクだけだと、
+           いまが 2026-09 で 2025-12 を見るのに「← 前月」を 9 回押すことになります。
+
+         ★ span（1か月〜1年）は隠し入力で持ち回ること。
+           GET のフォームは中の入力欄しか送らないので、これが無いと
+           月を変えるたびに期間が 1 か月へ戻ります。 */-->
+  <div class="page-head">
     <h1 class="page-head__title">売上</h1>
+    <form th:action="@{/admin/sales}" method="get" class="datenav">
+      <input type="hidden" name="span" th:value="${span}">
+      <a class="btn btn--sm"
+         th:href="@{/admin/sales(month=${prevMonthIso}, span=${span})}">← 前月</a>
+      <input class="input" type="month" name="month"
+             th:value="${monthIso}" aria-label="月を選ぶ">
+      <button type="submit" class="btn btn--sm datenav__go">この月を表示</button>
+      <a class="btn btn--sm"
+         th:href="@{/admin/sales(month=${nextMonthIso}, span=${span})}">翌月 →</a>
+    </form>
+    <span class="page-head__spacer"></span>
   </div>
 
   <!--/* ====== 3 つの数字 ====== */-->

@@ -10,6 +10,7 @@ import jp.komeko.order.domain.ShopSetting;
 import jp.komeko.order.domain.TableSession;
 import jp.komeko.order.security.StaffUserDetails;
 import jp.komeko.order.service.MenuService;
+import jp.komeko.order.service.OrderRejectedException;
 import jp.komeko.order.service.OrderService;
 import jp.komeko.order.service.ServiceCallService;
 import jp.komeko.order.service.ShopSettingService;
@@ -32,6 +33,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -146,7 +148,10 @@ public class HallController {
      */
     @GetMapping
     public String board(Model model) {
-        List<TableSession> bills = tableService.openSessions();
+        // ★ 明細まで読む。盤面のお会計モーダルに「何を頼んだか」を出すため。
+        //   openSessions() のままだと、テンプレートで order.lines を書いた瞬間に
+        //   LazyInitializationException で画面ごと落ちる（open-in-view: false）
+        List<TableSession> bills = tableService.openSessionsWithLines();
         List<DiningTable> tables = tableService.activeTables();
 
         // 開いている伝票が使っている卓の ID を集める。
@@ -156,10 +161,27 @@ public class HallController {
             occupiedTableIds.add(bill.getDiningTable().getId());
         }
 
+        // ── 3 列に分ける（2026-09-12。設計 540:3509／540:3496／453:5744）──
+        //
+        // 厨房ボードの「受付／調理中／提供待ち」と同じ考え方で、
+        // 列そのものを<b>いま何をすべき卓か</b>にする。
+        // 以前は在席の伝票が 1 つの枠に混ざっていたので、
+        // お会計待ちの卓を見つけるのにカードの札を 1 枚ずつ読む必要があった。
+        List<TableSession> seatedBills = new ArrayList<>();
+        List<TableSession> closingBills = new ArrayList<>();
+        for (TableSession bill : bills) {
+            if (bill.isClosing()) {
+                closingBills.add(bill);
+            } else {
+                seatedBills.add(bill);
+            }
+        }
+
         // 伝票の無い卓を「片付け待ち」と「空席」に分ける（4 状態目。2026-09-07）。
-        // 片付け待ちを空席に混ぜると、会計直後の卓に次の組を二重に案内できてしまう。
-        // 在席の判定はこれまでどおり伝票から。needsCleanup は
-        // 伝票からは導けない事実（卓の上が片付いたか）だけを受け持つ
+        // needsCleanup は伝票からは導けない事実（卓の上が片付いたか）だけを受け持つ。
+        //
+        // 空席は列にしない。ご案内の入口は「＋新規お客様」に一本化してあり
+        //（2026-09-11）、盤面には数だけ出す
         List<DiningTable> cleanupTables = new ArrayList<>();
         List<DiningTable> vacantTables = new ArrayList<>();
         for (DiningTable table : tables) {
@@ -173,39 +195,67 @@ public class HallController {
             }
         }
 
-        // 在席のお客さまの合計人数と、まだ厨房に残っている注文の件数。
-        // 件数の数え方は TableSession#hasPendingOrders() と同じ条件（受付・調理中）に
-        // そろえてあります。片方だけ READY を含めると、カードのバッジと
-        // 上の集計が食い違って「どっちが本当？」となるためです。
-        int guestTotal = 0;
-        int pendingCount = 0;
-        for (TableSession bill : bills) {
-            guestTotal += bill.getGuestCount();
-            for (Order order : bill.getOrders()) {
-                if (order.getStatus().isActive()) {
-                    pendingCount++;
-                }
-            }
+        // レーンごとの人数（2026-09-14）。
+        //
+        // もとは「在席 ◯卓／◯名」「未提供 ◯件」の数字カードのために
+        // 全伝票の合計（guestTotal・pendingCount）を数えていた。
+        // 店主の指摘でカードの段をレーン見出しへ畳んだので、
+        // 人数も合計ではなくレーン単位で数える。
+        //   在卓 4卓 ／ 9名   ← seatedGuests
+        //   お会計待ち 2卓 ／ 5名 ← closingGuests（何名ぶんの会計が残っているか）
+        // 未提供の件数は上の帯のチップ（未提供 ◯件）がすでに持っているので、
+        // この画面ではもう数えない。
+        int seatedGuests = 0;
+        for (TableSession bill : seatedBills) {
+            seatedGuests += bill.getGuestCount();
+        }
+        int closingGuests = 0;
+        for (TableSession bill : closingBills) {
+            closingGuests += bill.getGuestCount();
         }
 
         model.addAttribute("bills", bills);
-        model.addAttribute("vacantTables", vacantTables);
-        // エリアごとの区切り（卓 2/3。2026-09-07）。
-        // 全卓が未設定なら name=null の 1 グループになり、見出しは出ない
-        //（導入前と見た目が変わらない）。エリアの並びは卓の並び順に従う
-        model.addAttribute("billGroups",
-                groupByArea(tables, bills, bill -> bill.getDiningTable()));
-        model.addAttribute("vacantGroups",
-                groupByArea(tables, vacantTables, table -> table));
+        // 列ごとの中身と件数。
+        //
+        // ★ エリアごとの区切り（卓 2/3。2026-09-07）は、この画面から外した。
+        //   列が「状態」になったので、その中をさらに「エリア」で割ると
+        //   細い 1 列の中に見出しが二重に積み上がって、かえって探しにくい。
+        //   エリアの区切りはご案内の入力画面（/hall/seat/new）に残っている
+        model.addAttribute("seatedBills", seatedBills);
+        model.addAttribute("closingBills", closingBills);
         model.addAttribute("cleanupTables", cleanupTables);
+        model.addAttribute("seatedCount", seatedBills.size());
+        model.addAttribute("closingCount", closingBills.size());
         model.addAttribute("cleanupCount", cleanupTables.size());
-        model.addAttribute("occupiedCount", bills.size());
+        model.addAttribute("seatedGuests", seatedGuests);
+        model.addAttribute("closingGuests", closingGuests);
+        // 空席は見出しの帯（新規お客様ボタンの脇）に数だけ出す。
+        // 卓の一覧そのものは出さなくなった（2026-09-11。「＋新規お客様」へ移した）。
+        // ここは「いますぐ通せる卓」なので、片付け待ちは数えない
         model.addAttribute("vacantCount", vacantTables.size());
-        model.addAttribute("guestTotal", guestTotal);
-        model.addAttribute("pendingCount", pendingCount);
+        model.addAttribute("closedBills", closedBillsOfToday());
+
+        // ── お会計モーダル用（2026-09-12）──
+        // 深夜料金の初期チェックと「付けた場合の金額」は、伝票ページと同じ
+        // checkoutViewOf を通す。ここで書き写すと計算が 2 か所になり、
+        // 片方だけ直したときに「画面によって読み上げる金額が違う」事故になる
+        Map<Long, CheckoutView> checkoutViews = new LinkedHashMap<>();
+        for (TableSession bill : bills) {
+            checkoutViews.put(bill.getId(), checkoutViewOf(bill));
+        }
+        model.addAttribute("checkoutViews", checkoutViews);
+
+        // ── ご案内モーダル用 ──
+        // 伝票の無い卓を全部。バッシング中も選べる（選べば片付け完了も同時に記録）
+        List<DiningTable> seatTables = new ArrayList<>();
+        for (DiningTable table : tables) {
+            if (!occupiedTableIds.contains(table.getId())) {
+                seatTables.add(table);
+            }
+        }
+        model.addAttribute("seatTables", seatTables);
         model.addAttribute("guestOptions", guestOptions(MAX_GUEST_CHOICE));
         model.addAttribute("defaultGuestCount", DEFAULT_GUEST_COUNT);
-        model.addAttribute("closedBills", closedBillsOfToday());
         // お客さまからの呼び出し（スタッフを呼ぶ／お会計をお願いする）。
         // 持っていく物は厨房ボードに出るので、ここには来ない
         model.addAttribute("calls", serviceCallService.pending());
@@ -270,8 +320,8 @@ public class HallController {
         // その結果をそのまま初期状態にします。
         // ただし一度スタッフが免除した伝票は、開け直しても外れたままにします
         // （人の判断を、計算結果で上書きしない）。
-        model.addAttribute("lateNightDefault",
-                !bill.isLateNightWaived() && bill.isLateNightApplied());
+        CheckoutView view = checkoutViewOf(bill);
+        model.addAttribute("lateNightDefault", view.lateNightDefault());
         // 確認ダイアログ用の「深夜料金を付けた場合のご請求額」。
         //
         // ふつうは recalculate 済みの getTotalWithLateNight() でよいが、
@@ -283,17 +333,7 @@ public class HallController {
         //
         // ここで受け取っている伝票は detached（表示専用。上のコメント参照）なので、
         // 免除を一時的に外して計算しても DB には書き戻らない。
-        int totalIfLateNightApplied = bill.getTotalWithLateNight();
-        if (bill.isActive() && bill.isLateNightWaived()) {
-            ShopSetting current = shopSettingService.currentReadOnly();
-            bill.setLateNightWaived(false);
-            bill.recalculate(current::isLateNight);
-            totalIfLateNightApplied = bill.getTotalWithLateNight();
-            // 画面本体の表示は免除状態のままにしたいので、元に戻して計算し直す
-            bill.setLateNightWaived(true);
-            bill.recalculate(current::isLateNight);
-        }
-        model.addAttribute("totalIfLateNightApplied", totalIfLateNightApplied);
+        model.addAttribute("totalIfLateNightApplied", view.totalIfLateNightApplied());
         // いまの人数が選択肢に無いと「変更したら人数が減った」という事故になるので、
         // 現在値より小さい範囲で切らないようにしておく
         model.addAttribute("guestOptions",
@@ -403,6 +443,17 @@ public class HallController {
      * <p>断られたときは<b>選んだ商品の段に戻します</b>。
      * 商品を選ぶ段まで戻すと、金額の打ち直しのために
      * もう一度カテゴリから辿り直すことになります。
+     *
+     * <p><b>★★ 要望（note）はもう受け取りません（2026-09-22）。</b><br>
+     * 店主の判断「営業中にわざわざテキスト入力するヒマなんてないでしょ」。
+     * 決め手は手間ではなく構造で、要望は注文ぜんぶに 1 つしか持てないため
+     * （{@code Order#note}）、4 品の注文に「レア寄りで」と入れても
+     * <b>どの品への要望か分からない</b>形でしか厨房に出せませんでした。
+     *
+     * <p>焼き加減は<b>商品のオプション</b>として登録してください。
+     * 品に紐づき、選ぶだけで、厨房ボードでは品名の直下に出ます。
+     * 画面から欄を消すだけでは、古い画面から飛んできた文字が保存されるので、
+     * <b>受け口そのもの</b>をここで閉じています。
      */
     @PostMapping("/bills/{id}/orders")
     public String addOrder(@PathVariable Long id,
@@ -410,7 +461,6 @@ public class HallController {
                            @RequestParam(name = "choiceIds", required = false) List<Long> choiceIds,
                            @RequestParam(defaultValue = "1") int quantity,
                            @RequestParam(required = false) Integer price,
-                           @RequestParam(required = false) String note,
                            @RequestParam Map<String, String> allParams,
                            @AuthenticationPrincipal StaffUserDetails user,
                            RedirectAttributes redirectAttributes) {
@@ -420,7 +470,7 @@ public class HallController {
         List<Long> selected = CartController.mergeChoiceIds(choiceIds, allParams);
         try {
             Order order = orderService.placeByStaff(
-                    id, itemId, selected, quantity, price, note, staffNameOf(user));
+                    id, itemId, selected, quantity, price, null, staffNameOf(user));
             redirectAttributes.addFlashAttribute("flashSuccess",
                     "%s に「%s」を入れました（#%d・¥%,d）。厨房に出ています"
                             .formatted(order.getCustomerName(), itemNameOf(order),
@@ -621,6 +671,41 @@ public class HallController {
     }
 
     /**
+     * <b>品を 1 つだけ取り消す（2026-09-22 追加）。</b>
+     *
+     * <p>お会計の確認画面で、明細の ✕ を押したときの行き先です。
+     * 「違うものが来た」「1 品だけ廃棄」に対応するためのもので、
+     * 注文ごとの取り消し（{@code /kitchen/orders/*&#47;cancel}）では
+     * 同じ注文の他の品まで請求から落ちてしまいます。
+     *
+     * <p><b>{@code returnStock} に既定値を置いている理由。</b>
+     * 画面のラジオは「作った・出した（廃棄）」を既定にしてあります
+     * （お会計の場で取り消すのは、出したあとがほとんどだからです）。
+     * ただしラジオは<b>どちらも選ばれていないと送信されない</b>ので、
+     * 届かなかったときは false ＝ 在庫を戻さない、として受けます。
+     * <b>迷ったら戻さないほうが安全</b>です。戻しすぎると、実際には無い残数が
+     * 画面に出て売り越します（足りないぶんは棚卸しで気づけます）。
+     */
+    @PostMapping("/bills/{id}/lines/{lineId}/cancel")
+    public String cancelLine(@PathVariable Long id,
+                             @PathVariable Long lineId,
+                             @RequestParam(required = false) String reason,
+                             @RequestParam(defaultValue = "false") boolean returnStock,
+                             @AuthenticationPrincipal StaffUserDetails user,
+                             RedirectAttributes redirectAttributes) {
+        try {
+            Order order = orderService.cancelLine(lineId, reason, staffNameOf(user), returnStock);
+            redirectAttributes.addFlashAttribute("flashSuccess",
+                    returnStock ? "お会計から取り除きました（材料は在庫に戻しました）"
+                                : "お会計から取り除きました（廃棄として原価に残ります）");
+            log.info("伝票 {} の明細 {} を取り消し（注文 #{}）", id, lineId, order.getOrderNumber());
+        } catch (RuntimeException e) {
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
+        }
+        return "redirect:/hall/bills/" + id;
+    }
+
+    /**
      * お会計（伝票を締める）。この店の売上が確定する操作です。
      *
      * <p><b>{@code applyLateNight} が boolean なのに defaultValue が要る理由</b><br>
@@ -719,11 +804,60 @@ public class HallController {
     }
 
     // ========================================================================
-    //  ご案内（空席に伝票を開く）
+    //  ご案内（＋新規お客様 → 人数と卓を選ぶ）
     // ========================================================================
 
     /**
-     * スタッフが席にご案内する（伝票を開く）。
+     * 「＋新規お客様」の入力画面。人数と卓をここで選ぶ（2026-09-11）。
+     *
+     * <p><b>盤面から「空席」と「片付け待ち」の枠を外した代わりの入口です。</b>
+     * 以前は空席カードごとに人数の選択とご案内ボタンが付いていましたが、
+     * 卓の数だけ同じ部品が並ぶうえ、片付け待ちの卓は別の枠に分かれていて、
+     * 「片付け完了 → ご案内」の 2 手が必要でした。
+     *
+     * <p><b>伝票の無い卓は、片付け待ちも含めて全部並べます。</b>
+     * 片付け待ちを隠すと「なぜあの卓が出てこないのか」が画面から分からず、
+     * 片付け完了を押す場所を別に用意することになります。
+     * 並べたうえで状態を出し、選ばれたら {@link TableService#seat} が
+     * 片付け完了も一緒に記録します。
+     */
+    /**
+     * ★ 2026-09-12 にモーダル化したので、この別ページは使っていません。
+     *
+     * <p>盤面の「＋ 新規お客様」は {@code <dialog>} を開く形に変わりました。
+     * この口を残してあるのは、<b>JavaScript が動かない端末の逃げ道</b>としてです
+     * （店のタブレットが古い・拡張機能で JS が切られている、などの場合）。
+     * 盤面からのリンクは無くなっているので、通常は誰も来ません。
+     *
+     * <p>消さないのは、消すとその端末でご案内の手段がまったく無くなるためです。
+     */
+    @GetMapping("/seat/new")
+    public String seatForm(Model model) {
+        List<TableSession> bills = tableService.openSessions();
+        List<DiningTable> tables = tableService.activeTables();
+
+        Set<Long> occupiedTableIds = new HashSet<>();
+        for (TableSession bill : bills) {
+            occupiedTableIds.add(bill.getDiningTable().getId());
+        }
+
+        List<DiningTable> seatTables = new ArrayList<>();
+        for (DiningTable table : tables) {
+            if (!occupiedTableIds.contains(table.getId())) {
+                seatTables.add(table);
+            }
+        }
+
+        model.addAttribute("seatTables", seatTables);
+        // エリアの区切りは盤面と同じ仕組み（groupByArea の説明参照）
+        model.addAttribute("seatGroups", groupByArea(tables, seatTables, table -> table));
+        model.addAttribute("guestOptions", guestOptions(MAX_GUEST_CHOICE));
+        model.addAttribute("defaultGuestCount", DEFAULT_GUEST_COUNT);
+        return "hall/seat-new";
+    }
+
+    /**
+     * ご案内する（伝票を開く）。片付け待ちの卓なら片付け完了も同時に記録する。
      *
      * <p>お客さまが QR を読んだ時点でも伝票は自動で開きますが、
      * 「先に席へ通してから、あとでゆっくり注文する」流れが普通なので、
@@ -731,22 +865,36 @@ public class HallController {
      * すでに開いていれば {@link TableService#openSession(Long, int)} が
      * 既存の伝票を返してくれるので、二重に伝票ができることはありません。
      */
-    @PostMapping("/tables/{tableId}/open")
-    public String openTable(@PathVariable Long tableId,
-                            @RequestParam(defaultValue = "1") int guestCount,
-                            RedirectAttributes redirectAttributes) {
+    @PostMapping("/seat")
+    public String seat(@RequestParam Long tableId,
+                       @RequestParam(defaultValue = "1") int guestCount,
+                       @RequestParam(required = false) Integer guestCountOther,
+                       RedirectAttributes redirectAttributes) {
+        // 9 名以上は入力欄で受ける（チップは 1〜8。お客さま側の table-start.html と同じ形）。
+        // ★ 判定をサーバ側に置いているのは、JavaScript が動かなくても
+        //   入力欄から送れば通るようにするため。画面側だけの対策では素通りする
+        int guests = (guestCountOther != null && guestCountOther >= 9)
+                ? guestCountOther
+                : guestCount;
         try {
-            TableSession bill = tableService.openSession(tableId, guestCount);
-            redirectAttributes.addFlashAttribute("flashSuccess",
-                    "「%s」に %d 名さまをご案内しました".formatted(
-                            bill.getDiningTable().getName(), bill.getGuestCount()));
-            log.info("ホールからご案内: 卓={} 人数={}",
-                    bill.getDiningTable().getName(), bill.getGuestCount());
+            TableService.SeatResult result = tableService.seat(tableId, guests);
+            TableSession bill = result.bill();
+            String tableName = bill.getDiningTable().getName();
 
-        } catch (TableService.TableNotReadyException e) {
-            // 片付け待ちの卓へご案内しようとした。スタッフには次の一手まで言う
-            redirectAttributes.addFlashAttribute("flashErrors",
-                    List.of(messageOf(e), "盤面の「片付け完了」を押すとご案内できます"));
+            // 片付けは人の判断なので、何を記録したのかを画面にも出す。
+            // 「いつのまにか片付け完了になっていた」と思われないようにするため
+            redirectAttributes.addFlashAttribute("flashSuccess", result.markedCleaned()
+                    ? "「%s」を片付け完了にして、%d 名さまをご案内しました"
+                            .formatted(tableName, bill.getGuestCount())
+                    : "「%s」に %d 名さまをご案内しました"
+                            .formatted(tableName, bill.getGuestCount()));
+            log.info("ホールからご案内: 卓={} 人数={} 片付け完了={}",
+                    tableName, bill.getGuestCount(), result.markedCleaned());
+
+        } catch (OrderRejectedException e) {
+            // 営業時間外など。TableNotReadyException もこの型だが、
+            // 片付け待ちは seat() が先に旗を下ろすので、ここには来ない
+            redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
 
         } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("flashErrors", List.of(messageOf(e)));
@@ -760,8 +908,12 @@ public class HallController {
     /**
      * 片付け完了。卓を空席（ご案内できる状態）に戻す。
      *
-     * <p>会計済み（片付け待ち）は伝票ではなく卓の旗なので、
-     * ここは伝票を触らない。旗を下ろすだけ。
+     * <p>会計済み（片付け待ち）は伝票ではなく卓の旗なので、ここは伝票を触らない。旗を下ろすだけ。
+     *
+     * <p><b>「＋新規お客様」と二本立てになっているのは、担当が違うからです。</b>
+     * {@link #seat} は「次の組を通すついでに片付けも記録する」入口で、
+     * こちらは「先に皿だけ下げた」ときの入口です。
+     * 片付けてから次の組が来るまで間が空くのが普通なので、両方要ります。
      */
     @PostMapping("/tables/{tableId}/cleaned")
     public String markCleaned(@PathVariable Long tableId,
@@ -779,6 +931,55 @@ public class HallController {
     // ========================================================================
     //  内部ヘルパー
     // ========================================================================
+
+    /**
+     * 会計を締める画面が必要とする、伝票ごとの 2 つの値。
+     *
+     * @param lateNightDefault         深夜料金のチェックを初期状態で入れるか
+     * @param totalIfLateNightApplied  深夜料金を<b>付けた場合</b>のご請求額（確認ダイアログ用）
+     */
+    public record CheckoutView(boolean lateNightDefault, int totalIfLateNightApplied) {
+    }
+
+    /**
+     * 伝票ページと盤面のモーダルで<b>同じ計算を使う</b>ための切り出し（2026-09-12）。
+     *
+     * <p>盤面にお会計モーダルを載せたとき、ここを書き写すと計算が 2 か所になります。
+     * 下の免除まわりは分かりにくく、片方だけ直したときに
+     * 「画面によって読み上げる金額が違う」という一番まずい形になるので、
+     * 必ずこのメソッドを通してください。
+     *
+     * <p><b>チェックの初期状態</b><br>
+     * 「いま深夜帯か」で決めてはいけません。深夜料金は<b>注文時刻ごと</b>に決まるので、
+     * 23:30 に注文があった卓を 5:30 に会計することも、22:00 で終わった卓を
+     * 23:30 に会計することもあります。開いている伝票は表示のたびに計算し直されているので、
+     * その結果をそのまま初期状態にします。ただし一度スタッフが免除した伝票は、
+     * 開け直しても外れたままにします（人の判断を計算結果で上書きしない）。
+     *
+     * <p><b>「付けた場合」の金額</b><br>
+     * ふつうは {@code getTotalWithLateNight()} でよいのですが、免除フラグが立った伝票は
+     * 再計算が NONE に強制されるため割増が常に 0 で、「付けた場合」がどこにも計算されていません。
+     * そのままだとチェックを入れ直して締めるとき、ダイアログが割増抜きの金額を
+     * 「深夜料金 込み」と読み上げ、実際に締まる金額のほうが高くなります。
+     *
+     * <p>ここで受け取る伝票は detached（表示専用）なので、免除を一時的に外して
+     * 計算しても DB には書き戻りません。
+     */
+    private CheckoutView checkoutViewOf(TableSession bill) {
+        boolean lateNightDefault = !bill.isLateNightWaived() && bill.isLateNightApplied();
+
+        int totalIfLateNightApplied = bill.getTotalWithLateNight();
+        if (bill.isActive() && bill.isLateNightWaived()) {
+            ShopSetting current = shopSettingService.currentReadOnly();
+            bill.setLateNightWaived(false);
+            bill.recalculate(current::isLateNight);
+            totalIfLateNightApplied = bill.getTotalWithLateNight();
+            // 画面本体の表示は免除状態のままにしたいので、元に戻して計算し直す
+            bill.setLateNightWaived(true);
+            bill.recalculate(current::isLateNight);
+        }
+        return new CheckoutView(lateNightDefault, totalIfLateNightApplied);
+    }
 
     /**
      * エリアの 1 区切り。{@code name} が null なら見出しを出さない

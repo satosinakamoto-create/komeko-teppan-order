@@ -19,42 +19,33 @@
 <html lang="ja" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout/staff :: layout('伝票・お会計', ~{::main})}">
 <body>
-<main>
+<main class="billpage">
 
   <!--/* 直前の操作結果（成功・お知らせ・エラー）を 1 回だけ表示する共通部品 */-->
   <div th:replace="~{fragments/common :: flash}"></div>
 
-  <div class="section-title">
-    <h1 class="section-title__text" th:text="${bill.diningTable.name}">3番テーブル</h1>
+  <!--/* ===== 見出し（設計 ト02n 1540:30863）=====
+
+         ★ 戻るボタンは題の<b>左</b>、同じ行に置きます。
+           見本は トp13b カテゴリを編集（1158:13907）。
+           「戻る＋題」を 1 つのかたまりにして間を 40px 空け、
+           見出し全体の左右は 40px。本文の padding 24 と合わせて、
+           題の左端は 64px になります（他の画面と揃います）。
+
+         ★ 「お会計に進む」は帯（画面の下）に置くので、ここには出しません。 */-->
+  <div class="billhead">
+    <div class="billhead__lead">
+      <a class="btn billhead__back" th:href="@{/hall}">← ホール・会計に戻る</a>
+      <h1 class="billhead__title"
+          th:text="${bill.diningTable.name} + ' のお会計'">カウンター2卓 のお会計</h1>
+    </div>
+    <span class="billhead__sub"
+          th:text="${bill.guestCount} + ' 名 ／ 滞在 ' + ${bill.stayMinutes} + ' 分'">2 名 ／ 滞在 96 分</span>
+    <span class="billhead__gap"></span>
     <!--/* 3 つの状態をそのまま出す。「お会計まえ／会計済み」の 2 つに畳むと、
            お会計待ち（注文が止まっている）が「お会計まえ」に紛れて見えなくなります。 */-->
-    <span class="section-title__count" th:text="${bill.status.label}">お会計まえ</span>
+    <span class="billhead__state" th:text="${bill.status.label}">お会計まえ</span>
   </div>
-
-  <p class="small">
-    <a class="btn btn--sm btn--ghost" th:href="@{/hall}">← ホール一覧へ戻る</a>
-  </p>
-
-  <!--/* ===== 伝票の基本情報 ===== */-->
-  <section class="card mt-4">
-    <div class="card__body row row--between row--wrap">
-      <div>
-        <p class="stat__label mb-0">ご来店</p>
-        <p class="mb-0">
-          <b th:text="${bill.guestCount} + ' 名'">4 名</b>
-          <span class="faint"> ／ </span>
-          <span th:text="${openedAtLabel} + ' 入店'">19:02 入店</span>
-          <span class="faint"> ／ </span>
-          <span th:text="'滞在 ' + ${bill.stayMinutes} + ' 分'">滞在 62 分</span>
-        </p>
-      </div>
-      <div class="right">
-        <p class="stat__label mb-0">現在のご請求額</p>
-        <p class="stat__value mb-0">¥<span
-              th:text="${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">11,044</span></p>
-      </div>
-    </div>
-  </section>
 
   <!--/* ===== 会計済みのときのお知らせ =====
          条件は bill.closed。「開いていない（!bill.open）」で書くと、
@@ -96,26 +87,19 @@
     <p class="mb-0">まだ提供していない品があります。お客さまにご確認のうえお会計してください。</p>
   </div>
 
-  <!--/* ===== 注文の明細 ===== */-->
-  <div class="section-title">
-    <h2 class="section-title__text">ご注文</h2>
-    <span class="section-title__count" th:text="${#lists.size(orders)} + ' 回'">3 回</span>
-  </div>
+  <!--/* ===== 注文の明細 =====
 
-  <!--/* ===== スタッフが代わりに注文を入れる =====
-         時価の品（ステーキなど）は、その日の仕入れを見ないと金額が決まらないので、
-         お客さまの画面からは注文できません。呼ばれたスタッフが部位と焼き加減を聞き、
-         その場で金額を伝える——その金額をここから入れます。
+         ★ 「ご注文 3 回」の見出しと「＋ 注文を入れる」を外しました（2026-09-23）。
+           設計（ト02n 1540:30863）にどちらもありません。
 
-         条件が bill.orderable なのは、会計済みとお会計待ちの両方で隠すためです。
-         押せてしまうと、選び終えてから断られることになります。
-         見学者（GUEST）には出しません。伝票が動くのは実店舗の操作だからです。 */-->
-  <p class="small mt-4" th:if="${bill.orderable}" sec:authorize="!hasRole('GUEST')">
-    <a class="btn btn--sm" th:href="@{/hall/bills/{id}/orders/new(id=${bill.id})}">
-      ＋ 注文を入れる（時価の品・お電話のご注文など）
-    </a>
-  </p>
+           見出しの「N 回」は、読み上げるときに要らない数字でした。
+           お客さまに伝えるのは品と金額で、何回に分けて頼んだかは関係ありません。
+           注文ごとのまとまりは、下のカード（時刻と注文番号）で分かります。
 
+           「＋ 注文を入れる」（時価の品・お電話のご注文）は<b>入口を消しただけ</b>で、
+           画面も口も残してあります（/hall/bills/{id}/orders/new）。
+           この画面は「読み上げて締める」ための場所で、注文を足す場所ではありません。
+           足す必要が出たら、盤面から入る導線を別に作ってください。 */-->
   <div th:if="${orders.isEmpty()}">
     <div th:replace="~{fragments/common :: empty('膳', 'まだご注文がありません')}"></div>
   </div>
@@ -133,8 +117,10 @@
       <span th:replace="~{fragments/common :: statusChip(${order.status})}">受付</span>
     </div>
 
+    <!--/* ★ activeLines（取り消していない品だけ）を並べます。lines ではありません。
+           取り消した品まで出すと、読み上げる金額と並んでいる品が合わなくなります。 */-->
     <div class="card__body">
-      <div class="cart-line" th:each="line : ${order.lines}">
+      <div class="cart-line" th:each="line : ${order.activeLines}">
         <div>
           <div class="cart-line__name">
             <span th:text="${line.menuItemName}">たこ焼 8個</span>
@@ -145,6 +131,25 @@
         </div>
         <div class="cart-line__price"
              th:text="'¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">¥1,190</div>
+
+        <!--/* ★ 品ごとの取り消し（2026-09-23）。
+               「提供したあとに『これ違います』と言われた」ときの口です。
+               注文ごとの取り消しでは、同じ注文の他の品まで請求から落ちます
+               （カートを一度に確定すると 4 品で 1 注文になるため）。
+
+             ★ 地も枠も持たせません（店主の判断）。
+               「×ボタンはそんなに目立たせたいものでも押させたいモノでもない」。
+               見つかる必要はあるが、誘う必要はない操作です。
+               見た目は文字ひとつでも、当たり判定は 48px（--tap）を確保します。
+
+             ★ 会計済みの伝票では出しません。
+               閉じた伝票は金額が確定した証跡で、再計算されません。
+               取り消したいときは、先に会計を取り消して開け直します
+               （サーバ側でも OrderService#requireBillStillOpenForCancel が弾きます）。 */-->
+        <button type="button" class="linex"
+                th:if="${bill.active}" sec:authorize="!hasRole('GUEST')"
+                th:data-open-modal="'line-cancel-' + ${line.id}"
+                th:aria-label="${line.menuItemName} + ' を取り消す'">✕</button>
       </div>
 
       <p class="small muted mt-4 mb-0" th:if="${order.note != null}"
@@ -246,11 +251,48 @@
            フォームだけ消すと見出しや説明文が抜け殻として残るので、
            sec:authorize は枠（カードや card__foot）の側に付ける。
            見学者への断り書きは、下の「お会計」カードに一言だけ出している。 */-->
+    <!--/* ===== 金額を調整する（設計 ト02n 1540:30863）=====
+
+           ★ 金額を動かすものを 1 か所に集めました（2026-09-23）。
+             深夜料金の適用・人数・チャージ免除は、どれもご請求額を変えます。
+             <b>動いた結果が見える場所</b>——内訳のすぐ下——に置くのが要点です。
+
+             以前は深夜料金のチェックだけ「お会計」カードの中にあり、
+             内訳から離れていました。そのため説明文が
+             「チェックを外すと深夜料金なしで締めます（<b>上の内訳より安くなります</b>）」
+             と、ズレを言葉で補う形になっていました。並べれば要らない一文です。
+
+           ★ 深夜料金のチェックだけ form 属性で「お会計」のフォームに結び付いています。
+             送信先が違う（締めるときに一緒に送る）ためで、
+             人数とチャージ免除はそれぞれ即時に反映される別のフォームです。 */-->
     <div class="card mt-6" sec:authorize="!hasRole('GUEST')">
-      <div class="card__head">人数の変更</div>
+      <div class="card__head">金額を調整する</div>
       <div class="card__body">
+
+        <div class="field" th:if="${bill.lateNightSurchargePercent > 0}">
+          <label class="choice">
+            <!--/* チェックを外すと、このパラメータは送信されません。
+                   サーバ側は「送られてこなかった＝適用しない」として受け取ります。 */-->
+            <input type="checkbox" name="applyLateNight" value="true" form="close-form"
+                   th:checked="${lateNightDefault}">
+            <span class="choice__name"
+                  th:text="'深夜料金を適用する（' + ${bill.lateNightSurchargePercent} + '%）'">
+              深夜料金を適用する（10%）</span>
+          </label>
+          <p class="help">
+            深夜料金は<strong>注文した時刻</strong>で決まります。
+            <span th:text="${shop.lateNightStartTime} + '〜' + ${shop.lateNightEndTime}">23:00〜05:00</span>
+            に出たご注文にだけかかるので、
+            <strong>同じ伝票でも、早い時間のご注文にはかかりません</strong>
+            （テーブルチャージは、その時間帯にご案内した卓のぶんだけ対象です）。<br>
+            対象のご注文があるときは自動でチェックが入ります。
+            外すと深夜料金なしで締めます。
+          </p>
+        </div>
+        <hr class="mt-6" th:if="${bill.lateNightSurchargePercent > 0}">
+
         <form th:action="@{/hall/bills/{id}/guests(id=${bill.id})}" method="post"
-              class="row row--wrap">
+              class="row row--wrap mt-6">
           <label class="label mb-0" for="guestCount">人数</label>
           <select class="select" id="guestCount" name="guestCount" style="max-width:7rem">
             <option th:each="n : ${guestOptions}"
@@ -323,39 +365,55 @@
 
            値は th:data-* でボタンに持たせ、文章の組み立ては JavaScript 側で行います。
            onclick の中に Thymeleaf の式を直接書くと引用符の扱いが複雑になるためです。 */-->
-    <div class="card mt-6">
-      <div class="card__head">お会計（伝票を締める）</div>
+    <!--/* ===== お会計の引き出し（設計 ト02m 1542:20590）=====
+
+           ★ 下から出る引き出しにしました（2026-09-23）。中央のモーダルではありません。
+             明細が上に見えたまま残るので、<b>何に対して払うのかを見ながら</b>
+             支払い方法を選べます。中央に出すと暗幕で全部隠れます。
+
+           ★ 引き出しに入れるのは「払い方」だけです。
+             金額を動かすもの（深夜料金・人数・チャージ免除）は上の
+             「金額を調整する」に置いてあります。引き出しに入れると、
+             変えた金額が暗幕の向こうになって確かめられません。
+
+           ★ 足もとの帯（ご請求額とボタン）は引き出しの中に残ります。
+             帯が育って引き出しになる、という見え方にするためです。
+             別の窓が湧いて出るより、目で追えます。 */-->
+    <dialog class="billdrawer" id="checkout-drawer"
+            th:aria-label="${bill.diningTable.name} + ' のお会計'">
 
       <!--/* 見学者には操作の代わりに一言だけ出す。黙って消すと
              「会計の画面は作っていないのか」と誤解されるため。 */-->
-      <div class="card__body" sec:authorize="hasRole('GUEST')">
+      <div class="billdrawer__box" sec:authorize="hasRole('GUEST')">
+        <div class="billdrawer__head">
+          <h2 class="billdrawer__title">お会計</h2>
+          <span class="billdrawer__gap"></span>
+          <button type="button" class="linex" data-close-modal aria-label="閉じる">✕</button>
+        </div>
         <p class="help mb-0">見学モードのため、お会計・取り消しなどの操作はご覧いただくだけになります。</p>
       </div>
 
-      <form th:action="@{/hall/bills/{id}/close(id=${bill.id})}" method="post"
+      <!--/* ★ id を持たせる理由。
+             深夜料金のチェックは、設計では本文の「金額を調整する」に置きます
+             （金額を動かすものは、動いた結果＝内訳のすぐ下に置く）。
+             フォームの外にある入力は送信されないので、
+             HTML の form 属性でこのフォームに結び付けています。 */-->
+      <form class="billdrawer__box" id="close-form"
+            th:action="@{/hall/bills/{id}/close(id=${bill.id})}" method="post"
             sec:authorize="!hasRole('GUEST')">
-        <div class="card__body">
 
-          <div class="field">
-            <label class="choice">
-              <!--/* チェックを外すと、このパラメータは送信されません。
-                     サーバ側は「送られてこなかった＝適用しない」として受け取ります。 */-->
-              <input type="checkbox" name="applyLateNight" value="true"
-                     th:checked="${lateNightDefault}">
-              <span class="choice__name"
-                    th:text="'深夜料金を適用する（' + ${bill.lateNightSurchargePercent} + '%）'">
-                深夜料金を適用する（10%）</span>
-            </label>
-            <p class="help">
-              深夜料金は<strong>注文した時刻</strong>で決まります。
-              <span th:text="${shop.lateNightStartTime} + '〜' + ${shop.lateNightEndTime}">23:00〜05:00</span>
-              に出たご注文にだけかかるので、
-              <strong>同じ伝票でも、早い時間のご注文にはかかりません</strong>
-              （テーブルチャージは、その時間帯にご案内した卓のぶんだけ対象です）。<br>
-              対象のご注文があるときは自動でチェックが入ります。
-              <strong>チェックを外すと深夜料金なしで締めます</strong>（上の内訳より安くなります）。
-            </p>
-          </div>
+        <div class="billdrawer__head">
+          <h2 class="billdrawer__title">お会計</h2>
+          <span class="billdrawer__gap"></span>
+          <button type="button" class="linex" data-close-modal aria-label="閉じる">✕</button>
+        </div>
+
+        <div class="billdrawer__body">
+
+          <!--/* 深夜料金のチェックは本文の「金額を調整する」へ移しました（2026-09-23）。
+                 form="close-form" でこのフォームに結び付いています。
+                 移した理由は、外すと金額が変わるからです。引き出しの中に置くと、
+                 変わった結果（内訳）が暗幕の向こうになって確かめられません。 */-->
 
           <!--/* --- お支払い方法 ---
                  既定で選んでおかないのは、押し忘れたぶんが現金売上に化けるのを
@@ -387,7 +445,12 @@
 
         </div>
 
-        <div class="card__foot">
+        <div class="billdrawer__foot">
+          <span class="billdrawer__label">ご請求額</span>
+          <span class="billdrawer__total"
+                th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥17,280</span>
+          <span class="billdrawer__gap"></span>
+          <button type="button" class="btn billdrawer__quit" data-close-modal>やめる</button>
           <!--/*
             確認ダイアログには「深夜料金あり／なし」の両方の金額をあらかじめ持たせ、
             クリックした瞬間のチェック状態に応じてどちらかを出します。
@@ -405,36 +468,48 @@
             lateNightAmount が常に 0 になるため。その値で「深夜料金 込み」と
             読み上げると、実際に締まる金額のほうが高くなる（HallController#bill 参照）。
           */-->
-          <button type="submit" class="btn btn--primary btn--lg btn--block"
+          <!--/* ★ 赤の塗りに白文字（店主の判断・2026-09-23）。
+                 「押させたいボタンだから」目立たせますが、色は緑にしません。
+                 緑は「押して進める」で、進んだ先から戻れます。会計を締めると
+                 売上が確定して戻しにくいので、そこだけ色相を変えてあります。
+                 色は既存の --action-danger（#c94444・白文字と 4.78:1）。 */-->
+          <button type="submit" class="btn billdrawer__go"
                   th:data-table="${bill.diningTable.name}"
                   th:data-total-with="${#numbers.formatInteger(totalIfLateNightApplied, 1, 'COMMA')}"
                   th:data-total-without="${#numbers.formatInteger(bill.totalWithoutLateNight, 1, 'COMMA')}"
                   onclick="return komekoConfirmClose(this);">
             お会計（伝票を締める）
           </button>
-          <p class="help mb-0">締めたあと、この画面に実際のご請求額が表示されます。</p>
         </div>
 
-        <script>
-          function komekoConfirmClose(button) {
-            var checkbox = button.form.querySelector('input[name="applyLateNight"]');
-            var applied = checkbox ? checkbox.checked : false;
-            var total = applied ? button.dataset.totalWith : button.dataset.totalWithout;
-            var suffix = applied ? '（深夜料金 込み）' : '（深夜料金 なし）';
-            // 支払い方法はサーバ側でも必須にしてあるが、送ってから
-            // 「選んでください」と返されるより、押した場所で気づけたほうが速い。
-            var paid = button.form.querySelector('input[name="paymentMethod"]:checked');
-            if (!paid) {
-              alert('お支払い方法（現金／カード）を選んでください。');
-              return false;
-            }
-            var paidLabel = paid.value === 'CARD' ? 'カード' : '現金';
-            return confirm(button.dataset.table + ' のお会計を締めます。\n'
-              + 'ご請求額 ¥' + total + ' ' + suffix + '\n'
-              + 'お支払い ' + paidLabel + '\n\nよろしいですか？');
-          }
-        </script>
+        <!--/* komekoConfirmClose は /js/hall-checkout.js にあります（2026-09-12）。
+               盤面のお会計モーダルからも同じ関数を呼ぶので、直書きをやめました。
+               読み上げる金額や文言が画面によって違うのは、現場でいちばん
+               信用を失う壊れ方なので、必ず 1 か所に置いてください。 */-->
+        <script th:src="@{/js/hall-checkout.js}" defer></script>
       </form>
+    </dialog>
+
+    <!--/* ===== 足もとの帯（設計 ト02n 1540:30863）=====
+
+           ★ 画面の下に貼り付きます（position: sticky）。ページの下端ではありません。
+             下端に固定すると、会計のたびに最下部までスクロールすることになります。
+             明細をどこまで送っても、金額と入口が常に見えている状態にします。
+
+           ★ ここのボタンは緑（お会計に進む）。まだ締めないからです。
+             赤い「伝票を締める」は引き出しの中だけに置きます。
+             ここで赤を使うと、押す前から戻せない気配が出て、
+             肝心の引き出しの赤が効かなくなります。
+
+           ★ 帯のぶん、本文の下に余地を作ってあります（.billpage の padding-bottom）。
+             入れないと、いちばん下のカードが帯に隠れます。 */-->
+    <div class="billbar" sec:authorize="!hasRole('GUEST')">
+      <span class="billbar__label">ご請求額</span>
+      <span class="billbar__total"
+            th:text="'¥' + ${#numbers.formatInteger(bill.totalAmount, 1, 'COMMA')}">¥17,280</span>
+      <span class="billbar__gap"></span>
+      <a class="btn billbar__quit" th:href="@{/hall}">やめる</a>
+      <button type="button" class="btn billbar__go" data-open-modal="checkout-drawer">お会計に進む</button>
     </div>
 
   </th:block>
@@ -502,6 +577,63 @@
   <p class="tiny faint center mt-6">
     この画面は自動では更新されません。最新の注文を確認するときは再読み込みしてください。
   </p>
+
+  <!--/* ── 品を 1 つ取り消す確認（設計 1461:17582 / 1485:19010）──────────
+
+         ★ 明細の ✕ を押すと開きます。伝票ごとに、生きている品の数だけ描きます。
+           1 枚を使い回すと「どの品か」を JS で差し替える仕掛けが要ります。
+           このアプリは SSE 以外ほぼサーバー描画なので、そちらに寄せました。
+
+         ★ 材料をどうするかは聞きません（店主の判断・2026-09-23）。
+             「在庫に戻す時は注文し間違えの時で、その時は厨房からオペレーション
+               出来るし、ここにある時点で作ったものだから」
+           伝票に載っている時点で作られているので、「まだ作っていない」は
+           選びようがありません。選べない選択肢を出すと、急いでいる人が
+           押し間違える経路が 1 本増えるだけです。
+           入力ミスの取り消しは厨房ボード（未調理レーン）で行います。
+           そのため returnStock は送らず、サーバ側の既定（false＝戻さない）に任せます。
+
+         ★ 「削除」と言わないこと。
+           消すのはお会計への計上だけで、行は残します。
+           Order.createdAt は提供時間の集計にも使う事実の記録なので、
+           行ごと消すと「厨房は作ったのに伝票に無い」を説明できなくなります。 */-->
+  <th:block sec:authorize="!hasRole('GUEST')" th:if="${bill.active}">
+  <th:block th:each="order : ${orders}">
+  <dialog class="hallmodal linecancel" th:each="line : ${order.activeLines}"
+          th:id="'line-cancel-' + ${line.id}"
+          th:aria-label="${line.menuItemName} + ' を取り消す'">
+    <form class="hallmodal__box linecancel__box" method="post"
+          th:action="@{/hall/bills/{id}/lines/{lineId}/cancel(id=${bill.id}, lineId=${line.id})}">
+
+      <div class="linecancel__head">
+        <h2 class="linecancel__title">この品を取り消しますか？</h2>
+        <p class="linecancel__item"
+           th:text="'×' + ${line.quantity} + ' ' + ${line.menuItemName} + '　¥'
+                    + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}">×2 黒毛和牛上ホルモン焼　¥2,360</p>
+        <p class="linecancel__note"
+           th:text="'ご請求額が ¥' + ${#numbers.formatInteger(line.lineTotal, 1, 'COMMA')}
+                    + ' 下がります。材料は廃棄として原価に残ります'">
+          ご請求額が ¥2,360 下がります。材料は廃棄として原価に残ります</p>
+      </div>
+
+      <div class="linecancel__foot">
+        <span class="linecancel__gap"></span>
+        <button type="button" class="btn linecancel__cancel" data-close-modal>やめる</button>
+        <button type="submit" class="btn linecancel__go">取り消す</button>
+      </div>
+    </form>
+  </dialog>
+  </th:block>
+  </th:block>
+
+  <!--/* ★ モーダルの開閉は hall.js が持っています（data-open-modal / data-close-modal）。
+         2026-09-23 まで board.html でしか読み込んでいなかったので、
+         この画面に ✕ を足しただけでは<b>押しても何も起きません</b>でした。
+         同じ仕掛けを使う画面が増えたら、読み込みも一緒に増やすこと。
+
+         自動更新（SSE）の部分は data-hall-board が付いた画面でだけ動くので、
+         こちらに読み込んでも伝票が勝手に読み直されることはありません。 */-->
+  <script th:src="@{/js/hall.js}" defer></script>
 
 </main>
 </body>
