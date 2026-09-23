@@ -236,6 +236,18 @@ public class DemoEntryController {
                     "案内できる卓がありません。DataSeeder が動いているか確認してください");
         }
 
+        // ★ 探す順番。片付け待ちの卓は<b>いちばん最後</b>に置くこと。
+        //
+        //   1. 撮影用に空けてある卓（カウンター1）が使えるなら、そこ
+        //   2. 使える卓ならどこでも
+        //   3. 誰かが座っている卓（相席。1卓1伝票なので実店舗でも起きる）
+        //   4. それも無ければ先頭
+        //
+        //   3 を 4 より先に置くのが今回の肝です。相席は実店舗でも起きる正常な
+        //   状態ですが、片付け待ちの卓は注文そのものが弾かれます。
+        //   「満席だから相席」は案内になりますが、
+        //   「片付け待ちなのでスタッフにお声がけください」は、
+        //   スタッフのいない見学者にとって行き止まりです。
         return tables.stream()
                 .filter(t -> PREFERRED_TABLE.equals(t.getName()))
                 .filter(this::isFree)
@@ -243,11 +255,41 @@ public class DemoEntryController {
                 .or(() -> tables.stream().filter(this::isFree).findFirst())
                 .or(() -> tables.stream()
                         .filter(t -> PREFERRED_TABLE.equals(t.getName()))
+                        .filter(this::hasOpenSession)
                         .findFirst())
+                .or(() -> tables.stream().filter(this::hasOpenSession).findFirst())
                 .orElse(tables.get(0));
     }
 
+    /** 誰かが座っている（伝票が開いている）卓か。相席になるが、注文はできる。 */
+    private boolean hasOpenSession(DiningTable table) {
+        return tableService.currentSession(table.getId()).isPresent();
+    }
+
+    /**
+     * 見学者をそこへ案内してよい卓か。
+     *
+     * <p><b>「伝票が無い」だけでは足りません（2026-09-23 に踏みました）。</b>
+     * 会計が済んだ卓は片付け待ち（{@code needsCleanup}）として残り、
+     * この状態で注文を始めようとすると {@code TableNotReadyException} で弾かれます。
+     *
+     * <pre>
+     *   見学用の入口を出しました: 卓=テーブル1
+     *   Resolved [TableNotReadyException:
+     *     「テーブル1」は片付け待ちです。お手数ですがスタッフにお声がけください]
+     * </pre>
+     *
+     * <p>ポートフォリオから来た人が最初に押すボタンで、この文面が出ます。
+     * 「スタッフにお声がけください」と言われても、見学者の前にスタッフはいません。
+     * <b>行き止まりです。</b>
+     *
+     * <p>入口の画面が出た時点では何も起きないので、
+     * <b>押すまで壊れていることが分かりません</b>——選ぶ側で弾くしかありません。
+     * CLAUDE.md の「お客さま側を撮る卓は『使える・片付け済み・伝票なし』の
+     * 3 条件で選ぶ」と同じ話です。
+     */
     private boolean isFree(DiningTable table) {
-        return tableService.currentSession(table.getId()).isEmpty();
+        return !table.isNeedsCleanup()
+                && tableService.currentSession(table.getId()).isEmpty();
     }
 }

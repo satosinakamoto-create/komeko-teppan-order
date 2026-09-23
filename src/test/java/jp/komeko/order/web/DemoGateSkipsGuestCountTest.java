@@ -109,6 +109,58 @@ class DemoGateSkipsGuestCountTest {
                 .isEqualTo(table.getCapacity());
     }
 
+    /**
+     * ★★ 片付け待ちの卓へ案内しないこと（2026-09-23 に本番同等の環境で踏みました）。
+     *
+     * <p>会計が済んだ卓は片付け待ち（{@code needsCleanup}）として残ります。
+     * 伝票は閉じているので「空いている」ように見えますが、
+     * この卓で注文を始めようとすると弾かれます。
+     *
+     * <pre>
+     *   「テーブル1」は片付け待ちです。お手数ですがスタッフにお声がけください
+     * </pre>
+     *
+     * <p>ポートフォリオから来た人が<b>最初に押すボタンで</b>これが出ます。
+     * スタッフにお声がけくださいと言われても、見学者の前にスタッフはいません。
+     * 行き止まりです。
+     *
+     * <p><b>入口の画面が出た時点では何も起きません。</b>
+     * ボタンを押して初めて弾かれるので、画面を見ただけでは分かりません。
+     * だから「出るか」ではなく<b>「押して伝票が開くか」</b>まで見ます。
+     */
+    @Test
+    @DisplayName("★★ 片付け待ちの卓は選ばない（押すと行き止まりになる）")
+    void neverPicksATableWaitingToBeCleaned() throws Exception {
+        // 撮影用の卓を片付け待ちにして、使える卓を 1 つだけ残す
+        DiningTable dirty = new DiningTable("カウンター1", 2, 10);
+        dirty.setNeedsCleanup(true);
+        tableRepository.save(dirty);
+        DiningTable clean = tableRepository.save(new DiningTable("テーブル9", 4, 20));
+
+        String html = mockMvc.perform(get("/demo"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        Matcher a = ACTION.matcher(html);
+        assertThat(a.find()).isTrue();
+        assertThat(a.group(1))
+                .as("★★ 片付け待ちの卓へ案内している。押すと注文が弾かれる")
+                .isEqualTo("/t/" + clean.getAccessToken() + "/start");
+
+        Matcher g = GUESTS.matcher(html);
+        assertThat(g.find()).isTrue();
+
+        // ★ 「選び方が正しい」だけでは足りない。本当に最後まで通るかを押して確かめる。
+        //   弾かれる側は例外ではなく案内で返るので、status だけ見ていると素通りする。
+        mockMvc.perform(post(a.group(1)).with(csrf())
+                        .param("guestCount", g.group(1)))
+                .andExpect(status().is3xxRedirection());
+
+        assertThat(sessionRepository.findAll())
+                .as("★★ 伝票が開いていない＝押しても進めていない")
+                .hasSize(1);
+    }
+
     @Test
     @DisplayName("★ 飛ばしたのは質問だけ。送り先は実店舗と同じ経路")
     void itDoesNotUseADemoOnlyShortcut() throws Exception {
