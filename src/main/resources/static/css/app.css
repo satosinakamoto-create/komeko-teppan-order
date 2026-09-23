@@ -94,6 +94,25 @@
   /* 書体 */
   --font-serif: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "Shippori Mincho",
                 "Noto Serif JP", "MS PMincho", serif;
+  /* ★ 店名（ロゴの紋と並べる「米粉と鉄板」）専用の明朝。
+       ---------------------------------------------------------------
+       --font-serif とは別に持つこと。理由は 1 つです:
+
+         .theme-snow  { --font-serif: var(--font-sans); }
+         .theme-night { --font-serif: var(--font-sans); }
+
+       どちらのテーマも --font-serif をゴシックに潰しています
+       （「明朝はブランド専用に格下げし、見出しもゴシックで組む」）。
+       つまり画面の中で var(--font-serif) と書いても<b>明朝にはなりません</b>。
+
+       2026-09-23 に、これを知らずに「明朝にしました」と報告しました。
+       実測すると Hiragino Kaku Gothic ProN（ゴシック）で出ていました。
+       <b>トークンの名前だけ見て、解決後の値を測らなかったのが原因です。</b>
+
+       ここはテーマ側で上書きしないこと。上書きすると、ロゴの中の
+       「米粉と鉄板」だけ明朝で、隣の文字がゴシックという状態に戻ります。 */
+  --font-brand: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "Shippori Mincho",
+                "Noto Serif JP", "MS PMincho", serif;
   --font-sans:  "Hiragino Kaku Gothic ProN", "Yu Gothic", YuGothic, "Noto Sans JP",
                 "Meiryo", sans-serif;
   --font-num:   "Helvetica Neue", Arial, "Yu Gothic", sans-serif;
@@ -6312,7 +6331,9 @@ body.is-sending .staff-main {
 }
 .theme-night .demogate__name {
   margin: 0;
-  font-family: var(--font-serif);
+  /* ★ --font-serif は .theme-night がゴシックに潰すので使わない。
+       ロゴと同じ明朝を出すのは --font-brand のほう。 */
+  font-family: var(--font-brand);
   font-size: 24px;
   font-weight: 600;
   letter-spacing: .12em;
@@ -9714,15 +9735,25 @@ body.is-sending .staff-main {
 }
 .loginpage__name {
   margin: 0;
-  font-family: var(--font-sans);
+  /* ★ ロゴの紋の中の「米粉と鉄板」と同じ明朝にそろえる
+       （2026-09-23・店主の指示「フォントはロゴと一緒にして」）。
+       var(--font-serif) ではなく --font-brand を使うこと。
+       前者はテーマがゴシックに潰すので、書いても明朝になりません。 */
+  font-family: var(--font-brand);
   font-size: 24px;
   font-weight: 700;
   letter-spacing: 2px;
   line-height: 1.2;
   color: #1c1c1c;
 }
+/* ★ margin-top は持たせないこと。
+     .loginpage__brand を flex（gap 4）にしたので、margin 4 を残すと
+     <b>足されて 8 になります</b>（2026-09-23 に実測して気づきました）。
+     設計の店名→役割は 4。間隔を持つのは gap 側の 1 か所だけにします。
+     ロゴ→店名が 8 なのは、ロゴに margin-bottom: 4 を足しているためで、
+     こちらは意図どおりです（gap 4 ＋ margin 4）。 */
 .loginpage__role {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 13px;
   letter-spacing: 3px;
   color: #828282;
@@ -9806,6 +9837,36 @@ body.is-sending .staff-main {
 /* カードの中の注記と、カードの外の出口リンク */
 /* 設計は 12px。カードの中でいちばん小さい字で、
    入力欄（16）・ボタン（15）より一段下げて注記だと分かるようにしてある */
+/* ゲストの入口（設計 トi08s 1620:14352）。
+   白地 ＋ 緑の枠 ＋ 緑の太字。塗らないのは、押させたい主役が上の
+   「ログイン」だからです。同じ緑の塗りが 2 つ縦に並ぶと、どちらが本筋か
+   分からなくなります。枠と字だけ緑にして「押せるが脇道」を表します。
+
+ ★ 設計の緑（#0e9721）は採っていません。白地に対して 3.84:1 しかなく、
+   AA の 4.5:1 に届かないためです。--action（#0b7a1a）は 5.51:1 で届きます。
+   15px の太字は「大きい文字」の扱い（18.66px 以上）に入らないので、
+   3.0:1 ではなく 4.5:1 が要ります。
+   見た目はほとんど同じですが、薄い緑は屋外や安いタブレットで先に読めなくなります。 */
+/* ★ セレクタは .loginpage .btn.loginpage__guest（0,3,0）にすること。
+     .loginpage .loginpage__guest（0,2,0）だと、すぐ上の
+     .loginpage .btn:not(.btn--primary) に負けます。
+     :not() は<b>中のクラスが詳細度に数えられる</b>ので、あちらは (0,3,0) です。
+     CLAUDE.md の「.theme-desk .btn は (0,2,0) なので単一クラスでは勝てない」と
+     同じ罠で、2026-09-23 に実測で踏みました（枠が灰のままだった）。 */
+.loginpage .btn.loginpage__guest {
+  --btn-bg: #ffffff;
+  --btn-bd: var(--action);
+  --btn-fg: var(--action);
+}
+
+/* 「または」の仕切りと、ゲストの補足。
+   ★ --text-faint は使わないこと。.theme-snow では rgba(28,28,28,.38)＝
+     実効 #a9a9a9 で、白地に対して 2.35:1 しかありません。
+     2026-09-22 に「補足は --text-muted に揃える」と決めた件と同じ話です
+     （app.css 393 行）。 */
+.loginpage__or { color: var(--text-muted); }
+.loginpage__guest-note { color: var(--text-muted); }
+
 .loginpage__note {
   margin: 0;
   font-size: 12px;
