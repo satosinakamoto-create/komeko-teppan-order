@@ -53,4 +53,28 @@ class DemoStaffDumpProbe {
         Files.createDirectories(out.getParent());
         Files.writeString(out, html, StandardCharsets.UTF_8);
     }
+
+    /**
+     * ゲストのボタンが出ている状態のログイン画面も落とす。
+     *
+     * <p>画面ダンプ（{@code AllScreensDumpTest}）は実店舗の設定で撮るので、
+     * {@code s00-login.html} には<b>ゲストのボタンが写っていません</b>。
+     * 公開デモのログイン画面を設計と突き合わせるには、こちらが要ります。
+     */
+    @Test
+    @DisplayName("/login（ゲストのボタンつき）を HTML に落とす")
+    void dumpLoginWithGuest() throws Exception {
+        String html = mockMvc.perform(get("/login"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        html = html.replace("href=\"/css/app.css\"", "href=\"css/app.css?v=probe\"")
+                .replaceAll("href=\"/css/app-[0-9a-f]+\\.css\"", "href=\"css/app.css?v=probe\"")
+                .replaceAll("src=\"/images/(.*?)-[0-9a-f]{32}\\.(\\w+)\"", "src=\"images/$1.$2\"")
+                .replace("src=\"/images/", "src=\"images/");
+
+        Path out = Path.of("target", "allscreens", "_login-guest.html");
+        Files.createDirectories(out.getParent());
+        Files.writeString(out, html, StandardCharsets.UTF_8);
+    }
 }

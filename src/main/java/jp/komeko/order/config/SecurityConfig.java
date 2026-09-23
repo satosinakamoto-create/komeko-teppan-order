@@ -358,7 +358,9 @@ public class SecurityConfig {
                 boolean guestLoginPost = "POST".equalsIgnoreCase(request.getMethod())
                         && "/login/guest".equals(path);
                 if (guestLoginEnabled && guestLoginPost) {
-                    response.sendRedirect(request.getContextPath() + "/demo/staff?retry=1");
+                    // ★ /demo/staff は /login へ転送するだけになったので、直接 /login へ送ります。
+                    //   一段挟むと、転送のあいだにもう一度セッションを引き当てることになります。
+                    response.sendRedirect(request.getContextPath() + "/login?retry=1");
                     return;
                 }
                 response.sendError(HttpServletResponse.SC_FORBIDDEN);

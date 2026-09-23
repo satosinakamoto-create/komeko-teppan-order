@@ -203,14 +203,22 @@ class DemoEntryTest {
         }
 
         @Test
-        @DisplayName("店舗側の見学入口はログインなしで開ける")
+        @DisplayName("店舗側の見学入口はログインなしでログイン画面へ着く")
         void staffEntryIsPublic() throws Exception {
-            // ポートフォリオから 1 クリックで来る入口。
-            // ログインを要求すると、そこで止まってしまう。
+            // ★ 2026-09-23 から、/demo/staff は説明カードではなく /login への転送です。
+            //   ポートフォリオ側の HTML は /demo/staff を指したままなので、
+            //   <b>この URL が生きていること</b>を固定します。ここが死ぬと、
+            //   サイトのボタンが 404 になり、こちらからは気づけません。
             mockMvc.perform(get("/demo/staff"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                            .redirectedUrl("/login"));
+
+            // 着いた先に、ログインせずに入れるボタンがあること
+            mockMvc.perform(get("/login"))
                     .andExpect(status().isOk())
                     .andExpect(content().string(
-                            org.hamcrest.Matchers.containsString("厨房ボードへ進む")));
+                            org.hamcrest.Matchers.containsString("ゲストとして見る")));
         }
 
         @Test
@@ -221,8 +229,10 @@ class DemoEntryTest {
             //   書かれるだけで、見た人が意図せずログイン状態になる。
             //   ゲストログインを POST ＋ CSRF にしているのは、それを塞ぐため。
             //   入口を増やすために、その塞ぎ穴を開け直していないことを固定する。
-            String html = mockMvc.perform(get("/demo/staff"))
-                    .andExpect(status().isOk())          // リダイレクトしない
+            // 転送先のログイン画面で確かめる。
+            // 見ているのは「GET では何も起きない」こと自体で、場所ではない。
+            String html = mockMvc.perform(get("/login"))
+                    .andExpect(status().isOk())          // ログイン状態にならない
                     .andReturn().getResponse().getContentAsString();
 
             assertThat(html)
@@ -245,7 +255,7 @@ class DemoEntryTest {
                             .MockMvcRequestBuilders.post("/login/guest"))   // トークン無し＝切れた状態
                     .andExpect(status().is3xxRedirection())
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                            .redirectedUrl("/demo/staff?retry=1"));
+                            .redirectedUrl("/login?retry=1"));
         }
 
         @Test
@@ -258,7 +268,7 @@ class DemoEntryTest {
             //   Cache-Control / Pragma / Expires の 3 つをまとめて飛ばしてしまい、
             //   足したつもりが既定より弱くなっていました（本番のヘッダを見て気づいた）。
             //   誰が付けるかは変わりうるので、「付いていること」だけを固定します。
-            mockMvc.perform(get("/demo/staff"))
+            mockMvc.perform(get("/login"))
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                             .header().string("Cache-Control",
                                     org.hamcrest.Matchers.containsString("no-store")));
@@ -274,7 +284,7 @@ class DemoEntryTest {
             //
             //   1 クリック減らすより、何の画面に入るのかを先に伝えるほうが大事。
             //   自動送信が戻ってくると説明を読む時間が消えるので、ここで止める。
-            for (String url : new String[]{"/demo/staff", "/demo/staff?retry=1"}) {
+            for (String url : new String[]{"/login", "/login?retry=1"}) {
                 String html = mockMvc.perform(get(url))
                         .andExpect(status().isOk())
                         .andReturn().getResponse().getContentAsString();
@@ -284,7 +294,7 @@ class DemoEntryTest {
                         .doesNotContain(".submit()");
                 assertThat(html)
                         .as("%s で押せるボタンを出す", url)
-                        .contains("厨房ボードへ進む");
+                        .contains("ゲストとして見る");
             }
         }
 
@@ -292,16 +302,16 @@ class DemoEntryTest {
         @DisplayName("入る前に、見学モードであることと架空データであることを伝える")
         void staffEntryExplainsWhatYouAreAbout() throws Exception {
             // 入ってから探させない。この 1 画面で分かるようにする。
-            String html = mockMvc.perform(get("/demo/staff"))
+            String html = mockMvc.perform(get("/login"))
                     .andReturn().getResponse().getContentAsString();
 
             assertThat(html)
-                    .as("何の画面かを先に言う")
-                    .contains("厨房のタブレット");
+                    .as("何が見られるかを先に言う")
+                    .contains("厨房ボードとホール画面");
             assertThat(html)
                     .as("触れる範囲を先に言う")
                     .contains("見学モード")
-                    .contains("保存や削除はできません");
+                    .contains("表示のみ");
             assertThat(html)
                     .as("実在の店の数字だと誤解させない")
                     .contains("架空");
@@ -310,11 +320,11 @@ class DemoEntryTest {
         @Test
         @DisplayName("やり直しの案内は、失敗して戻ってきたときだけ出す")
         void retryNoticeOnlyOnRetry() throws Exception {
-            assertThat(mockMvc.perform(get("/demo/staff?retry=1"))
+            assertThat(mockMvc.perform(get("/login?retry=1"))
                     .andReturn().getResponse().getContentAsString())
                     .contains("前の画面が古くなっていたため");
 
-            assertThat(mockMvc.perform(get("/demo/staff"))
+            assertThat(mockMvc.perform(get("/login"))
                     .andReturn().getResponse().getContentAsString())
                     .as("普通に来た人に、起きていない失敗の話をしない")
                     .doesNotContain("前の画面が古くなっていたため");

@@ -50,13 +50,34 @@ class GuestLoginTest {
         @Autowired
         DiningTableRepository tableRepository;
 
+        /**
+         * ★ 初回セットアップの注記は、公開デモでは出さない（2026-09-23）。
+         *
+         * <p>「初期アカウントはサーバのログに出力されます」は
+         * <b>お店が初めて立ち上げるときの手順</b>です。
+         * 見学者はサーバのログを見られませんし、そもそもパスワードで
+         * ログインせず「ゲストとして見る」を押すだけなので、
+         * 読んでも何もできません。案内が 1 つ増えるだけです。
+         *
+         * <p>ついでに iPad（1024x781）で画面の高さに収まるようになります。
+         */
         @Test
-        @DisplayName("ログイン画面に「ゲストで参加する」が出る")
+        @DisplayName("初回セットアップの注記は出さない")
+        void theFirstRunNoteIsHidden() throws Exception {
+            mockMvc.perform(get("/login"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.not(
+                                    org.hamcrest.Matchers.containsString("初期アカウント"))));
+        }
+
+        @Test
+        @DisplayName("ログイン画面に「ゲストとして見る（店舗UI）」が出る")
         void buttonIsShown() throws Exception {
             mockMvc.perform(get("/login"))
                     .andExpect(status().isOk())
                     .andExpect(content().string(
-                            org.hamcrest.Matchers.containsString("ゲストで参加する")));
+                            org.hamcrest.Matchers.containsString("ゲストとして見る")));
         }
 
         @Test
@@ -267,14 +288,30 @@ class GuestLoginTest {
         @Autowired
         MockMvc mockMvc;
 
+        /**
+         * ★★ 実店舗では消えないこと。
+         *
+         * <p>消すと<b>初期パスワードの探し方が画面から辿れなくなります</b>。
+         * 出す・出さないを間違えても画面は普通に動くので、
+         * 気づけるのは「初めて立ち上げた人が入れない」ときです。
+         */
         @Test
-        @DisplayName("ログイン画面に「ゲストで参加する」は出ない")
+        @DisplayName("★★ 初回セットアップの注記は、実店舗では出る")
+        void theFirstRunNoteStaysForRealShops() throws Exception {
+            mockMvc.perform(get("/login"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(
+                            org.hamcrest.Matchers.containsString("初期アカウント")));
+        }
+
+        @Test
+        @DisplayName("ログイン画面に「ゲストとして見る（店舗UI）」は出ない")
         void buttonIsHidden() throws Exception {
             mockMvc.perform(get("/login"))
                     .andExpect(status().isOk())
                     .andExpect(content().string(
                             org.hamcrest.Matchers.not(
-                                    org.hamcrest.Matchers.containsString("ゲストで参加する"))));
+                                    org.hamcrest.Matchers.containsString("ゲストとして見る"))));
         }
 
         @Test
