@@ -9677,7 +9677,11 @@ body.is-sending .staff-main {
    ========================================================================== */
 
 /* 地と、中央に寄せる枠組み。設計は縦横とも中央、要素の間は 24px */
-.loginpage { background: #f7f9fb; }
+/* ★ 地は #ffffff（設計 ト08 725:5301 の実測）。
+     #f7f9fb は --surface の値で、名前から選ぶと当たりがちだが設計は白。
+     地を白にすると、白いカードを分けているのは 1px の枠だけになる。
+     だから下の枠色（#e3e3e3）は薄くしすぎないこと。 */
+.loginpage { background: #ffffff; }
 .loginpage__body {
   display: grid;
   align-content: center;
@@ -9710,11 +9714,14 @@ body.is-sending .staff-main {
      .loginpage__card 単体（0,1,0）だと .theme-snow .card（0,2,0）の
      border-color: transparent に負けて、枠が透明のままになります。
      実測で 1px rgba(0,0,0,0) になっていて気づきました（2026-09-12）。 */
+/* 設計 ト08 の実測: 400x400・角丸 0・地 #ffffff・枠 1px #e3e3e3。
+   ★ 角丸は 0。入力欄とボタンだけが 8 で、カードは角を立てている。
+     「カードだから丸める」と思い込むと 6px になる（実際そうなっていた）。 */
 .loginpage .loginpage__card {
   width: min(400px, 100%);
   background: #ffffff;
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
+  border: 1px solid #e3e3e3;
+  border-radius: 0;
   box-shadow: none;
 }
 .loginpage__card .card__body { padding: 32px; }
@@ -9729,12 +9736,15 @@ body.is-sending .staff-main {
   letter-spacing: normal;
   color: #1c1c1c;
 }
+/* 設計 ト08 の実測: 336x48・pad 0/12・角丸 8・地 #ffffff・枠 1px #e3e3e3。
+   ★ 角丸はここが 8 で、外側のカードが 0。カードと逆なので取り違えないこと。
+     border-radius は 2 行下の .loginpage .input, .select でまとめて 8 にしている。 */
 .loginpage .input {
   min-height: 48px;
   padding: 0 12px;
   font-size: 16px;
   background: #ffffff;
-  border: 1px solid #e8e8e8;
+  border: 1px solid #e3e3e3;
   border-radius: 4px;
   color: #1c1c1c;
 }
@@ -9769,14 +9779,16 @@ body.is-sending .staff-main {
 /* 「ゲストで参加する」は枠線のまま。白地に薄い枠 */
 .loginpage .btn:not(.btn--primary) {
   --btn-bg: #ffffff;
-  --btn-bd: #e8e8e8;
+  --btn-bd: #e3e3e3;
   --btn-fg: #1c1c1c;
 }
 
 /* カードの中の注記と、カードの外の出口リンク */
+/* 設計は 12px。カードの中でいちばん小さい字で、
+   入力欄（16）・ボタン（15）より一段下げて注記だと分かるようにしてある */
 .loginpage__note {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 20px;
   color: #828282;
   text-align: center;
