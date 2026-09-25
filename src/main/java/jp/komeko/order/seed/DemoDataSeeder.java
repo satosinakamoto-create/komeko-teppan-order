@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * <b>画面録画・スクリーンショット用</b>のデモデータを入れる。
@@ -148,6 +150,15 @@ public class DemoDataSeeder implements ApplicationRunner {
 
     /** true のときだけデモデータを入れる。既定は false（うっかり動かないように）。 */
     private final boolean enabled;
+
+    /**
+     * 種データとして時刻を巻き戻した注文と、その分数。
+     *
+     * <p>{@link #refreshElapsedTimes()} がここに載っているものだけを引き直します。
+     * <b>見学者が自分で入れた注文は入りません。</b>
+     * あちらは普通に歳を取るのが正しく、10 分たてば赤くなります。
+     */
+    private final Map<Long, Integer> seededWaits = new ConcurrentHashMap<>();
 
     public DemoDataSeeder(DiningTableRepository tableRepository,
                           MenuItemRepository menuItemRepository,
@@ -731,11 +742,20 @@ public class DemoDataSeeder implements ApplicationRunner {
      * 割り切れないようにするためです。同じ長さにすると
      * 「調理中はいつも 9 分」のように状態と分数が固定で結び付きます。
      *
-     * <p>設計（ト01 厨房ボード）が 18 / 12 / 5 / 2 分なのに対し、ここが
-     * すべて 10 分未満なのは<b>公開デモの都合</b>です。実店舗では
-     * 何分でもそのまま出ます（{@code app.demo-data=false} なので抑制が効きません）。
+     * <p><b>10 分超を 2 つ混ぜてあります</b>（2026-09-23・店主の指示）。
+     * 遅延の赤い印はこのシステムの機能の 1 つなのに、
+     * すべて 10 分未満だと<b>公開デモでは一度も見られません</b>。
+     * 設計（ト01 厨房ボード）も 18 / 12 / 5 / 2 分で、遅れている札が混ざっています。
+     *
+     * <p>7 個中 2 個だけにしているのは、<b>全面が赤いボードは警告になっていない</b>
+     * からです。2026-08-24 に全 6 枚が赤くなり
+     * 「6 時間放置された厨房」に見えた件と同じ失敗を繰り返さないための配分です。
+     *
+     * <p>これが成り立つのは {@link #refreshElapsedTimes()} が時刻を引き直して
+     * いるからです。あれを止めると、起動から時間が経つにつれて全部が
+     * 10 分を超え、また全面赤に戻ります。
      */
-    private static final int[] WAITED_MINUTES = {2, 9, 5, 8, 1, 6, 4};
+    private static final int[] WAITED_MINUTES = {2, 18, 5, 9, 1, 13, 4};
 
     /**
      * 注文の受付時刻を巻き戻す。
@@ -754,6 +774,8 @@ public class DemoDataSeeder implements ApplicationRunner {
      * 道連れになるからです。直した 1 件だけ読み直します。
      */
     private void backdate(Order order, int minutes) {
+        // どの注文を何分に置いたかを覚えておく。refreshElapsedTimes() が引き直す材料
+        seededWaits.put(order.getId(), minutes);
         entityManager.flush();
         entityManager.createQuery(
                         "update Order o set o.createdAt = :at where o.id = :id")
@@ -874,6 +896,55 @@ public class DemoDataSeeder implements ApplicationRunner {
             case READY -> orderService.changeStatus(order.getId(), OrderStatus.COMPLETED, "ホールスタッフ");
             default -> { /* 提供済み・キャンセルはそのまま */ }
         }
+    }
+
+    /**
+     * 種データの経過時間を、置いたときの分数へ引き直す。
+     *
+     * <p><b>なぜ要るのか＝種データは同時に歳を取るから。</b>
+     * 起動時に一括で作るので、放っておくと 6 枚が同時に 10 分を超え、
+     * <b>ボード全面が赤</b>になります。2026-08-24 に実際そうなりました
+     * （夕方に開くと全部「378 分経過」）。
+     *
+     * <p>そのとき採った対処は「古くなった数字は消す」でしたが、
+     * しきい値を遅延と同じ 10 分にしたため、<b>赤い印が一度も出なくなりました</b>。
+     * 遅延の表示はこのシステムの機能の 1 つなので、公開デモで見られないのは損です。
+     *
+     * <p>ここでは原因のほうを直します。時刻を定期的に引き直せば、
+     * 種データは<b>いつ見ても 2 / 18 / 5 / 9 / 1 / 13 / 4 分</b>のままです。
+     * 7 枚のうち 2 枚だけが赤く、全面赤にはなりません。
+     *
+     * <p><b>提供済みとキャンセルは引き直しません。</b>
+     * あれは売上の記録として残るもので、時刻を動かすと
+     * 「本日の売上」の集計がずれます。盤面に出るのは未提供だけなので、
+     * 引き直す必要もありません。
+     *
+     * <p>見学者が入れた注文も対象外です（{@link #seededWaits} に載らないため）。
+     * あちらは普通に歳を取り、10 分で赤くなります。それが本来の挙動です。
+     */
+    @Scheduled(
+            initialDelayString = "${app.demo-refresh-ms:120000}",
+            fixedDelayString = "${app.demo-refresh-ms:120000}")
+    public void refreshElapsedTimes() {
+        if (!enabled || seededWaits.isEmpty()) {
+            return;
+        }
+        transactionTemplate.executeWithoutResult(status -> {
+            int moved = 0;
+            for (Map.Entry<Long, Integer> e : seededWaits.entrySet()) {
+                moved += entityManager.createQuery(
+                                "update Order o set o.createdAt = :at"
+                                        + " where o.id = :id and o.status in :live")
+                        .setParameter("at", java.time.LocalDateTime.now().minusMinutes(e.getValue()))
+                        .setParameter("id", e.getKey())
+                        .setParameter("live", List.of(
+                                OrderStatus.RECEIVED, OrderStatus.COOKING, OrderStatus.READY))
+                        .executeUpdate();
+            }
+            if (moved > 0) {
+                log.debug("種データの経過時間を引き直しました: {} 件", moved);
+            }
+        });
     }
 
     /** 撮影用の卓を探す（見つからなければ空）。 */

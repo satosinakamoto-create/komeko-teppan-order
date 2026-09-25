@@ -41,9 +41,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("厨房ボードの経過時間の見せ方（公開デモ）")
 class KitchenBoardDemoElapsedRenderTest extends KitchenBoardElapsedRenderSupport {
 
+    /**
+     * ★ 保険としてのしきい値。
+     *
+     * <p>引き直しが止まったときだけ効きます。効いていれば 18 分を超えないので、
+     * ここは通りません。止まったときに全面赤で固まるより、
+     * 数字が消えるほうがまだましだ、という位置づけです。
+     */
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("実態と合わなくなった注文は、経過時間の欄ごと出さない")
+    @DisplayName("引き直しが止まって古くなりすぎた注文は、経過時間の欄ごと出さない")
     void staleOrdersAreNeutralised() throws Exception {
         backdate(STALE_MINUTES);
 
@@ -66,17 +73,36 @@ class KitchenBoardDemoElapsedRenderTest extends KitchenBoardElapsedRenderSupport
         assertThat(ticket.late()).isFalse();
     }
 
+    /**
+     * ★★ デモでも赤い印は出る（2026-09-23・店主の指示）。
+     *
+     * <p>ここは長いあいだ逆を固定していました。
+     * しきい値を遅延と同じ 10 分にしてあったので、
+     * <b>赤くなる条件に達した瞬間に数字のほうが消え</b>、赤は構造的に出ませんでした。
+     *
+     * <p>そうしていた理由は「背景の注文が同時に歳を取り、全面赤になる」ことでした。
+     * ですがそれは<b>原因ではなく症状</b>で、しきい値はそれを隠していただけです。
+     * いま {@code DemoDataSeeder.refreshElapsedTimes()} が 2 分おきに時刻を
+     * 引き直すので、種データは歳を取りません。原因が消えたので赤を戻せます。
+     *
+     * <p>遅延の表示はこのシステムの機能の 1 つです。
+     * 公開デモで一度も見られないのは損でした。
+     */
     @Test
     @WithMockUser(roles = "STAFF")
-    @DisplayName("デモでは赤枠を出さない。赤くなる時間に達したら、数字のほうが先に消える")
-    void latenessNeverAppearsInDemo() throws Exception {
-        // 15 分＝実店舗なら赤枠が点く時間。デモではここで数字が消えるので赤にならない。
+    @DisplayName("★★ デモでも、遅れている注文は赤い印が出る")
+    void latenessAppearsInDemo() throws Exception {
+        // 実店舗なら赤くなる時間。デモでも同じように出ること。
         backdate(20);
 
         Ticket ticket = renderSingleTicket();
 
-        assertThat(ticket.time()).isNull();
-        assertThat(ticket.late()).isFalse();
+        assertThat(ticket.time())
+                .as("★★ 数字が消えている。しきい値が遅延と同じ値に戻っていないか")
+                .isEqualTo("20 分");
+        assertThat(ticket.late())
+                .as("★★ 赤い印が出ていない")
+                .isTrue();
     }
 
     /**
