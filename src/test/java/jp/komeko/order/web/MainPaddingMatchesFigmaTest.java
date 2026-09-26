@@ -99,7 +99,9 @@ class MainPaddingMatchesFigmaTest {
 
         // 文字と他の余白の一段下げは残す
         assertThat(band).contains("font-size: 28px; line-height: 32px;");
-        assertThat(band).contains(".page-head { padding: 12px 24px; }");
+        // ★ 2026-09-26：店主の決定で 12px → 8px。帯は全画面 64px
+        //   （上 8 ＋ 中身 48 ＋ 下 8）。中身 48 は題の床＝--tap と同じ値。
+        assertThat(band).contains(".page-head { padding: 8px 24px; }");
     }
 
     @Test

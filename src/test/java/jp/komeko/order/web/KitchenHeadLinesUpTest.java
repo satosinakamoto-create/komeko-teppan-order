@@ -134,11 +134,11 @@ class KitchenHeadLinesUpTest {
         String css = css().replaceAll("\\s+", "");
 
         // .page-head が 12px 24px に畳むところで、厨房も一緒に畳んでいること
-        assertThat(css).as("基準の畳み方（.page-head 12px 24px）が無い")
-                .contains(".page-head{padding:12px24px;}");
+        assertThat(css).as("基準の畳み方（.page-head 8px 24px）が無い")
+                .contains(".page-head{padding:8px24px;}");
         assertThat(css)
                 .as("厨房の帯が一緒に畳まれていない。"
                         + "1141〜1380px のあいだだけ厨房の題が 16px 右に残る")
-                .contains(".kitchenboard.griddle.card__body{padding:12px24px;}");
+                .contains(".kitchenboard.griddle.card__body{padding:8px24px;}");
     }
 }

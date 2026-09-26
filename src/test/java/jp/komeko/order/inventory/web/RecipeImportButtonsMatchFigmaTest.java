@@ -64,7 +64,9 @@ class RecipeImportButtonsMatchFigmaTest {
         assertThat(r).as("枠を消していない").contains("border: 0");
         assertThat(r).as("面を消していない").contains("background: none");
         assertThat(r).as("緑になっていない").contains("color: var(--action)");
-        assertThat(r).as("タップ領域 48px を割っている").contains("min-height: var(--tap)");
+        // ★ 2026-09-26：高さは --btn-h（44px）の 1 か所で決めるようにしました。
+        //   ここで自前の高さを持つと、また画面ごとにズレます。
+        assertThat(r).as("タップ領域が --btn-h になっていない").contains("min-height: var(--btn-h)");
     }
 
     /** ★ 赤い版（その場で作成）。不足の合図なので赤。 */

@@ -140,9 +140,9 @@ class VerticalRhythmIsSharedTest {
                 .contains(".theme-ledger .section-title:has(h1) { padding-block: 16px; padding-inline: 40px; }");
 
         assertThat(css())
-                .as("iPad で一段詰める指定が無い（.page-head は 12px 24px に落ちる）")
+                .as("iPad で一段詰める指定が無い（.page-head は 8px 24px に落ちる）")
                 .containsPattern("(?s)@media \\(max-width: 1380px\\) \\{\\s*"
-                        + "\\.theme-ledger \\.section-title:has\\(h1\\) \\{ padding-block: 12px; padding-inline: 24px; \\}");
+                        + "\\.theme-ledger \\.section-title:has\\(h1\\) \\{ padding-block: 8px; padding-inline: 24px; \\}");
     }
 
     /**

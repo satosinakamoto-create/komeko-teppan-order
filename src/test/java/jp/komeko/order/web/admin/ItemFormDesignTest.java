@@ -188,7 +188,9 @@ class ItemFormDesignTest {
         // .btn--sm / .btn--lg は自前の padding-inline を持つので巻き込まれない
         assertThat(topRule(".btn {")).contains("padding: 0 var(--sp-5);");
         String css = Files.readString(CSS);
-        assertThat(css).contains(".btn--sm { min-height: 36px; font-size: .8125rem; padding-inline: var(--sp-3); }");
+        // ★ 2026-09-26：高さは --btn-h（44px）の 1 か所で決めるようにしました。
+        //   ここで自前の高さを持つと、また画面ごとにズレます。
+        assertThat(css).contains(".btn--sm { font-size: .8125rem; padding-inline: var(--sp-3); }");
     }
 
     @Test

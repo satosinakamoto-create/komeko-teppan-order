@@ -150,11 +150,14 @@ class SharedInkAndBorderTest {
      * （品切れ・残数の行高で同じ判断をしてあり、そこにも同じ理由が書いてあります）。
      */
     @Test
-    @DisplayName("★★ btn--sm も 48px 以上（設計が 40px でも決定が上）")
+    @DisplayName("★★ 小さいボタンは自前の高さを持たない（--btn-h に任せる）")
     void theSmallButtonStillMeetsTheTapTarget() throws Exception {
+        // ★ 2026-09-26：店主の決定で全ボタン 44px（--btn-h）に統一しました。
+        //   大小で変えるのは文字と左右の余白だけ。高さは variant で変えません。
+        //   ここに min-height を戻すと、また 36/44/48/56 に割れます。
         assertThat(ruleOf(rules(), ".theme-desk .btn--sm"))
-                .as("★ btn--sm が 48px を割っている。CLAUDE.md のタップ領域の約束違反")
-                .contains("min-height: 48px;");
+                .as("★ btn--sm が自前の高さを持っている。高さは --btn-h の 1 か所で決める")
+                .doesNotContain("min-height");
     }
 
     /**

@@ -87,7 +87,9 @@ class DeviceStepDownTest {
         assertThat(b).doesNotContain("gap: 32px");
         assertThat(b).contains("padding: 15px 16px;");   // カード（枠 1px を返して 16）
         assertThat(b).contains(".panel { padding: 16px; }");
-        assertThat(b).contains(".page-head { padding: 12px 24px; }");
+        // ★ 2026-09-26：店主の決定で 12px → 8px。帯は全画面 64px
+        //   （上 8 ＋ 中身 48 ＋ 下 8）。中身 48 は題の床＝--tap と同じ値。
+        assertThat(b).contains(".page-head { padding: 8px 24px; }");
         // ★ 2026-09-18：売上だけの高さ調整は要らなくなりました。
         //
         //   もとは月ナビ（.monthnav）がバーとして高さ 68px を持っていたため、

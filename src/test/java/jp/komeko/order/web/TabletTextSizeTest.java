@@ -92,7 +92,11 @@ class TabletTextSizeTest {
         String band = css.substring(at, css.indexOf("\n}", at));
 
         assertThat(band).contains(".kitchenboard .ticket__actions { flex-direction: column; }");
-        assertThat(band).contains("min-height: 48px;");
+        // ★ 2026-09-26：ここにあった min-height: 48px は外しました。
+        //   ボタンの高さは --btn-h（44px）が全画面で決めます。幅で落とす必要が
+        //   そもそも無くなったためで、積む・積まないの判断だけがこの帯に残ります。
+        assertThat(band).as("ボタンの高さがこの帯に戻っている。--btn-h に任せること")
+                .doesNotContain("min-height");
     }
 
     @Test

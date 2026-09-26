@@ -224,7 +224,13 @@
                        th:value="${item.stockRemaining}"
                        th:placeholder="${item.stockTracked} ? '' : '—'"
                        th:aria-label="${item.name} + ' の残数（空にして設定を押すと数を数えなくなります）'">
-                <button type="submit" class="btn btn--sm" style="min-height: 48px">設定</button>
+                <!--/* ★ style="min-height: 48px" を 2026-09-26 に外しました。
+                       インラインの指定は CSS のどの規則よりも強いので、
+                       app.css 側で .soldoutpage .table .btn--sm を 44px にしても
+                       この 1 つだけ 48px のまま残り、品切れ・残数の表のボタンだけ
+                       ほかの一覧より 4px 高くなっていました（実測で判明）。
+                       高さは app.css に任せること。ここには書かない。 */-->
+                <button type="submit" class="btn btn--sm">設定</button>
               </form>
             </td>
 

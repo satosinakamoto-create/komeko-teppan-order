@@ -257,7 +257,10 @@ class HallBoardDesignTest {
         int at = css.indexOf(".hallboard .billcard .btn {");
         assertThat(at).as(".hallboard .billcard .btn の指定が無い").isGreaterThan(0);
         String block = css.substring(at, css.indexOf("}", at));
-        assertThat(block).contains("min-height: 44px;");
+        // ★ 2026-09-26：この上書きを消しました。コメントに「値を 2 か所に持たないなら、
+        //   この上書き自体を消して .btn に任せてもよい」と書いてあったとおりです。
+        //   高さは --btn-h（44px）が全画面で決めます。
+        assertThat(block).as("伝票カードのボタンが自前の高さを持っている").doesNotContain("min-height");
         // 文字は 15px（＝基底の .btn と同じ .9375rem）。2026-09-12 に 14px から戻した。
         // 値を 2 か所に持たないなら、この上書き自体を消して .btn に任せてもよい
         assertThat(block).contains("font-size: 15px;");

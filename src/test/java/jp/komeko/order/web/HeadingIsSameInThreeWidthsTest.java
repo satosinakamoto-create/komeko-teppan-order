@@ -127,28 +127,30 @@ class HeadingIsSameInThreeWidthsTest {
     }
 
     /**
-     * ★ 狭い画面（iPad・1024px）でも 5 つ全部が 12px 24px に畳む。
+     * ★ 狭い画面（iPad・1024px）でも 5 つ全部が 8px 24px に畳む。
      *
      * <p>{@code .page-head} だけ畳んでも、{@code .section-title} 系の 3 画面が残ります。
      */
     @Test
-    @DisplayName("★ 1024px では 5 つの作りが全部 12px 24px に畳む")
+    @DisplayName("★ 1024px では 5 つの作りが全部 8px 24px に畳む")
     void everyHeadingFoldsTogetherOnIpad() throws Exception {
         String css = css().replaceAll("\\s+", "");
 
         List<String> rules = List.of(
-                ".page-head{padding:12px24px;}",
-                ".kitchenboard.griddle.card__body{padding:12px24px;}",
-                ".hallboard.section-title:has(h1){padding:12px24px;}",
-                ".soldoutpage.soldout-head{padding:12px24px;}",
-                ".stockpage.inv-ingredients{padding:12px24px;}");
+                ".page-head{padding:8px24px;}",
+                ".kitchenboard.griddle.card__body{padding:8px24px;}",
+                ".hallboard.section-title:has(h1){padding:8px24px;}",
+                ".soldoutpage.soldout-head{padding:8px24px;}",
+                ".stockpage.inv-ingredients{padding:8px24px;}");
 
         for (String r : rules) {
             assertThat(css).as(r + " が無い。iPad でこの画面だけ題が 16px 右に残る").contains(r);
         }
 
+        // ★ 2026-09-26：ここも 12px → 8px。税理士 5 画面も同じ帯を使っているので、
+        //   置いていくと店舗側 20 画面が 64px・税理士が 74px に割れます（実測で気づきました）。
         assertThat(css).as("税理士が iPad で畳まれていない")
-                .contains(".theme-ledger.section-title:has(h1){padding-block:12px;padding-inline:24px;}");
+                .contains(".theme-ledger.section-title:has(h1){padding-block:8px;padding-inline:24px;}");
     }
 
     /**

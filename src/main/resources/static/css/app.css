@@ -120,7 +120,14 @@
   /* レイアウト */
   --page-max: 720px;
   --wide-max: 1200px;
-  --tap: 48px;          /* 指で押す最小サイズ */
+  --tap: 48px;
+  /* ★ 押せるものの高さ。2026-09-26 に 1 か所へ集約（店主「44px で全部統一して、
+       前みたいに統一出来なかったりするからコンポーネント化して」）。
+       それまで 36/44/48/56px が 43 か所に散らばっていました。
+       44px は Apple HIG の下限ちょうど。これより低くしないこと。
+       大小は文字と左右の余白で表す。高さは変えない。
+       Figma のコンポーネント「ボタン」（03 部品）と対になっています。 */
+  --btn-h: 44px;          /* 指で押す最小サイズ */
   --header-h: 56px;
 }
 
@@ -458,7 +465,7 @@ hr {
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  min-height: var(--tap);
+  min-height: var(--btn-h);
   /* 左右 24px は設計のボタン部品（3:12 の px-24）。もとは 16px で、
      Fable の検証（2026-09-07）で全ボタン 8px ずつ痩せていると分かった。
      .btn--sm / .btn--lg は自前の padding-inline を持つので巻き込まれない。 */
@@ -520,8 +527,16 @@ hr {
 .btn--outline:hover { --btn-bg: var(--surface-2); --btn-fg: var(--text); }
 
 .btn--block { width: 100%; }
-.btn--lg { min-height: 56px; font-size: 1.0625rem; padding-inline: var(--sp-5); }
-.btn--sm { min-height: 36px; font-size: .8125rem; padding-inline: var(--sp-3); }
+.btn--lg { font-size: 1.0625rem; padding-inline: var(--sp-5); }
+/* ★ お客さま側（スマホの注文画面）は今回の統一の対象外です。
+     端末もデザインも別で、店主と詰めたのはスタッフの iPad 画面でした。
+     従来の値をここで残します。まとめるなら別途フィグマを出してから。 */
+.theme-night { --btn-h: 48px; }
+.theme-night .btn--lg { min-height: 56px; }
+
+/* ★ 大きさの variant は<b>高さを変えません</b>（2026-09-26）。
+   変えるのは文字と左右の余白だけ。高さは --btn-h が 1 か所で決めます。 */
+.btn--sm { font-size: .8125rem; padding-inline: var(--sp-3); }
 
 /* --------------------------------------------------------------------------
    8. バッジ・チップ
@@ -2785,7 +2800,8 @@ body.theme-night { background-image: none; }
 .sb__logout-form { flex: none; }
 .sb__logout {
   display: grid; place-items: center;
-  width: 36px; height: 36px;
+  /* ★ 36px → 44px（2026-09-26）。36px は Apple の下限 44pt を割っていました。 */
+  width: var(--btn-h); height: var(--btn-h);
   border: 0; border-radius: 10px;
   background: transparent;
   color: var(--text-muted);
@@ -3869,7 +3885,7 @@ body.is-sending .staff-main {
      税理士の「直す」60 個・「開く」11 個、カテゴリの「編集する」15 個が
      すべて 40px。設計側も h40 で描かれていますが、
      <b>店主の決めた 48px が設計より上</b>です（品切れの行高で同じ判断済み）。 */
-.theme-desk .btn--sm { font-size: 15px; min-height: 48px; }
+.theme-desk .btn--sm { font-size: 15px; }
 
 /* --------------------------------------------------------------------------
    塗りボタンは草緑に統一（2026-09-12）
@@ -4460,7 +4476,7 @@ body.is-sending .staff-main {
      ★ 部品「店/札」の 26px は崩しません。ほかの一覧の札は 26px のままです。
      ★ 色は変えません（白地＋緑の枠＋緑の字）。押すと掲載が止まる「切り替え」なので、
        塗りにすると 100 行ぶんの緑の面が並んで一覧が読めなくなります。 */
-  min-height: 48px;
+  min-height: var(--btn-h);
   padding-inline: 16px;
   font-size: 15px;
   border-radius: 8px;
@@ -4485,8 +4501,12 @@ body.is-sending .staff-main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* ★ 高さ 36px → var(--btn-h)（2026-09-26）。指でつまむ取っ手なので、
+       ほかの押せるものと同じ 44px にそろえます。36px は Apple の下限割れ。
+       幅は 32px のまま。並べ替えの列を太らせたくないためで、
+       Apple も「縦横どちらかが足りていれば実用上は届く」寄りの書き方です。 */
   width: 32px;
-  height: 36px;
+  height: var(--btn-h);
   padding: 0;
   border: 0;
   border-radius: 4px;
@@ -4720,6 +4740,13 @@ body.is-sending .staff-main {
   /* 設計の文字と ▸ の間は 1px。.badge の gap 4px と
      .badge--act::after の margin-left 1px が足されて 5px になっていました */
   gap: 0;
+  /* ★ 2026-09-26：高さを商品の表とそろえました。
+       2026-09-20 の決定「編集、掲載中、未登録は同じボタンの大きさにしないと
+       押せる感じしなくない？」は<b>幅によらない</b>話です。
+       それまでは iPad（1380px 以下）でだけ 44px になり、PC では 26px に
+       戻っていました。同じ画面を PC と iPad で見ると札の大きさが変わる、
+       という状態です（実測で見つけました）。 */
+  min-height: var(--btn-h);
 }
 
 /* ★ 操作列の［編集する］（設計 ト11）。
@@ -4948,10 +4975,11 @@ body.is-sending .staff-main {
   align-items: center;
   justify-content: center;
   min-width: 88px;
-  height: 48px;
+  height: var(--btn-h);
   padding-inline: 16px;
   border: 1px solid var(--action);
-  border-radius: 6px;
+  /* ★ 角丸 6px → 8px（2026-09-26）。ほかのボタンは全部 8px でした。 */
+  border-radius: 8px;
   background: var(--bg-elevated);
   color: var(--action);
   font-size: 13px;
@@ -4969,14 +4997,25 @@ body.is-sending .staff-main {
      操作列は設計 100px ＝ 1120 の 8.9% なので、897px では 80px しかなく、
      min-width 88px のボタンはどうやっても入りません。
 
-     直すのは「幅」だけ。高さ 48px は触らないこと——
-     CLAUDE.md の「タップ領域は 48px 以上」は画面が狭いほど効く約束です。
+     直すのは「幅」だけ。<b>ここでは</b>高さ 48px を触りません。
+
+   ★ 2026-09-26 に方針が変わりました。iPad（〜1140px）の<b>一覧の表の中だけ</b>、
+     タップを 44px に下げています（店主の判断）。44px は Apple（44pt）と
+     WCAG 2.1 AAA が揃って認める床で、Material の 48 は下回ります。
+     下げるのは「落ち着いて探す」画面だけで、入力欄・画面下の送信ボタン・
+     厨房ボードは 48px のままです。CLAUDE.md の 48px は<b>既定</b>として残ります。
 
    ★ 区切りは 1100px。この数字はこのファイルで既に使っている
      タブレットの境目（.detail2・日付の帯・売上の段組み）に合わせてあります。
      新しい境目を増やすと、どの幅で何が変わるのかを追えなくなります。 */
 @media (max-width: 1100px) {
-  .recbtn { min-width: 0; padding-inline: 8px; }
+  /* ★ 2026-09-26：min-width: 0 をやめ、文字が 1 行に収まる幅を残します。
+       0 まで潰していたので、操作列を広げてもボタンは 44px のままで、
+       「編集」の 2 文字すら折り返して<b>高さが 48px</b>になっていました
+       （nowrap があるのに 2 行に見えたのはこれが理由）。
+       レシピの行だけ 57px で、ほかの一覧（53px）とそろわない原因でした。
+     ★ 72px は「登録する」（13px × 5 文字 ＝ 65）＋左右 8px の実測から。 */
+  .recbtn { min-width: 72px; padding-inline: 8px; }
 }
 
 /* まだ手を付けていない行（2026-09-19・店主の指摘
@@ -5843,7 +5882,6 @@ body.is-sending .staff-main {
 .hallboard .billcard .btn {
   font-size: 15px;
   /* 角丸は .btn の 8px を継ぐ（2026-09-20 に直値 4px をやめた） */
-  min-height: 44px;
 }
 
 /* --------------------------------------------------------------------------
@@ -6799,8 +6837,8 @@ body.is-sending .staff-main {
      box-sizing: border-box なので、padding は 48 の内側に入ります
      （高さに足されません。CLAUDE.md の「床は中身に敷く」と同じ話）。 */
 .kboard .kbtn {
-  height: 48px;
-  min-height: 48px;
+  height: var(--btn-h);
+  min-height: var(--btn-h);
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 14px;
@@ -6835,10 +6873,10 @@ body.is-sending .staff-main {
 .kboard .kline__x {
   flex: 0 0 auto;
   white-space: nowrap;
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  min-height: 48px;
+  width: var(--btn-h);
+  height: var(--btn-h);
+  min-width: var(--btn-h);
+  min-height: var(--btn-h);
   padding: 8px 10px;
 }
 
@@ -6853,8 +6891,8 @@ body.is-sending .staff-main {
   min-width: 58px;
   white-space: nowrap;
   flex: 0 0 auto;
-  height: 48px;
-  min-height: 48px;
+  height: var(--btn-h);
+  min-height: var(--btn-h);
   padding: 6px 8px;
   /* ★ 枠を付けます（2026-09-23・店主の判断
        「←戻すは枠付けてボタンとして認識できないから」）。
@@ -6906,12 +6944,24 @@ body.is-sending .staff-main {
      ★ --tap（48px）をこの帯でだけ割ります。
        厨房は手が濡れていて急ぐ場所なので、本来は割りたくない決まりです。
        枚数を取るという判断なので、<b>押し間違いが増えたらここから戻すこと。</b>
-       基準幅（1432）は 48px のままです。 */
-  .kboard .kbtn,
-  .kboard .kback,
-  .kboard .kline__x { height: 40px; min-height: 40px; }
+       基準幅（1432）は 48px のままです。
+
+     ★★ 2026-09-26 に 40px → 44px。店主の指示「ボタンの高さ統一させて」
+        （「厨房のもどすボタン…高さが違うでしょって」）。
+
+        厨房だけ 40px で、ほかは表の行 44px・見出しと本文 48px でした。
+        40px は Apple の 44pt も割っています。
+
+        ★ 枚数は減りませんでした。iPad（1024×768）で測り直した結果:
+            40px … 伝票 3 枚ぶん／品の行 4 行がまるごと見える
+            44px … 伝票 3 枚ぶん／品の行 4 行（<b>同じ</b>）
+          2026-09-23 に「44px だと 4.1 枚」と書いたのは伝票の平均高さからの
+          見積もりで、実際に画面に収まる枚数は変わりませんでした。 */
+  /* ★ ボタンの高さはここで指定しません（2026-09-26）。--btn-h が 1 か所で
+       決めています。ここに書くと、また画面ごとにズレる元になります。
+       行の最低高さだけ、ボタンに合わせて残します。 */
   .kboard .kline,
-  .kboard .kserve__line { min-height: 40px; }
+  .kboard .kserve__line { min-height: var(--btn-h); }
   .kboard .kline__name   { font-size: 16px; }
   .kboard .kticket__table{ font-size: 13px; }
   .kboard .kticket__band { padding: 6px 12px; }
@@ -7149,9 +7199,12 @@ body.is-sending .staff-main {
    出している画面（食材・在庫・品切れ・ホール・税理士）が対象です。 */
 .theme-desk h1.section-title__text { min-height: 50px; display: flex; align-items: center; }
 
-/* iPad では帯も一段詰める（.page-head の 12px 24px と同じ）。 */
+/* iPad では帯も一段詰める（.page-head の 8px 24px と同じ）。
+   ★ 2026-09-26 に 12px → 8px。税理士 5 画面もこの帯を使っているので、
+     ここを置いていくと店舗側 24 画面が 64px・税理士 5 画面が 74px に割れます
+     （実測で気づきました。「3 画面だけ」と思っていたのは間違いでした）。 */
 @media (max-width: 1380px) {
-  .theme-ledger .section-title:has(h1) { padding-block: 12px; padding-inline: 24px; }
+  .theme-ledger .section-title:has(h1) { padding-block: 8px; padding-inline: 24px; }
 }
 
 .theme-desk.theme-ledger .help,
@@ -7170,7 +7223,7 @@ body.is-sending .staff-main {
      中身だけで 71〜89px になります。height は表では最低値としてしか効かないので、
      68 と書いても何も起きません。縮めるには行間 1.9 をやめることになり、
      それは「税理士が読む画面は一段大きく」という前の判断を戻すことになります。 */
-.theme-desk.theme-ledger .btn--lg { font-size: 20px; min-height: 56px; }
+.theme-desk.theme-ledger .btn--lg { font-size: 20px; }
 
 /* 帳簿の合計行 */
 .theme-desk.theme-ledger .total-table th,
@@ -9082,7 +9135,6 @@ body.is-sending .staff-main {
      カードの高さを決めているのはボタンではなく行数です。 */
 .kitchenboard .ticket__actions { gap: 16px; }
 .kitchenboard .ticket__actions .btn {
-  min-height: var(--tap);
   padding: 10px 16px;
   /* 角丸は .btn の 8px を継ぐ（2026-09-20 に直値 4px をやめた） */
   font-size: 14px;
@@ -9270,8 +9322,20 @@ body.is-sending .staff-main {
      iOS は 16px 未満の入力欄にフォーカスすると画面を勝手に拡大し、
      営業中に卓の画面が飛びます。狭いなら幅で詰めること。 */
 .soldoutpage .table .input { font-size: 16px; }
+/* ★ 2026-09-26：min-height を 48 → 44 に。ほかの一覧（商品・カテゴリ・卓・
+     レシピ）の表のボタンは 44px です（40 節の
+     .theme-desk .table .btn:not(.badge)）。ここだけ 48px を持っていたため、
+     品切れ・残数の表のボタンだけ 4px 高く残っていました（実測）。
+
+   ★ しばらく「詳細度どおりに効かない」と見えて追いかけましたが、原因は
+     CSS ではありませんでした。<b>テンプレートに直書きされていた</b>のです。
+
+       kitchen/stock.html: <button class="btn btn--sm" style="min-height: 48px">
+
+     インラインの指定は、どんなセレクタよりも強い。app.css をいくら直しても
+     動かないときは、まず要素の style 属性を見ること。
+     この 1 行のために、詳細度・メディアクエリ・@layer を順に疑いました。 */
 .soldoutpage .table .btn--sm {
-  min-height: 48px;
   padding-inline: 14px;
   font-size: 13px;
   --btn-bg: #ffffff;
@@ -9491,9 +9555,9 @@ body.is-sending .staff-main {
     margin: 0;
   }
   .kitchenboard .ticket__cancel .btn {
-    width: var(--tap);
-    height: var(--tap);
-    min-height: var(--tap);
+    width: var(--btn-h);
+    height: var(--btn-h);
+    min-height: var(--btn-h);
     padding: 0;
     background: transparent;
     border-color: transparent;
@@ -9528,7 +9592,11 @@ body.is-sending .staff-main {
 
   /* 左右は .page-head と同じ 24px にそろえる（2026-09-19）。
      ここだけ 16px だと、狭い画面でも厨房の題だけ 8px 左にずれる */
-  .kitchenboard .griddle .card__body { padding: 12px 24px; }
+  /* ★ このセレクタはいま何にも当たりません（2026-09-26 に確認）。
+       .griddle というクラスはテンプレートに 1 つも無く、
+       厨房ボードの見出しは共通の .page-head を使っています。
+       値だけ .page-head とそろえてあります。消すかどうかは別途。 */
+  .kitchenboard .griddle .card__body { padding: 8px 24px; }
   .kitchenboard .board { margin-top: 16px; }
 
   .hallboard .lane__body { padding: 12px; gap: 12px; }
@@ -9629,8 +9697,9 @@ body.is-sending .staff-main {
      それでも、卓名やボタンの文字を削るより安いと判断しています。 */
 @media (max-width: 1000px) {
   .kitchenboard .ticket__actions { flex-direction: column; }
-  /* 縦に 2 つ積むので、1 つあたりは 56 → 48（--tap の下限）まで落とす */
-  .kitchenboard .ticket__actions .btn { min-height: 48px; }
+  /* ★ 高さの指定はここに書きません（2026-09-26）。--btn-h が 44px で決めます。
+       もとは「縦に 2 つ積むので 56 → 48 まで落とす」と書いてありましたが、
+       いまは全画面 44px なので、幅で落とす必要そのものがありません。 */
 }
 
 @media (max-width: 920px) {
@@ -9809,7 +9878,6 @@ body.is-sending .staff-main {
    （2026-09-20 に .btn を直値 8px へ固定したので、ここで戻す必要がなくなった）。
    主ボタンは盤面と同じ「押せる緑」。.theme-snow の --accent は黒なので指定する */
 .loginpage .btn {
-  min-height: 48px;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: normal;
@@ -10173,9 +10241,12 @@ body.is-sending .staff-main {
      書くとテストの indexOf がこの<b>コメント</b>を先に見つけて、
      外へ出したのに同じ 5 件が落ち続けます（これも実際に踏みました）。 */
 @media (max-width: 1380px) and (min-width: 700px) {
-  .hallboard .section-title:has(h1) { padding: 12px 24px; }
-  .soldoutpage .soldout-head        { padding: 12px 24px; }
-  .stockpage .inv-ingredients       { padding: 12px 24px; }
+  /* ★ 2026-09-26 に 12px → 8px。下の .page-head と同じ値にそろえます。
+       ここだけ 12px で残すと、ホール・品切れ・食材の 3 画面だけ
+       題が 4px 下にいる状態に戻ります（実際にその状態を 1 度作りました）。 */
+  .hallboard .section-title:has(h1) { padding: 8px 24px; }
+  .soldoutpage .soldout-head        { padding: 8px 24px; }
+  .stockpage .inv-ingredients       { padding: 8px 24px; }
 }
 
 /* ==========================================================================
@@ -10248,11 +10319,156 @@ body.is-sending .staff-main {
        41 節がこの帯より後ろにあり、あちらの .theme-desk .staff-main > main は
        詳細度 0,2,1。ここに .dashpage { gap: 32px }（0,1,0）を残すと、
        読めるのに効かない 1 行になります。 */
-  .page-head { padding: 12px 24px; }
+  /* ★ 見出しの帯を iPad で 64px にそろえる（2026-09-26・店主の決定
+       「8 の倍数だし帯 64px 題の床 48 にするか、なんか締まってみえるし」）。
+
+       帯の高さを決めているのは<b>余白ではなく中身</b>です。実測（1024px）:
+
+         上 8 ＋ 中身 50 ＋ 下 8 ＝ 66      ← 中身 50 は題の床（min-height）
+         上 8 ＋ 中身 48 ＋ 下 8 ＝ 64      ← 床を 48 に下げるとこうなる
+
+       ★ 床を 48 より下げないこと。帯の中のボタンが 48px（--tap）なので、
+         40 にするとボタンのある画面は 64、無い画面（厨房・品切れ・
+         ダッシュボード）は 56 になり、画面ごとに題がずれます。
+         48 はボタンと同じ値なので、ボタンの有無にかかわらず 64 に揃います。
+
+       ★ 余白だけ詰めても 8px しか減りません（表の行 0.12 行ぶん）。
+         数字を 8 の倍数にそろえるための変更で、詰めるための変更ではありません。
+
+       ★ PC（1432px）は 16 ＋ 50 ＋ 16 ＝ 82 のままです。
+         ここは iPad の段差ブロックなので PC には効きません。 */
+  .page-head { padding: 8px 24px; }
+
+  /* 題の床。base（17 節 .page-head__title／30 節 .theme-desk h1.section-title__text）の
+     50px を、iPad だけ 48px に下げます。base は動かしません。 */
+  .page-head__title                  { min-height: 48px; }
+  .theme-desk h1.section-title__text { min-height: 48px; }
+
+  /* ★ 日付の帯（売上・注文履歴・税理士 5 画面）の入力欄も 48px に。
+       この 7 画面は見出しの中に .datenav を抱えていて、その中の入力欄が
+       <b>指定ではなく中身の計算で 50px</b> になります（実測）。
+       題の床だけ 48 に下げても、こんどは入力欄が天井になって帯が 66 のまま残り、
+       ほかの 18 画面（64）と 2px 割れます。並んでいる ＜ ＞ ボタンは元から 48px。 */
+  .datenav .input { height: 48px; }
+
+  /* ──────────────────────────────────────────────────
+     一覧の表を iPad で詰める（2026-09-26・試し）
+     ──────────────────────────────────────────────────
+     ★ 行の高さは <b>中身のいちばん高いもの</b>で決まります。余白ではありません。
+       実測（1024 幅）:
+         商品     編集ボタン 48 ／ 掲載切替の FORM 48   → 行 69
+         レシピ   recbtn 48                              → 行 69
+         カテゴリ ボタン 40 ／ 並べ替え 36               → 行 68（※ 32px は余白）
+         卓       並べ替え 36 のみ                       → 行 68（※ 32px は余白）
+         注文履歴 22.8                                   → 行 47（もう詰まっている）
+       札（掲載中・未登録）は 22〜29px で、どこでも天井になっていません。
+       縮めても 1px も動きません。
+
+     ★ 5 つの表が height: 68px を直書きしています。これを外さないと、
+       中身を小さくしても行は 68 に戻ります。
+
+     ★ タップは 44px。Apple（44pt）と WCAG 2.1 AAA が揃って認める床です。
+       Material の 48 は下回りますが、WCAG 2.2 AA（24px）は大きく上回ります。
+       下げるのは<b>一覧の表の中だけ</b>。入力欄と画面下の送信ボタンは 48 のまま。
+       打ち間違いの代償が大きい画面と、落ち着いて探す画面を分けています。
+       厨房ボードも別扱い（手が濡れていて急いでいるため）。 */
+  .theme-desk .table--items td,
+  .theme-desk .table--purchases td,
+  .theme-desk .table--recipes td,
+  .theme-desk .table--cats td,
+  .theme-desk .table--tables td { height: auto; padding: 4px 12px; }
+  .theme-desk .table--items th,
+  .theme-desk .table--purchases th,
+  .theme-desk .table--recipes th,
+  .theme-desk .table--cats th,
+  .theme-desk .table--tables th { height: auto; padding: 8px 12px; }
+  .theme-desk .table td { font-size: 15px; }
+  /* 表の中で押せるものだけ 44px。.field .input と .btn--block は触らない。
+
+   ★ .row は外すこと。あれは「横に並べる」ためのユーティリティで、
+     <b>押せるものとは限りません</b>。当てたら注文履歴が 47 → 67px に、
+     品切れが 69 → 73px に<b>広がりました</b>（2026-09-26 に実測）。
+     詰めるつもりで逆のことをしていました。
+
+   ★ button も無条件には当てないこと。「掲載中」は button.badge で、
+     札の形をした押せるものです。44px に押し広げると札に見えなくなります。
+     札は押せても札の高さのまま——これが列の中で
+     「状態を表すもの」と「操作するもの」を見分ける手がかりです。 */
+  /* ★ 表の中のボタンの高さもここでは指定しません（2026-09-26）。--btn-h が
+       全画面で 44px を決めています。 */
+  /* ★ .recbtn は height: 48px を<b>直接</b>持っています。min-height では勝てないので、
+       表の中だけ height も 44 に落とします。
+     ★ この 2 行を上の列挙の<b>途中</b>に差し込まないこと。
+       コメントを間に入れて規則を割ってしまい、.btn:not(.badge) が
+       min-height を失って 48px に戻りました（2026-09-26 に実測で気づいた）。 */
+
+
+  /* ★ 商品の絞り込みを上に貼り付ける（2026-09-26・店主の指示
+       「すべて〜編集中、並び替えまでをスティッキーで固定して、
+         スクロールするとそれ以下の商品名とかの情報が変わる仕様に」）。
+
+       100 件の中から探す画面なので、下まで送ったときに
+       <b>いま何で絞っているのか</b>が見えなくなるのが困ります。
+       タブ（すべて／掲載中／品切れ／掲載停止／編集中）と並び替えを残し、
+       動くのは商品の行だけにします。
+
+     ★ 列見出しの top には触らないこと（2026-09-26 に実測して分かったこと）。
+       17 節の .table th は position: sticky; top: 0 と書いてありますが、
+       <b>この表では貼り付いていません</b>。Chrome 152 で測ると、
+       スクロール 900 のとき列見出しの上端は -489 まで流れていきます。
+
+       貼り付かないのに top だけは効くので、top: 145px と書くと
+       列見出しが 145px 下へずれ、2 行目と 3 行目の間に割り込みます
+       （実測 411 → 556。ずれ幅は top の値ちょうど）。
+       border-collapse を separate にしても変わりませんでした。
+
+       絞り込みだけを貼り付け、列見出しは素直に流す。
+       店主の指示（「全て〜編集中、並び替えまでを固定」）もこの形です。 */
+  .itempage .tabsort,
+  .tabtable .tabsort {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    /* 下の行が透けないように面を敷く。透明だと商品名が裏を通る */
+    background: #ffffff;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    /* 貼り付いていることが分かる細い線。スクロールして初めて意味が出る */
+    box-shadow: 0 1px 0 #e3e3e3;
+  }
+  /* ★ 掲載の札は「札のまま」にしない。
+       商品とカテゴリの表では、店主の指示で<b>編集ボタンと同じ大きさ</b>に
+       してあります（2026-09-20「編集、掲載中、未登録は同じボタンの大きさに
+       しないと押せる感じしなくない？」）。同じ行に押せるものが 3 つ並ぶので、
+       大きさが揃っていないと「押せるもの」に見えません。
+       だから 0 に戻すのではなく、編集と同じ 44px に揃えます。 */
+  .theme-desk .table--items td.col-state .badge--act,
+  .theme-desk .table--cats td.col-state .badge--act { min-height: var(--btn-h); }
+  /* それ以外の一覧の札（状態を表すだけのもの）は札の高さのまま */
+  .theme-desk .table .badge:not(.badge--act) { min-height: 0; }
+
+  /* ★ レシピ・原価表の操作列を広げる（2026-09-26）。
+       割合は 1120px 基準で、操作列は 8.929%＝100px のつもりでした。
+       ところが iPad の本文は 890px しかなく、<b>79.5px にしかなりません</b>。
+       そこへ「登録する」を入れるとボタンが幅 44px に潰れて<b>文字が 2 行</b>になり、
+       高さ 48px → 行 57px になっていました。
+       ほかの一覧は 53px なので、ここだけ 4px 高い原因がこれです。
+
+     ★ 数字の列から少しずつ分けます。原価率は「31.9%」の 5 文字で、
+       12.5% でも 111px あるので削る余地があります。 */
+  .table--recipes .col-name  { width: 22%; }
+  .table--recipes .col-money { width: 12%; }
+  .table--recipes .col-rate  { width: 12.5%; }
+  .table--recipes .col-act   { width: 17%; }
+
   /* 厨房の見出しの帯も一緒に畳む（2026-09-19）。
      ここに書かないと 1141〜1380px のあいだだけ厨房が 16/40 のまま残り、
      ほかの画面（12/24）と題の位置が 16px ずれます */
-  .kitchenboard .griddle .card__body { padding: 12px 24px; }
+  /* ★ このセレクタはいま何にも当たりません（2026-09-26 に確認）。
+       .griddle というクラスはテンプレートに 1 つも無く、
+       厨房ボードの見出しは共通の .page-head を使っています。
+       値だけ .page-head とそろえてあります。消すかどうかは別途。 */
+  .kitchenboard .griddle .card__body { padding: 8px 24px; }
   .statcard:not(.statcard--tall),
   .dashpage .statcard:not(.statcard--tall) { padding: 15px 16px; }
   .panel { padding: 16px; }
@@ -10668,7 +10884,7 @@ dialog[open] { margin: auto; }
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: var(--tap);
+  min-height: var(--btn-h);
   padding: 0;
   border: 0;
   background: none;

@@ -55,7 +55,8 @@ class KitchenButtonHeightTest {
         assertThat(at).as("33-4 の操作ボタンの指定が無い").isGreaterThan(0);
         String rule = css.substring(at, css.indexOf("}", at));
 
-        assertThat(rule).contains("min-height: var(--tap);");
+        // ★ 2026-09-26：ここは自前の高さを持ちません。--btn-h が決めます。
+        assertThat(rule).as("厨房の操作ボタンが自前の高さを持っている").doesNotContain("min-height");
         assertThat(rule).as("56px は設計の値だが、幅で変わる 3 通りの原因だった")
                 .doesNotContain("56px");
     }

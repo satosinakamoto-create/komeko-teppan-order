@@ -75,8 +75,10 @@ class TabletCompactTicketTest {
         assertThat(band).contains(".kitchenboard .ticket__cancel {");
         assertThat(band).contains("position: absolute;");
         // CLAUDE.md「タップ領域は 48px 以上（--tap）」。見た目を小さくしても、ここは割らない
-        assertThat(band).contains("width: var(--tap);");
-        assertThat(band).contains("height: var(--tap);");
+        // ★ 2026-09-26：高さは --btn-h（44px）の 1 か所で決めるようにしました。
+        //   ここで自前の高さを持つと、また画面ごとにズレます。
+        assertThat(band).contains("width: var(--btn-h);");
+        assertThat(band).contains("height: var(--btn-h);");
         // 頭の右端に ✕ が乗るので、そのぶんの場所を空ける。
         // ★ 40px。経過時間は margin-left:auto で行の右端に寄るため、
         //   30px だと ✕ の下に潜り込みます（768px で実測 10px 重なり）
@@ -143,6 +145,8 @@ class TabletCompactTicketTest {
         //     18px では札 1 枚ぶんに届かないので、いまのところ減っていません。
         //     <b>札の高さを変えるときは、ここをもう一度測ること。</b>
         //     余裕は 18px しかないので、次に何か足すと 1 件落ちます。
-        assertThat(band).contains(".kitchenboard .griddle .card__body { padding: 12px 24px; }");
+        // ★ 2026-09-26：店主の決定で 12px → 8px。帯は全画面 64px
+        //   （上 8 ＋ 中身 48 ＋ 下 8）。中身 48 は題の床＝--tap と同じ値。
+        assertThat(band).contains(".kitchenboard .griddle .card__body { padding: 8px 24px; }");
     }
 }
