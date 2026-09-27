@@ -115,7 +115,7 @@ class WideScreenGutterTest {
 
         // 1920px の窓では効きません（サイドバー 300 を引いた 1620px が上限に届かない）。
         // 効きはじめるのは本文が 1920px を超える 2900px 級からです
-        assertThat(css).contains("--main-pad-x: clamp(40px, calc(34px + (100vw - 1440px) * 0.1125), 160px);");
+        assertThat(css).contains("--main-pad-x: clamp(24px, calc(24px + (100vw - 1440px) * 0.13333), 160px);");
     }
 
     @Test
@@ -149,10 +149,14 @@ class WideScreenGutterTest {
     void gutterGrowsWithTheViewport() throws Exception {
         String css = css();
 
-        // (1920, 88) と (2560, 160) を通る直線。傾き 72 / 640 = 0.1125
-        //   1440px → 40px（下限）／1920px → 88px／2400px → 142px／2560px → 160px（上限）
+        // ★ 2026-09-26 に下限を 40px → 24px へ。1440px ちょうどで 24 → 40 と跳ね、
+        //   同じ瞬間にサイドバーも 264 → 300 に太るため、画面を広げたのに本文が
+        //   67px 縮んでいました（実測 1439px で 1127px、1440px で 1060px）。
+        //   1920px で 88px という到達点は変えていません（Figma の実測値）。
+        //   傾きは (88 − 24) / (1920 − 1440) = 0.13333。
+        //   1440px → 24px／1600px → 45px／1920px → 88px／2560px → 160px（上限）
         assertThat(css).contains(
-                "--main-pad-x: clamp(40px, calc(34px + (100vw - 1440px) * 0.1125), 160px);");
+                "--main-pad-x: clamp(24px, calc(24px + (100vw - 1440px) * 0.13333), 160px);");
 
         // 2000px 以上の段は縦だけ持つ。左右を再指定すると上の clamp を殺してしまう。
         // ★ ここで block() は使えない。@media は最初の } で終わらないので、
