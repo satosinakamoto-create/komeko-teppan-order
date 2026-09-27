@@ -105,8 +105,23 @@ public class DemoDataSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeeder.class);
 
-    /** 撮影に使う卓。ここだけは空けておく。 */
-    private static final String STAGE_TABLE = "カウンター1";
+    /**
+     * 撮影に使う卓。ここだけは空けておく。
+     *
+     * <p><b>★ 2026-09-27：「カウンター1」から「カウンター札1」へ直しました。</b>
+     * DataSeeder が卓名を「カウンター札1」に変えたときに、ここが取り残されて
+     * いました。名前が一致しないので <b>1 卓も予約できておらず</b>、
+     * 撮影用のはずの卓まで種データで埋まっていました。
+     *
+     * <p>公開デモではこれが行き止まりになります。10 卓すべてが埋まると
+     * DemoEntryController の pickTable() が<b>相席</b>に落ちて、
+     * 見学者が他人の伝票に座ります。実際に公開デモで、
+     * 頼んでいない「殻付きホタテバター醤油」が伝票に入っている状態を再現しました。
+     *
+     * <p>卓名を変えるときは、ここと DataSeeder.seedTables() を必ず一緒に見ること。
+     * 名前で照合しているので、ずれても例外は出ません。黙って予約が外れるだけです。
+     */
+    private static final String STAGE_TABLE = "カウンター札1";
 
     private final DiningTableRepository tableRepository;
     private final MenuItemRepository menuItemRepository;
@@ -159,6 +174,17 @@ public class DemoDataSeeder implements ApplicationRunner {
      * あちらは普通に歳を取るのが正しく、10 分たてば赤くなります。
      */
     private final Map<Long, Integer> seededWaits = new ConcurrentHashMap<>();
+
+    /**
+     * 種データが開いた伝票。見学者が開いたものと区別するために覚えておきます。
+     *
+     * <p>公開デモには片付ける人がいません。見学者は「お会計をお願いする」まで
+     * 進んで帰るので、その卓は<b>お会計待ちのまま永久に残ります</b>。
+     * 放っておくと空席が尽き、次の見学者が相席になります。
+     * {@link #recycleVisitorTables()} がここに載っていない伝票だけを片付けます。
+     */
+    private final java.util.Set<Long> seededSessions =
+            ConcurrentHashMap.newKeySet();
 
     public DemoDataSeeder(DiningTableRepository tableRepository,
                           MenuItemRepository menuItemRepository,
@@ -567,6 +593,15 @@ public class DemoDataSeeder implements ApplicationRunner {
     private static final int TARGET_OCCUPIED = 6;
 
     /**
+     * 見学者の卓を片付けるまでの時間（分）。
+     *
+     * <p>短すぎると見ている最中に伝票が消えます。長すぎると空席が尽きます。
+     * 30 分は「ポートフォリオを一通り見る」より長く、
+     * 「次の見学者が来る」より短い、という見当です。
+     */
+    private static final int RECYCLE_AFTER_MINUTES = 30;
+
+    /**
      * 注文の状態をこの順で回して配る。
      *
      * <p>厨房ボードは「受付 → 調理中 → 提供済」の 3 列で見せるので、
@@ -703,6 +738,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                     ? 1 + (created % 2)
                     : 2 + (created % 3);
             TableSession session = tableService.openSession(table.getId(), guests);
+            seededSessions.add(session.getId());
 
             // 1 卓 1〜3 回の注文。「とりあえずビール→料理→追加」の追い注文を模す
             int orders = 1 + (created % 3);
@@ -823,6 +859,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 continue;
             }
             TableSession session = tableService.openSession(table.getId(), 2 + closed);
+            seededSessions.add(session.getId());
             for (int j = 0; j < 3; j++) {
                 Order order = order(session, candidates, dish, 1 + (j % 2));
                 if (order != null) {
@@ -945,6 +982,88 @@ public class DemoDataSeeder implements ApplicationRunner {
                 log.debug("種データの経過時間を引き直しました: {} 件", moved);
             }
         });
+    }
+
+    /**
+     * ★ 見学者が座った卓を、一定時間で片付けて空席に戻す（公開デモ専用）。
+     *
+     * <p><b>2026-09-27 に、公開デモで実際に起きた行き止まりへの対策です。</b>
+     * 店主の報告「お会計に進もうとすると頼んでない殻付きホタテバターが入ってて
+     * 注文出来ない」を再現したところ、こうなっていました。
+     *
+     * <pre>
+     *   空席 0 卓
+     *     在卓       6 卓（種データ）
+     *     お会計待ち 2 卓（種データ＋見学者）
+     *     バッシング 2 卓（種データ）
+     * </pre>
+     *
+     * <p>公開デモには片付ける人がいません。見学者は「お会計をお願いする」を
+     * 押して帰るので、その卓はお会計待ちのまま残り続けます。空席が尽きると
+     * {@code DemoEntryController.pickTable()} が<b>相席</b>に落ち、
+     * 次の見学者が他人の伝票に座ります。そこに入っていた品が
+     * 「殻付きホタテバター醤油」でした。
+     *
+     * <p><b>種データの卓には触りません。</b> 在卓・お会計待ち・バッシングの
+     * 3 つの状態が並んでいるのは、ホール画面の見どころとして作ってあるものです。
+     * 片付けるのは {@link #seededSessions} に<b>載っていない</b>伝票だけ、
+     * つまり見学者が自分で開いたものだけです。
+     *
+     * <p>{@value #RECYCLE_AFTER_MINUTES} 分を待つのは、見学中の人の卓を
+     * 取り上げないためです。見ている最中に伝票が消えるほうが事故になります。
+     */
+    @Scheduled(
+            initialDelayString = "${app.demo-refresh-ms:120000}",
+            fixedDelayString = "${app.demo-refresh-ms:120000}")
+    public void recycleVisitorTables() {
+        if (!enabled) {
+            return;
+        }
+        transactionTemplate.executeWithoutResult(status -> {
+            java.time.LocalDateTime limit =
+                    java.time.LocalDateTime.now().minusMinutes(RECYCLE_AFTER_MINUTES);
+            int recycled = 0;
+
+            for (TableSession session : tableService.openSessions()) {
+                if (seededSessions.contains(session.getId())) {
+                    continue;
+                }
+                if (session.getOpenedAt() != null && session.getOpenedAt().isAfter(limit)) {
+                    continue;   // まだ見ている最中かもしれない
+                }
+                Long tableId = session.getDiningTable().getId();
+                String name = session.getDiningTable().getName();
+                tableService.closeSession(session.getId(), false, "デモ", "見学の卓を自動で片付けました",
+                        SettlementMethod.CASH);
+                tableService.markCleaned(tableId);
+                recycled++;
+                log.info("見学の卓を片付けました: 卓={}", name);
+            }
+
+            // ★ それでも空席が無いときの最後の逃げ道。
+            //   片付け待ちの旗を 1 つだけ下ろします。ホール画面の
+            //   「バッシング」列を空にしないよう、1 卓ずつしか触りません。
+            if (freeTables() == 0) {
+                tableRepository.findAll().stream()
+                        .filter(DiningTable::isNeedsCleanup)
+                        .findFirst()
+                        .ifPresent(t -> {
+                            tableService.markCleaned(t.getId());
+                            log.info("空席が尽きたので片付け待ちを 1 卓戻しました: 卓={}", t.getName());
+                        });
+            }
+            if (recycled > 0) {
+                log.info("見学の卓を {} 卓ぶん空席に戻しました", recycled);
+            }
+        });
+    }
+
+    /** いま案内できる卓の数（伝票が無く、片付けも済んでいる卓）。 */
+    private long freeTables() {
+        return tableRepository.findAll().stream()
+                .filter(t -> !t.isNeedsCleanup())
+                .filter(t -> tableService.currentSession(t.getId()).isEmpty())
+                .count();
     }
 
     /** 撮影用の卓を探す（見つからなければ空）。 */
